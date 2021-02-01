@@ -1,0 +1,771 @@
+head	1.15;
+access;
+symbols
+	ansi-20040405-merged:1.12.4.2
+	postmerge-20040405-ansi:1.13
+	premerge-20040404-ansi:1.13
+	postmerge-autoconf:1.13
+	autoconf-freeze:1.13
+	premerge-autoconf:1.13
+	ansi-20040316-freeze:1.12.4.1
+	postmerge-20040315-windows:1.13
+	premerge-20040315-windows:1.13
+	windows-20040315-freeze:1.12.6.1
+	autoconf-20031203:1.13
+	autoconf-20031202:1.13
+	autoconf-branch:1.13.0.6
+	phong-branch:1.13.0.4
+	photonmap-branch:1.13.0.2
+	rel-6-1-DP:1.13
+	windows-branch:1.12.0.6
+	rel-6-0-2:1.12
+	ansi-branch:1.12.0.4
+	rel-6-0-1-branch:1.12.0.2
+	hartley-6-0-post:1.12
+	hartley-6-0-pre:1.12
+	rel-6-0-1:1.12
+	rel-6-0:1.12
+	rel-5-4:1.11
+	offsite-5-3-pre:1.12
+	rel-5-3:1.11
+	rel-5-2:1.11
+	rel-5-1-branch:1.11.0.2
+	rel-5-1:1.11
+	rel-5-0:1.9
+	rel-5-0-beta:1.9
+	rel-4-5:1.7
+	ctj-4-5-post:1.6
+	ctj-4-5-pre:1.6
+	rel-4-4:1.5
+	rel-4-0:1.5
+	rel-3-5:1.2;
+locks; strict;
+comment	@ * @;
+
+
+1.15
+date	2004.05.24.04.18.19;	author morrison;	state dead;
+branches;
+next	1.14;
+
+1.14
+date	2004.05.10.15.30.41;	author erikg;	state Exp;
+branches;
+next	1.13;
+
+1.13
+date	2002.10.22.23.04.36;	author morrison;	state Exp;
+branches;
+next	1.12;
+
+1.12
+date	2000.08.24.23.12.44;	author mike;	state Exp;
+branches
+	1.12.4.1
+	1.12.6.1;
+next	1.11;
+
+1.11
+date	2000.01.31.18.11.23;	author jra;	state Exp;
+branches;
+next	1.10;
+
+1.10
+date	2000.01.31.16.32.50;	author jra;	state Exp;
+branches;
+next	1.9;
+
+1.9
+date	98.10.28.17.11.15;	author jra;	state Exp;
+branches;
+next	1.8;
+
+1.8
+date	98.06.23.18.20.41;	author jra;	state Exp;
+branches;
+next	1.7;
+
+1.7
+date	97.12.16.03.45.56;	author mike;	state Exp;
+branches;
+next	1.6;
+
+1.6
+date	95.02.28.09.15.06;	author jra;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	91.08.26.11.05.18;	author moss;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	91.01.15.13.53.26;	author moss;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	89.07.07.16.33.26;	author moss;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	89.01.20.15.21.24;	author moss;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	88.11.07.17.01.46;	author moss;	state Exp;
+branches;
+next	;
+
+1.12.4.1
+date	2003.02.15.19.47.56;	author morrison;	state Exp;
+branches;
+next	1.12.4.2;
+
+1.12.4.2
+date	2004.03.17.21.15.51;	author morrison;	state Exp;
+branches;
+next	;
+
+1.12.6.1
+date	2004.03.11.23.40.27;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@Routines specific to creating the frame buffer image.
+@
+
+
+1.15
+log
+@moved to src/burst/
+@
+text
+@/*
+	Author:		Gary S. Moss
+			U. S. Army Ballistic Research Laboratory
+			Aberdeen Proving Ground
+			Maryland 21005-5066
+*/
+#ifndef lint
+static const char RCSid[] = "@@(#)$Header: /n/xoff/cvs/brlcad/burst/paint.c,v 1.14 2004/05/10 15:30:41 erikg Exp $ (BRL)";
+#endif
+
+#ifndef DEBUG
+#define NDEBUG
+#define STATIC static
+#else
+#define STATIC
+#endif
+
+#include <assert.h>
+
+#include <stdio.h>
+
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+#include "./vecmath.h"
+#include "machine.h"
+#include "vmath.h"
+#include "raytrace.h"
+#include "fb.h"
+
+#include "./extern.h"
+
+#define DEBUG_CELLFB	0
+#define DEBUG_SPALLFB	0
+
+/* Offset frame buffer coordinates to center of cell from grid lines. */
+#define CenterCell(b)	(b += roundToInt( (fastf_t) zoom / 2.0 ))
+
+/* Compare one RGB pixel to another. */
+#define	SAMERGB(a,b)	((a)[RED] == (b)[RED] &&\
+			 (a)[GRN] == (b)[GRN] &&\
+			 (a)[BLU] == (b)[BLU])
+
+static unsigned char	pixbuf[MAXDEVWID][3];
+static int	gridxmargin;
+static int	gridymargin;
+
+void
+gridToFb( gx, gy, fxp, fyp )
+int	gx, gy;
+int	*fxp, *fyp;
+	{
+	/* map grid offsets to frame buffer coordinates */
+	*fxp = (gx - gridxorg)*zoom + gridxmargin;
+	*fyp = (gy - gridyorg)*zoom + gridymargin;
+	return;
+	}
+
+void
+paintGridFb()
+{
+		register int	fx, fy;
+		int		fxbeg, fybeg;
+		int		fxfin, fyfin;
+		int		fxorg, fyorg;
+		int		fgridwid;
+	if( fb_clear( fbiop, pixbkgr ) == -1 )
+		return;
+	gridxmargin = (devwid - (gridwidth*zoom)) / 2.0;
+	gridymargin = (devhgt - (gridheight*zoom)) / 2.0;
+	gridToFb( gridxorg, gridyorg, &fxbeg, &fybeg );
+	gridToFb( gridxfin+1, gridyfin+1, &fxfin, &fyfin );
+	gridToFb( 0, 0, &fxorg, &fyorg );
+	CenterCell( fxorg ); /* center of cell */
+	CenterCell( fyorg );
+	if( zoom == 1 )
+		{
+		fgridwid = gridwidth + 2;
+		fxfin++;
+		}
+	else
+		fgridwid = gridwidth * zoom + 1;
+
+	/* draw vertical lines */
+	for( fx = 1; fx < fgridwid; fx++ )
+		COPYRGB( &pixbuf[fx][0], pixbkgr );
+	for( fx = fxbeg; fx <= fxfin; fx += zoom )
+		COPYRGB( &pixbuf[fx-fxbeg][0], &pixgrid[0] );
+	for( fy = fybeg; fy <= fyfin; fy++ )
+		(void) fb_write( fbiop, fxbeg, fy, (unsigned char *)pixbuf, fgridwid );
+	for( fy = 0; fy < devwid; fy++ )
+		(void) fb_write( fbiop, fxorg, fy, pixaxis, 1 );
+
+	/* draw horizontal lines */
+	if( zoom > 1 )
+		for( fy = fybeg; fy <= fyfin; fy += zoom )
+			(void) fb_write( fbiop,
+					 fxbeg, fy, pixgrid, fgridwid );
+		for( fx = 0; fx < devwid; fx++ )
+			COPYRGB( &pixbuf[fx][0], pixaxis );
+	(void) fb_write( fbiop, 0, fyorg, (unsigned char *)pixbuf, devwid );
+	return;
+	}
+
+void
+paintCellFb( ap, pixpaint, pixexpendable )
+register struct application	*ap;
+unsigned char			*pixpaint;
+unsigned char			*pixexpendable;
+	{	int		gx, gy;
+		register int	gyfin, gxfin;
+		register int	gxorg, gyorg;
+		register int	x, y;
+		int		cnt;
+#if DEBUG_CELLFB
+	brst_log( "paintCellFb: expendable {%d,%d,%d}\n",
+		pixexpendable[RED],
+		pixexpendable[GRN],
+		pixexpendable[BLU] );
+#endif
+	gridToFb( ap->a_x, ap->a_y, &gx, &gy );
+	gxorg = gx+1;
+	gyorg = gy+1;
+	gxfin = zoom == 1 ? gx+zoom+1 : gx+zoom;
+	gyfin = zoom == 1 ? gy+zoom+1 : gy+zoom;
+	cnt = gxfin - gxorg;
+	for( y = gyorg; y < gyfin; y++ )
+		{
+		if( zoom != 1 && (y - gy) % zoom == 0 )
+			continue;
+		bu_semaphore_acquire( RT_SEM_STATS );
+		(void) fb_read( fbiop, gxorg, y, (unsigned char *)pixbuf, cnt );
+		bu_semaphore_release( RT_SEM_STATS );
+		for( x = gxorg; x < gxfin; x++ )
+			{
+			if( SAMERGB( &pixbuf[x-gxorg][0], pixexpendable )
+				)
+				{
+#if DEBUG_CELLFB
+				brst_log( "Clobbering:<%d,%d>{%d,%d,%d}\n",
+					x, y,
+					pixbuf[x-gxorg][RED],
+					pixbuf[x-gxorg][GRN],
+					pixbuf[x-gxorg][BLU] );
+#endif
+				COPYRGB( &pixbuf[x-gxorg][0], pixpaint );
+				}
+#if DEBUG_CELLFB
+			else
+				brst_log( "Preserving:<%d,%d>{%d,%d,%d}\n",
+					x, y,
+					pixbuf[x-gxorg][RED],
+					pixbuf[x-gxorg][GRN],
+					pixbuf[x-gxorg][BLU] );
+#endif
+			}
+		bu_semaphore_acquire( RT_SEM_STATS );
+		(void) fb_write( fbiop, gxorg, y, (unsigned char *)pixbuf, cnt );
+		bu_semaphore_release( RT_SEM_STATS );
+#if DEBUG_CELLFB
+		brst_log( "paintCellFb: fb_write(%d,%d)\n", x, y );
+#endif
+		}
+	return;
+	}
+
+void
+paintSpallFb( ap )
+register struct application	*ap;
+	{	unsigned char pixel[3];
+		int x, y;
+		int err;
+		fastf_t	celldist;
+#if DEBUG_SPALLFB
+	brst_log( "paintSpallFb: a_x=%d a_y=%d a_cumlen=%g cellsz=%g zoom=%d\n",
+		ap->a_x, ap->a_y, ap->a_cumlen, cellsz, zoom );
+#endif
+	pixel[RED] = ap->a_color[RED] * 255;
+	pixel[GRN] = ap->a_color[GRN] * 255;
+	pixel[BLU] = ap->a_color[BLU] * 255;
+	gridToFb( ap->a_x, ap->a_y, &x, &y );
+	CenterCell( x );	/* center of cell */
+	CenterCell( y );
+	celldist = ap->a_cumlen/cellsz * zoom;
+	x = roundToInt( x + Dot( ap->a_ray.r_dir, gridhor ) * celldist );
+	y = roundToInt( y + Dot( ap->a_ray.r_dir, gridver ) * celldist );
+	bu_semaphore_acquire( RT_SEM_STATS );
+	err = fb_write( fbiop, x, y, pixel, 1 );
+	bu_semaphore_release( RT_SEM_STATS );
+#if DEBUG_SPALLFB
+	brst_log( "paintSpallFb:gridhor=<%g,%g,%g> gridver=<%g,%g,%g>\n",
+		gridhor[X], gridhor[Y], gridhor[Z],
+		gridver[X], gridver[Y], gridver[Z] );
+	brst_log( "paintSpallFb:fb_write(x=%d,y=%d,pixel={%d,%d,%d})\n",
+		x, y,
+		(int) pixel[RED],
+		(int) pixel[GRN],
+		(int) pixel[BLU]
+		);
+#endif
+	if( err == -1 )
+		brst_log( "Write failed to pixel <%d,%d> from cell <%d,%d>.\n",
+			x, y, ap->a_x, ap->a_y );
+	return;
+	}
+@
+
+
+1.14
+log
+@change conf.h to a wrapped config.h
+@
+text
+@d8 1
+a8 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/burst/paint.c,v 1.13 2002/10/22 23:04:36 morrison Exp $ (BRL)";
+@
+
+
+1.13
+log
+@Modified round() to be roundToInt() to better describe what the function does, and to avoid clashing with a system round that may return a floating point value (macosx)
+@
+text
+@d8 1
+a8 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/burst/paint.c,v 1.12 2000/08/24 23:12:44 mike Exp $ (BRL)";
+d22 5
+a26 1
+#include "conf.h"
+@
+
+
+1.12
+log
+@
+RCSid
+@
+text
+@d8 1
+a8 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/burst/paint.c,v 1.11 2000/01/31 18:11:23 jra Exp $ (BRL)";
+d35 1
+a35 1
+#define CenterCell(b)	(b += round( (fastf_t) zoom / 2.0 ))
+d183 2
+a184 2
+	x = round( x + Dot( ap->a_ray.r_dir, gridhor ) * celldist );
+	y = round( y + Dot( ap->a_ray.r_dir, gridver ) * celldist );
+@
+
+
+1.12.6.1
+log
+@sync to HEAD...
+@
+text
+@d8 1
+a8 1
+static const char RCSid[] = "@@(#)$Header: /n/cad/c/CVS/brlcad/burst/paint.c,v 1.13 2002/10/22 23:04:36 morrison Exp $ (BRL)";
+d35 1
+a35 1
+#define CenterCell(b)	(b += roundToInt( (fastf_t) zoom / 2.0 ))
+d183 2
+a184 2
+	x = roundToInt( x + Dot( ap->a_ray.r_dir, gridhor ) * celldist );
+	y = roundToInt( y + Dot( ap->a_ray.r_dir, gridver ) * celldist );
+@
+
+
+1.12.4.1
+log
+@changed the name of the double->int round routine to fround so not to conflict with the system round call that does double->double
+@
+text
+@d8 1
+a8 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/burst/paint.c,v 1.12 2000/08/24 23:12:44 mike Exp $ (BRL)";
+d35 1
+a35 1
+#define CenterCell(b)	(b += fround( (fastf_t) zoom / 2.0 ))
+d183 2
+a184 2
+	x = fround( x + Dot( ap->a_ray.r_dir, gridhor ) * celldist );
+	y = fround( y + Dot( ap->a_ray.r_dir, gridver ) * celldist );
+@
+
+
+1.12.4.2
+log
+@sync branch with HEAD
+@
+text
+@d8 1
+a8 1
+static const char RCSid[] = "@@(#)$Header$ (BRL)";
+d35 1
+a35 1
+#define CenterCell(b)	(b += roundToInt( (fastf_t) zoom / 2.0 ))
+d183 2
+a184 2
+	x = roundToInt( x + Dot( ap->a_ray.r_dir, gridhor ) * celldist );
+	y = roundToInt( y + Dot( ap->a_ray.r_dir, gridver ) * celldist );
+@
+
+
+1.11
+log
+@Corrected an error introduced while eliminating unused variables
+@
+text
+@d8 1
+a8 1
+static char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/burst/paint.c,v 1.10 2000/01/31 16:32:50 jra Exp $ (BRL)";
+@
+
+
+1.10
+log
+@Eliminated some unused variables
+@
+text
+@d8 1
+a8 1
+static char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/burst/paint.c,v 1.9 1998/10/28 17:11:15 jra Exp $ (BRL)";
+d59 1
+@
+
+
+1.9
+log
+@Mods to get it to compile under Linux.
+@
+text
+@d8 1
+a8 1
+static char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/burst/paint.c,v 1.8 1998/06/23 18:20:41 jra Exp $ (BRL)";
+a58 1
+	{	register int	gx, gy;
+@
+
+
+1.8
+log
+@convert bu_log to brst_log to avoid conflicts
+@
+text
+@d8 1
+a8 1
+static char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/burst/paint.c,v 1.7 1997/12/16 03:45:56 mike Exp $ (BRL)";
+d22 2
+a28 1
+#include "./vecmath.h"
+@
+
+
+1.7
+log
+@UPgraded using h/sed4
+@
+text
+@d8 1
+a8 1
+static char RCSid[] = "@@(#)$Header: /m/cad/burst/RCS/paint.c,v 1.6 1995/02/28 09:15:06 jra Exp mike $ (BRL)";
+d113 1
+a113 1
+	bu_log( "paintCellFb: expendable {%d,%d,%d}\n",
+d137 1
+a137 1
+				bu_log( "Clobbering:<%d,%d>{%d,%d,%d}\n",
+d147 1
+a147 1
+				bu_log( "Preserving:<%d,%d>{%d,%d,%d}\n",
+d158 1
+a158 1
+		bu_log( "paintCellFb: fb_write(%d,%d)\n", x, y );
+d172 1
+a172 1
+	bu_log( "paintSpallFb: a_x=%d a_y=%d a_cumlen=%g cellsz=%g zoom=%d\n",
+d188 1
+a188 1
+	bu_log( "paintSpallFb:gridhor=<%g,%g,%g> gridver=<%g,%g,%g>\n",
+d191 1
+a191 1
+	bu_log( "paintSpallFb:fb_write(x=%d,y=%d,pixel={%d,%d,%d})\n",
+d199 1
+a199 1
+		bu_log( "Write failed to pixel <%d,%d> from cell <%d,%d>.\n",
+@
+
+
+1.6
+log
+@Changed RGBpixel to unsigned char.
+@
+text
+@d8 1
+a8 1
+static char RCSid[] = "@@(#)$Header: /m/cad/burst/RCS/paint.c,v 1.5 91/08/26 11:05:18 moss Exp Locker: jra $ (BRL)";
+d113 1
+a113 1
+	rt_log( "paintCellFb: expendable {%d,%d,%d}\n",
+d128 1
+a128 1
+		RES_ACQUIRE( &rt_g.res_stats );
+d130 1
+a130 1
+		RES_RELEASE( &rt_g.res_stats );
+d137 1
+a137 1
+				rt_log( "Clobbering:<%d,%d>{%d,%d,%d}\n",
+d147 1
+a147 1
+				rt_log( "Preserving:<%d,%d>{%d,%d,%d}\n",
+d154 1
+a154 1
+		RES_ACQUIRE( &rt_g.res_stats );
+d156 1
+a156 1
+		RES_RELEASE( &rt_g.res_stats );
+d158 1
+a158 1
+		rt_log( "paintCellFb: fb_write(%d,%d)\n", x, y );
+d172 1
+a172 1
+	rt_log( "paintSpallFb: a_x=%d a_y=%d a_cumlen=%g cellsz=%g zoom=%d\n",
+d184 1
+a184 1
+	RES_ACQUIRE( &rt_g.res_stats );
+d186 1
+a186 1
+	RES_RELEASE( &rt_g.res_stats );
+d188 1
+a188 1
+	rt_log( "paintSpallFb:gridhor=<%g,%g,%g> gridver=<%g,%g,%g>\n",
+d191 1
+a191 1
+	rt_log( "paintSpallFb:fb_write(x=%d,y=%d,pixel={%d,%d,%d})\n",
+d199 1
+a199 1
+		rt_log( "Write failed to pixel <%d,%d> from cell <%d,%d>.\n",
+@
+
+
+1.5
+log
+@Ported to ANSI C compiler; tested on XMP under UNICOS 5.1 and on SGI under
+IRIX 3.3.1.
+This version tests correctly using BRLCAD3.7.
+@
+text
+@d8 1
+a8 1
+static char RCSid[] = "@@(#)$Header: /vld/moss/src/burst/RCS/paint.c,v 1.4 91/01/15 13:53:26 moss Exp $ (BRL)";
+d41 1
+a41 1
+static RGBpixel	pixbuf[MAXDEVWID];
+d83 1
+a83 1
+		COPYRGB( pixbuf[fx], pixbkgr );
+d85 1
+a85 1
+		COPYRGB( pixbuf[fx-fxbeg], pixgrid[0] );
+d87 1
+a87 1
+		(void) fb_write( fbiop, fxbeg, fy, pixbuf, fgridwid );
+d95 4
+a98 3
+					 fxbeg, fy, pixgrid, fgridwid );		for( fx = 0; fx < devwid; fx++ )
+		COPYRGB( pixbuf[fx], pixaxis );
+	(void) fb_write( fbiop, 0, fyorg, pixbuf, devwid );
+d105 2
+a106 2
+RGBpixel			*pixpaint;
+RGBpixel			*pixexpendable;
+d114 3
+a116 3
+		(*pixexpendable)[RED],
+		(*pixexpendable)[GRN],
+		(*pixexpendable)[BLU] );
+d129 1
+a129 1
+		(void) fb_read( fbiop, gxorg, y, pixbuf, cnt );
+d133 1
+a133 1
+			if( SAMERGB( pixbuf[x-gxorg], *pixexpendable )
+d139 3
+a141 3
+					(pixbuf[x-gxorg])[RED],
+					(pixbuf[x-gxorg])[GRN],
+					(pixbuf[x-gxorg])[BLU] );
+d143 1
+a143 1
+				COPYRGB( pixbuf[x-gxorg], *pixpaint );
+d149 3
+a151 3
+					(pixbuf[x-gxorg])[RED],
+					(pixbuf[x-gxorg])[GRN],
+					(pixbuf[x-gxorg])[BLU] );
+d155 1
+a155 1
+		(void) fb_write( fbiop, gxorg, y, pixbuf, cnt );
+d167 1
+a167 1
+	{	RGBpixel pixel;
+@
+
+
+1.4
+log
+@Removed author's phone number from top of file comment.  This will be
+shipped as version 2.1.
+@
+text
+@d8 1
+a8 1
+static char RCSid[] = "@@(#)$Header: /vld/moss/src/burst/RCS/paint.c,v 1.3 89/07/07 16:33:26 moss Exp $ (BRL)";
+a43 13
+
+/*
+	fastf_t abs( fastf_t a )
+
+	Returns the absolute value of 'a'.  Useful when a macro would
+	cause side-effects or redundant computation.
+ */
+STATIC fastf_t
+abs( a )
+fastf_t	a;
+	{
+	return	Abs( a );
+	}
+@
+
+
+1.3
+log
+@Ready for Bud's visit.
+@
+text
+@a5 1
+			(301)278-6651 or AV-298-6651
+d8 1
+a8 1
+static char RCSid[] = "@@(#)$Header: /usr/vld/moss/src/burst/RCS/paint.c,v 1.2 89/01/20 15:21:24 moss Exp $ (BRL)";
+@
+
+
+1.2
+log
+@Just saving this version for backup purposes, recently added support for
+explicitly inputing burst points.
+@
+text
+@d9 1
+a9 1
+static char RCSid[] = "@@(#)$Header: /usr/vld/moss/src/burst/RCS/paint.c,v 1.1 88/11/07 17:01:46 moss Exp $ (BRL)";
+d12 6
+a17 2
+#define DEBUG_CELLFB	false
+#define DEBUG_SPALLFB	true
+d19 2
+d22 1
+d27 1
+d31 3
+d52 1
+a52 1
+_LOCAL_ fastf_t
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d9 1
+a9 1
+static char RCSid[] = "@@(#)$Header$ (BRL)";
+d12 2
+a13 1
+#define DEBUG_PAINT	false
+d23 3
+d35 13
+a66 1
+		fastf_t		fcellrad; /* half-width of cell on image */
+a70 1
+	fcellrad = zoom / 2;
+d74 2
+d114 6
+d135 1
+a135 2
+			if(	zoom == 1
+			    ||	SAMERGB( pixbuf[x-gxorg], *pixexpendable )
+d138 1
+a138 1
+#if DEBUG_PAINT
+d147 1
+a147 1
+#if DEBUG_PAINT
+d159 1
+a159 1
+#if DEBUG_PAINT
+d169 8
+a176 3
+	{	RGBpixel	pixel;
+		int		x, y;
+		int		err;
+d181 5
+a185 4
+	x = round( x + Dot( ap->a_ray.r_dir, gridhor ) *
+		(ap->a_cumlen / cellsz) * zoom );
+	y = round( y + Dot( ap->a_ray.r_dir, gridver ) *
+		(ap->a_cumlen / cellsz) * zoom );
+d189 5
+a193 2
+#if DEBUG_BURST
+	rt_log( "fb_write(%d,%d,{%d,%d,%d})\n",
+d201 2
+a202 1
+		rt_log( "Write failed to pixel <%d,%d>.\n", x, y );
+@

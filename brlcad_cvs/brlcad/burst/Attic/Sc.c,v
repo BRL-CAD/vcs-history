@@ -1,0 +1,709 @@
+head	1.7;
+access;
+symbols
+	ansi-20040405-merged:1.5
+	postmerge-20040405-ansi:1.5
+	premerge-20040404-ansi:1.5
+	postmerge-autoconf:1.5
+	autoconf-freeze:1.5
+	premerge-autoconf:1.5
+	ansi-20040316-freeze:1.5
+	postmerge-20040315-windows:1.5
+	premerge-20040315-windows:1.5
+	windows-20040315-freeze:1.5
+	autoconf-20031203:1.5
+	autoconf-20031202:1.5
+	autoconf-branch:1.5.0.12
+	phong-branch:1.5.0.10
+	photonmap-branch:1.5.0.8
+	rel-6-1-DP:1.5
+	windows-branch:1.5.0.6
+	rel-6-0-2:1.5
+	ansi-branch:1.5.0.4
+	rel-6-0-1-branch:1.5.0.2
+	hartley-6-0-post:1.5
+	hartley-6-0-pre:1.5
+	rel-6-0-1:1.5
+	rel-6-0:1.5
+	rel-5-4:1.3
+	offsite-5-3-pre:1.4
+	rel-5-3:1.3
+	rel-5-2:1.3
+	rel-5-1-branch:1.3.0.2
+	rel-5-1:1.3
+	rel-5-0:1.3
+	rel-5-0-beta:1.3
+	rel-4-5:1.3
+	ctj-4-5-post:1.3
+	ctj-4-5-pre:1.3
+	rel-4-4:1.2
+	rel-4-0:1.2;
+locks; strict;
+comment	@ * @;
+
+
+1.7
+date	2004.05.24.04.18.19;	author morrison;	state dead;
+branches;
+next	1.6;
+
+1.6
+date	2004.05.10.15.30.41;	author erikg;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	2001.08.09.18.47.09;	author jra;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	2000.08.24.23.12.42;	author mike;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	95.02.28.09.11.48;	author jra;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	91.01.15.13.53.09;	author moss;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	91.01.15.13.46.19;	author moss;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.7
+log
+@moved to src/burst/
+@
+text
+@/*
+	Author:	Gary S. Moss
+		U. S. Army Ballistic Research Laboratory
+		Aberdeen Proving Ground
+		Maryland 21005-5066
+
+	$Header: /n/xoff/cvs/brlcad/burst/Sc.c,v 1.6 2004/05/10 15:30:41 erikg Exp $ (BRL)
+
+*/
+/*LINTLIBRARY*/
+#ifndef lint
+static const char RCSid[] = "@@(#)$Header: /n/xoff/cvs/brlcad/burst/Sc.c,v 1.6 2004/05/10 15:30:41 erikg Exp $ (BRL)";
+#endif
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+#include <stdio.h>
+
+#ifdef USE_STRING_H
+#include <string.h>
+#else
+#include <strings.h>
+#endif
+
+#ifndef cray
+#if defined( VLDSYSV )
+#include <sys/_ioctl.h>
+#else
+#include <sys/ioctl.h>
+#define _winsize winsize	/* For compatibility with _ioctl.h.	*/
+#endif
+#endif
+#include "./Sc.h"
+
+/* Externals from termlib(3). */
+#if __STDC__
+extern char	*tgoto( char *cm, int destcol, int destline );
+extern char	*tgetstr( char *id, char **area );
+extern int	tgetent( char *bp, char *name );
+extern int	tgetnum( char *id );
+#else
+extern char	*tgoto();
+extern char	*tgetstr();
+extern int	tgetent();
+extern int	tgetnum();
+#endif
+extern int	tputs();
+
+/* Externals from the C library. */
+#if __STDC__
+extern char	*getenv( char *s );
+#else
+extern char	*getenv();
+extern char	*strncpy();
+#endif
+
+static FILE	*out_fp;		/* Output stream.	*/
+static char	tstrings[ScTCAPSIZ];    /* Individual TCS.	*/
+static char	*tstr_addr = tstrings;	/* Used by tgetstr().	*/
+static int	fd_stdout = 1;
+
+/* This is a global buffer for the terminal capabilities entry.	*/
+char		ScTermcap[ScTCAPSIZ];
+
+/* This is a global buffer for the name of the terminal.	*/
+char		ScTermname[ScTERMSIZ] = "UNKNOWN";
+
+/* Individual terminal control strings (TCS).			*/
+char		*ScBC, /* Backspace character.			*/
+		*ScPC, /* Padding character.			*/
+		*ScUP, /* Cursor up one line.			*/
+		*ScCS, /* Change scrolling region.		*/
+		*ScSO, /* Begin standout mode.			*/
+		*ScSE, /* End standout mode.			*/
+		*ScCE, /* Clear to end of line.			*/
+		*ScCL, /* Clear display and home cursor.	*/
+		*ScHO, /* Home cursor.				*/
+		*ScCM, /* Screen-relative cursor motion.	*/
+		*ScTI, /* Initialize terminal.			*/
+		*ScAL, /* Insert line.				*/
+		*ScDL, /* Delete line.				*/
+		*ScSR, /* Scroll text down.			*/
+		*ScSF; /* Scroll text up.			*/
+
+/* Individual terminal parameters.				*/
+int		ScLI, /* Number of lines on screen.		*/
+		ScCO; /* Number of columns on screen.		*/
+
+/*
+	static void ScLoadTP( void )
+
+	Get the terminal parameters.
+
+ */
+static void
+#if __STDC__
+ScLoadTP( void )
+#else
+ScLoadTP()
+#endif
+	{
+#ifdef TIOCGWINSZ
+	/* Get window size for DMD layers support.			*/
+	struct _winsize		window;
+
+	if(	ioctl( fd_stdout, TIOCGWINSZ, &window ) == 0
+	    &&	window.ws_row != 0 && window.ws_col != 0
+		)
+		{
+		ScLI = (int) window.ws_row;
+		ScCO = (int) window.ws_col;
+		}
+	else
+#endif
+		{
+		ScLI = tgetnum( "li" );
+		ScCO = tgetnum( "co" );
+		}
+	return;
+	}
+
+/*
+	static void ScLoadTCS( void )
+
+	Get the terminal control strings.
+ */
+static void
+#if __STDC__
+ScLoadTCS( void )
+#else
+ScLoadTCS()
+#endif
+	{;
+	ScCS = tgetstr( "cs", &tstr_addr );
+	ScSE = tgetstr( "se", &tstr_addr );
+	ScSO = tgetstr( "so", &tstr_addr );
+	ScCE = tgetstr( "ce", &tstr_addr );
+	ScCL = tgetstr( "cl", &tstr_addr );
+	ScHO = tgetstr( "ho", &tstr_addr );
+	ScCM = tgetstr( "cm", &tstr_addr );
+	ScBC = tgetstr( "bc", &tstr_addr );
+	ScPC = tgetstr( "pc", &tstr_addr );
+	ScUP = tgetstr( "up", &tstr_addr );
+	ScTI = tgetstr( "ti", &tstr_addr );
+	ScAL = tgetstr( "al", &tstr_addr );
+	ScDL = tgetstr( "dl", &tstr_addr );
+	ScSR = tgetstr( "sr", &tstr_addr );
+	ScSF = tgetstr( "sf", &tstr_addr );
+	return;
+	}
+
+/*
+	int	PutChr( char c )
+
+	This function prevents the default "PutChr" from being pulled in
+	from the termcap library (-ltermlib).  DO NOT change its name or
+	STDOUT will be assumed as the output stream for terminal control.
+	Some applications might want to open "/dev/tty" so that they can
+	use STDOUT for something else.
+	
+ */
+int
+#if __STDC__
+PutChr( char c )
+#else
+PutChr( c )
+char	c;
+#endif
+	{
+	return	putc( c, out_fp );
+	}
+
+/*
+	bool	ScInit( FILE *fp )
+
+	ScInit() must be invoked before any other function in the Sc package.
+	Stream fp must be open for writing and all terminal control sequences
+	will be sent to fp, giving the application the option of using STDOUT
+	for other things.  Besides setting the output stream, ScInit() does
+	the following:
+
+	Initializes the terminal.  Fills terminal name and capabilities
+	into external buffers.  Gets terminal control strings into external
+	variables.  Gets individual terminal parameters into external
+	variables.  Returns "true" for success, "false" for failure and
+	prints appropriate diagnostics on STDERR if $TERM is not set or
+	there is a problem in retrieving the corresponding termcap entry.
+ */
+bool
+#if __STDC__
+ScInit( FILE *fp )
+#else
+ScInit( fp )
+FILE	*fp;
+#endif
+	{	char	*term; /* Name of terminal from environment. */
+	out_fp = fp;
+	fd_stdout = fileno( out_fp );
+	if( (term = getenv( "TERM" )) == NULL )
+		{
+		(void) fprintf( stderr, "TERM not set or exported!\n" );
+		return	false;
+		}
+	(void) strncpy( ScTermname, term, ScTERMSIZ-1 );
+
+	/* Get terminal entry.						*/
+	switch( tgetent( ScTermcap, term ) )
+		{
+	case -1 :
+		(void) fprintf( stderr, "Can't open termcap file!\n" );
+		return	false;
+	case  0 :
+		(void) fprintf( stderr,
+				"Terminal type not in termcap file!\n"
+				);
+		return	false;
+		}
+
+	/* Get individual terminal parameters and control strings.	*/
+	ScLoadTP();
+	ScLoadTCS();
+
+	tputs( ScTI, 1, PutChr );	/* Initialize terminal.			*/
+	return	true;		/* All is well.				*/
+	}
+
+/*
+	bool	ScClrEOL( void )
+
+	Clear from the cursor to the end of that line.
+
+ */
+bool
+#if __STDC__
+ScClrEOL( void )
+#else
+ScClrEOL()
+#endif
+	{
+	if( ScCE == NULL )
+		return	false;
+	tputs( ScCE, 1, PutChr );
+	return	true;
+	}
+
+/*
+	bool	ScClrScrlReg( void )
+
+	Reset the scrolling region to the entire screen.
+
+ */
+bool
+#if __STDC__
+ScClrScrlReg( void )
+#else
+ScClrScrlReg()
+#endif
+	{
+	if( ScCS == NULL )
+		return	false;
+	tputs( tgoto( ScCS, ScLI-1, 0 ), 1, PutChr );
+	return	true;
+	}
+
+/*
+	bool	ScClrStandout( void )
+
+	End standout mode.
+
+ */
+bool
+#if __STDC__
+ScClrStandout( void )
+#else
+ScClrStandout()
+#endif
+	{
+	if( ScSE == NULL )
+		return	false;
+	tputs( ScSE, 1, PutChr );
+	return	true;
+	}
+
+/*	bool	ScClrText( void )
+
+	Clear the screen and "home" the cursor.
+
+ */
+bool
+#if __STDC__
+ScClrText( void )
+#else
+ScClrText()
+#endif
+	{
+	if( ScCL == NULL )
+		return	false;
+	tputs( ScCL, ScLI, PutChr );
+	return	true;
+	}
+
+/*
+	bool	ScInsertLn( void )
+
+	Insert a the line under the cursor.
+
+ */
+bool
+#if __STDC__
+ScInsertLn( void )
+#else
+ScInsertLn()
+#endif
+	{
+	if( ScAL == NULL )
+		return	false;
+	tputs( ScAL, 1, PutChr );
+	return	true;
+	}
+
+/*
+	bool	ScDeleteLn( void )
+
+	Delete the line under the cursor.
+
+ */
+bool
+#if __STDC__
+ScDeleteLn( void )
+#else
+ScDeleteLn()
+#endif
+	{
+	if( ScDL == NULL )
+		return	false;
+	tputs( ScDL, 1, PutChr );
+	return	true;
+	}
+
+/*
+	bool	ScDnScroll( void )
+
+	Scroll backward 1 line.
+
+ */
+bool
+#if __STDC__
+ScDnScroll( void )
+#else
+ScDnScroll()
+#endif
+	{
+	if( ScSR == NULL )
+		return	false;
+	tputs( ScSR, 1, PutChr );
+	return	true;
+	}
+
+/*
+	bool	ScHmCursor( void )
+
+	Move the cursor to the top-left corner of the screen.
+
+ */
+bool
+#if __STDC__
+ScHmCursor( void )
+#else
+ScHmCursor()
+#endif
+	{
+	if( ScHO == NULL )
+		return	false;
+	tputs( ScHO, 1, PutChr );
+	return	true;
+	}
+
+/*
+	bool	ScMvCursor( int x, int y )
+
+	Move the cursor to screen coordinates x, y (for column and row,
+		respectively).
+
+ */
+bool
+#if __STDC__
+ScMvCursor( int x, int y )
+#else
+ScMvCursor( x, y )
+int	x, y;
+#endif
+	{
+	if( ScCM == NULL )
+		return	false;
+
+	--x; --y; /* Tgoto() adds 1 to each coordinate!? */
+	tputs( tgoto( ScCM, x, y ), 1, PutChr );
+	return	true;
+	}
+
+/*
+	bool	ScSetScrlReg( int top, int btm )
+
+	Set the scrolling region to be from "top" line to "btm" line,
+		inclusive.
+
+ */
+bool
+#if __STDC__
+ScSetScrlReg( int top, int btm )
+#else
+ScSetScrlReg( top, btm )
+int	top, btm;
+#endif
+	{
+	if( ScCS == NULL )
+		return	false;
+	tputs( tgoto( ScCS, btm-1, top-1 ), 1, PutChr );
+	return	true;
+	}
+
+/*
+	bool	ScSetStandout( void )
+
+	Begin standout mode.
+
+ */
+bool
+#if __STDC__
+ScSetStandout( void )
+#else
+ScSetStandout()
+#endif
+	{
+	if( ScSO == NULL )
+		return	false;
+	tputs( ScSO, 1, PutChr );
+	return	true;
+	}
+
+/*
+	bool	ScUpScroll( void )
+
+	Scroll text forward 1 line.
+	
+ */
+bool
+#if __STDC__
+ScUpScroll( void )
+#else
+ScUpScroll()
+#endif
+	{
+	if( ScSF == NULL )
+		return	false;
+	tputs( ScSF, 1, PutChr );
+	return	true;
+	}
+@
+
+
+1.6
+log
+@change conf.h to a wrapped config.h
+@
+text
+@d7 1
+a7 1
+	$Header: /cvs/brlcad/burst/Sc.c,v 1.5 2001/08/09 18:47:09 jra Exp $ (BRL)
+d12 1
+a12 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/burst/Sc.c,v 1.5 2001/08/09 18:47:09 jra Exp $ (BRL)";
+@
+
+
+1.5
+log
+@Lint
+@
+text
+@d7 1
+a7 1
+	$Header: /c/CVS/brlcad/burst/Sc.c,v 1.4 2000/08/24 23:12:42 mike Exp $ (BRL)
+d12 1
+a12 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/burst/Sc.c,v 1.4 2000/08/24 23:12:42 mike Exp $ (BRL)";
+d14 5
+a18 1
+#include "conf.h"
+@
+
+
+1.4
+log
+@
+RCSid
+@
+text
+@d7 1
+a7 1
+	$Header: /c/CVS/brlcad/burst/Sc.c,v 1.3 1995/02/28 09:11:48 jra Exp $ (BRL)
+d12 1
+a12 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/burst/Sc.c,v 1.3 1995/02/28 09:11:48 jra Exp $ (BRL)";
+d14 1
+d16 4
+a19 1
+#ifdef BSD
+d22 1
+a22 3
+#ifdef SYSV
+#include <string.h>
+#endif
+d38 1
+d43 1
+d45 1
+@
+
+
+1.3
+log
+@Changes _STDC_ to __STDC__
+@
+text
+@d7 1
+a7 1
+	$Header: /m/cad/burst/RCS/Sc.c,v 1.2 91/01/15 13:53:09 moss Exp Locker: jra $ (BRL)
+d12 1
+a12 1
+static char RCSid[] = "@@(#)$Header: /m/cad/burst/RCS/Sc.c,v 1.2 91/01/15 13:53:09 moss Exp Locker: jra $ (BRL)";
+@
+
+
+1.2
+log
+@Removed author's phone number from top of file comment.  This will be
+shipped as version 2.1.
+@
+text
+@d7 1
+a7 1
+	$Header: /vld/moss/src/burst/RCS/Sc.c,v 1.1 91/01/15 13:46:19 moss Exp $ (BRL)
+d12 1
+a12 1
+static char RCSid[] = "@@(#)$Header: /vld/moss/src/burst/RCS/Sc.c,v 1.1 91/01/15 13:46:19 moss Exp $ (BRL)";
+d32 1
+a32 1
+#if _STDC_
+d43 1
+a43 1
+#if _STDC_
+a44 1
+extern char	*strncpy( char *a, char *b, int n );
+d89 1
+a89 1
+#if _STDC_
+d121 1
+a121 1
+#if _STDC_
+d156 1
+a156 1
+#if _STDC_
+d183 1
+a183 1
+#if _STDC_
+d227 1
+a227 1
+#if _STDC_
+d246 1
+a246 1
+#if _STDC_
+d265 1
+a265 1
+#if _STDC_
+d283 1
+a283 1
+#if _STDC_
+d302 1
+a302 1
+#if _STDC_
+d321 1
+a321 1
+#if _STDC_
+d340 1
+a340 1
+#if _STDC_
+d359 1
+a359 1
+#if _STDC_
+d379 1
+a379 1
+#if _STDC_
+d402 1
+a402 1
+#if _STDC_
+d422 1
+a422 1
+#if _STDC_
+d441 1
+a441 1
+#if _STDC_
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@a5 1
+		(301)278-6651 or AV-298-6651
+d7 1
+a7 1
+	$Header$ (BRL)
+d12 1
+a12 1
+static char RCSid[] = "@@(#)$Header$ (BRL)";
+@

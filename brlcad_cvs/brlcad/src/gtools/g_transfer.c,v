@@ -1,0 +1,1610 @@
+head	1.27;
+access;
+symbols
+	rel-7-10-4:1.22
+	STABLE:1.22.0.2
+	rel-7-10-2:1.22
+	rel-7-10-0:1.21
+	rel-7-8-4:1.18
+	rel-7-8-2:1.17
+	rel-7-8-0:1.16
+	trimnurbs-branch:1.15.0.2
+	help:1.15;
+locks; strict;
+comment	@ * @;
+
+
+1.27
+date	2007.11.21.20.38.22;	author erikgreenwald;	state Exp;
+branches;
+next	1.26;
+
+1.26
+date	2007.11.21.19.28.06;	author erikgreenwald;	state Exp;
+branches;
+next	1.25;
+
+1.25
+date	2007.11.21.16.10.11;	author erikgreenwald;	state Exp;
+branches;
+next	1.24;
+
+1.24
+date	2007.10.18.09.11.58;	author brlcad;	state Exp;
+branches;
+next	1.23;
+
+1.23
+date	2007.09.14.17.44.10;	author erikgreenwald;	state Exp;
+branches;
+next	1.22;
+
+1.22
+date	2007.05.14.21.04.30;	author brlcad;	state Exp;
+branches;
+next	1.21;
+
+1.21
+date	2007.01.27.01.41.34;	author brlcad;	state Exp;
+branches;
+next	1.20;
+
+1.20
+date	2007.01.23.01.13.32;	author brlcad;	state Exp;
+branches;
+next	1.19;
+
+1.19
+date	2007.01.20.14.36.49;	author brlcad;	state Exp;
+branches;
+next	1.18;
+
+1.18
+date	2006.08.02.13.55.05;	author johnranderson;	state Exp;
+branches;
+next	1.17;
+
+1.17
+date	2006.06.03.20.59.36;	author brlcad;	state Exp;
+branches;
+next	1.16;
+
+1.16
+date	2006.04.05.19.15.42;	author brlcad;	state Exp;
+branches;
+next	1.15;
+
+1.15
+date	2006.02.27.10.08.40;	author brlcad;	state Exp;
+branches
+	1.15.2.1;
+next	1.14;
+
+1.14
+date	2006.01.24.04.24.33;	author brlcad;	state Exp;
+branches;
+next	1.13;
+
+1.13
+date	2006.01.16.18.26.38;	author brlcad;	state Exp;
+branches;
+next	1.12;
+
+1.12
+date	2006.01.16.18.24.57;	author brlcad;	state Exp;
+branches;
+next	1.11;
+
+1.11
+date	2006.01.16.08.40.38;	author brlcad;	state Exp;
+branches;
+next	1.10;
+
+1.10
+date	2006.01.15.19.42.48;	author brlcad;	state Exp;
+branches;
+next	1.9;
+
+1.9
+date	2006.01.12.01.39.42;	author brlcad;	state Exp;
+branches;
+next	1.8;
+
+1.8
+date	2006.01.10.07.29.20;	author brlcad;	state Exp;
+branches;
+next	1.7;
+
+1.7
+date	2006.01.10.07.10.19;	author brlcad;	state Exp;
+branches;
+next	1.6;
+
+1.6
+date	2006.01.10.05.11.31;	author brlcad;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	2006.01.09.23.10.50;	author brlcad;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	2006.01.09.17.55.36;	author brlcad;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2006.01.09.17.45.20;	author brlcad;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2006.01.08.19.33.21;	author brlcad;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2006.01.06.08.49.24;	author brlcad;	state Exp;
+branches;
+next	;
+
+1.15.2.1
+date	2006.04.07.19.26.27;	author jlowenz;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.27
+log
+@collapse bu_log();bu_exit(#,""); as much as possible
+@
+text
+@/*                     G _ T R A N S F E R . C
+ * BRL-CAD
+ *
+ * Copyright (c) 2006-2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@file g_transfer.c
+ *
+ * Author: Christopher Sean Morrison
+ *
+ * Relatively simple example database transfer program that shows how
+ * to open a database, extract a serialized version of specified
+ * geometry objects, transfer those objects to a remove host, and
+ * utiling standard librt routines on the remote objects while keeping
+ * the remote geometry in memory only.  The transfer program interface
+ * is designed in a simple ttcp fashion using libpkg.
+ *
+ * To compile from an install:
+ * gcc -I/usr/brlcad/include/brlcad -L/usr/brlcad/lib -o g_transfer g_transfer.c -lpkg -lrt -lbu
+ *
+ */
+
+#include "common.h"
+
+/* system headers */
+#include <stdlib.h>
+#include <signal.h>
+#include <string.h>
+#ifdef HAVE_UNISTD_H
+#  include <unistd.h>
+#endif
+
+/* interface headers */
+#include "machine.h"
+#include "raytrace.h"
+#include "bu.h"
+#include "pkg.h"
+
+
+/* used by the client to pass the dbip and opened transfer file
+ * descriptor.
+ */
+typedef struct _my_data_ {
+    struct pkg_conn *connection;
+    const char *server;
+    int port;
+} my_data;
+
+/* simple network transport protocol. connection starts with a HELO,
+ * then a variable number of GEOM/ARGS messages, then a CIAO to end.
+ */
+#define MAGIC_ID	"G_TRANSFER"
+#define MSG_HELO	1
+#define MSG_ARGS	2
+#define MSG_GEOM	3
+#define MSG_CIAO	4
+
+/* static size used for temporary string buffers */
+#define MAX_DIGITS	32
+
+/* in-memory geometry database filled in by the server as it receives
+ * geometry from the client.
+ */
+struct db_i *DBIP = NULL;
+
+/* used by server to stash what it should shoot at */
+int srv_argc = 0;
+char **srv_argv = NULL;
+
+
+/** print a usage statement when invoked with bad, help, or no arguments
+ */
+void
+usage(const char *msg, const char *argv0)
+{
+    if (msg) {
+	bu_log("%s\n", msg);
+    }
+    bu_log("Usage: %s [-t] [-p#] host gfile [geometry ...]\n\t-p#\tport number to send to (default 2000)\n\thost\thostname or IP address of receiving server\n\tgfile\tBRL-CAD .g database file\n\tgeometry\tname(s) of geometry to send (OPTIONAL)\n", argv0 ? argv0 : "g_transfer");
+    bu_exit(1, "Usage: %s -r [-p#]\n\t-p#\tport number to listen on (default 2000)\n", argv0 ? argv0 : "g_transfer");
+}
+
+
+void
+validate_port(int port) {
+    if (port < 0)
+	bu_exit(EXIT_FAILURE, "Invalid negative port range\n");
+}
+
+
+int
+hit(struct application *ap, struct partition *p, struct seg *s)
+{
+    bu_log("HIT!\n");
+    return 0;
+}
+int
+miss(struct application *ap)
+{
+    bu_log("MISSED!\n");
+    return 0;
+}
+void
+do_something() {
+    /* shoot a ray at some geometry just to show that we can */
+    struct application ap;
+    struct rt_i *rtip;
+    int i;
+
+    if (!DBIP) {
+	return;
+    }
+
+    RT_APPLICATION_INIT(&ap);
+    rtip = rt_new_rti(DBIP); /* clone dbip */
+    if (!rtip) {
+	bu_log("Unable to create a database instance off of the raytrace instance\n");
+	return;
+    }
+    rt_ck(rtip); /* gratuitous sanity check, test for corruption */
+    ap.a_rt_i = rtip;
+    ap.a_hit = hit;
+    ap.a_miss = miss;
+    VSET(ap.a_ray.r_pt, 0, 0, 10000);
+    VSET(ap.a_ray.r_dir, 0, 0, -1);
+
+    /* shoot at any geometry specified */
+    for (i = 0; i < srv_argc; i++) {
+	if (rt_gettree(rtip, srv_argv[i]) != 0) {
+	    bu_log("Unable to validate %s for raytracing\n", srv_argv[i]);
+	    continue;
+	}
+	rt_prep(rtip);
+	bu_log("Shooting at %s from (0, 0, 10000) in the (0, 0, -1) direction\n", srv_argv[i]);
+	(void)rt_shootray(&ap);
+	rt_clean(rtip);
+    }
+    rt_free_rti(rtip);
+}
+
+
+void
+server_helo(struct pkg_conn *connection, char *buf)
+{
+    /* should not encounter since we listened for it specifically
+     * before beginning processing of packets.
+     */
+    bu_log("Unexpected HELO encountered\n");
+    free(buf);
+}
+
+
+void
+server_args(struct pkg_conn *connection, char *buf)
+{
+    /* updates the srv_argc and srv_argv application globals used to
+     * show that we can shoot at geometry in-memory.
+     */
+    srv_argc++;
+    if (!srv_argv) {
+	srv_argv = bu_calloc(1, srv_argc * sizeof(char *), "server_args() srv_argv calloc");
+    } else {
+	srv_argv = bu_realloc(srv_argv, srv_argc * sizeof(char *), "server_args() srv_argv realloc");
+    }
+    srv_argv[srv_argc - 1] = bu_calloc(1, sizeof(buf) + 1, "server_args() srv_argv[] calloc");
+    strncpy(srv_argv[srv_argc - 1], buf, sizeof(buf)+1);
+
+    bu_log("Planning to shoot at %s\n", buf);
+
+    free(buf);
+}
+
+
+void
+server_geom(struct pkg_conn *connection, char *buf)
+{
+    struct bu_external ext;
+    struct db5_raw_internal raw;
+    int flags;
+
+    if (DBIP == NULL) {
+	/* first geometry received, initialize */
+	DBIP = db_open_inmem();
+    }
+
+    if (db5_get_raw_internal_ptr(&raw, (const unsigned char *)buf) == NULL) {
+	bu_log("Corrupted serialized geometry?  Could not deserialize.\n");
+	free(buf);
+	return;
+    }
+
+    /* initialize an external structure since the data seems valid and add/export
+     * it to the directory.
+     */
+    BU_INIT_EXTERNAL(&ext);
+    ext.ext_buf = buf;
+    ext.ext_nbytes = raw.object_length;
+    flags = db_flags_raw_internal(&raw) | RT_DIR_INMEM;
+    wdb_export_external(DBIP->dbi_wdbp, &ext, raw.name.ext_buf, flags, raw.minor_type);
+
+    bu_log("Received %s (MAJOR=%d, MINOR=%d)\n", raw.name.ext_buf, raw.major_type, raw.minor_type);
+}
+
+
+void
+server_ciao(struct pkg_conn *connection, char *buf)
+{
+    bu_log("CIAO encountered\n");
+
+    /* shoot some rays just to show that we can if server was
+     * invoked with specific geometry.
+     */
+    do_something();
+
+    if (DBIP != NULL) {
+	/* uncomment to avoid an in-mem dbip close bug */
+	/* DBIP->dbi_fp = fopen("/dev/null", "r");*/
+	db_close(DBIP);
+	DBIP = NULL;
+    }
+
+    free(buf);
+}
+
+
+/** start up a server that listens for a single client.
+ */
+void
+run_server(int port) {
+    struct pkg_conn *client;
+    int netfd;
+    char portname[MAX_DIGITS] = {0};
+    int pkg_result  = 0;
+    char *title;
+
+    struct pkg_switch callbacks[] = {
+	{MSG_HELO, server_helo, "HELO"},
+	{MSG_ARGS, server_args, "ARGS"},
+	{MSG_GEOM, server_geom, "GEOM"},
+	{MSG_CIAO, server_ciao, "CIAO"},
+	{0, 0, (char *)0}
+    };
+
+    validate_port(port);
+
+    /* start up the server on the given port */
+    snprintf(portname, MAX_DIGITS - 1, "%d", port);
+    netfd = pkg_permserver(portname, "tcp", 0, 0);
+    if (netfd < 0)
+	bu_exit(EXIT_FAILURE, "Unable to start the server");
+
+    /* listen for a good client indefinitely */
+    do {
+	client = pkg_getclient(netfd, callbacks, NULL, 0);
+	if (client == PKC_NULL) {
+	    bu_log("Connection seems to be busy, waiting...\n");
+	    sleep(10);
+	    continue;
+	} else if (client == PKC_ERROR) {
+	    bu_log("Fatal error accepting client connection.\n");
+	    pkg_close(client);
+	    client = PKC_NULL;
+	    continue;
+	}
+
+	/* got a connection, process it */
+	title = pkg_bwaitfor(MSG_HELO, client);
+	if (title == NULL) {
+	    bu_log("Failed to process the client connection, still waiting\n");
+	    pkg_close(client);
+	    client = PKC_NULL;
+	} else {
+	    /* validate magic header */
+	    if (strcmp(title, MAGIC_ID) != 0) {
+		bu_log("Bizarre corruption, received a HELO without at matching MAGIC ID!\n");
+		pkg_close(client);
+		client = PKC_NULL;
+	    } else {
+		title += strlen(MAGIC_ID) + 1;
+		bu_log("Preparing to receive data for geometry from a database with the following title:\n%s\n", title);
+	    }
+	}
+    } while (client == PKC_NULL);
+
+    /* read from the connection */
+    bu_log("Processing objects from client\n");
+    do {
+	/* process packets potentially received in a processing callback */
+	pkg_result = pkg_process(client);
+	if (pkg_result < 0) {
+	    bu_log("Unable to process packets? Wierd.\n");
+	} else {
+	    bu_log("Processed %d packet%s\n", pkg_result, pkg_result == 1 ? "" : "s");
+	}
+
+	/* suck in data from the network */
+	pkg_result = pkg_suckin(client);
+	if (pkg_result < 0) {
+	    bu_log("Seemed to have trouble sucking in packets.\n");
+	    break;
+	} else if (pkg_result == 0) {
+	    bu_log("Client closed the connection.\n");
+	    break;
+	}
+
+	/* process packets received */
+	pkg_result = pkg_process(client);
+	if (pkg_result < 0) {
+	    bu_log("Unable to process packets? Wierd.\n");
+	} else {
+	    bu_log("Processed %d packet%s\n", pkg_result, pkg_result == 1 ? "" : "s");
+	}
+    } while (client != NULL);
+
+    /* shut down the server */
+    pkg_close(client);
+}
+
+
+/** base routine that the client uses to send an object to the server.
+ * this is the hook callback function for both the primitives and
+ * combinations encountered during a db_functree() traversal.
+ *
+ * returns 0 if unsuccessful
+ * returns 1 if successful
+ */
+void
+send_to_server(struct db_i *dbip, struct directory *dp, genptr_t connection)
+{
+    my_data *stash;
+    struct bu_external ext;
+    int bytes_sent = 0;
+
+    RT_CK_DBI(dbip);
+    RT_CK_DIR(dp);
+
+    stash = (my_data *)connection;
+
+    if (db_get_external(&ext, dp, dbip) < 0) {
+	bu_log("Failed to read %s, skipping\n", dp->d_namep);
+	return;
+    }
+
+    /* send the external representation over the wire */
+    bu_log("Sending %s\n",dp->d_namep);
+
+    /* pad the data with the length in ascii for convenience */
+    bytes_sent = pkg_send(MSG_GEOM, ext.ext_buf, ext.ext_nbytes, stash->connection);
+    if (bytes_sent < 0) {
+	pkg_close(stash->connection);
+	bu_log("Unable to successfully send %s to %s, port %d.\n", dp->d_namep, stash->server, stash->port);
+	return;
+    }
+
+    /* our responsibility to free the stuff we got */
+    bu_free_external(&ext);
+}
+
+
+/** start up a client that connects to the given server, and sends
+ *  serialized .g data.  if the user specified geometry, only that
+ *  geometry is sent via send_to_server().
+ */
+void
+run_client(const char *server, int port, struct db_i *dbip, int geomc, const char **geomv)
+{
+    my_data stash;
+    int i;
+    struct directory *dp;
+    char s_port[MAX_DIGITS] = {0};
+    int bytes_sent = 0;
+
+    RT_CK_DBI(dbip);
+
+    /* open a connection to the server */
+    validate_port(port);
+
+    snprintf(s_port, MAX_DIGITS - 1, "%d", port);
+    stash.connection = pkg_open(server, s_port, "tcp", NULL, NULL, NULL, NULL);
+    if (stash.connection == PKC_ERROR) {
+	bu_log("Connection to %s, port %d, failed.\n", server, port);
+	bu_exit(EXIT_FAILURE, "ERROR: Unable to open a connection to the server\n");
+    }
+    stash.server = server;
+    stash.port = port;
+
+    /* let the server know we're cool.  also, send the database title
+     * along with the MAGIC ident just because we can.
+     */
+    bytes_sent = pkg_2send(MSG_HELO, MAGIC_ID, strlen(MAGIC_ID) + 1, dbip->dbi_title, strlen(dbip->dbi_title), stash.connection);
+    if (bytes_sent < 0) {
+	pkg_close(stash.connection);
+	bu_log("Connection to %s, port %d, seems faulty.\n", server, port);
+	bu_exit(EXIT_FAILURE, "ERROR: Unable to communicate with the server\n");
+    }
+
+    bu_log("Database title is:\n%s\n", dbip->dbi_title);
+    bu_log("Units: %s\n", bu_units_string(dbip->dbi_local2base));
+
+    /* send geometry to the server */
+    if (geomc > 0) {
+	/* geometry was specified. look it up and process the
+	 * hierarchy using db_functree() where all combinations and
+	 * primitives are sent that get encountered.
+	 */
+	for (i = 0; i < geomc; i++) {
+	    /* send the geometry as an ARGS packet so the server can
+	     * know what to shoot at.
+	     */
+	    bytes_sent = pkg_send(MSG_ARGS, geomv[i], strlen(geomv[i]) + 1, stash.connection);
+	    if (bytes_sent < 0) {
+		pkg_close(stash.connection);
+		bu_log("Unable to request server shot at %s\n", geomv[i]);
+		bu_exit(EXIT_FAILURE, "ERROR: Unable to communicate request to server\n");
+	    }
+
+	    dp = db_lookup(dbip, geomv[i], LOOKUP_NOISY);
+	    if (dp == DIR_NULL) {
+		pkg_close(stash.connection);
+		bu_log("Unable to lookup %s\n", geomv[i]);
+		bu_exit(EXIT_FAILURE, "ERROR: requested geometry could not be found\n");
+	    }
+	    db_functree(dbip, dp, send_to_server, send_to_server, &rt_uniresource, (genptr_t)&stash);
+	}
+    } else {
+	/* no geometry was specified so traverse the array of linked
+	 * lists contained in the database instance and send
+	 * everything.
+	 */
+	FOR_ALL_DIRECTORY_START(dp, dbip) {
+	    send_to_server(dbip, dp, (genptr_t)&stash);
+	} FOR_ALL_DIRECTORY_END;
+    }
+
+    /* let the server know we're done.  not necessary, but polite. */
+    bytes_sent = pkg_send(MSG_CIAO, "BYE", 4, stash.connection);
+    if (bytes_sent < 0) {
+	bu_log("Unable to cleanly disconnect from %s, port %d.\n", server, port);
+    }
+
+    /* flush output and close */
+    pkg_close(stash.connection);
+
+    return;
+}
+
+
+/** main application
+ */
+int
+main(int argc, char *argv[]) {
+    const char * const argv0 = argv[0];
+    int c;
+    int server = 0; /* not a server by default */
+    int port = 2000;
+
+    /* client stuff */
+    const char *server_name = NULL;
+    const char *geometry_file = NULL;
+    const char ** geometry = NULL;
+    int ngeometry = 0;
+    struct db_i *dbip = NULL;
+
+    if (argc < 2) {
+	usage("ERROR: Missing arguments", argv[0]);
+    }
+
+    /* process the command-line arguments after the application name */
+    while ((c = bu_getopt(argc, argv, "tTrRp:P:hH")) != EOF) {
+	switch (c) {
+	    case 't':
+	    case 'T':
+		/* sending */
+		server = 0;
+		break;
+	    case 'r':
+	    case 'R':
+		/* receiving */
+		server = 1;
+		break;
+	    case 'p':
+	    case 'P':
+		port = atoi(bu_optarg);
+		break;
+	    case 'h':
+	    case 'H':
+		/* help */
+		usage(NULL, argv0);
+		break;
+	    default:
+		usage("ERROR: Unknown argument", argv0);
+	}
+    }
+
+    argc -= bu_optind;
+    argv += bu_optind;
+
+    if (server) {
+	if (argc > 0) {
+	    usage("ERROR: Unexpected extra arguments", argv0);
+	}
+
+	/* mark the database as in-memory only */
+	/* XXX = wdb_dbopen(dbip, RT_WDB_TYPE_DB_INMEM); */
+
+	/* ignore broken pipes */
+	(void)signal(SIGPIPE, SIG_IGN);
+
+	/* fire up the server */
+	bu_log("Listening on port %d\n", port);
+	run_server(port);
+
+	return 0;
+    }
+
+    /* prep up the client */
+    if (argc < 1) {
+	usage("ERROR: Missing hostname and geometry file arguments", argv0);
+    } else if (argc < 2) {
+	usage("ERROR: Missing geometry file argument", argv0);
+    } else {
+	geometry = (const char **)(argv + 2);
+	ngeometry = argc - 2;
+    }
+
+    server_name = *argv++;
+    geometry_file = *argv++;
+
+    /* make sure the geometry file exists */
+    if (!bu_file_exists(geometry_file)) {
+	bu_log("Geometry file does not exist: %s\n", geometry_file);
+	bu_exit(EXIT_FAILURE, "Need a BRL-CAD .g geometry database file\n");
+    }
+
+    /* XXX fixed in latest db_open(), but call for now just in case
+       until 7.8.0 release */
+    rt_init_resource( &rt_uniresource, 0, NULL );
+
+    /* make sure the geometry file is a geometry database, get a
+     * database instance pointer.
+     */
+    dbip = db_open(geometry_file, "r");
+    if (dbip == DBI_NULL) {
+	bu_log("Cannot open %s\n", geometry_file);
+	perror(argv0);
+	bu_exit(EXIT_FAILURE, "Need a geometry file");
+    }
+
+    /* load the database directory into memory */
+    if (db_dirbuild(dbip) < 0) {
+	db_close(dbip);
+	bu_log("Unable to load the database directory for file: %s\n", geometry_file);
+	bu_exit(EXIT_FAILURE, "Can't read geometry file");
+     }
+
+    /* fire up the client */
+    bu_log("Connecting to %s, port %d\n", server_name, port);
+    run_client(server_name, port, dbip, ngeometry, geometry);
+
+    /* done with the database */
+    db_close(dbip);
+
+    return 0;
+}
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+1.26
+log
+@exit->bu_exit where applicable
+@
+text
+@d93 1
+a93 2
+    bu_log("Usage: %s -r [-p#]\n\t-p#\tport number to listen on (default 2000)\n", argv0 ? argv0 : "g_transfer");
+    bu_exit(1, "");
+d99 1
+a99 1
+    if (port < 0) {
+a100 1
+    }
+d262 1
+a262 1
+    if (netfd < 0) {
+a263 1
+    }
+@
+
+
+1.25
+log
+@change bu_bomb to bu_exit when the sky isn't really falling
+@
+text
+@d94 1
+a94 1
+    exit(1);
+@
+
+
+1.24
+log
+@more quellings of level 4 flawfinder issues
+@
+text
+@d101 1
+a101 1
+	bu_bomb("Invalid negative port range\n");
+d265 1
+a265 1
+	bu_bomb("Unable to start the server");
+d398 1
+a398 1
+	bu_bomb("ERROR: Unable to open a connection to the server\n");
+d410 1
+a410 1
+	bu_bomb("ERROR: Unable to communicate with the server\n");
+d430 1
+a430 1
+		bu_bomb("ERROR: Unable to communicate request to server\n");
+d437 1
+a437 1
+		bu_bomb("ERROR: requested geometry could not be found\n");
+d548 1
+a548 1
+	bu_bomb("Need a BRL-CAD .g geometry database file\n");
+d562 1
+a562 1
+	bu_bomb("Need a geometry file");
+d569 1
+a569 1
+	bu_bomb("Can't read geometry file");
+@
+
+
+1.23
+log
+@change c++/c99 "//" comments to more portable c89 /* */ comments
+@
+text
+@d176 1
+a176 1
+	srv_argv = bu_calloc(1, sizeof(char *), "server_args() srv_argv calloc");
+d181 1
+a181 1
+    strcpy(srv_argv[srv_argc - 1], buf);
+@
+
+
+1.22
+log
+@gah, pick up where someone left off over half a decade ago.  finish updating all of the compat4 symbols throughout the code to their new names.  finally. it's done.  make the deprecated headers obsolete -- make compat4.h obsolete too so we can be sure that all of the changes are now picked up by the compiler as errors.  this change will likely impact muves if they've similarly not updated to the new names too, so the headers are kept with a #warning for now (though will likely disappear down the road entirely).
+@
+text
+@d520 1
+a520 1
+	//	XXX = wdb_dbopen(dbip, RT_WDB_TYPE_DB_INMEM);
+@
+
+
+1.21
+log
+@ws. lots and lots of ws.  see sh/ws.sh for details (cases 'abcdeg').
+@
+text
+@d414 1
+a414 1
+    bu_log("Units: %s\n", rt_units_string(dbip->dbi_local2base));
+@
+
+
+1.20
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@d162 1
+a162 1
+     */	
+d170 1
+a170 1
+{    
+d184 1
+a184 1
+   
+d258 1
+a258 1
+    
+d340 1
+a340 1
+ * returns 0 if unsuccessful 
+d359 1
+a359 1
+    
+d365 1
+a365 1
+    if (bytes_sent < 0) {	
+d427 1
+a427 1
+	    if (bytes_sent < 0) {	
+@
+
+
+1.19
+log
+@update copyright to 2007
+@
+text
+@d8 2
+a9 3
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+d14 1
+a14 1
+ * General Public License for more details.
+d16 2
+a17 2
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+@
+
+
+1.18
+log
+@Corrected the compile instructions
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 2006 United States Government as represented by
+@
+
+
+1.17
+log
+@remove unused variables
+@
+text
+@d33 1
+a33 1
+ * gcc -I/usr/brlcad/include -L/usr/brlcad/lib -o g_transfer g_transfer.c -lrt -lbu
+@
+
+
+1.16
+log
+@more header/warning cleanup from Intel compiler warnings on Altix
+@
+text
+@a193 1
+    struct directory *dp;
+a386 2
+    struct bu_external ext;
+    struct db_tree_state init_state; /* state table for the heirarchy walker */
+@
+
+
+1.15
+log
+@stdlib.h and exit()
+@
+text
+@d43 3
+@
+
+
+1.15.2.1
+log
+@update from HEAD
+@
+text
+@a42 3
+#ifdef HAVE_UNISTD_H
+#  include <unistd.h>
+#endif
+@
+
+
+1.14
+log
+@use the FOR_ALL_DIRECTORY_START/FOR_ALL_DIRECTORY_END macros for iterating over the array of linked list of directory nodes.
+@
+text
+@d200 1
+a200 1
+    if (db5_get_raw_internal_ptr(&raw, buf) == NULL) {
+@
+
+
+1.13
+log
+@switch it back to db_open_inmem() instead of db_create_inmem() since testing is done, either should work fine but for this application, we don't need the _GLOBAL.
+@
+text
+@d447 3
+a449 5
+	for (i = 0; i < RT_DBNHASH; i++) {
+	    for (dp = dbip->dbi_Head[i]; dp != DIR_NULL; dp = dp->d_forw) {
+		send_to_server(dbip, dp, (genptr_t)&stash);
+	    }
+	}
+@
+
+
+1.12
+log
+@rename the dbip global to DBIP to distinguish it from local function dbip pointers.  move the open/create/flag inmem routines into librt proper into the db_inmem.c and db_flags.c files.
+@
+text
+@d197 1
+a197 1
+	DBIP = db_create_inmem();
+@
+
+
+1.11
+log
+@now fully working, shooting rays at the remote geometry being held in-memory only.  finishing polish fixes that were needed include making the dbi_title memory dynamic so librt doesn't try to free the static string, do the something during the ciao instead of after the server shuts down, and MOST IMPORTANTLY .. don't free the libpkg buf buffer that was used to set the external buffer, that gets stashed into the directory pointer, that must not be free'd when we try to use it...(that took a long time to find)
+@
+text
+@d75 1
+a75 1
+struct db_i *dbip = NULL;
+a103 113
+#define DEFAULT_DB_TITLE "Untitled BRL-CAD Database"
+
+struct db_i *
+db_open_inmem(void)
+{
+    register struct db_i *dbip = DBI_NULL;
+    register int i;
+
+    BU_GETSTRUCT( dbip, db_i );
+    dbip->dbi_eof = -1L;
+    dbip->dbi_fd = -1;
+    dbip->dbi_fp = NULL;
+    dbip->dbi_mf = NULL; /* fake mapped file for contents? */
+    dbip->dbi_read_only = 1;
+
+    /* Initialize fields */
+    for( i=0; i<RT_DBNHASH; i++ ) {
+	dbip->dbi_Head[i] = DIR_NULL;
+    }
+
+    dbip->dbi_local2base = 1.0;		/* mm */
+    dbip->dbi_base2local = 1.0;
+    dbip->dbi_title = bu_strdup(DEFAULT_DB_TITLE);
+    dbip->dbi_uses = 1;
+    dbip->dbi_filename = NULL;
+    dbip->dbi_filepath = NULL;
+    dbip->dbi_version = 5;
+
+    /* XXX need to stash an ident record so it's valid maybe? */
+    /* see db_fwrite_ident() */
+
+    bu_ptbl_init( &dbip->dbi_clients, 128, "dbi_clients[]" );
+    dbip->dbi_magic = DBI_MAGIC;		/* Now it's valid */
+
+    /* mark the wdb structure as in-memory. */
+    dbip->dbi_wdbp = wdb_dbopen(dbip, RT_WDB_TYPE_DB_INMEM);
+
+    return dbip;
+}
+
+
+struct db_i *
+db_create_inmem(void) {
+    struct db_i *dbip;
+    struct bu_external obj;
+    struct bu_attribute_value_set avs;
+    struct bu_vls units;
+    struct bu_external attr;
+    int result;
+
+    dbip = db_open_inmem();
+
+    /* create the header record */
+    db5_export_object3(&obj, DB5HDR_HFLAGS_DLI_HEADER_OBJECT,
+		       NULL, 0, NULL, NULL,
+		       DB5_MAJORTYPE_RESERVED, 0,
+		       DB5_ZZZ_UNCOMPRESSED, DB5_ZZZ_UNCOMPRESSED );
+    /* XXX add objdata to mapped file pointer */
+
+    /* Second, create the attribute-only _GLOBAL object */
+    bu_vls_init( &units );
+    bu_vls_printf( &units, "%.25e", dbip->dbi_local2base );
+    
+    bu_avs_init( &avs, 4, "db_create_inmem" );
+    bu_avs_add( &avs, "title", dbip->dbi_title );
+    bu_avs_add( &avs, "units", bu_vls_addr(&units) );
+
+    db5_export_attributes( &attr, &avs );
+    db5_export_object3(&obj, DB5HDR_HFLAGS_DLI_APPLICATION_DATA_OBJECT,
+		       DB5_GLOBAL_OBJECT_NAME, DB5HDR_HFLAGS_HIDDEN_OBJECT, &attr, NULL,
+		       DB5_MAJORTYPE_ATTRIBUTE_ONLY, 0,
+		       DB5_ZZZ_UNCOMPRESSED, DB5_ZZZ_UNCOMPRESSED );
+    /* XXX add objdata to mapped file pointer */
+
+    bu_free_external( &obj );
+    bu_free_external( &attr );
+    bu_avs_free( &avs );
+    bu_vls_free( &units );
+
+    return dbip;
+}
+
+
+/* should use in db5_diradd() */
+int
+db_flags_raw_internal(struct db5_raw_internal *raw)
+{
+    struct bu_attribute_value_set avs;
+
+    if (raw->major_type != DB5_MAJORTYPE_BRLCAD) {
+	return DIR_NON_GEOM;
+    }
+    if (raw->minor_type == DB5_MINORTYPE_BRLCAD_COMBINATION) {
+	if (raw->attributes.ext_buf) {
+	    bu_avs_init_empty(&avs);
+	    if (db5_import_attributes(&avs, &raw->attributes) < 0) {
+		/* could not load attributes, so presume not a region */
+		return DIR_COMB;
+	    }
+	    if (avs.count == 0) {
+		return DIR_COMB;
+	    }
+	    if (bu_avs_get( &avs, "region" ) != NULL) {
+		return DIR_COMB|DIR_REGION;
+	    }
+	}
+	return DIR_COMB;
+    }
+
+    /* anything else is a solid? */
+    return DIR_SOLID;
+}
+
+d123 1
+a123 1
+    if (!dbip) {
+d128 1
+a128 1
+    rtip = rt_new_rti(dbip); /* clone dbip */
+d195 1
+a195 1
+    if (dbip == NULL) {
+d197 1
+a197 1
+	dbip = db_open_inmem();
+d213 1
+a213 1
+    wdb_export_external(dbip->dbi_wdbp, &ext, raw.name.ext_buf, flags, raw.minor_type);
+d229 1
+a229 1
+    if (dbip != NULL) {
+d231 3
+a233 3
+	/* dbip->dbi_fp = fopen("/dev/null", "r");*/
+	db_close(dbip);
+	dbip = NULL;
+@
+
+
+1.10
+log
+@give the server something to do with the geometry sent to it -- the client can specify objects that should be shot at via MSG_ARGS packets.  the server stashes those object names and then shoots a ray at them when the client disconnects.  since external packets actually include their data lengths inside, we don't need to send that object length as a string.  server now correctly stashes the geometry as in-memory objects.
+@
+text
+@d126 1
+a126 1
+    dbip->dbi_title = DEFAULT_DB_TITLE;
+d236 4
+d262 1
+a307 5
+    /* length was stashed as string in first 32 bytes for
+     * convenience only, more efficient methods possible.
+     */
+    int buflen = atoi(buf);
+
+a328 2
+
+    free(buf);
+d337 5
+d343 4
+a346 1
+	/*	db_close(dbip); */
+a643 5
+	
+	/* shoot some rays just to show that we can if server was
+	 * invoked with specific geometry.
+	 */
+	do_something();
+@
+
+
+1.9
+log
+@begin initial support for creating an in-memory geometry database (routines will likely move into librt, but here for now for simplicity (db_open_inmem() and db_create_inmem()).  also send the length of each object over the wire as an ascii string for simplicity so we can easily restore the bu_external structure without going through hoops.  add an rt_init_resource() call for convenience until the next release since db_open() is bugged on earlier versions.
+@
+text
+@d28 3
+a30 3
+ * utiling standard librt routines on the remote objects.  The
+ * transfer program interface is designed in a simple ttcp fashion
+ * using libpkg.
+d61 1
+a61 1
+ * then a variable number of GEOM messages, then a CIAO when done.
+d65 3
+a67 2
+#define MSG_GEOM	2
+#define MSG_CIAO	3
+d72 9
+d138 3
+d187 75
+d275 21
+d299 3
+d308 14
+d323 4
+a326 5
+    ext.ext_buf = buf + 32;
+    ext.ext_nbytes = buflen;
+
+    bu_log("GEOM encountered\n");
+    bu_log("data is %d bytes long\n", buflen);
+d328 1
+a328 7
+#if 0
+    wdb_decode_dbip(interp, argv[3], &dbip);
+or
+    dbip = wdb_prep_dbip(interp, argv[i]);
+then
+    wdbp = wdb_dbopen(dbip, RT_WDB_TYPE_DB_INMEM);
+#endif
+d338 5
+d355 1
+d359 1
+d384 2
+a385 1
+	    return;
+d389 2
+a390 1
+	if (pkg_bwaitfor(MSG_HELO, client) == NULL) {
+d393 11
+d405 1
+a405 1
+    } while (client <= 0);
+d410 8
+d433 1
+a433 1
+	    bu_log("Processed %d packet%s\n", pkg_result, pkg_result > 1 ? "s" : "");
+a453 1
+    char length[MAX_DIGITS] = {0};
+a464 1
+    snprintf(length, MAX_DIGITS - 1, "%d", ext.ext_nbytes);
+d470 1
+a470 1
+    bytes_sent = pkg_2send(MSG_GEOM, length, MAX_DIGITS, ext.ext_buf, ext.ext_nbytes, stash->connection);
+d511 4
+a514 2
+    /* let the server know we're cool. */
+    bytes_sent = pkg_send(MSG_HELO, MAGIC_ID, strlen(MAGIC_ID) + 1, stash.connection);
+d531 10
+d638 5
+@
+
+
+1.8
+log
+@free our buffers
+@
+text
+@d42 1
+d68 3
+d94 81
+d189 11
+d201 10
+d229 1
+a229 1
+    char portname[64] = {0};
+d242 1
+a242 1
+    snprintf(portname, 64, "%d", port);
+d250 1
+a250 1
+	client = pkg_getclient(netfd, callbacks, (void(*)())bu_log, 0);
+d298 3
+d307 1
+d319 1
+d324 2
+a325 1
+    bytes_sent = pkg_send(MSG_GEOM, ext.ext_buf, ext.ext_nbytes, stash->connection);
+d329 1
+a333 2
+
+    return;
+d349 1
+a349 1
+    char s_port[32] = {0};
+d357 2
+a358 2
+    snprintf(s_port, 32, "%d", port);
+    stash.connection = pkg_open(server, s_port, "tcp", NULL, NULL, NULL, bu_log);
+d399 1
+a399 1
+		(void)send_to_server(dbip, dp, (genptr_t)&stash);
+d472 3
+d504 4
+@
+
+
+1.7
+log
+@yes, libpkg does rock.  send the geometry to the server properly specifying callbacks for the different packet types.  server gets a simple processing loop to read in the data and handle the packets.
+@
+text
+@d97 1
+d105 1
+d113 1
+@
+
+
+1.6
+log
+@libpkg is pretty cool.  open a connnection from the client to the server using a really simple handshake protocol.  client sends HELO, server listens for that HELO to distinguish valid clients from bogus connnections.
+@
+text
+@d90 24
+d121 8
+d134 1
+a134 1
+    netfd = pkg_permserver(portname, 0, 0, NULL);
+d141 10
+a150 1
+	client = pkg_getclient(netfd, NULL, NULL, 0);
+a155 1
+	    client = NULL;
+d157 1
+a157 1
+    } while (client == NULL);
+d160 11
+a170 4
+    bu_log("Processing packets\n");
+    while (pkg_suckin(client)) {
+	bu_log("Processed a packet\n");
+    }	
+d172 10
+d193 1
+d195 1
+a195 1
+    my_data *stash;
+d210 6
+d296 1
+@
+
+
+1.5
+log
+@instead of two separate hook funcs, just use send_to_server() for both the specified geometry case and the non-specified geometry case.
+@
+text
+@d54 1
+a54 1
+    int fd;
+d59 8
+d107 11
+a117 7
+    /* listen for a client indefinitely */
+    client = pkg_getclient(netfd, NULL, NULL, 0);
+
+    /* got a connection, process it */
+    if (pkg_process(client) < 0) {
+	bu_bomb("Failed to process the client connection\n");
+    }
+d120 4
+a123 1
+    /* pkg_bwaitfor() */
+d166 1
+d171 2
+a172 1
+    my_data stash;
+d179 6
+a184 1
+    stash.fd = 0;
+d188 8
+d208 1
+d226 8
+d323 2
+a324 1
+       database instance pointer */
+@
+
+
+1.4
+log
+@get rid of the db_walk_tree method since db_functree is considerably more simple for this purpose. stash the server details into our data struct.
+@
+text
+@d114 4
+d119 1
+a119 1
+comb_func(struct db_i *dbip, struct directory *dp, genptr_t connection)
+d124 2
+a125 22
+    stash = (my_data *)connection;
+
+    if (db_get_external(&ext, dp, dbip) < 0) {
+	bu_log("Failed to read %s, skipping\n", dp->d_namep);
+	return;
+    }
+    
+    /* send the external representation over the wire */
+    bu_log("Sending %s\n",dp->d_namep);
+
+    /* our responsibility to free the stuff we got */
+    bu_free_external(&ext);
+
+    return;
+}
+
+
+void
+leaf_func(struct db_i *dbip, struct directory *dp, genptr_t connection)
+{
+    struct bu_external ext;
+    my_data *stash;
+d145 2
+a146 1
+ *  serialized .g data.
+d162 4
+d171 4
+a174 5
+	/* geometry was specified, look it up and process */
+	stash.fd = 0;
+	stash.server = server;
+	stash.port = port;
+
+d178 2
+a179 2
+		bu_log("Unable to lookup %s, skipping\n", geomv[i]);
+		continue;
+d181 1
+a181 1
+	    db_functree(dbip, dp, comb_func, leaf_func, &rt_uniresource, (genptr_t)&stash);
+d184 4
+a187 1
+	/* no geometry was specified so send everything */
+d190 1
+a190 12
+		RT_CK_DIR(dp);
+
+		if (db_get_external(&ext, dp, dbip) < 0) {
+		    bu_log("Failed to read %s, skipping\n", dp->d_namep);
+		    continue;
+		}
+
+		/* send the external representation over the wire */
+		bu_log("Sending %s\n", dp->d_namep);
+
+		/* our responsibility to free the external we got */
+		bu_free_external(&ext);
+@
+
+
+1.3
+log
+@commit a version that walks the specified geometry both with db_walk_tree() and db_functree().  db_functree was ultimately considerably more simple for this exercise, but useful to see what was provided with db_walk_tree and the differences. add support to run the client either passing all geometry or just a subset (hence the subtree walking)
+@
+text
+@a53 1
+    struct db_i *dbip;
+d55 2
+a113 63
+int 
+send_region(struct db_tree_state *tsp, struct db_full_path *pathp, const struct rt_comb_internal *combp, genptr_t connection)
+{
+    const char *name;
+    RT_CK_FULL_PATH(pathp);
+    name = db_path_to_string(pathp);
+
+    bu_log("BEGIN %s\n", name);
+
+    bu_free((void *)name, "string from db_path_to_string");
+
+    return 0;
+}
+
+union tree *
+send_region_end(struct db_tree_state *tsp, struct db_full_path *pathp, union tree *curtree, genptr_t connection)
+{
+    const char *name;
+    RT_CK_FULL_PATH(pathp);
+    name = db_path_to_string(pathp);
+
+    bu_log("END %s\n", name);
+
+    bu_free((void *)name, "string from db_path_to_string");
+
+    return curtree;
+}
+
+
+union tree *
+send_leaf(struct db_tree_state *tsp, struct db_full_path *pathp, struct rt_db_internal *ip, genptr_t connection)
+{
+    const char *name;
+    struct directory *dp;
+    struct bu_external ext;
+    my_data *stash;
+
+    stash = (my_data *)connection;
+
+    RT_CK_FULL_PATH(pathp);
+    name = db_path_to_string(pathp);
+
+    dp = db_lookup(stash->dbip, name, LOOKUP_NOISY);
+    if (dp == DIR_NULL) {
+	bu_log("Unable to lookup %s, skipping\n", name);
+	return (union tree *)NULL;
+    }
+
+    if (db_get_external(&ext, dp, stash->dbip) < 0) {
+	bu_log("Failed to read %s, skipping\n", dp->d_namep);
+	return (union tree *)NULL;
+    }
+    
+    /* send the external representation over the wire */
+    bu_log("Sending %s\n", name);
+
+    /* our responsibility to free the stuff we got */
+    bu_free_external(&ext);
+    bu_free((void *)name, "string from db_path_to_string");
+
+    return (union tree *)NULL;
+}
+
+d136 1
+d183 4
+a186 11
+	init_state = rt_initial_tree_state;
+	stash.dbip = dbip;
+#if 0
+	db_walk_tree(dbip, geomc, geomv,
+		     1, 		/* ncpu */
+		     &init_state,	/* initial tree state */
+		     send_region,	/* region start callback */
+		     send_region_end, 		/* region end callback */
+		     send_leaf,		/* leaf callback */
+		     (genptr_t)&stash);
+#endif
+d193 1
+a193 1
+	    db_functree(dbip, dp, comb_func, leaf_func, &rt_uniresource, NULL);
+@
+
+
+1.2
+log
+@add an optional geometry argument for specifying what geometry to send (default is all); add a help option and make short options case insensitive
+@
+text
+@d50 9
+d113 108
+d225 1
+a225 1
+run_client(const char *server, int port, struct db_i *dbip)
+d227 9
+d240 44
+d359 1
+a360 1
+    
+d372 1
+a372 2
+       raytrace instance pointer */
+    /*    rtip = rt_dirbuild(geometry_file, NULL, 0); */
+a378 1
+    RT_CK_DBI(dbip);
+d389 1
+a389 1
+    run_client(server_name, port, dbip);
+@
+
+
+1.1
+log
+@initial stubbed g_transfer example application for transferring portions of a geometry database over a network line serialized.  incomplete, but provides the main organization.
+@
+text
+@d50 1
+a50 1
+/** print a usage statement
+d58 1
+a58 1
+    bu_log("Usage: %s [-t] [-p#] host gfile\n\t-p#\tport number to send to (default 2000)\n\thost\thostname or IP address of receiving server\n\tgfile\tBRL-CAD .g database file\n", argv0 ? argv0 : "g_transfer");
+d121 1
+a121 1
+    const char *argv0 = argv[0];
+d127 5
+a131 3
+    const char *server_name;
+    const char *geometry_file;
+    struct db_i *dbip;
+d138 1
+a138 1
+    while ((c = bu_getopt(argc, argv, "trp:")) != EOF) {
+d141 1
+d146 1
+d151 1
+d154 5
+d168 4
+d183 6
+a188 4
+    if (argc < 2) {
+	usage("ERROR: Missing hostname and/or geometry file arguments", argv0);
+    } else if (argc > 2) {
+	usage("ERROR: Unexpected extra arguments", argv0);
+d190 1
+@
+

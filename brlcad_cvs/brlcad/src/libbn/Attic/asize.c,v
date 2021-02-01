@@ -1,0 +1,647 @@
+head	14.12;
+access;
+symbols
+	stable-branch:14.7
+	rel-7-8-2:14.11
+	rel-7-8-0:14.11
+	trimnurbs-branch:14.11.0.2
+	help:14.11
+	temp_tag:14.10
+	bobWinPort-20051223-freeze:14.9
+	postmerge-20051223-bobWinPort:14.10
+	premerge-20051223-bobWinPort:14.10
+	rel-7-6-6:14.10
+	rel-7-6-4:14.10
+	rel-7-6-2:14.9
+	rel-7-6-branch:14.9.0.4
+	rel-7-6-0:14.9
+	rel-7-4-2:14.8
+	rel-7-4-branch:14.8.0.2
+	bobWinPort:14.9.0.2
+	rel-7-4-0:14.8
+	rel-7-2-6:14.8
+	rel-7-2-4:14.8
+	rel-7-2-2:14.7
+	rel-7-2-0:14.6
+	rel-7-0-4:14.5
+	rel-7-0-2:14.5
+	rel-7-0-1:14.5
+	opensource-post:14.5
+	opensource-pre:1.3
+	rel-7-0-branch:1.3.0.2
+	rel-7-0:1.3;
+locks; strict;
+comment	@ * @;
+
+
+14.12
+date	2006.08.01.15.02.55;	author brlcad;	state dead;
+branches;
+next	14.11;
+
+14.11
+date	2006.01.18.06.46.16;	author brlcad;	state Exp;
+branches;
+next	14.10;
+
+14.10
+date	2005.10.23.04.44.31;	author brlcad;	state Exp;
+branches;
+next	14.9;
+
+14.9
+date	2005.08.12.22.28.35;	author lbutler;	state Exp;
+branches
+	14.9.4.1;
+next	14.8;
+
+14.8
+date	2005.05.04.03.18.59;	author brlcad;	state Exp;
+branches;
+next	14.7;
+
+14.7
+date	2005.03.28.05.27.55;	author bob1961;	state Exp;
+branches;
+next	14.6;
+
+14.6
+date	2005.01.30.20.30.44;	author brlcad;	state Exp;
+branches;
+next	14.5;
+
+14.5
+date	2004.12.21.07.18.57;	author morrison;	state Exp;
+branches;
+next	14.4;
+
+14.4
+date	2004.12.21.06.18.43;	author morrison;	state Exp;
+branches;
+next	14.3;
+
+14.3
+date	2004.12.21.05.45.20;	author morrison;	state Exp;
+branches;
+next	14.2;
+
+14.2
+date	2004.12.21.01.52.15;	author morrison;	state Exp;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.13;	author morrison;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2004.09.03.23.30.57;	author morrison;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2004.08.02.23.01.48;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.15.19.27;	author morrison;	state Exp;
+branches;
+next	;
+
+14.9.4.1
+date	2005.11.13.13.46.15;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.12
+log
+@refactor the three asize.c implementations (libbn, libfb, & canon) into just one.  libbn had the most comprehensive and updated version, but the logic belongs in libfb.  so, the bn_common autosizing functions are now consolidated to libfb, refactoring accordingly.
+@
+text
+@/*                         A S I Z E . C
+ * BRL-CAD
+ *
+ * Copyright (c) 2004-2006 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * as published by the Free Software Foundation; either version 2 of
+ * the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Library General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ */
+/** \addtogroup libbn */
+/*@@{*/
+/** @@file ./libbn/asize.c
+ * Image file AutoSizing code.
+ *
+ *  Author -
+ *	Phil Dykstra
+ *
+ *  Source -
+ *	SECAD/VLD Computing Consortium, Bldg 394
+ *	The U. S. Army Ballistic Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005-5066
+ *
+ */
+/*@@}*/
+
+#ifndef lint
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/libbn/asize.c,v 14.11 2006/01/18 06:46:16 brlcad Exp $ (BRL)";
+#endif
+
+#include "common.h"
+
+#include <stdio.h>
+#include <math.h>
+#include <sys/stat.h>
+#ifdef HAVE_STRING_H
+#  include <string.h>
+#else
+#  include <strings.h>
+#endif
+
+#include "machine.h"
+#include "vmath.h"
+#include "bu.h"
+#include "bn.h"
+
+
+/* This table does not need to include any square sizes */
+struct sizes {
+	unsigned long int	width;		/* image width in pixels */
+	unsigned long int	height;		/* image height in pixels */
+};
+struct sizes fb_common_sizes[] = {
+	{  160,  120 },		/* quarter 640x480 */
+	{  192,  128 },		/* Kodak Photo-CD, level 1, Base/16 */
+	{  320,  200 },		/* PC screen format */
+	{  320,  240 },		/* half 640x480 */
+	{  384,  256 },		/* Kodak Photo-CD, level 2, Base/4 */
+	{  640,  512 },		/* half 1280x1024 */
+	{  640,  400 },		/* PC screen format */
+	{  640,	 480 },		/* Common video format */
+	{  640,	 485 },		/* Common video format, most correct */
+	{  640,	 486 },		/* Common video format */
+	{  720,	 485 },		/* Abekas video format, most correct */
+	{  720,	 486 },		/* Abekas video format */
+	{  768,  512 },		/* Kodak Photo-CD, level 3, Base */
+	{ 1024,	 768 },		/* SGI-3D screen size */
+	{ 1152,  900 },		/* Sun screen size */
+	{ 1280,  960 },		/* twice 640x480 */
+	{ 1280,	1024 },		/* SGI-4D screen size */
+	{ 1440,  972 },		/* double Abekas video format */
+	{ 1536, 1024 },		/* Kodak Photo-CD, level 4, 4*Base */
+	{ 1600, 1200 },		/* Digital camera */
+	{ 1600, 1280 },		/* Large monitor */
+	{ 3072, 2048 },		/* Kodak Photo-CD, level 5, 16*Base */
+	{ 3200, 4000 },		/* 8x10 inches, 400 dpi */
+	{ 3400, 4400 },		/* 8.5x11 inches, 400 dpi */
+	{ 4700, 3300 },		/* A4 size, 11.75x8.25 inches, 400 dpi */
+	{    0,	   0 }
+};
+
+/*
+ *			B N _ C O M M O N _ F I L E _ S I Z E
+ *
+ *  If the file name contains size information encoded in it,
+ *  then that size is returned, even if it differs from the actual
+ *  file dimensions.  (It might have been truncated).
+ *  Otherwise, the actual file size is passed to fb_common_image_size()
+ *  to see if this is a plausible image size.
+ *
+ *  Returns -
+ *	0	size unknown
+ *	1	width and height returned
+ */
+int
+bn_common_file_size(unsigned long int *widthp, unsigned long int *heightp, const char *filename, int pixel_size)
+   	        		/* pointer to returned width */
+   	         		/* pointer to returned height */
+          	          	/* image file to stat */
+   	           		/* bytes per pixel */
+{
+	struct	stat	sbuf;
+	unsigned long int	size;
+	register const char	*cp;
+
+	*widthp = *heightp = 0;		/* sanity */
+
+	if (pixel_size <= 0) {
+	    return 0;
+	}
+
+	if( filename == NULL || *filename == '\0' ) {
+	    return 0;
+	}
+
+	/* Skip over directory names, if any */
+	cp = strchr( filename, '/' );
+	if( cp ) {
+	    cp++;			/* skip over slash */
+	} else {
+	    cp = filename;		/* no slash */
+	}
+
+	if( bn_common_name_size( widthp, heightp, cp ) )
+	        return 1;
+
+	if( stat( filename, &sbuf ) < 0 )
+		return	0;
+
+	size = (unsigned long int)(sbuf.st_size / pixel_size);
+
+	return bn_common_image_size( widthp, heightp, size );
+}
+
+
+/*                      B N _ C O M M O N _ N A M E _ S I Z E
+ *
+ *  Given the number of pixels in an image file, along with a name for the
+ *  image (possibly the filename), attempt to determine the
+ *  the width and height of the image.
+ *
+ *  Returns -
+ *	0	size unknown
+ *	1	width and height returned
+ */
+
+int
+bn_common_name_size(unsigned long int *widthp, unsigned long int *heightp, const char *name)
+   	        		/* pointer to returned width */
+   	         		/* pointer to returned height */
+          	      		        /* name to parse */
+{
+    register const char *cp = name;
+
+    /* File name may have several minus signs in it.  Try repeatedly */
+    while( *cp )  {
+	cp = strchr( cp, '-' );		/* Find a minus sign */
+	if( cp == NULL )  break;
+	if( sscanf(cp, "-w%lu-n%lu", widthp, heightp ) == 2 )
+	    return 1;
+	cp++;				/* skip over the minus */
+    }
+
+    /* If we got here, we didn't see the answer in the name. */
+    return 0;
+}
+
+
+
+/*
+ *			B N _ C O M M O N _ I M A G E _ S I Z E
+ *
+ *  Given the number of pixels in an image file,
+ *  if this is a "common" image size,
+ *  return the width and height of the image.
+ *
+ *  Returns -
+ *	0	size unknown
+ *	1	width and height returned
+ */
+int
+bn_common_image_size(unsigned long int *widthp, unsigned long int *heightp, register unsigned long int npixels)
+   	        		/* pointer to returned width */
+   	         		/* pointer to returned height */
+            	        	/* Number of pixels */
+{
+	register struct	sizes	*sp;
+	long int		root;
+
+	if( npixels <= 0 )
+		return	0;
+
+	sp = fb_common_sizes;
+	while( sp->width != 0 ) {
+		if( npixels == sp->width * sp->height ) {
+			*widthp = sp->width;
+			*heightp = sp->height;
+			return	1;
+		}
+		sp++;
+	}
+
+	/* If the size is a perfect square, then use that. */
+	root = (long int)(sqrt((double)npixels)+0.999);
+	if( root*root == npixels )  {
+		*widthp = root;
+		*heightp = root;
+		return	1;
+	}
+
+	/* Nope, we are clueless. */
+	return	0;
+}
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+14.11
+log
+@update copyright to 2006
+@
+text
+@d38 1
+a38 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/libbn/asize.c,v 14.10 2005/10/23 04:44:31 brlcad Exp $ (BRL)";
+@
+
+
+14.10
+log
+@trailing ws
+@
+text
+@d4 1
+a4 1
+ * Copyright (C) 2004-2005 United States Government as represented by
+d38 1
+a38 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/libbn/asize.c,v 14.9 2005/08/12 22:28:35 lbutler Exp $ (BRL)";
+@
+
+
+14.9
+log
+@Doxygen changes
+@
+text
+@d28 1
+a28 1
+ *  
+d33 1
+a33 1
+ *  
+d38 1
+a38 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/libbn/asize.c,v 14.8 2005/05/04 03:18:59 brlcad Exp $ (BRL)";
+d147 1
+a147 1
+ *		
+d149 1
+a149 1
+ *  image (possibly the filename), attempt to determine the 
+d164 1
+a164 1
+    
+@
+
+
+14.9.4.1
+log
+@merge changes from HEAD aka rel-7-6-4 to the rel-7-6-branch just in case someone peeks a gander or tries to continue/build the branch
+@
+text
+@d28 1
+a28 1
+ *
+d33 1
+a33 1
+ *
+d38 1
+a38 1
+static const char RCSid[] = "@@(#)$Header$ (BRL)";
+d147 1
+a147 1
+ *
+d149 1
+a149 1
+ *  image (possibly the filename), attempt to determine the
+d164 1
+a164 1
+
+@
+
+
+14.8
+log
+@support images that are larger than int dimensions, kick it up a notch to unsigned long int dimensions
+@
+text
+@d21 3
+a23 2
+/** @@file asize.c
+ *
+d35 1
+d38 1
+a38 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/libbn/asize.c,v 14.7 2005/03/28 05:27:55 bob1961 Exp $ (BRL)";
+@
+
+
+14.7
+log
+@Move declarations of bn_common_name_size() and bn_common_image_size() to bn.h
+@
+text
+@d36 1
+a36 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/libbn/asize.c,v 14.6 2005/01/30 20:30:44 brlcad Exp $ (BRL)";
+a40 2
+
+
+d45 1
+a45 1
+#include <string.h>
+d47 1
+a47 1
+#include <strings.h>
+d55 1
+d58 2
+a59 2
+	int	width;		/* image width in pixels */
+	int	height;		/* image height in pixels */
+d104 1
+a104 1
+bn_common_file_size(int *widthp, int *heightp, const char *filename, int pixel_size)
+d111 1
+a111 1
+	int	size;
+d116 7
+a122 2
+	if( filename == NULL || *filename == '\0' )
+		return	0;
+d126 5
+a130 4
+	if( cp )
+		cp++;			/* skip over slash */
+	else
+		cp = filename;		/* no slash */
+d138 1
+a138 1
+	size = sbuf.st_size / pixel_size;
+d156 1
+a156 1
+bn_common_name_size(int *widthp, int *heightp, const char *name)
+d167 1
+a167 1
+	if( sscanf(cp, "-w%d-n%d", widthp, heightp ) == 2 )
+a177 1
+
+d190 1
+a190 1
+bn_common_image_size(int *widthp, int *heightp, register int npixels)
+d196 1
+a196 1
+	int			root;
+d212 1
+a212 1
+	root = (int)(sqrt((double)npixels)+0.999);
+@
+
+
+14.6
+log
+@update copyright to 2005
+@
+text
+@d36 1
+a36 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/libbn/asize.c,v 14.5 2004/12/21 07:18:57 morrison Exp $ (BRL)";
+d52 4
+a55 3
+/* forward declarations */
+int bn_common_name_size(int *, int *, const char *);
+int bn_common_image_size(int *, int *, int);
+@
+
+
+14.5
+log
+@the significantly modified pd files are incorporated as new works and assigned copyright, so remove the old statement.
+@
+text
+@d4 2
+a5 2
+ * Copyright (c) 2004 United States Government as represented by the
+ * U.S. Army Research Laboratory.
+d36 1
+a36 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/libbn/asize.c,v 14.4 2004/12/21 06:18:43 morrison Exp $ (BRL)";
+@
+
+
+14.4
+log
+@they should have received a copy of the LGPL with LGPL'd files
+@
+text
+@a32 2
+ *  Distribution Status -
+ *	Public Domain, Distribution Unlimitied.
+d36 1
+a36 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/libbn/asize.c,v 14.3 2004/12/21 05:45:20 morrison Exp $ (BRL)";
+@
+
+
+14.3
+log
+@s/GNU Library General/GNU Lesser General/g
+@
+text
+@d17 2
+a18 2
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+d38 1
+a38 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/libbn/asize.c,v 14.2 2004/12/21 01:52:15 morrison Exp $ (BRL)";
+@
+
+
+14.2
+log
+@assign copyright and LGPL
+@
+text
+@d8 1
+a8 1
+ * modify it under the terms of the GNU Library General Public License
+d38 1
+a38 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/libbn/asize.c,v 14.1 2004/11/16 19:42:13 morrison Exp $ (BRL)";
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@d1 21
+a21 2
+/*
+ *			 A S I Z E . C
+d38 1
+a38 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/libbn/asize.c,v 1.3 2004/09/03 23:30:57 morrison Exp $ (BRL)";
+@
+
+
+1.3
+log
+@USE_STRING_H is no more.. it's HAVE_STRING_H
+@
+text
+@d19 1
+a19 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/libbn/asize.c,v 1.2 2004/08/02 23:01:48 morrison Exp $ (BRL)";
+d200 10
+@
+
+
+1.2
+log
+@replace the wrapped config.h block with common.h
+@
+text
+@d19 1
+a19 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/libbn/asize.c,v 1.1 2004/05/20 15:19:27 morrison Exp $ (BRL)";
+d29 1
+a29 1
+#ifdef USE_STRING_H
+@
+
+
+1.1
+log
+@Vast reorganization begins.  Sources moved from top-level directories into src/.
+@
+text
+@d19 1
+a19 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/libbn/asize.c,v 1.9 2004/05/10 15:30:43 erikg Exp $ (BRL)";
+d22 1
+a22 3
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+@
+

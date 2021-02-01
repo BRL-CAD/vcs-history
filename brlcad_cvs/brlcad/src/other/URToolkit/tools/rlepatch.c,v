@@ -1,0 +1,351 @@
+head	1.5;
+access;
+symbols
+	rel-7-10-4:1.4
+	STABLE:1.4.0.2
+	stable-branch:1.2
+	rel-7-10-2:1.4
+	rel-7-10-0:1.4
+	rel-7-8-4:1.4
+	rel-7-8-2:1.4
+	rel-7-8-0:1.4
+	trimnurbs-branch:1.3.0.2
+	help:1.3
+	temp_tag:1.3
+	bobWinPort-20051223-freeze:1.2
+	postmerge-20051223-bobWinPort:1.3
+	premerge-20051223-bobWinPort:1.3
+	rel-7-6-6:1.3
+	rel-7-6-4:1.3
+	rel-7-6-2:1.2
+	rel-7-6-branch:1.2.0.6
+	rel-7-6-0:1.2
+	rel-7-4-2:1.2
+	rel-7-4-branch:1.2.0.4
+	bobWinPort:1.2.0.2
+	rel-7-4-0:1.2
+	rel-7-2-6:1.2
+	rel-7-2-4:1.2
+	rel-7-2-2:1.2
+	rel-7-2-0:1.2
+	rel-7-0-4:1.1;
+locks; strict;
+comment	@ * @;
+
+
+1.5
+date	2007.09.14.15.21.13;	author erikgreenwald;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	2006.03.24.19.36.13;	author brlcad;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2005.11.06.03.50.58;	author brlcad;	state Exp;
+branches
+	1.3.2.1;
+next	1.2;
+
+1.2
+date	2005.02.12.06.28.25;	author lbutler;	state Exp;
+branches
+	1.2.6.1;
+next	1.1;
+
+1.1
+date	2005.01.24.05.12.41;	author brlcad;	state Exp;
+branches;
+next	;
+
+1.2.6.1
+date	2005.11.13.13.46.18;	author brlcad;	state Exp;
+branches;
+next	;
+
+1.3.2.1
+date	2006.04.07.19.34.10;	author jlowenz;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.5
+log
+@removed trailing whitespace
+@
+text
+@/*
+ * This software is copyrighted as noted below.  It may be freely copied,
+ * modified, and redistributed, provided that the copyright notice is
+ * preserved on all copies.
+ *
+ * There is no warranty or other guarantee of fitness for this software,
+ * it is provided solely "as is".  Bug reports or fixes may be sent
+ * to the author, who may or may not act on them as he desires.
+ *
+ * You may not include this software in a program or other software product
+ * without supplying the source, or without informing the end-user that the
+ * source is available for no extra charge.
+ *
+ * If you modify this software, you should include a notice giving the
+ * name of the person performing the modification, the date of modification,
+ * and the reason for such modification.
+ */
+/*
+ * rlepatch.c - Patch images over a larger image.
+ *
+ * Author:	John W. Peterson
+ * 		Computer Science Dept.
+ * 		University of Utah
+ * Date:	Sun Nov 29 1987
+ * Copyright (c) 1987, University of Utah
+ *
+ * This was a quick hack.  It should be changed to use the "raw"
+ * routines someday - this would run MUCH faster for sparse patches.
+ */
+
+#include <stdlib.h>
+#include <stdio.h>
+#include "rle.h"
+
+#define IN_WINDOW(y,wind) ((y >= wind.ymin) && (y <= wind.ymax))
+
+int
+main( argc, argv )
+int argc;
+char **argv;
+{
+    rle_hdr 	im_hdr, out_hdr;
+    rle_hdr    *patch_hdr;
+    CONST_DECL char *imfilename = NULL, *outfilename = NULL;
+    CONST_DECL char **patchnames;
+    FILE *outfile = stdout;
+    rle_pixel ** im_rows, **patch_rows, ** outrows;
+    int stdin_used = 0;
+    int patches = 0, oflag = 0, i, y, c, xlen, width;
+    int rle_cnt;
+
+    im_hdr = *rle_hdr_init( NULL );
+    out_hdr = *rle_hdr_init( NULL );
+
+    if (! scanargs( argc, argv, "% o%-outfile!s infile!s patchfiles%*s",
+		    &oflag, &outfilename, &imfilename, &patches, &patchnames ))
+	exit( -1 );
+
+    patch_hdr = (rle_hdr *) malloc( sizeof( rle_hdr )
+						* patches );
+    RLE_CHECK_ALLOC( cmd_name( argv ), patch_hdr, "patch headers" );
+
+    /* Setup the main image data structures. */
+
+    im_hdr.rle_file = rle_open_f( cmd_name( argv ), imfilename, "r" );
+    if ( im_hdr.rle_file == stdin )
+	stdin_used++;
+    rle_names( &im_hdr, cmd_name( argv ), imfilename, 0 );
+    rle_names( &out_hdr, im_hdr.cmd, outfilename, 0 );
+
+    for( i = 0; i < patches; i++ )
+    {
+	patch_hdr[i] = *rle_hdr_init( NULL );
+	patch_hdr[i].rle_file = rle_open_f( cmd_name( argv ),
+					    patchnames[i], "r" );
+	rle_names( &patch_hdr[i], im_hdr.cmd, patchnames[i], 0 );
+	if ( patch_hdr[i].rle_file == stdin )
+	{
+	    if ( stdin_used )
+	    {
+		fprintf(stderr, "%s: Only use stdin (-) once.\n",
+			cmd_name( argv ));
+		exit(-1);
+	    }
+	    stdin_used++;
+	}
+    }
+
+    for ( rle_cnt = 0;
+	  rle_get_setup( &im_hdr ) == RLE_SUCCESS;
+	  rle_cnt++ )
+    {
+	/* Get the patch files set up */
+	for( i = 0; i < patches; i++ )
+	{
+	    rle_get_setup_ok( &patch_hdr[i], patch_hdr[i].cmd,
+			      patch_hdr[i].file_name );
+
+	    /* Sanity checks. */
+
+	    if ((patch_hdr[i].xmin < im_hdr.xmin) ||
+		(patch_hdr[i].xmax > im_hdr.xmax) ||
+		(patch_hdr[i].ymin < im_hdr.ymin) ||
+		(patch_hdr[i].ymax > im_hdr.ymax))
+	    {
+		fprintf( stderr, "%s: file %s is outside %s\n", im_hdr.cmd,
+			 patch_hdr[i].file_name, im_hdr.file_name );
+		exit( -2 );
+	    }
+
+	    if ((patch_hdr[i].ncolors != im_hdr.ncolors) ||
+		(patch_hdr[i].alpha != im_hdr.alpha))
+	    {
+		fprintf( stderr,
+			 "%s: file %s doesn't have the same channels as %s\n",
+			 im_hdr.cmd, patch_hdr[i].file_name,
+			 im_hdr.file_name );
+		exit(-2);
+	    }
+	}
+
+	if (rle_row_alloc( &im_hdr, &im_rows ) ||
+	    rle_row_alloc( &im_hdr, &patch_rows ))
+	    RLE_CHECK_ALLOC( cmd_name( argv ), 0, "image and patch data" );
+
+	/* Setup output */
+	(void)rle_hdr_cp( &im_hdr, &out_hdr );
+	if ( rle_cnt == 0 )
+	    outfile = rle_open_f( cmd_name( argv ), outfilename, "w" );
+	out_hdr.rle_file = outfile;
+
+	rle_addhist( argv, &im_hdr, &out_hdr );
+
+	rle_put_setup( &out_hdr );
+
+	/*
+	 * Allocate pointers to the output rows.  Note that rle_putrow
+	 * expects the pointers to start at xmin, instead of at zero
+	 * like rle_getrow (Weird Spencerism).
+	 */
+	outrows = (rle_pixel**) malloc( sizeof( rle_pixel** ) *
+					(im_hdr.alpha + im_hdr.ncolors));
+	RLE_CHECK_ALLOC( cmd_name( argv ), outrows, "output image data" );
+	if (im_hdr.alpha)
+	    outrows++;		/* Put alpha at -1 index */
+
+	xlen = out_hdr.xmax - out_hdr.xmin + 1;
+	for( i = -im_hdr.alpha; i < im_hdr.ncolors; i++ )
+	    outrows[i] = &(im_rows[i][im_hdr.xmin]);
+
+	/* Process the images. */
+
+	for (y = im_hdr.ymin; y <= im_hdr.ymax; y++)
+	{
+	    rle_getrow( &im_hdr, im_rows );
+
+	    for (i = 0; i < patches; i++)
+	    {
+		if (IN_WINDOW( y, patch_hdr[i]))
+		{
+		    rle_getrow( &(patch_hdr[i]), patch_rows );
+		    width = patch_hdr[i].xmax - patch_hdr[i].xmin + 1;
+		    for( c = -im_hdr.alpha; c < im_hdr.ncolors; c++)
+			bcopy( &(patch_rows[c][patch_hdr[i].xmin]),
+			       &(im_rows[c][patch_hdr[i].xmin]), width );
+		}
+	    }
+	    rle_putrow( outrows, xlen, &out_hdr );
+	}
+
+	rle_puteof( &out_hdr );
+
+	/* Release memory. */
+	rle_row_free( &im_hdr, im_rows );
+	rle_row_free( &im_hdr, patch_rows );
+	if ( im_hdr.alpha )
+	    outrows--;
+	free( outrows );
+    }
+    exit( 0 );
+}
+@
+
+
+1.4
+log
+@quell compiler warnings
+@
+text
+@d3 1
+a3 1
+ * modified, and redistributed, provided that the copyright notice is 
+d5 1
+a5 1
+ * 
+d11 1
+a11 1
+ * without supplying the source, or without informing the end-user that the 
+d18 1
+a18 1
+/* 
+d20 1
+a20 1
+ * 
+d120 1
+a120 1
+	}	
+d170 1
+a170 1
+    
+@
+
+
+1.3
+log
+@include stdlib.h to quell ansi c warnings about exit being implicitly defined
+@
+text
+@d37 1
+a37 1
+void
+@
+
+
+1.3.2.1
+log
+@update from HEAD
+@
+text
+@d37 1
+a37 1
+int
+@
+
+
+1.2
+log
+@Changes to quell compiler warnings on SGI.
+Mostly turning "static var" into "static int var" or similar,
+and deleting unused variable declarations.
+@
+text
+@d31 1
+@
+
+
+1.2.6.1
+log
+@merge changes from HEAD aka rel-7-6-4 to the rel-7-6-branch just in case someone peeks a gander or tries to continue/build the branch
+@
+text
+@a30 1
+#include <stdlib.h>
+@
+
+
+1.1
+log
+@update of urt from 3.0 to 3.1b1; this includes keeping directory structure and moving tools to src/other/URToolkit/tools
+@
+text
+@d49 1
+a49 1
+    int rle_cnt, rle_err;
+d89 1
+a89 1
+	  (rle_err = rle_get_setup( &im_hdr )) == RLE_SUCCESS;
+@
+

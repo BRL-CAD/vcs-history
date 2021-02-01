@@ -1,0 +1,401 @@
+head	11.10;
+access;
+symbols
+	ansi-20040405-merged:11.7.2.1
+	postmerge-20040405-ansi:11.8
+	premerge-20040404-ansi:11.7
+	postmerge-autoconf:11.7
+	autoconf-freeze:11.7
+	premerge-autoconf:11.7
+	postmerge-20040315-windows:11.7
+	premerge-20040315-windows:11.7
+	windows-20040315-freeze:11.7
+	autoconf-20031203:11.7
+	autoconf-20031202:11.7
+	autoconf-branch:11.7.0.10
+	phong-branch:11.7.0.8
+	photonmap-branch:11.7.0.6
+	rel-6-1-DP:11.7
+	windows-branch:11.7.0.4
+	rel-6-0-2:11.5
+	ansi-branch:11.7.0.2
+	rel-6-0-1-branch:11.5.0.2
+	hartley-6-0-post:11.6
+	hartley-6-0-pre:11.5
+	rel-6-0-1:11.5
+	rel-6-0:11.5
+	rel-5-4:11.3
+	offsite-5-3-pre:11.4
+	rel-5-3:11.3
+	rel-5-2:11.3
+	rel-5-1-branch:11.3.0.2
+	rel-5-1:11.3
+	rel-5-0:11.2
+	rel-5-0-beta:11.2
+	rel-4-5:11.2
+	ctj-4-5-post:11.2
+	ctj-4-5-pre:11.2
+	rel-4-4:11.1;
+locks; strict;
+comment	@ * @;
+
+
+11.10
+date	2004.05.21.14.57.43;	author morrison;	state dead;
+branches;
+next	11.9;
+
+11.9
+date	2004.05.10.15.30.50;	author erikg;	state Exp;
+branches;
+next	11.8;
+
+11.8
+date	2004.04.05.05.46.02;	author morrison;	state Exp;
+branches;
+next	11.7;
+
+11.7
+date	2002.08.20.17.08.58;	author jra;	state Exp;
+branches
+	11.7.2.1;
+next	11.6;
+
+11.6
+date	2002.08.15.20.56.11;	author hartley;	state Exp;
+branches;
+next	11.5;
+
+11.5
+date	2001.08.10.20.57.06;	author butler;	state Exp;
+branches;
+next	11.4;
+
+11.4
+date	2000.09.01.03.23.50;	author mike;	state Exp;
+branches;
+next	11.3;
+
+11.3
+date	2000.01.31.16.03.08;	author jra;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	97.01.08.04.14.26;	author mike;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	95.01.04.10.12.08;	author mike;	state Rel4_4;
+branches;
+next	1.3;
+
+1.3
+date	94.08.23.17.53.45;	author gdurf;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	94.08.23.15.05.42;	author gdurf;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	94.02.07.20.44.03;	author cjohnson;	state Exp;
+branches;
+next	;
+
+11.7.2.1
+date	2002.09.19.18.02.37;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@A short routine that uses the msr routines to generate a random number.
+@
+
+
+11.10
+log
+@moved to src/util/
+@
+text
+@/*			M S R A N D O M . C
+ *
+ * Generate a random number between the two values given. The number can be
+ * uniform across the entire range or it can be a gaussian distrubution
+ * around the center of the range (or a named center.)
+ *
+ *  Author -
+ *	Christopher T. Johnson - 94/02/06
+ *
+ *  Source -
+ *	The U. S. Army Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005-5068  USA
+ *
+ *  Distribution Status -
+ *	Public Domain, Distribution Unlimitied.
+ */
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+
+#include <stdio.h>
+#include <math.h>
+
+#include "machine.h"
+#include "externs.h"		/* For atoi */
+#include "vmath.h"
+#include "bu.h"
+#include "bn.h"
+
+struct bn_gauss *gp;
+struct bn_unif *up;
+
+int
+main(int argc, char **argv)
+{
+	extern int optind;
+	extern char *optarg;
+
+	int seed = getpid();
+	int high, low;
+	double  center = 0;
+	int verbose = 0;
+	int gauss = 0;
+	int uniform = 0;
+	int cdone = 0;
+	int c;
+
+	while ((c = getopt(argc,argv,"vugs:c:")) != EOF ) {
+		switch(c) {
+		case 's':
+			seed = atoi(optarg);
+			break;
+		case 'c':
+			center = atoi(optarg);
+			cdone = 1;
+			break;
+		case 'g':
+			gauss = 1;
+			uniform = 0;
+			break;
+		case 'u':
+			uniform = 1;
+			gauss = 0;
+			break;
+		case 'v':
+			verbose = 1;
+			break;
+		case '?':
+			fprintf(stderr,"msrandom [-ugv] [ -s seed] [-c center ] low high \n");
+			exit(1);
+		}
+	}
+	if (! gauss && !uniform) uniform = 1;
+	if (gauss && uniform) {
+		fprintf(stderr,"msrandom [-ugv] [ -s seed] [-c center ] low high \n");
+		fprintf(stderr, "\tOnly one of gaussian or uniform may be used.\n");
+		exit(1);
+	}
+	if (argc - optind != 2) {
+		fprintf(stderr,"msrandom [-ugv] [ -s seed] [-c center ] low high \n");
+		fprintf(stderr,"\tLow High must be given.\n");
+		exit(1);
+	}
+	low = atoi(argv[optind]);
+	high = atoi(argv[optind+1]);
+	if (!cdone) {
+		center = ((double)(high + low)) / 2.0;
+	}
+	if (verbose) {
+		fprintf(stderr,"msrandom: seed=%d %s %d %f %d\n",
+		    seed, (gauss) ? "Gauss" : "Uniform", low, center, high);
+	}
+	if (gauss) {
+		double tmp;
+		double max;
+		max = center-(double)low;
+		if (max < 0) max = -max;
+		tmp = (double)high - center;
+		if (tmp<0) tmp = -tmp;
+		if (tmp > max) max = tmp;
+		gp = bn_gauss_init(seed, 0);
+
+		tmp = BN_GAUSS_DOUBLE(gp)/3.0;
+		tmp = 0.5 + center + max*tmp;
+		if (tmp < low) tmp = low;
+		if (tmp > high) tmp = high;
+		fprintf(stdout,"%d\n", (int)tmp);
+	} else {
+		double tmp;
+		up = bn_unif_init(seed, 0);
+		tmp = high-low + 1.0;
+		tmp*=BN_UNIF_DOUBLE(up)+0.5;
+		fprintf(stdout,"%d\n", low +(int)tmp);
+	}
+	return 0;
+}
+ 
+@
+
+
+11.9
+log
+@change conf.h to a wrapped config.h
+@
+text
+@@
+
+
+11.8
+log
+@merge of ansi-6-0-branch into head
+@
+text
+@d17 5
+a21 1
+#include "conf.h"
+@
+
+
+11.7
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d32 1
+a32 3
+main(argc,argv)
+int argc;
+char **argv;
+@
+
+
+11.7.2.1
+log
+@Initial ANSIfication
+@
+text
+@d32 3
+a34 1
+main(int argc, char **argv)
+@
+
+
+11.6
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d32 3
+a34 1
+main(int argc, char **argv)
+@
+
+
+11.5
+log
+@Misc compiler warnings eliminated
+@
+text
+@d32 1
+a32 3
+main(argc,argv)
+int argc;
+char **argv;
+@
+
+
+11.4
+log
+@
+Lint fix
+@
+text
+@d41 1
+a41 1
+	double  center;
+d115 1
+d117 1
+@
+
+
+11.3
+log
+@Eliminated some unused variables
+@
+text
+@d31 1
+@
+
+
+11.2
+log
+@Changed to LIBBN
+@
+text
+@a94 1
+		int bins[21];
+@
+
+
+11.1
+log
+@Release_4.4
+@
+text
+@d25 2
+a26 4
+#include "raytrace.h"
+#include "msr.h"
+struct msr_gauss *gp;
+struct msr_unif *up;
+d28 3
+d101 1
+a101 1
+		gp = msr_gauss_init(seed);
+d103 1
+a103 1
+		tmp = MSR_GAUSS_DOUBLE(gp)/3.0;
+d110 1
+a110 1
+		up = msr_unif_init(seed);
+d112 1
+a112 1
+		tmp*=MSR_UNIF_DOUBLE(up)+0.5;
+@
+
+
+1.3
+log
+@Made includes of vmath.h and raytrace.h explicit
+@
+text
+@@
+
+
+1.2
+log
+@Factored ifdefs
+@
+text
+@d24 2
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d17 2
+d21 3
+a26 2
+
+int atoi();
+@

@@ -1,0 +1,455 @@
+head	11.6;
+access;
+symbols
+	ansi-20040405-merged:11.4.2.1
+	postmerge-20040405-ansi:11.5
+	premerge-20040404-ansi:11.4
+	postmerge-autoconf:11.4
+	autoconf-freeze:11.4
+	premerge-autoconf:11.4
+	ansi-20040316-freeze:11.4.2.1
+	postmerge-20040315-windows:11.4
+	premerge-20040315-windows:11.4
+	windows-20040315-freeze:11.4
+	autoconf-20031203:11.4
+	autoconf-20031202:11.4
+	autoconf-branch:11.4.0.10
+	phong-branch:11.4.0.8
+	photonmap-branch:11.4.0.6
+	rel-6-1-DP:11.4
+	windows-branch:11.4.0.4
+	rel-6-0-2:11.2
+	ansi-branch:11.4.0.2
+	rel-6-0-1-branch:11.2.0.2
+	hartley-6-0-post:11.3
+	hartley-6-0-pre:11.2
+	rel-6-0-1:11.2
+	rel-6-0:11.2
+	rel-5-4:11.1
+	offsite-5-3-pre:11.2
+	rel-5-3:11.1
+	rel-5-2:11.1
+	rel-5-1-branch:11.1.0.2
+	rel-5-1:11.1
+	rel-5-0:11.1
+	rel-5-0-beta:11.1
+	rel-4-5:11.1
+	ctj-4-5-post:11.1
+	ctj-4-5-pre:11.1
+	rel-4-4:11.1
+	rel-4-0:10.1
+	rel-3-5:9.1
+	rel-3-0:8.1
+	rel-2-3:7.1
+	rel-2-0:5.1
+	rel-1-24:5.1
+	rel-1-20:4.2
+	rel-1-10:4.1;
+locks; strict;
+comment	@ * @;
+
+
+11.6
+date	2004.05.24.04.13.10;	author morrison;	state dead;
+branches;
+next	11.5;
+
+11.5
+date	2004.04.05.07.52.17;	author morrison;	state Exp;
+branches;
+next	11.4;
+
+11.4
+date	2002.08.20.17.07.28;	author jra;	state Exp;
+branches
+	11.4.2.1;
+next	11.3;
+
+11.3
+date	2002.08.15.20.54.41;	author hartley;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	2000.08.24.22.55.36;	author mike;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	95.01.04.10.13.58;	author mike;	state Rel4_4;
+branches;
+next	10.1;
+
+10.1
+date	91.10.12.06.49.43;	author mike;	state Rel4_0;
+branches;
+next	9.2;
+
+9.2
+date	90.11.26.11.19.56;	author moss;	state Exp;
+branches;
+next	9.1;
+
+9.1
+date	89.05.19.06.12.23;	author mike;	state Rel3_5;
+branches;
+next	8.1;
+
+8.1
+date	88.10.05.00.45.12;	author mike;	state Rel3_0;
+branches;
+next	7.2;
+
+7.2
+date	88.10.04.20.09.50;	author moss;	state Exp;
+branches;
+next	7.1;
+
+7.1
+date	87.11.03.00.11.04;	author mike;	state Rel;
+branches;
+next	6.1;
+
+6.1
+date	87.07.11.08.14.34;	author mike;	state Rel;
+branches;
+next	5.1;
+
+5.1
+date	87.06.24.22.45.45;	author mike;	state Rel;
+branches;
+next	4.2;
+
+4.2
+date	87.02.13.00.52.59;	author mike;	state Exp;
+branches;
+next	4.1;
+
+4.1
+date	86.12.29.02.52.05;	author mike;	state Rel1;
+branches;
+next	1.2;
+
+1.2
+date	86.12.26.22.37.32;	author mike;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	86.11.10.23.10.49;	author mike;	state Exp;
+branches;
+next	;
+
+11.4.2.1
+date	2002.09.19.18.00.50;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@Gary Moss' Original Version
+@
+
+
+11.6
+log
+@moved to src/fbed/
+@
+text
+@/*
+	Author:		Gary S. Moss
+			U. S. Army Ballistic Research Laboratory
+			Aberdeen Proving Ground
+			Maryland 21005-5066
+			(301)278-6651 or DSN 298-6651
+*/
+#ifndef lint
+static const char RCSid[] = "@@(#)$Header: /n/xoff/cvs/brlcad/fbed/squash.c,v 11.5 2004/04/05 07:52:17 morrison Exp $ (BRL)";
+#endif
+/* 
+ * squash.c - Filter super-sampled image for one scan line
+ */
+#include <stdio.h>
+#include "./std.h"
+#define DEBUG_SQUASH	false
+/* Cone filtering weights. 
+ * #define CNTR_WT 0.23971778
+ * #define MID_WT  0.11985889
+ * #define CRNR_WT 0.07021166
+ */
+
+/* Gaussian filtering weights. */
+#define CNTR_WT 0.3011592441
+#define MID_WT 0.1238102667
+#define CRNR_WT 0.0508999223
+
+/*	Squash takes three super-sampled "bit arrays", and returns an array
+	of intensities at half the resolution.  N is the size of the bit
+	arrays.  The "bit arrays" are actually int arrays whose values are
+	assumed to be only 0 or 1.
+ */
+void
+squash(register int *buf0, register int *buf1, register int *buf2, register float *ret_buf, register int n)
+{	register int     j;
+#if DEBUG_SQUASH
+	fb_log( "squash: buf0=0x%x buf1=0x%x buf2=0x%x ret_buf=0x%x n=%d\n",
+		buf0, buf1, buf2, ret_buf, n );
+#endif
+	for( j = 1; j < n - 1; j++ )
+		{
+		ret_buf[j] =
+			(
+			buf2[j - 1] * CRNR_WT +
+			buf2[j] * MID_WT +
+			buf2[j + 1] * CRNR_WT +
+			buf1[j - 1] * MID_WT +
+			buf1[j] * CNTR_WT +
+			buf1[j + 1] * MID_WT +
+			buf0[j - 1] * CRNR_WT +
+			buf0[j] * MID_WT +
+			buf0[j + 1] * CRNR_WT
+			);
+		}
+	return;
+	}
+@
+
+
+11.5
+log
+@merge of ansi-6-0-branch into HEAD
+@
+text
+@d9 1
+a9 1
+static const char RCSid[] = "@@(#)$Header$ (BRL)";
+@
+
+
+11.4
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d9 1
+a9 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/fbed/squash.c,v 11.2 2000/08/24 22:55:36 mike Exp $ (BRL)";
+d34 2
+a35 5
+squash( buf0, buf1, buf2, ret_buf, n )
+register int *buf0, *buf1, *buf2;	
+register float	*ret_buf;
+register int n;
+	{	register int     j;
+@
+
+
+11.4.2.1
+log
+@Initial ANSIfication
+@
+text
+@d9 1
+a9 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/fbed/squash.c,v 11.4 2002/08/20 17:07:28 jra Exp $ (BRL)";
+d34 5
+a38 2
+squash(register int *buf0, register int *buf1, register int *buf2, register float *ret_buf, register int n)
+{	register int     j;
+@
+
+
+11.3
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d34 5
+a38 2
+squash(register int *buf0, register int *buf1, register int *buf2, register float *ret_buf, register int n)
+{	register int     j;
+@
+
+
+11.2
+log
+@
+RCSid
+@
+text
+@d9 1
+a9 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/fbed/squash.c,v 11.1 1995/01/04 10:13:58 mike Rel4_4 $ (BRL)";
+d34 2
+a35 5
+squash( buf0, buf1, buf2, ret_buf, n )
+register int *buf0, *buf1, *buf2;	
+register float	*ret_buf;
+register int n;
+	{	register int     j;
+@
+
+
+11.1
+log
+@Release_4.4
+@
+text
+@d9 1
+a9 1
+static char RCSid[] = "@@(#)$Header: /m/cad/fbed/RCS/squash.c,v 10.1 91/10/12 06:49:43 mike Rel4_0 $ (BRL)";
+@
+
+
+10.1
+log
+@Release_4.0
+@
+text
+@d9 1
+a9 1
+static char RCSid[] = "@@(#)$Header: /m/cad/fbed/RCS/squash.c,v 9.2 90/11/26 11:19:56 moss Exp $ (BRL)";
+@
+
+
+9.2
+log
+@Added some commands: draw-rectangle, fill-bounded-region, print-comment,
+	change-region-color, set-tolerance-color-match.
+Also, default rectangle is entire window.
+Checked in for release 4.0.
+@
+text
+@d9 1
+a9 1
+static char RCSid[] = "@@(#)$Header: squash.c,v 9.1 89/05/19 06:12:23 moss Locked $ (BRL)";
+@
+
+
+9.1
+log
+@Release_3.5
+@
+text
+@d6 1
+a6 1
+			(301)278-6651 or AV-298-6651
+d9 1
+a9 1
+static char RCSid[] = "@@(#)$Header: squash.c,v 8.1 88/10/05 00:45:12 mike Rel3_0 $ (BRL)";
+d35 1
+a35 1
+register int	*buf0, *buf1, *buf2;	
+d37 1
+a37 1
+register int	n;
+@
+
+
+8.1
+log
+@Release_3.0
+@
+text
+@d9 1
+a9 1
+static char RCSid[] = "@@(#)$Header: squash.c,v 7.2 88/10/04 20:09:50 moss Exp $ (BRL)";
+@
+
+
+7.2
+log
+@Recent revisions
+@
+text
+@d9 1
+a9 1
+static char RCSid[] = "@@(#)$Header$ (BRL)";
+@
+
+
+7.1
+log
+@Release 2.3
+@
+text
+@d2 1
+a2 6
+	SCCS id:	@@(#) squash.c	2.1
+	Modified: 	12/9/86 at 15:54:49
+	Retrieved: 	12/26/86 at 21:54:46
+	SCCS archive:	/vld/moss/src/fbed/s.squash.c
+
+	Author:		Paul R. Stay
+d6 1
+a6 1
+			(301)278-6640 or AV-298-6640
+d8 3
+a13 4
+#if ! defined( lint )
+static
+char	sccsTag[] = "@@(#) squash.c 2.1, modified 12/9/86 at 15:54:49, archive /vld/moss/src/fbed/s.squash.c";
+#endif
+d15 2
+d38 5
+a42 3
+	{
+	register int     j;
+
+@
+
+
+6.1
+log
+@Release 2.0
+@
+text
+@@
+
+
+5.1
+log
+@Release 1.24
+@
+text
+@@
+
+
+4.2
+log
+@Release 1.20 -- First Formal Release
+@
+text
+@@
+
+
+4.1
+log
+@BRL CAD Distribution Release 1.10
+@
+text
+@@
+
+
+1.2
+log
+@Latest version from Gary Moss
+@
+text
+@@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d1 12
+a14 5
+ * 
+ * Author:	Paul R. Stay
+ * 		Ballistics Research Labratory
+ * 		APG, Md.
+ * Date:	Fri Jan 11 1985
+d16 4
+@

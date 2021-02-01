@@ -1,0 +1,473 @@
+head	11.9;
+access;
+symbols
+	ansi-20040405-merged:11.5.2.2
+	postmerge-20040405-ansi:11.7
+	premerge-20040404-ansi:11.6
+	postmerge-autoconf:11.6
+	autoconf-freeze:11.5.10.1
+	premerge-autoconf:11.6
+	ansi-20040316-freeze:11.5.2.1
+	postmerge-20040315-windows:11.6
+	premerge-20040315-windows:11.6
+	windows-20040315-freeze:11.5.4.1
+	autoconf-20031203:11.5
+	autoconf-20031202:11.5
+	autoconf-branch:11.5.0.10
+	phong-branch:11.5.0.8
+	photonmap-branch:11.5.0.6
+	rel-6-1-DP:11.5
+	windows-branch:11.5.0.4
+	rel-6-0-2:11.3
+	ansi-branch:11.5.0.2
+	rel-6-0-1-branch:11.3.0.2
+	hartley-6-0-post:11.4
+	hartley-6-0-pre:11.3
+	rel-6-0-1:11.3
+	rel-6-0:11.3
+	rel-5-4:11.2
+	offsite-5-3-pre:11.2
+	rel-5-3:11.2
+	rel-5-2:11.2
+	rel-5-1-branch:11.2.0.2
+	rel-5-1:11.2
+	rel-5-0:11.1
+	rel-5-0-beta:11.1
+	rel-4-5:11.1
+	ctj-4-5-post:11.1
+	ctj-4-5-pre:11.1
+	rel-4-4:11.1;
+locks; strict;
+comment	@ * @;
+
+
+11.9
+date	2004.05.24.04.17.01;	author morrison;	state dead;
+branches;
+next	11.8;
+
+11.8
+date	2004.05.10.15.30.41;	author erikg;	state Exp;
+branches;
+next	11.7;
+
+11.7
+date	2004.04.05.07.50.19;	author morrison;	state Exp;
+branches;
+next	11.6;
+
+11.6
+date	2004.02.02.17.38.58;	author morrison;	state Exp;
+branches;
+next	11.5;
+
+11.5
+date	2002.08.20.17.07.18;	author jra;	state Exp;
+branches
+	11.5.2.1
+	11.5.4.1
+	11.5.10.1;
+next	11.4;
+
+11.4
+date	2002.08.15.20.54.06;	author hartley;	state Exp;
+branches;
+next	11.3;
+
+11.3
+date	2001.08.21.20.47.56;	author jra;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	99.12.30.19.09.35;	author jra;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	95.01.04.10.34.16;	author mike;	state Rel4_4;
+branches;
+next	1.3;
+
+1.3
+date	94.11.01.22.25.28;	author butler;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	94.11.01.07.37.18;	author butler;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	94.08.04.20.08.16;	author cnuzman;	state Exp;
+branches;
+next	;
+
+11.5.2.1
+date	2002.09.19.18.00.32;	author morrison;	state Exp;
+branches;
+next	11.5.2.2;
+
+11.5.2.2
+date	2004.03.17.21.15.49;	author morrison;	state Exp;
+branches;
+next	;
+
+11.5.4.1
+date	2004.03.11.23.40.26;	author morrison;	state Exp;
+branches;
+next	;
+
+11.5.10.1
+date	2004.02.12.19.40.40;	author erikg;	state Exp;
+branches;
+next	;
+
+
+desc
+@mix, match, and merge the channels of a file organized into columns
+@
+
+
+11.9
+log
+@moved to src/anim/
+@
+text
+@/*			C H A N _ P E R M U T E . C
+ *
+ *	This program mixes, matches, and merges files organized in
+ *  channels or columns.
+ *	It's nothing cut and paste can't do, but sometimes it's nice to
+ *  be able to do it in one step, especially when working with animation
+ *  tables.
+ *Usage: channel -i infile1 id id id ... [-i infile2 ...] -o outfile1 id id ...
+ *		[-o outfile2 ...]
+ *where infiles are files to be read from, outfiles are files to be written
+ *to, and each id is a small positive integer identifying a channel. All of the
+ *input id's should be distinct integers, or the results are not guaranteed. 
+ * 
+ *  Author -
+ *	Carl J. Nuzman
+ *  
+ *  Source -
+ *      The U. S. Army Research Laboratory
+ *      Aberdeen Proving Ground, Maryland  21005-5068  USA
+ *  
+ *  Distribution Notice -
+ *      Re-distribution of this software is restricted, as described in
+ *      your "Statement of Terms and Conditions for the Release of
+ *      The BRL-CAD Pacakge" agreement.
+ *
+ *  Copyright Notice -
+ *      This software is Copyright (C) 1993-2004 by the United States Army
+ *      in all countries except the USA.  All rights reserved.
+ */
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+
+#ifdef USE_STRING_H
+#include <string.h>
+#else
+#include <strings.h>
+#endif
+
+#include <stdlib.h>
+#include <unistd.h>
+#include <stdio.h>
+
+#define MAXLEN 40
+
+typedef char Word[MAXLEN];
+
+struct unit {
+FILE *file;
+int channels;
+short *list;
+unsigned i_o;	/*i=1 o=0*/
+};
+
+
+char ihead[] = "-i";
+char ohead[] = "-o";
+
+int
+main(int argc, char **argv)
+{
+	int i,j, maxlength,num_done;
+	int icount, ocount;
+	struct unit *x, *y;
+	Word *arrayd;
+	
+	i=j=icount = ocount = maxlength = 0;	
+	for(i=1;i<argc;i++){
+		if( !strncmp(argv[i],ihead,2) ){
+			j=0;
+			icount++;
+		}
+		else if( !strncmp(argv[i],ohead,2) ){
+			j=0;
+			ocount++;
+		}
+		else
+			maxlength = (++j>maxlength) ? j : maxlength;
+	}
+	
+	y = (struct unit *) calloc(icount+ocount,sizeof(struct unit));
+	x = y - 1;
+	for(i=1;i<argc;i++){
+		if( !strncmp(argv[i],"-",1) ){
+			j=0;
+			x++;
+			x->list = (short *) calloc(maxlength,sizeof(short));
+			if (argv[i][1] == 'i'){
+				i++;
+				(x)->i_o = 1;
+				if ( ! strcmp(argv[i],"stdin") )
+					x->file = stdin;
+				else if ( !(x->file = fopen(argv[i],"r")) )
+					fprintf(stderr,"Channel: can't open %s\n",argv[i]);
+			}
+			else if (argv[i][1] == 'o'){
+				i++;
+				(x)->i_o = 0;
+				if ( ! strcmp(argv[i],"stdout") )
+					x->file = stdout;
+				else if ( !(x->file = fopen(argv[i],"w")) )
+					fprintf(stderr,"Channel: can't write to %s\n",argv[i]);
+			}
+			else{
+				fprintf(stderr,"Illegal option %c\n",argv[i][1]);
+				exit(-1);
+			}
+		}
+		else{
+			sscanf(argv[i],"%hd",x->list+(j++));
+			x->channels++;
+		}
+	}
+	arrayd = (Word *) calloc(argc,sizeof(Word));/*may use more memory than absolutely necessary*/
+	num_done = 0;
+	while(num_done < icount ){ /* go until all in files are done */
+		num_done = 0;
+		for (x=y;x<y+ocount+icount;x++){ /* do one line */
+			if(num_done >= icount)
+				;/*chill - all in files done */
+			else if (x->i_o == 1){
+				if(feof(x->file))
+					num_done += 1;
+				else 
+				for(j=0;j<x->channels;j++)
+					fscanf(x->file,"%s ",arrayd[x->list[j]]);
+			}
+			else if (x->i_o == 0){
+				for(j=0;j<x->channels;j++)
+					fprintf(x->file,"%s\t",arrayd[x->list[j]]);
+				fprintf(x->file,"\n");
+			}
+		}
+	}
+	free(arrayd);
+	for (x=y;x<y+ocount+icount;x++){
+		free(x->list);
+	}
+	free(y);
+	exit(0);
+}
+
+int max(int *m, int n) /*return greatest of n integers, unless one is greater than n*/
+          
+{
+	int i,j;
+	j = 0;
+	for (i=0;i<n;i++){
+		j = (m[i]>j) ? m[i] : j;
+	}
+	return( (j>n) ? 0 : j );
+}
+@
+
+
+11.8
+log
+@change conf.h to a wrapped config.h
+@
+text
+@@
+
+
+11.7
+log
+@merge of ansi-6-0-branch into HEAD
+@
+text
+@d30 5
+a34 1
+#include "conf.h"
+@
+
+
+11.6
+log
+@update copyright to include span through 2003
+@
+text
+@d58 1
+a58 3
+main(argc,argv)
+int argc;
+char **argv;
+d141 2
+a142 2
+int max(m,n) /*return greatest of n integers, unless one is greater than n*/
+int m[],n;
+@
+
+
+11.5
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d27 1
+a27 1
+ *      This software is Copyright (C) 1993 by the United States Army
+@
+
+
+11.5.4.1
+log
+@sync to HEAD...
+@
+text
+@d27 1
+a27 1
+ *      This software is Copyright (C) 1993-2004 by the United States Army
+@
+
+
+11.5.10.1
+log
+@merge from HEAD
+@
+text
+@d27 1
+a27 1
+ *      This software is Copyright (C) 1993-2004 by the United States Army
+@
+
+
+11.5.2.1
+log
+@Initial ANSIfication
+@
+text
+@d58 3
+a60 1
+main(int argc, char **argv)
+d143 2
+a144 2
+int max(int *m, int n) /*return greatest of n integers, unless one is greater than n*/
+          
+@
+
+
+11.5.2.2
+log
+@sync branch with HEAD
+@
+text
+@d27 1
+a27 1
+ *      This software is Copyright (C) 1993-2004 by the United States Army
+@
+
+
+11.4
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d58 3
+a60 1
+main(int argc, char **argv)
+d143 2
+a144 2
+int max(int *m, int n) /*return greatest of n integers, unless one is greater than n*/
+          
+@
+
+
+11.3
+log
+@lint
+@
+text
+@d58 1
+a58 3
+main(argc,argv)
+int argc;
+char **argv;
+d141 2
+a142 2
+int max(m,n) /*return greatest of n integers, unless one is greater than n*/
+int m[],n;
+@
+
+
+11.2
+log
+@Eliminated some unused variables
+@
+text
+@d30 1
+d32 8
+d56 2
+@
+
+
+11.1
+log
+@Release_4.4
+@
+text
+@a53 1
+	int	*chan;
+@
+
+
+1.3
+log
+@cfree() -> free()
+@
+text
+@@
+
+
+1.2
+log
+@changed calls to cfree() to calls to free()
+@
+text
+@d127 1
+a127 1
+		cfree(x->list);
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d125 1
+a125 1
+	cfree(arrayd);
+d129 1
+a129 1
+	cfree(y);
+@

@@ -1,0 +1,518 @@
+head	14.11;
+access;
+symbols
+	rel-7-10-4:14.11
+	STABLE:14.11.0.2
+	stable-branch:14.4
+	rel-7-10-2:14.11
+	rel-7-10-0:14.10
+	rel-7-8-4:14.8
+	rel-7-8-2:14.8
+	rel-7-8-0:14.8
+	trimnurbs-branch:14.8.0.2
+	help:14.8
+	temp_tag:14.7
+	bobWinPort-20051223-freeze:14.5
+	postmerge-20051223-bobWinPort:14.7
+	premerge-20051223-bobWinPort:14.7
+	rel-7-6-6:14.7
+	rel-7-6-4:14.7
+	rel-7-6-2:14.5
+	rel-7-6-branch:14.5.0.6
+	rel-7-6-0:14.5
+	rel-7-4-2:14.5
+	rel-7-4-branch:14.5.0.4
+	bobWinPort:14.5.0.2
+	rel-7-4-0:14.5
+	rel-7-2-6:14.5
+	rel-7-2-4:14.5
+	rel-7-2-2:14.4
+	rel-7-2-0:14.4
+	rel-7-0-4:14.3
+	rel-7-0-2:14.3
+	rel-7-0-1:14.3
+	opensource-post:14.3
+	opensource-pre:1.1
+	rel-7-0-branch:1.1.0.2
+	rel-7-0:1.1;
+locks; strict;
+comment	@ * @;
+
+
+14.11
+date	2007.07.26.01.13.50;	author brlcad;	state Exp;
+branches;
+next	14.10;
+
+14.10
+date	2007.01.23.01.13.24;	author brlcad;	state Exp;
+branches;
+next	14.9;
+
+14.9
+date	2007.01.20.14.36.42;	author brlcad;	state Exp;
+branches;
+next	14.8;
+
+14.8
+date	2006.01.18.06.46.13;	author brlcad;	state Exp;
+branches;
+next	14.7;
+
+14.7
+date	2005.11.04.14.50.57;	author brlcad;	state Exp;
+branches;
+next	14.6;
+
+14.6
+date	2005.10.23.04.44.29;	author brlcad;	state Exp;
+branches;
+next	14.5;
+
+14.5
+date	2005.04.27.02.24.27;	author brlcad;	state Exp;
+branches
+	14.5.6.1;
+next	14.4;
+
+14.4
+date	2005.01.30.20.30.16;	author brlcad;	state Exp;
+branches;
+next	14.3;
+
+14.3
+date	2004.12.18.06.50.49;	author morrison;	state Exp;
+branches;
+next	14.2;
+
+14.2
+date	2004.12.18.01.52.36;	author morrison;	state Exp;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.12;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.15.18.43;	author morrison;	state Exp;
+branches;
+next	;
+
+14.5.6.1
+date	2005.11.13.13.46.13;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.11
+log
+@remove ephemeral data like phone numbers and addresses, including the misleading 'source' statements on code that is continually evolving and receiving contributions from many many sources
+@
+text
+@/*                          G L O B . C
+ * BRL-CAD
+ *
+ * Copyright (c) 2004-2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ *
+ */
+/** @@file glob.c
+ *	Author:		Gary S. Moss
+ */
+#ifndef lint
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/burst/glob.c,v 14.10 2007/01/23 01:13:24 brlcad Exp $ (BRL)";
+#endif
+#include <stdio.h>
+#include <signal.h>
+#include "machine.h"
+#include "vmath.h"
+#include "fb.h"
+#include "raytrace.h"
+#include "./burst.h"
+#include "./extern.h"
+
+Colors	colorids;	/* ident range to color mappings for plots */
+FBIO *fbiop = NULL;	/* frame buffer specific access from libfb */
+FILE *burstfp = NULL;	/* input stream for burst point locations */
+FILE *gridfp = NULL;	/* grid file output stream (2-d shots) */
+FILE *histfp = NULL;	/* histogram output stream (statistics) */
+FILE *outfp = NULL;	/* burst point library output stream */
+FILE *plotfp = NULL;	/* 3-D UNIX plot stream (debugging) */
+FILE *shotfp = NULL;	/* input stream for shot positions */
+FILE *shotlnfp = NULL;	/* shotline file output stream */
+FILE *tmpfp = NULL;	/* temporary file output stream for logging input */
+HmMenu	*mainhmenu;
+Ids airids;		/* burst air idents */
+Ids armorids;		/* burst armor idents */
+Ids critids;		/* critical component idents */
+unsigned char *pixgrid;
+unsigned char pixaxis[3]  = { 255,   0,   0 }; /* grid axis */
+unsigned char pixbhit[3]  = { 200, 255, 200 }; /* burst ray hit non-critical comps */
+unsigned char pixbkgr[3]  = { 150, 100, 255 }; /* outside grid */
+unsigned char pixblack[3] = {   0,   0,   0 }; /* black */
+unsigned char pixcrit[3]  = { 255, 200, 200 }; /* burst ray hit critical component */
+unsigned char pixghit[3]  = { 255,   0, 255 }; /* ground burst */
+unsigned char pixmiss[3]  = { 200, 200, 200 }; /* shot missed target */
+unsigned char pixtarg[3]  = { 255, 255, 255 }; /* shot hit target */
+Trie *cmdtrie = NULL;
+
+boolean batchmode = 0;		/* are we processing batch input now */
+boolean cantwarhead = 0;	/* pitch or yaw will be applied to warhead */
+boolean deflectcone = DFL_DEFLECT;	/* cone axis deflects towards normal */
+boolean dithercells = DFL_DITHER;	/* if true, randomize shot within cell */
+boolean fatalerror;		/* must abort ray tracing */
+boolean groundburst = 0;	/* if true, burst on imaginary ground */
+boolean reportoverlaps = DFL_OVERLAPS;
+				/* if true, overlaps are reported */
+boolean reqburstair = 1;	/* if true, burst air required for shotburst */
+boolean shotburst = 0;		/* if true, burst along shotline */
+boolean tty = 1;		/* if true, full screen display is used */
+boolean userinterrupt;		/* has the ray trace been interrupted */
+
+char airfile[LNBUFSZ]={0};	/* input file name for burst air ids */
+char armorfile[LNBUFSZ]={0};	/* input file name for burst armor ids */
+char burstfile[LNBUFSZ]={0};	/* input file name for burst points */
+char cmdbuf[LNBUFSZ];
+char cmdname[LNBUFSZ];
+char colorfile[LNBUFSZ]={0};	/* ident range-to-color file name */
+char critfile[LNBUFSZ]={0};	/* input file for critical components */
+char errfile[LNBUFSZ]={0};	/* errors/diagnostics log file name */
+char fbfile[LNBUFSZ]={0};	/* frame buffer image file name */
+char gedfile[LNBUFSZ]={0};	/* MGED data base file name */
+char gridfile[LNBUFSZ]={0};	/* saved grid (2-d shots) file name */
+char histfile[LNBUFSZ]={0};	/* histogram file name (statistics) */
+char objects[LNBUFSZ]={0};	/* list of objects from MGED file */
+char outfile[LNBUFSZ]={0};	/* burst point library output file name */
+char plotfile[LNBUFSZ]={0};	/* 3-D UNIX plot file name (debugging) */
+char scrbuf[LNBUFSZ];		/* scratch buffer for temporary use */
+char scriptfile[LNBUFSZ]={0};	/* shell script file name */
+char shotfile[LNBUFSZ];		/* input file of firing coordinates */
+char shotlnfile[LNBUFSZ]={0};	/* shotline output file name */
+char title[TITLE_LEN];		/* title of MGED target description */
+char timer[TIMER_LEN];		/* CPU usage statistics */
+char tmpfname[TIMER_LEN];	/* temporary file for logging input */
+
+char *cmdptr;
+
+fastf_t	bdist = DFL_BDIST;
+			/* fusing distance for warhead */
+fastf_t	burstpoint[3];	/* explicit burst point coordinates */
+fastf_t	cellsz = DFL_CELLSIZE;
+			/* shotline separation */
+fastf_t	conehfangle = DFL_CONEANGLE;
+			/* spall cone half angle */
+fastf_t	fire[3];	/* explicit firing coordinates (2-D or 3-D) */
+fastf_t griddn;		/* distance in model coordinates from origin to
+				bottom border of grid */
+fastf_t gridlf;		/* distance to left border */
+fastf_t	gridrt;		/* distance to right border */
+fastf_t gridup;		/* distance to top border */
+fastf_t	gridhor[3];	/* horizontal grid direction cosines */
+fastf_t	gridsoff[3];	/* origin of grid translated by stand-off */
+fastf_t	gridver[3];	/* vertical grid direction cosines */
+fastf_t grndbk = 0.0;	/* distance to back border of ground plane (-X) */
+fastf_t grndht = 0.0;	/* distance of ground plane below target origin (-Z) */
+fastf_t grndfr = 0.0;	/* distance to front border of ground plane (+X) */
+fastf_t grndlf = 0.0;	/* distance to left border of ground plane (+Y) */
+fastf_t grndrt = 0.0;	/* distance to right border of ground plane (-Y) */
+fastf_t	modlcntr[3];	/* centroid of target's bounding RPP */
+fastf_t modldn = 0.0;	/* distance in model coordinates from origin to bottom
+				 extent of projection of model in grid plane */
+fastf_t modllf = 0.0;	/* distance to left extent */
+fastf_t modlrt = 0.0;	/* distance to right extent */
+fastf_t modlup = 0.0;	/* distance to top extent */
+fastf_t raysolidangle;	/* solid angle per spall sampling ray */
+fastf_t	standoff;	/* distance from model origin to grid */
+fastf_t	unitconv = 1.0;	/* units conversion factor (mm to "units") */
+fastf_t	viewazim = DFL_AZIMUTH;
+			/* degrees from X-axis to firing position */
+fastf_t	viewelev = DFL_ELEVATION;
+			/* degrees from XY-plane to firing position */
+
+/* These are the angles and fusing distance used to specify the path of
+	the canted warhead in Bob Wilson's simulation.
+ */
+fastf_t	pitch = 0.0;	/* elevation above path of main penetrator */
+fastf_t	yaw = 0.0;	/* deviation right of path of main penetrator */
+
+/* useful vectors */
+fastf_t xaxis[3] = { 1.0, 0.0, 0.0 };
+fastf_t zaxis[3] = { 0.0, 0.0, 1.0 };
+fastf_t negzaxis[3] = { 0.0, 0.0, -1.0 };
+
+int co;			/* columns of text displayable on video screen */
+int devwid;		/* width in pixels of frame buffer window */
+int devhgt;		/* height in pixels of frame buffer window */
+int firemode = FM_DFLT;	/* mode of specifying shots */
+int gridsz = 512;
+int gridxfin;
+int gridyfin;
+int gridxorg;
+int gridyorg;
+int gridwidth;		/* Grid width in cells. */
+int gridheight;		/* Grid height in cells. */
+int li;			/* lines of text displayable on video screen */
+int nbarriers = DFL_BARRIERS;
+			/* no. of barriers allowed to critical comp */
+int noverlaps = 0;	/* no. of overlaps encountered in this view */
+int nprocessors;	/* no. of processors running concurrently */
+int nriplevels = DFL_RIPLEVELS;
+			/* no. of levels of ripping (0 = no ripping) */
+int nspallrays = DFL_NRAYS;
+			/* no. of spall rays at each burst point */
+int units = DFL_UNITS;	/* target units (default is millimeters) */
+int zoom = 1;		/* magnification factor on frame buffer */
+
+struct rt_i *rtip = RTI_NULL; /* model specific access from librt */
+
+/* signal handlers */
+void	(*norml_sig)();	/* active during interactive operation */
+void	(*abort_sig)(); /* active during ray tracing only */
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+14.10
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@d22 2
+a23 5
+	Author:		Gary S. Moss
+			U. S. Army Ballistic Research Laboratory
+			Aberdeen Proving Ground
+			Maryland 21005-5066
+*/
+d25 1
+a25 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/burst/glob.c,v 14.9 2007/01/20 14:36:42 brlcad Exp $ (BRL)";
+@
+
+
+14.9
+log
+@update copyright to 2007
+@
+text
+@d8 2
+a9 3
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+d14 1
+a14 1
+ * General Public License for more details.
+d16 2
+a17 2
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+d28 1
+a28 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/burst/glob.c,v 14.8 2006/01/18 06:46:13 brlcad Exp $ (BRL)";
+@
+
+
+14.8
+log
+@update copyright to 2006
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 2004-2006 United States Government as represented by
+d29 1
+a29 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/burst/glob.c,v 14.7 2005/11/04 14:50:57 brlcad Exp $ (BRL)";
+@
+
+
+14.7
+log
+@burst the non-ansi-yet-willing-to-pretend-we-are-c99 bubble that the burst code likes to use.  that is, use static instead of STATIC and don't clobber the bool/true/false reserved words of the c++ compilers.  clean up the headers to support this.
+@
+text
+@d4 1
+a4 1
+ * Copyright (C) 2004-2005 United States Government as represented by
+d29 1
+a29 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/burst/glob.c,v 14.6 2005/10/23 04:44:29 brlcad Exp $ (BRL)";
+@
+
+
+14.6
+log
+@trailing ws
+@
+text
+@d29 1
+a29 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/burst/glob.c,v 14.5 2005/04/27 02:24:27 brlcad Exp $ (BRL)";
+d65 7
+a71 7
+bool batchmode = false;		/* are we processing batch input now */
+bool cantwarhead = false;	/* pitch or yaw will be applied to warhead */
+bool deflectcone = DFL_DEFLECT;	/* cone axis deflects towards normal */
+bool dithercells = DFL_DITHER;	/* if true, randomize shot within cell */
+bool fatalerror;		/* must abort ray tracing */
+bool groundburst = false;	/* if true, burst on imaginary ground */
+bool reportoverlaps = DFL_OVERLAPS;
+d73 4
+a76 4
+bool reqburstair = true;	/* if true, burst air required for shotburst */
+bool shotburst = false;		/* if true, burst along shotline */
+bool tty = true;		/* if true, full screen display is used */
+bool userinterrupt;		/* has the ray trace been interrupted */
+@
+
+
+14.5
+log
+@get rid of the old STD_SIGNAL_DECLS define since an ansi compliant compiler is necessary now.  if a broken impl is found that needs to be accounted for, it can return as a proper configure check.
+@
+text
+@d29 1
+a29 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/burst/glob.c,v 14.4 2005/01/30 20:30:16 brlcad Exp $ (BRL)";
+d113 1
+a113 1
+fastf_t gridlf;		/* distance to left border */	
+d136 1
+a136 1
+			/* degrees from XY-plane to firing position */ 
+@
+
+
+14.5.6.1
+log
+@merge changes from HEAD aka rel-7-6-4 to the rel-7-6-branch just in case someone peeks a gander or tries to continue/build the branch
+@
+text
+@d29 1
+a29 1
+static const char RCSid[] = "@@(#)$Header$ (BRL)";
+d65 7
+a71 7
+boolean batchmode = 0;		/* are we processing batch input now */
+boolean cantwarhead = 0;	/* pitch or yaw will be applied to warhead */
+boolean deflectcone = DFL_DEFLECT;	/* cone axis deflects towards normal */
+boolean dithercells = DFL_DITHER;	/* if true, randomize shot within cell */
+boolean fatalerror;		/* must abort ray tracing */
+boolean groundburst = 0;	/* if true, burst on imaginary ground */
+boolean reportoverlaps = DFL_OVERLAPS;
+d73 4
+a76 4
+boolean reqburstair = 1;	/* if true, burst air required for shotburst */
+boolean shotburst = 0;		/* if true, burst along shotline */
+boolean tty = 1;		/* if true, full screen display is used */
+boolean userinterrupt;		/* has the ray trace been interrupted */
+d113 1
+a113 1
+fastf_t gridlf;		/* distance to left border */
+d136 1
+a136 1
+			/* degrees from XY-plane to firing position */
+@
+
+
+14.4
+log
+@update copyright to 2005
+@
+text
+@d29 1
+a29 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/burst/glob.c,v 14.3 2004/12/18 06:50:49 morrison Exp $ (BRL)";
+a174 1
+#if STD_SIGNAL_DECLS
+a176 4
+#else
+int	(*norml_sig)();
+int	(*abort_sig)();
+#endif
+@
+
+
+14.3
+log
+@break up the doxygen marker to appease emacs M-x indent-region'ing
+@
+text
+@d4 2
+a5 2
+ * Copyright (c) 2004 United States Government as represented by the
+ * U.S. Army Research Laboratory.
+d29 1
+a29 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/burst/glob.c,v 14.2 2004/12/18 01:52:36 morrison Exp $ (BRL)";
+@
+
+
+14.2
+log
+@assign copyright and GPL license
+@
+text
+@d21 2
+a22 1
+ **//** @@file glob.c
+d29 1
+a29 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/burst/glob.c,v 14.1 2004/11/16 19:42:12 morrison Exp $ (BRL)";
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@d1 21
+a21 1
+/*
+d28 1
+a28 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/burst/glob.c,v 1.1 2004/05/20 15:18:43 morrison Exp $ (BRL)";
+@
+
+
+1.1
+log
+@Vast reorganization begins.  Sources moved from top-level directories into src/.
+@
+text
+@d8 1
+a8 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/burst/glob.c,v 1.12 2001/10/17 07:40:00 morrison Exp $ (BRL)";
+d161 10
+@
+

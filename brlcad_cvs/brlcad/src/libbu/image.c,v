@@ -1,0 +1,576 @@
+head	1.9;
+access;
+symbols
+	rel-7-10-4:1.8
+	STABLE:1.8.0.2
+	rel-7-10-2:1.6;
+locks; strict;
+comment	@ * @;
+
+
+1.9
+date	2007.09.14.15.21.06;	author erikgreenwald;	state Exp;
+branches;
+next	1.8;
+
+1.8
+date	2007.08.28.21.37.07;	author erikgreenwald;	state Exp;
+branches;
+next	1.7;
+
+1.7
+date	2007.08.28.21.30.30;	author erikgreenwald;	state Exp;
+branches;
+next	1.6;
+
+1.6
+date	2007.05.16.15.51.45;	author erikgreenwald;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	2007.04.14.00.32.36;	author brlcad;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	2007.04.13.22.12.10;	author erikgreenwald;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2007.04.13.22.10.33;	author erikgreenwald;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2007.04.13.18.58.59;	author erikgreenwald;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2007.04.13.17.04.46;	author erikgreenwald;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.9
+log
+@removed trailing whitespace
+@
+text
+@/*                           I M A G E . C
+ * BRL-CAD
+ *
+ * Copyright (c) 2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This library is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@addtogroup bu */
+/** @@{ */
+/** @@file image.c
+ *
+ *  @@brief image save/load routines
+ *
+ *  save or load images in a variety of formats.
+ *
+ *  @@author
+ *	Erik Greenwald
+ *
+ *  @@par Source -
+ *	The U. S. Army Research Laboratory
+ * @@n	Aberdeen Proving Ground, Maryland  21005-5068  USA
+ */
+/** @@} */
+
+#ifndef lint
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/libbu/image.c,v 1.8 2007/08/28 21:37:07 erikgreenwald Exp $ (ARL)";
+#endif
+
+#include "common.h"
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <fcntl.h>
+#include <sys/stat.h>	/* for file mode info in WRMODE */
+
+#include <png.h>
+
+#include "machine.h"
+#include "bu.h"
+
+/*** bif flags ***/
+/* streaming output (like pix and bw) vs buffer output (like png) */
+#define BIF_STREAM 0x0
+#define BIF_BUFFER 0x1
+/*** end bif flags ***/
+
+/* this might be a little better than saying 0444 */
+#define WRMODE S_IRUSR|S_IRGRP|S_IROTH
+
+/* private functions */
+
+/* Save functions use the return value not only for success/failure, but also to
+ * note if further action is needed.
+ *   0 - failure.
+ *   1 - success, no further action needed.
+ *   2 - success, close() required on fd.
+ * This might be better just using the f* functions instead of mixing...
+ */
+
+/*
+ * Attempt to guess the file type. Understands ImageMagick style
+ * FMT:filename as being preferred, but will attempt to guess
+ * based on extension as well.
+ *
+ * I suck. I'll fix this later. Honest.
+ */
+static int
+guess_file_format(char *filename, char *trimmedname)
+{
+    /* look for the FMT: header */
+#define CMP(name) if(!strncmp(filename,#name":",strlen(#name))){strncpy(trimmedname,filename+strlen(#name)+1,BUFSIZ);return BU_IMAGE_##name; }
+    CMP(PIX);
+    CMP(PNG);
+    CMP(BMP);
+    CMP(BW);
+#undef CMP
+
+    /* no format header found, copy the name as it is */
+    strncpy(trimmedname, filename, BUFSIZ);
+
+    /* and guess based on extension */
+#define CMP(name,ext) if(!strncmp(filename+strlen(filename)-strlen(#name)-1,"."#ext,strlen(#name)+1)) return BU_IMAGE_##name;
+    CMP(PNG,png);
+    CMP(BMP,bmp);
+    CMP(BW,bw);
+#undef CMP
+    /* defaulting to PIX */
+    return BU_IMAGE_PIX;
+}
+
+static int
+png_save(int fd, char *rgb, int width, int height)
+{
+    png_structp png_ptr = NULL;
+    png_infop info_ptr = NULL;
+    int i = 0;
+    FILE *fh;
+
+    fh = fdopen(fd,"wb");
+    if(fh==NULL) {
+	perror("png_save trying to get FILE pointer for descriptor");
+	exit(-1);
+	return 0;
+    }
+
+    png_ptr = png_create_write_struct (PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
+    if(png_ptr == NULL) return 0;
+
+    info_ptr = png_create_info_struct (png_ptr);
+    if(info_ptr == NULL || setjmp (png_jmpbuf (png_ptr))) {
+	printf("Ohs Noes!\n"); fflush(stdout);
+	png_destroy_read_struct (&png_ptr, info_ptr ? &info_ptr : NULL, NULL);
+	exit(-1);
+	return 0;
+    }
+
+    png_init_io (png_ptr, fh);
+    png_set_IHDR (png_ptr, info_ptr, width, height, 8, PNG_COLOR_TYPE_RGB,
+                  PNG_INTERLACE_NONE, PNG_COMPRESSION_TYPE_BASE,
+                  PNG_FILTER_TYPE_BASE);
+    png_write_info (png_ptr, info_ptr);
+    for (i = height-1; i >= 0; --i)
+        png_write_row (png_ptr, (png_bytep) (rgb + width*3*i));
+    png_write_end (png_ptr, info_ptr);
+
+    png_destroy_write_struct(&png_ptr, &info_ptr);
+    fclose(fh);
+    return 1;
+}
+
+static int
+bmp_save(int fd, char *rgb, int width, int height)
+{
+    return 0;
+}
+
+static int
+pix_save(int fd, char *rgb, int size) { write(fd, rgb, size); return 2; }
+
+/* size is bytes of PIX data, bw output file will be 1/3 this size.
+ * Also happens to munge up the contents of rgb. */
+static int
+bw_save(int fd, char *rgb, int size)
+{
+    int bwsize = size/3, i;
+    if(bwsize*3 != size) {
+	printf("Huh, size=%d is not a multiple of 3.\n", size);
+	exit(-1);	/* flaming death */
+    }
+    /* an ugly naïve pixel grey-scale hack. Does not take human color curves. */
+    for(i=0;i<bwsize;++i) rgb[i] = (int)((float)rgb[i*3]+(float)rgb[i*3+1]+(float)rgb[i*3+2]/3.0);
+    write(fd, rgb, bwsize);
+    return 2;
+}
+
+/* end if private functions */
+
+/* begin public functions */
+
+int
+bu_image_load()
+{
+    return 0;
+}
+
+int
+bu_image_save(char *data, int width, int height, int depth, char *filename, int filetype)
+{
+    int i;
+    struct bu_image_file *bif = bu_image_save_open(filename,filetype,width,height,depth);
+    if(bif==NULL) return -1;
+    for(i=0;i<height;++i) {
+	if(bu_image_save_writeline(bif,i,(unsigned char*)(data+i*width*depth))==-1) {
+	    bu_log("Uh?");
+	}
+    }
+    return bu_image_save_close(bif);
+}
+
+struct bu_image_file *
+bu_image_save_open(char *filename, int format, int width, int height, int depth)
+{
+    struct bu_image_file *bif = (struct bu_image_file *)bu_malloc(sizeof(struct bu_image_file),"bu_image_save_open");
+    bif->magic = BU_IMAGE_FILE_MAGIC;
+    if(format == BU_IMAGE_AUTO) {
+	char buf[BUFSIZ];
+	bif->format = guess_file_format(filename,buf);
+	bif->filename = strdup(buf);
+    } else {
+	bif->format = format;
+	bif->filename = strdup(filename);
+    }
+
+    /* if we want the ability to "continue" a stopped output, this would be
+     * where to check for an existing "partial" file. */
+    bif->fd = open(bif->filename,O_WRONLY|O_CREAT|O_TRUNC, WRMODE);
+    if(bif->fd < 0) {
+	char buf[BUFSIZ];
+	snprintf(buf,BUFSIZ,"Opening output file \"%s\" for writing",bif->filename);
+	perror(buf);
+	free(bif);
+	exit(-1);
+	return NULL;
+    }
+    bif->width = width;
+    bif->height = height;
+    bif->depth = depth;
+    bif->data = (char *)bu_malloc(width*height*depth, "bu_image_file data");
+    return bif;
+}
+
+int
+bu_image_save_writeline(struct bu_image_file *bif, int y, unsigned char *data)
+{
+    if(bif==NULL) { printf("trying to write a line with a null bif\n"); return -1; }
+    memcpy(bif->data + bif->width*bif->depth*y, data, bif->width*bif->depth);
+    return 0;
+}
+
+int
+bu_image_save_close(struct bu_image_file *bif)
+{
+    int r = 0;
+    switch(bif->format) {
+	case BU_IMAGE_BMP: r = bmp_save(bif->fd,bif->data,bif->width,bif->height); break;
+	case BU_IMAGE_PNG: r = png_save(bif->fd,bif->data,bif->width,bif->height); break;
+	case BU_IMAGE_PIX: r = pix_save(bif->fd,bif->data,bif->width*bif->height*bif->depth); break;
+	case BU_IMAGE_BW: r = bw_save(bif->fd, bif->data, bif->width*bif->height*bif->depth); break;
+    }
+    switch(r) {
+	case 0: bu_log("Failed to write image\n"); break;
+	/* 1 signals success with no further action needed */
+	case 2: close(bif->fd); break;
+    }
+    bu_free(bif->filename,"bu_image_file filename");
+    bu_free(bif->data,"bu_image_file data");
+    bu_free(bif,"bu_image_file");
+    return 0;
+}
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+1.8
+log
+@explicitely cast to keep osX happy
+@
+text
+@d38 1
+a38 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/libbu/image.c,v 1.7 2007/08/28 21:30:30 erikgreenwald Exp $ (ARL)";
+d73 2
+a74 2
+/* 
+ * Attempt to guess the file type. Understands ImageMagick style 
+d80 1
+a80 1
+static int 
+d104 1
+a104 1
+static int 
+d144 1
+a144 1
+static int 
+d150 1
+a150 1
+static int 
+d153 1
+a153 1
+/* size is bytes of PIX data, bw output file will be 1/3 this size. 
+d155 3
+a157 3
+static int 
+bw_save(int fd, char *rgb, int size) 
+{ 
+d165 1
+a165 1
+    write(fd, rgb, bwsize); 
+d225 1
+a225 1
+int 
+d233 1
+a233 1
+int 
+@
+
+
+1.7
+log
+@make the RGB data buffers unsigned
+@
+text
+@d38 1
+a38 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/libbu/image.c,v 1.6 2007/05/16 15:51:45 erikgreenwald Exp $ (ARL)";
+d186 1
+a186 1
+	if(bu_image_save_writeline(bif,i,data+i*width*depth)==-1) {
+@
+
+
+1.6
+log
+@fixes to make PNG saving work
+@
+text
+@d38 1
+a38 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/libbu/image.c,v 1.5 2007/04/14 00:32:36 brlcad Exp $ (ARL)";
+d226 1
+a226 1
+bu_image_save_writeline(struct bu_image_file *bif, int y, char *data)
+@
+
+
+1.5
+log
+@png_destroy_read_struct() takes pointers to pointers
+@
+text
+@d38 1
+a38 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/libbu/image.c,v 1.4 2007/04/13 22:12:10 erikgreenwald Exp $ (ARL)";
+d64 9
+d118 2
+a119 1
+    png_ptr = png_create_read_struct (PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
+d121 1
+d126 1
+a130 1
+    png_set_compression_level (png_ptr, Z_BEST_COMPRESSION);
+d132 4
+a135 4
+                  PNG_INTERLACE_NONE, PNG_COMPRESSION_TYPE_DEFAULT,
+                  PNG_FILTER_TYPE_DEFAULT);
+    png_write_info (png_ptr, info_ptr);	/* causes badness, NULL write func... */
+    for (i = height; i > 0; --i)
+d138 3
+a140 1
+    png_destroy_read_struct(&png_ptr, &info_ptr, NULL);
+d151 1
+a151 1
+pix_save(int fd, char *rgb, int size) { return write(fd, rgb, size); }
+d165 2
+a166 1
+    return write(fd, rgb, bwsize); 
+d236 1
+d238 9
+a246 4
+	case BU_IMAGE_BMP: bmp_save(bif->fd,bif->data,bif->width,bif->height); break;
+	case BU_IMAGE_PNG: png_save(bif->fd,bif->data,bif->width,bif->height); break;
+	case BU_IMAGE_PIX: pix_save(bif->fd,bif->data,bif->width*bif->height*bif->depth); break;
+	case BU_IMAGE_BW: bw_save(bif->fd, bif->data, bif->width*bif->height*bif->depth); break;
+a247 1
+    close(bif->fd);
+@
+
+
+1.4
+log
+@fixed minor logic bug, heh
+@
+text
+@d38 1
+a38 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/libbu/image.c,v 1.3 2007/04/13 22:10:33 erikgreenwald Exp $ (ARL)";
+d127 1
+a127 1
+    png_destroy_read_struct(png_ptr, info_ptr, NULL);
+@
+
+
+1.3
+log
+@blocking output. working file guesser, pix-writer, and bw-write. beginnings of png writer.
+@
+text
+@d38 1
+a38 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/libbu/image.c,v 1.2 2007/04/13 18:58:59 erikgreenwald Exp $ (ARL)";
+d86 1
+a86 1
+#define CMP(name,ext) if(!strncmp(filename+strlen(filename)-strlen(#name)-1,"."#ext,strlen(#name)+1)) return BU_IMAGE_PNG;
+@
+
+
+1.2
+log
+@use the data element of the bif to buffer up instead of assuming a streamed write (makes  write-line void of side effects, thus re-entrant, removes the seek, and will allow non-streaming formats like png (at the cost of memory))
+@
+text
+@d38 1
+a38 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/libbu/image.c,v 1.1 2007/04/13 17:04:46 erikgreenwald Exp $ (ARL)";
+d49 2
+d68 2
+d71 2
+a72 2
+int 
+devine_file_format(char *filename, char *trimmedname)
+d74 9
+d84 8
+d95 2
+a96 24
+int 
+bw_save(char *data, int width, int height, int depth, char *filename)
+{
+    int fd;
+    if(depth != 1) {
+	bu_log("BW must be fed 24 bit RGB data! Aborting.");
+	return -1;
+    }
+    fd = open(filename, O_CREAT|O_TRUNC|O_WRONLY, WRMODE);
+    if(fd<=0) {
+	perror("Unable to open file for writing");
+	return fd;
+    }
+    if(write(fd,data,width*height*depth) != width*height*depth) {
+	perror("Unable to write to file");
+	close(fd);
+	return -1;
+    }
+    close(fd);
+    return 0;
+}
+
+int 
+png_save(char *data, int width, int height, int depth, char *filename)
+d98 35
+a132 5
+    return 0;
+}
+
+int 
+bmp_save(char *data, int width, int height, int depth, char *filename)
+d137 16
+a152 20
+int 
+pix_save(char *data, int width, int height, int depth, char *filename)
+{
+    int fd;
+    if(depth != 3) {
+	bu_log("PIX must be fed 24 bit RGB data! Aborting.");
+	return -1;
+    }
+    fd = open(filename, O_CREAT|O_TRUNC|O_WRONLY, WRMODE);
+    if(fd<=0) {
+	perror("Unable to open file for writing");
+	return fd;
+    }
+    if(write(fd,data,width*height*depth) != width*height*depth) {
+	perror("Unable to write to file");
+	close(fd);
+	return -1;
+    }
+    close(fd);
+    return 0;
+d186 1
+a186 1
+	bif->format = devine_file_format(filename,buf);
+d192 1
+d201 1
+d222 6
+a227 1
+    write(bif->fd, bif->data, bif->width*bif->height*bif->depth);
+a234 1
+
+@
+
+
+1.1
+log
+@beginnings of a crude image handling function set. Will be able to save png and others some day...
+@
+text
+@d38 1
+a38 1
+static const char RCSid[] = "@@(#)$Header$ (ARL)";
+d44 1
+d52 6
+d180 1
+d188 1
+a188 2
+    lseek(bif->fd, bif->width*bif->depth*y, SEEK_SET);
+    write(bif->fd, data, bif->width*bif->depth);
+d195 1
+d198 1
+@
+

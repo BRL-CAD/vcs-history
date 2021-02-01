@@ -1,0 +1,384 @@
+head	11.9;
+access;
+symbols
+	ansi-20040405-merged:11.6.2.1
+	postmerge-20040405-ansi:11.7
+	premerge-20040404-ansi:11.6
+	postmerge-autoconf:11.6
+	autoconf-freeze:11.6
+	premerge-autoconf:11.6
+	ansi-20040316-freeze:11.6.2.1
+	postmerge-20040315-windows:11.6
+	premerge-20040315-windows:11.6
+	windows-20040315-freeze:11.6
+	autoconf-20031203:11.6
+	autoconf-20031202:11.6
+	autoconf-branch:11.6.0.10
+	phong-branch:11.6.0.8
+	photonmap-branch:11.6.0.6
+	rel-6-1-DP:11.6
+	windows-branch:11.6.0.4
+	rel-6-0-2:11.4
+	ansi-branch:11.6.0.2
+	rel-6-0-1-branch:11.4.0.2
+	hartley-6-0-post:11.5
+	hartley-6-0-pre:11.4
+	rel-6-0-1:11.4
+	rel-6-0:11.4
+	rel-5-4:11.2
+	offsite-5-3-pre:11.3
+	rel-5-3:11.2
+	rel-5-2:11.2
+	rel-5-1-branch:11.2.0.2
+	rel-5-1:11.2;
+locks; strict;
+comment	@ * @;
+
+
+11.9
+date	2004.05.21.18.07.31;	author morrison;	state dead;
+branches;
+next	11.8;
+
+11.8
+date	2004.05.10.15.30.46;	author erikg;	state Exp;
+branches;
+next	11.7;
+
+11.7
+date	2004.04.05.08.48.57;	author morrison;	state Exp;
+branches;
+next	11.6;
+
+11.6
+date	2002.08.20.17.08.02;	author jra;	state Exp;
+branches
+	11.6.2.1;
+next	11.5;
+
+11.5
+date	2002.08.15.20.55.14;	author hartley;	state Exp;
+branches;
+next	11.4;
+
+11.4
+date	2001.04.20.22.29.48;	author morrison;	state Exp;
+branches;
+next	11.3;
+
+11.3
+date	2000.08.21.02.02.31;	author butler;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	2000.05.24.00.59.02;	author mike;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	2000.05.23.19.35.41;	author mike;	state Exp;
+branches;
+next	;
+
+11.6.2.1
+date	2002.09.19.18.01.37;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+11.9
+log
+@moved to src/
+@
+text
+@/*
+ *			H T B L . C
+ *
+ *  Support for variable length arrays of "struct hit".
+ *  Patterned after the libbu/ptbl.c idea.
+ *
+ *  Author -
+ *	Michael John Muuss
+ *  
+ *  Source -
+ *	The U. S. Army Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005-5068  USA
+ *  
+ *  Distribution Status -
+ *	Public Domain, Distribution Unlimited.
+ */
+#ifndef lint
+static const char librt_htbl_RCSid[] = "@@(#)$Header: /n/xoff/cvs/brlcad/librt/htbl.c,v 11.8 2004/05/10 15:30:46 erikg Exp $ (ARL)";
+#endif
+
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+#include <stdio.h>
+#include <string.h>
+#include "machine.h"
+#include "externs.h"
+#include "bu.h"
+#include "vmath.h"
+#include "raytrace.h"
+
+/*
+ *			R T _ H T B L _ I N I T
+ */
+void
+rt_htbl_init(struct rt_htbl *b, int len, const char *str)
+              	   
+   		    		/* initial len. */
+          	     
+{
+	if (bu_debug & BU_DEBUG_PTBL)
+		bu_log("rt_htbl_init(%8x, len=%d, %s)\n", b, len, str);
+	BU_LIST_INIT(&b->l);
+	b->l.magic = RT_HTBL_MAGIC;
+	if( len <= 0 )  len = 64;
+	b->blen = len;
+	b->hits = (struct hit *)bu_calloc(b->blen, sizeof(struct hit), str);
+	b->end = 0;
+}
+
+/*
+ *			R T _ H T B L _ R E S E T
+ *
+ *  Reset the table to have no elements, but retain any existing storage.
+ */
+void
+rt_htbl_reset(struct rt_htbl *b)
+{
+	RT_CK_HTBL(b);
+	b->end = 0;
+	if (bu_debug & BU_DEBUG_PTBL)
+		bu_log("rt_htbl_reset(%8x)\n", b);
+}
+
+/*
+ *			R T _ H T B L _ F R E E
+ *
+ *  Deallocate dynamic hit buffer
+ *  and render unusable without a subsequent rt_htbl_init().
+ */
+void
+rt_htbl_free(struct rt_htbl *b)
+{
+	RT_CK_HTBL(b);
+
+	bu_free((genptr_t)b->hits, "rt_htbl.hits[]");
+	bzero((char *)b, sizeof(struct rt_htbl));	/* sanity */
+
+	if (bu_debug & BU_DEBUG_PTBL)
+		bu_log("rt_htbl_free(%8x)\n", b);
+}
+
+/*
+ *			R T _ H T B L _ G E T
+ *
+ *  Allocate another hit structure, extending the array if necessary.
+ */
+struct hit *
+rt_htbl_get(struct rt_htbl *b)
+{
+	RT_CK_HTBL(b);
+
+	if( b->end >= b->blen )  {
+		/* Increase size of array */
+		b->hits = (struct hit *)bu_realloc( (char *)b->hits,
+			sizeof(struct hit) * (b->blen *= 4),
+			"rt_htbl.hits[]" );
+	}
+
+	/* There is sufficient room */
+	return &b->hits[b->end++];
+}
+@
+
+
+11.8
+log
+@change conf.h to a wrapped config.h
+@
+text
+@d18 1
+a18 1
+static const char librt_htbl_RCSid[] = "@@(#)$Header: /cvs/brlcad/librt/htbl.c,v 11.7 2004/04/05 08:48:57 morrison Exp $ (ARL)";
+@
+
+
+11.7
+log
+@merge of ansi-6-0-branch into HEAD
+@
+text
+@d18 1
+a18 1
+static const char librt_htbl_RCSid[] = "@@(#)$Header$ (ARL)";
+d21 5
+a25 1
+#include "conf.h"
+@
+
+
+11.6
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d18 1
+a18 1
+static const char librt_htbl_RCSid[] = "@@(#)$Header: /c/CVS/brlcad/librt/htbl.c,v 11.4 2001/04/20 22:29:48 morrison Exp $ (ARL)";
+d34 4
+a37 4
+rt_htbl_init(b, len, str)
+struct rt_htbl	*b;
+int		len;		/* initial len. */
+const char	*str;
+d55 1
+a55 2
+rt_htbl_reset(b)
+struct rt_htbl	*b;
+d70 1
+a70 2
+rt_htbl_free(b)
+struct rt_htbl	*b;
+d87 1
+a87 2
+rt_htbl_get(b)
+struct rt_htbl *b;
+@
+
+
+11.6.2.1
+log
+@Initial ANSIfication
+@
+text
+@d18 1
+a18 1
+static const char librt_htbl_RCSid[] = "@@(#)$Header: /c/CVS/brlcad/librt/htbl.c,v 11.6 2002/08/20 17:08:02 jra Exp $ (ARL)";
+d34 4
+a37 4
+rt_htbl_init(struct rt_htbl *b, int len, const char *str)
+              	   
+   		    		/* initial len. */
+          	     
+d55 2
+a56 1
+rt_htbl_reset(struct rt_htbl *b)
+d71 2
+a72 1
+rt_htbl_free(struct rt_htbl *b)
+d89 2
+a90 1
+rt_htbl_get(struct rt_htbl *b)
+@
+
+
+11.5
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d34 4
+a37 4
+rt_htbl_init(struct rt_htbl *b, int len, const char *str)
+              	   
+   		    		/* initial len. */
+          	     
+d55 2
+a56 1
+rt_htbl_reset(struct rt_htbl *b)
+d71 2
+a72 1
+rt_htbl_free(struct rt_htbl *b)
+d89 2
+a90 1
+rt_htbl_get(struct rt_htbl *b)
+@
+
+
+11.4
+log
+@CONST to const
+@
+text
+@d18 1
+a18 1
+static const char librt_htbl_RCSid[] = "@@(#)$Header: /c/CVS/brlcad/librt/htbl.c,v 11.3 2000/08/21 02:02:31 butler Exp $ (ARL)";
+d34 4
+a37 4
+rt_htbl_init(b, len, str)
+struct rt_htbl	*b;
+int		len;		/* initial len. */
+const char	*str;
+d55 1
+a55 2
+rt_htbl_reset(b)
+struct rt_htbl	*b;
+d70 1
+a70 2
+rt_htbl_free(b)
+struct rt_htbl	*b;
+d87 1
+a87 2
+rt_htbl_get(b)
+struct rt_htbl *b;
+@
+
+
+11.3
+log
+@Massive compilation warnings eliminated
+@
+text
+@d18 1
+a18 1
+static const char librt_htbl_RCSid[] = "@@(#)$Header: /c/CVS/brlcad/librt/htbl.c,v 11.2 2000/05/24 00:59:02 mike Exp $ (ARL)";
+d37 1
+a37 1
+CONST char	*str;
+@
+
+
+11.2
+log
+@
+Gotta use right macro to check magic numbers.
+@
+text
+@d18 1
+a18 1
+static char librt_htbl_RCSid[] = "@@(#)$Header: /c/CVS/brlcad/librt/htbl.c,v 11.1 2000/05/23 19:35:41 mike Exp $ (ARL)";
+d23 1
+@
+
+
+11.1
+log
+@
+Added new module "htbl.c", with variable length arrarys of "struct hit".
+@
+text
+@d18 1
+a18 1
+static char librt_htbl_RCSid[] = "@@(#)$Header: /c/CVS/brlcad/libbu/ptbl.c,v 1.9 2000/03/31 04:53:48 mike Exp $ (ARL)";
+d57 1
+a57 1
+	BU_CK_PTBL(b);
+d73 1
+a73 1
+	BU_CK_PTBL(b);
+d91 1
+a91 1
+	BU_CK_PTBL(b);
+@
+

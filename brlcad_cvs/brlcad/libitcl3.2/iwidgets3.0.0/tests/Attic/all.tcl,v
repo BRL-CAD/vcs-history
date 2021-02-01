@@ -1,0 +1,226 @@
+head	1.2;
+access;
+symbols
+	ansi-20040316-freeze:1.1.1.1
+	rel-6-1-DP:1.1.1.1
+	rel-6-0-2:1.1.1.1
+	rel-6-0-1-branch:1.1.1.1.0.4
+	hartley-6-0-post:1.1.1.1
+	hartley-6-0-pre:1.1.1.1
+	rel-6-0-1:1.1.1.1
+	rel-6-0:1.1.1.1
+	rel-5-4:1.1.1.1
+	offsite-5-3-pre:1.1.1.1
+	rel-5-3:1.1.1.1
+	rel-5-1-branch:1.1.1.1.0.2
+	windows-6-0-branch:1.1.1.1.0.8
+	ansi-6-0-branch:1.1.1.1.0.6
+	itcl3-2:1.1.1.1
+	scriptics:1.1.1;
+locks; strict;
+comment	@# @;
+
+
+1.2
+date	2003.03.13.18.37.32;	author jra;	state dead;
+branches;
+next	1.1;
+
+1.1
+date	2000.12.06.21.35.19;	author bparker;	state Exp;
+branches
+	1.1.1.1;
+next	;
+
+1.1.1.1
+date	2000.12.06.21.35.19;	author bparker;	state Exp;
+branches
+	1.1.1.1.6.1
+	1.1.1.1.8.1;
+next	;
+
+1.1.1.1.6.1
+date	2004.03.17.07.13.59;	author morrison;	state dead;
+branches;
+next	;
+
+1.1.1.1.8.1
+date	2004.03.15.17.28.13;	author morrison;	state dead;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.2
+log
+@*** empty log message ***
+@
+text
+@# all.tcl --
+#
+# This file contains a top-level script to run all of the Tcl
+# tests.  Execute it by invoking "source all.test" when running tcltest
+# in this directory.
+#
+# Copyright (c) 1998-2000 by Ajuba Solutions
+# All rights reserved.
+# 
+# RCS: @@(#) $Id: all.tcl,v 1.1 2000/12/06 21:35:19 bparker Exp $
+
+package require tcltest
+namespace import -force ::tcltest::*
+
+# Look for the -exedir flag and find a suitable tclsh executable.
+
+if {(![info exists argv]) || ([llength $argv] < 1)} {
+    set flagArray {}
+} else {
+    set flagArray $argv
+}
+
+array set flag $flagArray
+if {[info exists flag(-exedir)]} {
+    set shell [lindex \
+	    [glob -nocomplain \
+	    [file join $flag(-exedir) wish*.bin] \
+	    [file join $flag(-exedir) wish*]] 0]
+} else {
+    set shell $::tcltest::tcltest
+}
+
+set ::tcltest::testSingleFile false
+
+# use [pwd] trick to expand relative file paths to absolute paths - MMc
+set cwd [pwd]
+cd [file dirname [info script]]
+set ::tcltest::testsDirectory [pwd]
+cd $cwd
+
+set logfile [file join $::tcltest::temporaryDirectory Log.txt]
+
+puts stdout "Using interp: $shell"
+puts stdout "Running tests in working dir: $::tcltest::testsDirectory"
+if {[llength $::tcltest::skip] > 0} {
+    puts stdout "Skipping tests that match:  $::tcltest::skip"
+}
+if {[llength $::tcltest::match] > 0} {
+    puts stdout "Only running tests that match:  $::tcltest::match"
+}
+
+if {[llength $::tcltest::skipFiles] > 0} {
+    puts stdout "Skipping test files that match:  $::tcltest::skipFiles"
+}
+if {[llength $::tcltest::matchFiles] > 0} {
+    puts stdout "Only sourcing test files that match:  $::tcltest::matchFiles"
+}
+
+set timeCmd {clock format [clock seconds]}
+puts stdout "Tests began at [eval $timeCmd]"
+
+# source each of the specified tests
+foreach file [lsort [::tcltest::getMatchingFiles]] {
+    set tail [file tail $file]
+    puts stdout $tail
+
+    # Change to the tests directory so the value of the following
+    # variable is set correctly when we spawn the child test processes
+
+    cd $::tcltest::testsDirectory
+    set cmd [concat [list | $shell $file] [split $argv] \
+	    [list -outfile $logfile]]
+    if {[catch {
+	set pipeFd [open $cmd "r"] 
+	while {[gets $pipeFd line] >= 0} {
+	    puts $::tcltest::outputChannel $line
+	}
+	close $pipeFd
+    } msg]} {
+	# Print results to ::tcltest::outputChannel.
+	puts $::tcltest::outputChannel $msg
+    }
+
+    # Now concatenate the temporary log file to
+    # ::tcltest::outputChannel 
+    if {[catch {
+	set fd [open $logfile "r"]
+	while {![eof $fd]} {
+	    gets $fd line
+	    if {![eof $fd]} {
+		if {[regexp {^([^:]+):\tTotal\t([0-9]+)\tPassed\t([0-9]+)\tSkipped\t([0-9]+)\tFailed\t([0-9]+)} $line null testFile Total Passed Skipped Failed]} {
+		    foreach index [list "Total" "Passed" "Skipped" \
+			    "Failed"] {
+			incr ::tcltest::numTests($index) [set $index]
+		    }
+		    incr ::tcltest::numTestFiles
+		    if {$Failed > 0} {
+			lappend ::tcltest::failFiles $testFile
+		    }
+		}
+		puts $::tcltest::outputChannel $line
+	    }
+	}
+	close $fd
+    } msg]} {
+	puts $::tcltest::outputChannel $msg
+    }
+}
+
+set numFailures [llength $::tcltest::failFiles]
+
+# cleanup
+puts stdout "\nTests ended at [eval $timeCmd]"
+::tcltest::cleanupTests 1
+
+if {$numFailures > 0} {
+    return -code error -errorcode $numFailures \
+	    -errorinfo "Found $numFailures test file failures"
+} else {
+    return
+}
+exit
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d10 1
+a10 1
+# RCS: @@(#) $Id: all.tcl,v 1.2 2000/07/06 06:43:38 mmc Exp $
+@
+
+
+1.1.1.1
+log
+@Import itcl3.2
+@
+text
+@@
+
+
+1.1.1.1.6.1
+log
+@sync branch with HEAD
+@
+text
+@d10 1
+a10 1
+# RCS: @@(#) $Id: all.tcl,v 1.1.1.1 2000/12/06 21:35:19 bparker Exp $
+@
+
+
+1.1.1.1.8.1
+log
+@sync with HEAD -- libitcl3.2 is not in libitcl (v3.3)
+@
+text
+@d10 1
+a10 1
+# RCS: @@(#) $Id: all.tcl,v 1.1.1.1 2000/12/06 21:35:19 bparker Exp $
+@
+

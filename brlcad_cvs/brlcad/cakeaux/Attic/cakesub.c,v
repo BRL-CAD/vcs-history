@@ -1,0 +1,587 @@
+head	11.3;
+access;
+symbols
+	ansi-20040405-merged:11.2
+	postmerge-20040405-ansi:11.2
+	premerge-20040404-ansi:11.2
+	postmerge-autoconf:11.2
+	autoconf-freeze:11.2
+	premerge-autoconf:11.2
+	ansi-20040316-freeze:11.2
+	postmerge-20040315-windows:11.2
+	premerge-20040315-windows:11.2
+	windows-20040315-freeze:11.2
+	autoconf-20031203:11.2
+	autoconf-20031202:11.2
+	autoconf-branch:11.2.0.14
+	phong-branch:11.2.0.12
+	photonmap-branch:11.2.0.10
+	rel-6-1-DP:11.2
+	windows-branch:11.2.0.8
+	rel-6-0-2:11.2
+	ansi-branch:11.2.0.6
+	rel-6-0-1-branch:11.2.0.4
+	hartley-6-0-post:11.2
+	hartley-6-0-pre:11.2
+	rel-6-0-1:11.2
+	rel-6-0:11.2
+	rel-5-4:11.2
+	offsite-5-3-pre:11.2
+	rel-5-3:11.2
+	rel-5-2:11.2
+	rel-5-1-branch:11.2.0.2
+	rel-5-1:11.2
+	rel-5-0:11.2
+	rel-5-0-beta:11.2
+	rel-4-5:11.2
+	ctj-4-5-post:11.2
+	ctj-4-5-pre:11.2
+	rel-4-4:1.6
+	rel-4-0:1.2;
+locks; strict;
+comment	@ * @;
+
+
+11.3
+date	2004.05.19.15.45.58;	author morrison;	state dead;
+branches;
+next	11.2;
+
+11.2
+date	97.05.22.02.23.42;	author mike;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	95.01.05.06.03.11;	author mike;	state Rel4_4;
+branches;
+next	1.6;
+
+1.6
+date	94.11.03.14.33.50;	author mike;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	93.12.10.03.25.21;	author cjohnson;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	91.11.04.19.43.57;	author mike;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	91.11.02.04.03.40;	author mike;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	91.07.03.22.28.30;	author mike;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	91.07.03.22.25.03;	author mike;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+11.3
+log
+@cake is no more and theres no incentive to maintain it any more so .. buh bye.
+@
+text
+@/*
+**	Sub - do substitutions on arguments
+*/
+
+static	char
+rcs_id[] = "$Header: /cvs/brlcad/cakeaux/cakesub.c,v 11.2 1997/05/22 02:23:42 mike Exp $";
+
+#include	<stdio.h>
+#include	<ctype.h>
+#include	"std.h"
+
+extern char	*malloc();
+void		usage();
+
+char	var_char = 'X';
+
+main(argc, argv)
+int	argc;
+char	**argv;
+{
+	extern	bool	match();
+	extern	char	*ground();
+	register	char	*old, *new;
+	register	bool	ignore;
+	register	int	unmatched, i;
+	register	char	*sep;
+	char			*cp;
+	int			len;
+	int			old_join = 1;
+	int			new_join = 1;
+
+	ignore = FALSE;
+	unmatched = 0;
+	while (argc > 1 && argv[1][0] == '-')
+	{
+		for (i = 1; argv[1][i] != '\0'; i++)
+		{
+			switch (argv[1][i])
+			{
+
+		case 'i':
+				ignore = TRUE;
+				break;
+		case 'o':
+				old_join = atoi(&argv[1][i+1]);
+				if( old_join <= 0 )  usage();
+				goto nextword;
+		case 'n':
+				new_join = atoi(&argv[1][i+1]);
+				if( new_join <= 0 )  usage();
+				goto nextword;
+		case 'v':
+				if (argv[1][i+2] != '\0')
+					usage();
+
+				var_char = argv[1][i+1];
+				goto nextword;
+		default:
+				usage();
+			}
+		}
+
+nextword:
+		argc--;
+		argv++;
+	}
+
+	if (argc < old_join+new_join)
+		usage();
+
+	/* Merge together "old_join" arguments to be the old string */
+	len = 1;	/* for the null */
+	for( i=0; i<old_join; i++ ) len += strlen(argv[1]);
+	old = malloc(len);
+	old[0] = '\0';
+	cp = old;
+	for( i=0; i<old_join; i++ )  {
+		/*(void)*/ strcat( cp, argv[1] );
+		cp += strlen(argv[1]);
+		argc--; argv++;
+	}
+	
+	/* Merge together "new_join" arguments to be the new string */
+	len = 1;	/* for the null */
+	for( i=0; i<new_join; i++ ) len += strlen(argv[1]);
+	new = malloc(len);
+	new[0] = '\0';
+	cp = new;
+	for( i=0; i<new_join; i++ )  {
+		/*(void)*/ strcat( cp, argv[1] );
+		cp += strlen(argv[1]);
+		argc--; argv++;
+	}
+
+	sep = "";
+	while (argc > 1)
+	{
+		if (! match(argv[1], old))
+			unmatched++;
+		else
+		{
+			printf("%s%s", sep, ground(new));
+			sep = " ";
+		}
+
+		argc--;
+		argv++;
+	}
+
+	printf("\n");
+	exit(ignore? 0: unmatched);
+}
+
+/*
+**	Tell the unfortunate user how to use sub.
+*/
+
+void
+usage()
+{
+	printf("Usage: cakesub [-i] [-vX] [-o#] [-n#] oldpattern newpattern name ...\n");
+	exit(1);
+}
+
+/*
+**	Module to manipulate Cake patterns.
+*/
+
+typedef	struct	s_env
+{
+	char	*en_val;
+	bool	en_bound;
+} Env;
+
+#define	NOVAR	 10
+#define	MAXVAR	 11
+#define	MAXSIZE	128
+
+Env	env[MAXVAR];
+
+/*
+**	This function initialises the environment of domatch.
+*/
+
+bool
+match(str, pat)
+register	char	*str;
+register	char	*pat;
+{
+	extern	bool	domatch();
+	register	int	i;
+	register	char	*s, *p;
+
+	p = pat+strlen(pat)-1;
+	if (*p != var_char && !isdigit(*p))	/* not part of a var */
+	{
+		s = str+strlen(str)-1;
+		if (*s != *p)			/* last chars differ */
+			return FALSE;
+	}
+
+	for (i = 0; i < MAXVAR; i++)
+		env[i].en_bound = FALSE;
+
+	return domatch(str, pat);
+}
+
+/*
+**	Match a string against a pattern.
+**	The pattern is expected to have been dereferenced.
+**	To handle nondeterminism, a brute force recursion approach
+**	is taken.
+*/
+
+bool
+domatch(str, patstr)
+register	char	*str;
+register	char	*patstr;
+{
+	extern	char	*new_name();
+	char		buf[MAXSIZE];
+	register	char	*follow;
+	register	char	*s, *t;
+	register	int	varno;
+	register	int	i;
+	register	bool	more;
+
+	if (patstr[0] == var_char)
+	{
+		if (isdigit(patstr[1]))
+		{
+			varno  = patstr[1] - '0';
+			follow = patstr + 2;
+		}
+		else
+		{
+			varno  = NOVAR;
+			follow = patstr + 1;
+		}
+
+		if (env[varno].en_bound)
+		{
+			/* lifetime of buf is local */
+			strcpy(buf, env[varno].en_val);
+			strcat(buf, follow);
+			return domatch(str, buf);
+		}
+
+		i = 0;
+		buf[0] = '\0';
+		env[varno].en_bound = TRUE;
+		env[varno].en_val = buf;
+
+		/* keep invariant: buf = tentative value of var  */
+		/* must consider *s == \0, but do not overshoot  */
+		for (s = str, more = TRUE; more; s++)
+		{
+			if (domatch(s, follow))
+			{
+				/* lifetime of buf is now global */
+				env[varno].en_val = new_name(buf);
+				return TRUE;
+			}
+
+			/* maintain invariant */
+			buf[i++] = *s;
+			buf[i]   = '\0';
+
+			more = (*s != '\0');
+		}
+		
+		/* no luck, match failed */
+		env[varno].en_bound = FALSE;
+		return FALSE;
+	}
+
+	/* here we have something other than a variable first off */
+	for (s = str, t = patstr; *t != '\0' && *t != var_char; s++, t++)
+	{
+		if (*t == '\\')
+			t++;	/* the new *t is not checked for % */
+		
+		if (*s != *t)
+			return FALSE;
+	}
+
+	/* see if we have come to the end of the pattern */
+	if (*t == '\0')
+		return *s == '\0';
+	
+	/* if not, recurse on the next variable */
+	return domatch(s, t);
+}
+
+/*
+**	Ground the argument string, i.e. replace all occurrences
+**	of variables in it. It is fatal error for the string to
+**	contain a variable which has no value.
+*/
+
+char *
+ground(str)
+register	char	*str;
+{
+	extern	char	*new_name();
+	register	char	*s, *t;
+	register	int	i, var;
+	char		buf[MAXSIZE];
+
+	i = 0;
+	for (s = str; *s != '\0'; s++)
+	{
+		if (*s == var_char)
+		{
+			if (isdigit(s[1]))
+				var = *++s - '0';
+			else
+				var = NOVAR;
+			
+			if (! env[var].en_bound)
+			{
+				printf("Attempt to use undefined value in %s\n", str);
+				exit(1);
+			}
+
+			for (t = env[var].en_val; *t != '\0'; t++)
+				buf[i++] = *t;
+		}
+		or (*s == '\\')
+		{
+			if (s[1] != '\0')
+				buf[i++] = *++s;
+		}
+		else
+			buf[i++] = *s;
+	}
+
+	if (i >= MAXSIZE)
+	{
+		printf("Ran out of buffer\n");
+		exit(1);
+	}
+
+	buf[i] = '\0';
+	return new_name(buf);
+}
+
+char *
+new_name(str)
+register	char	*str;
+{
+	extern	char	*malloc();
+	register	char	*copy;
+
+	copy = malloc(strlen(str) + 1);
+	strcpy(copy, str);
+	return copy;
+}
+@
+
+
+11.2
+log
+@void
+@
+text
+@d6 1
+a6 1
+rcs_id[] = "$Header: /m/cad/cakeaux/RCS/cakesub.c,v 11.1 1995/01/05 06:03:11 mike Rel4_4 mike $";
+@
+
+
+11.1
+log
+@Release_4_4
+@
+text
+@d6 1
+a6 1
+rcs_id[] = "$Header: /m/cad/cakeaux/RCS/cakesub.c,v 1.6 94/11/03 14:33:50 mike Exp $";
+d13 1
+d118 1
+@
+
+
+1.6
+log
+@Eliminated 'when' and 'otherwise' macros, for Irix 6.0
+@
+text
+@d6 1
+a6 1
+rcs_id[] = "$Header: /m/cad/cakeaux/RCS/cakesub.c,v 1.5 93/12/10 03:25:21 cjohnson Exp Locker: mike $";
+@
+
+
+1.5
+log
+@Malloc does not _always_ return zero filled strings.
+@
+text
+@d6 1
+a6 1
+rcs_id[] = "$Header: /m/cad/cakeaux/RCS/cakesub.c,v 1.4 1991/11/04 19:43:57 mike Exp cjohnson $";
+d40 1
+a40 1
+		when 'i':
+d42 2
+a43 1
+		when 'o':
+d47 1
+a47 1
+		when 'n':
+d51 1
+a51 1
+		when 'v':
+d57 1
+a57 1
+		otherwise:
+@
+
+
+1.4
+log
+@Removed debug print
+@
+text
+@d6 1
+a6 1
+rcs_id[] = "$Header: /m/cad/cakeaux/RCS/cakesub.c,v 1.3 91/11/02 04:03:40 mike Exp Locker: mike $";
+d73 1
+d85 1
+@
+
+
+1.3
+log
+@Added -o and -n flags, to allow multiple args to be collapsed
+together into a single, for old and new patterns.
+This becomes important with ANSI CPP's being used to pre-process the
+Cakefiles.
+@
+text
+@d6 1
+a6 1
+rcs_id[] = "$Header: /m/cad/cakeaux/RCS/cakesub.c,v 1.2 91/07/03 22:28:30 mike Exp Locker: mike $";
+a89 1
+fprintf(stderr,"old='%s', new='%s'\n", old, new);
+@
+
+
+1.2
+log
+@Eliminated #define reg register, which blows the IBM's mind.
+@
+text
+@d6 1
+a6 1
+rcs_id[] = "$Header: /m/cad/cakeaux/RCS/cakesub.c,v 1.1 91/07/03 22:25:03 mike Exp $";
+d8 2
+a10 1
+#include	<ctype.h>
+d12 2
+d26 4
+d42 8
+d66 1
+a66 1
+	if (argc < 2)
+d68 11
+d80 11
+a90 4
+	old = argv[1];
+	new = argv[2];
+	argv += 2;
+	argc -= 2;
+d117 1
+a117 1
+	printf("Usage: sub [-i] [-vX] oldpattern newpattern name ...\n");
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d6 1
+a6 1
+rcs_id[] = "$Header$";
+d19 4
+a22 4
+	reg	char	*old, *new;
+	reg	bool	ignore;
+	reg	int	unmatched, i;
+	reg	char	*sep;
+d110 2
+a111 2
+reg	char	*str;
+reg	char	*pat;
+d114 2
+a115 2
+	reg	int	i;
+	reg	char	*s, *p;
+d140 2
+a141 2
+reg	char	*str;
+reg	char	*patstr;
+d145 5
+a149 5
+	reg	char	*follow;
+	reg	char	*s, *t;
+	reg	int	varno;
+	reg	int	i;
+	reg	bool	more;
+d226 1
+a226 1
+reg	char	*str;
+d229 2
+a230 2
+	reg	char	*s, *t;
+	reg	int	i, var;
+d273 1
+a273 1
+reg	char	*str;
+d276 1
+a276 1
+	reg	char	*copy;
+@

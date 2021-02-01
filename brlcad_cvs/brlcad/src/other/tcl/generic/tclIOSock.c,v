@@ -1,0 +1,179 @@
+head	1.3;
+access;
+symbols
+	rel-7-10-4:1.2
+	STABLE:1.2.0.2
+	rel-7-10-2:1.2
+	rel-7-10-0:1.1;
+locks; strict;
+comment	@ * @;
+
+
+1.3
+date	2007.11.06.21.35.21;	author erikgreenwald;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2007.05.07.04.17.23;	author brlcad;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2007.03.02.21.48.11;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.3
+log
+@tcl 8.5a6->8.5b1
+@
+text
+@/*
+ * tclIOSock.c --
+ *
+ *	Common routines used by all socket based channel types.
+ *
+ * Copyright (c) 1995-1997 Sun Microsystems, Inc.
+ *
+ * See the file "license.terms" for information on usage and redistribution of
+ * this file, and for a DISCLAIMER OF ALL WARRANTIES.
+ *
+ * RCS: @@(#) $Id: tclIOSock.c,v 1.11 2007/02/20 23:24:04 nijtmans Exp $
+ */
+
+#include "tclInt.h"
+
+/*
+ *---------------------------------------------------------------------------
+ *
+ * TclSockGetPort --
+ *
+ *	Maps from a string, which could be a service name, to a port. Used by
+ *	socket creation code to get port numbers and resolve registered
+ *	service names to port numbers.
+ *
+ * Results:
+ *	A standard Tcl result. On success, the port number is returned in
+ *	portPtr. On failure, an error message is left in the interp's result.
+ *
+ * Side effects:
+ *	None.
+ *
+ *---------------------------------------------------------------------------
+ */
+
+int
+TclSockGetPort(
+    Tcl_Interp *interp,
+    const char *string, /* Integer or service name */
+    const char *proto, /* "tcp" or "udp", typically */
+    int *portPtr)		/* Return port number */
+{
+    struct servent *sp;		/* Protocol info for named services */
+    Tcl_DString ds;
+    const char *native;
+
+    if (Tcl_GetInt(NULL, string, portPtr) != TCL_OK) {
+	/*
+	 * Don't bother translating 'proto' to native.
+	 */
+
+	native = Tcl_UtfToExternalDString(NULL, string, -1, &ds);
+	sp = getservbyname(native, proto);		/* INTL: Native. */
+	Tcl_DStringFree(&ds);
+	if (sp != NULL) {
+	    *portPtr = ntohs((unsigned short) sp->s_port);
+	    return TCL_OK;
+	}
+    }
+    if (Tcl_GetInt(interp, string, portPtr) != TCL_OK) {
+	return TCL_ERROR;
+    }
+    if (*portPtr > 0xFFFF) {
+	Tcl_AppendResult(interp, "couldn't open socket: port number too high",
+		NULL);
+	return TCL_ERROR;
+    }
+    return TCL_OK;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * TclSockMinimumBuffers --
+ *
+ *	Ensure minimum buffer sizes (non zero).
+ *
+ * Results:
+ *	A standard Tcl result.
+ *
+ * Side effects:
+ *	Sets SO_SNDBUF and SO_RCVBUF sizes.
+ *
+ *----------------------------------------------------------------------
+ */
+
+int
+TclSockMinimumBuffers(
+    int sock,			/* Socket file descriptor */
+    int size)			/* Minimum buffer size */
+{
+    int current;
+    socklen_t len;
+
+    len = sizeof(int);
+    getsockopt(sock, SOL_SOCKET, SO_SNDBUF, (char *)&current, &len);
+    if (current < size) {
+	len = sizeof(int);
+	setsockopt(sock, SOL_SOCKET, SO_SNDBUF, (char *)&size, len);
+    }
+    len = sizeof(int);
+    getsockopt(sock, SOL_SOCKET, SO_RCVBUF, (char *)&current, &len);
+    if (current < size) {
+	len = sizeof(int);
+	setsockopt(sock, SOL_SOCKET, SO_RCVBUF, (char *)&size, len);
+    }
+    return TCL_OK;
+}
+
+/*
+ * Local Variables:
+ * mode: c
+ * c-basic-offset: 4
+ * fill-column: 78
+ * End:
+ */
+@
+
+
+1.2
+log
+@upgrade to tcl/tk 8.5a6 (from 8.5a5) .. includes even more (extensive) aquatk fixes/enhancements
+@
+text
+@@
+
+
+1.1
+log
+@upgrade tcl/tk from 8.4.6 to 8.5a5; also move to a recursive configure, using AC_CONFIG_SUBDIRS to call upon tcl, tk, and enigma's configure scripts as needed instead of redoing their build systems for our purpose.  this has a rather drastic impact on the way the libraries are linked together, including the need to compile tcl/tk static so as to avoid libtool portability issues as well as letting us take advantage of their build system for reduced maintenance and easing future upgrades.  undoubtedly more build issues to be worked out with other platforms given the extent of this change.  this does move us one step closer towards correctly linking against system tcl/tk installations too.
+@
+text
+@d11 1
+a11 1
+ * RCS: @@(#) $Id: tclIOSock.c,v 1.10 2005/11/07 15:17:25 dkf Exp $
+d38 2
+a39 2
+    char *string,		/* Integer or service name */
+    char *proto,		/* "tcp" or "udp", typically */
+d44 1
+a44 1
+    CONST char *native;
+@
+

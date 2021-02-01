@@ -1,0 +1,846 @@
+head	1.14;
+access;
+symbols
+	ansi-20040405-merged:1.10.2.2
+	postmerge-20040405-ansi:1.12
+	premerge-20040404-ansi:1.11
+	postmerge-autoconf:1.11
+	autoconf-freeze:1.10.10.2
+	premerge-autoconf:1.11
+	postmerge-20040315-windows:1.11
+	premerge-20040315-windows:1.11
+	windows-20040315-freeze:1.10.4.1
+	autoconf-20031203:1.10
+	autoconf-20031202:1.10
+	autoconf-branch:1.10.0.10
+	phong-branch:1.10.0.8
+	photonmap-branch:1.10.0.6
+	rel-6-1-DP:1.10
+	windows-branch:1.10.0.4
+	rel-6-0-2:1.8
+	ansi-branch:1.10.0.2
+	rel-6-0-1-branch:1.8.0.2
+	hartley-6-0-post:1.9
+	hartley-6-0-pre:1.8
+	rel-6-0-1:1.8
+	rel-6-0:1.8
+	rel-5-4:1.5
+	offsite-5-3-pre:1.8
+	rel-5-3:1.5
+	rel-5-2:1.5
+	rel-5-1-branch:1.5.0.2
+	rel-5-1:1.5
+	rel-5-0:1.5
+	rel-5-0-beta:1.5
+	rel-4-5:1.4
+	ctj-4-5-post:1.4
+	ctj-4-5-pre:1.4;
+locks; strict;
+comment	@ * @;
+
+
+1.14
+date	2004.05.21.14.57.31;	author morrison;	state dead;
+branches;
+next	1.13;
+
+1.13
+date	2004.05.10.15.30.50;	author erikg;	state Exp;
+branches;
+next	1.12;
+
+1.12
+date	2004.04.05.05.46.01;	author morrison;	state Exp;
+branches;
+next	1.11;
+
+1.11
+date	2004.02.02.17.39.44;	author morrison;	state Exp;
+branches;
+next	1.10;
+
+1.10
+date	2002.08.20.17.08.54;	author jra;	state Exp;
+branches
+	1.10.2.1
+	1.10.4.1
+	1.10.10.1;
+next	1.9;
+
+1.9
+date	2002.08.15.20.56.06;	author hartley;	state Exp;
+branches;
+next	1.8;
+
+1.8
+date	2000.10.24.14.40.15;	author mike;	state Exp;
+branches;
+next	1.7;
+
+1.7
+date	2000.09.01.03.23.43;	author mike;	state Exp;
+branches;
+next	1.6;
+
+1.6
+date	2000.08.23.19.04.11;	author mike;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	98.06.25.07.17.24;	author mike;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	97.01.08.04.10.54;	author mike;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	95.12.14.16.28.20;	author pjt;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	95.12.13.21.17.11;	author pjt;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	95.12.13.20.47.34;	author pjt;	state Exp;
+branches;
+next	;
+
+1.10.2.1
+date	2002.09.19.18.02.34;	author morrison;	state Exp;
+branches;
+next	1.10.2.2;
+
+1.10.2.2
+date	2004.03.17.21.23.19;	author morrison;	state Exp;
+branches;
+next	;
+
+1.10.4.1
+date	2004.03.11.23.52.28;	author morrison;	state Exp;
+branches;
+next	;
+
+1.10.10.1
+date	2004.02.12.19.43.09;	author erikg;	state Exp;
+branches;
+next	1.10.10.2;
+
+1.10.10.2
+date	2004.03.15.14.08.10;	author erikg;	state Exp;
+branches;
+next	;
+
+
+desc
+@     Compute barycentric combinations
+@
+
+
+1.14
+log
+@moved to src/util/
+@
+text
+@/*
+ *				B A R Y . C
+ *
+ *  Author -
+ *	Paul J. Tanenbaum
+ *  
+ *  Source -
+ *	The U. S. Army Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005-5068  USA
+ *  
+ *  Distribution Notice -
+ *	Re-distribution of this software is restricted, as described in
+ *	your "Statement of Terms and Conditions for the Release of
+ *	The BRL-CAD Package" agreement.
+ *
+ *  Copyright Notice -
+ *	This software is Copyright (C) 1995-2004 by the United States Army
+ *	in all countries except the USA.  All rights reserved.
+ */
+#ifndef lint
+static const char RCSid[] = "@@(#)$Header: /n/xoff/cvs/brlcad/util/bary.c,v 1.13 2004/05/10 15:30:50 erikg Exp $ (ARL)";
+#endif
+
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+#include <stdio.h>
+#include <math.h>
+#include "machine.h"
+#include "bu.h"
+#include "vmath.h"
+#include "raytrace.h"
+#include "rtlist.h"
+
+struct site
+{
+    struct bu_list	l;
+    fastf_t		s_x;
+    fastf_t		s_y;
+    fastf_t		s_z;
+};
+#define	SITE_NULL	((struct site *) 0)
+#define	SITE_MAGIC	0x73697465
+#define s_magic		l.magic
+
+void print_usage (void)
+{
+#define OPT_STRING	"ns:t?"
+
+    bu_log("Usage: 'bary [-nt] [-s \"x y z\"] [file]'\n");
+}
+
+void enqueue_site (struct bu_list *sl, fastf_t x, fastf_t y, fastf_t z)
+{
+    struct site	*sp;
+
+    BU_CK_LIST_HEAD(sl);
+
+    sp = (struct site *) bu_malloc(sizeof(struct site), "site structure");
+    sp -> s_magic = SITE_MAGIC;
+    sp -> s_x = x;
+    sp -> s_y = y;
+    sp -> s_z = z;
+
+    BU_LIST_INSERT(sl, &(sp -> l));
+}
+
+void show_sites (struct bu_list *sl)
+{
+    struct site	*sp;
+
+    BU_CK_LIST_HEAD(sl);
+
+    for (BU_LIST_FOR(sp, site, sl))
+    {
+	bu_log("I got a site (%g, %g, %g)\n",
+	    sp -> s_x, sp -> s_y, sp -> s_z);
+    }
+}
+
+int read_point (FILE *fp, fastf_t *c_p, int c_len, int normalize, struct bu_vls *tail)
+{
+    char		*cp = NULL;
+    fastf_t		sum;
+    int			i;
+    int			return_code = 1;
+    static int		line_nm = 0;
+    struct bu_vls	*bp;
+
+    for (bp = bu_vls_vlsinit(); ; bu_vls_trunc(bp, 0))
+    {
+	if (bu_vls_gets(bp, fp) == -1)
+	{
+	    return_code = EOF;
+	    goto wrap_up;
+	}
+
+	++line_nm;
+	cp = bu_vls_addr(bp);
+
+	while ((*cp == ' ') || (*cp == '\t'))
+	    ++cp;
+	
+	if ((*cp == '#') || (*cp == '\0'))
+	    continue;
+
+	for (i = 0; i < c_len; ++i)
+	{
+	    char	*endp;
+
+	    c_p[i] = strtod(cp, &endp);
+	    if (endp == cp)
+	    {
+		bu_log("Illegal input at line %d: '%s'\n",
+		    line_nm, bu_vls_addr(bp));
+		exit (1);
+	    }
+	    cp = endp;
+	}
+
+	if (normalize)
+	{
+	    sum = 0.0;
+	    for (i = 0; i < c_len; ++i)
+		sum += c_p[i];
+	    for (i = 0; i < c_len; ++i)
+		c_p[i] /= sum;
+	}
+	goto wrap_up;
+    }
+
+    wrap_up:
+	if ((return_code == 1) && (tail != 0))
+	{
+	    bu_vls_trunc(tail, 0);
+	    bu_vls_strcat(tail, cp);
+	}
+	bu_vls_vlsfree(bp);
+	return (return_code);
+}
+
+int
+main (int argc, char **argv)
+{
+    char		*inf_name;
+    int			ch;
+    int			i;
+    int			nm_sites;
+    int			normalize = 0;	/* Make all weights sum to one? */
+    fastf_t		*coeff;
+    fastf_t		x, y, z;
+    FILE		*infp;
+    struct bu_list	site_list;
+    struct bu_vls	*tail_buf = 0;
+    struct site		*sp;
+
+    BU_LIST_INIT(&site_list);
+    while ((ch = bu_getopt(argc, argv, OPT_STRING)) != EOF)
+	switch (ch)
+	{
+	    case 'n':
+		normalize = 1;
+		break;
+	    case 's':
+		if (sscanf(bu_optarg, "%lf %lf %lf", &x, &y, &z) != 3)
+		{
+		    bu_log("Illegal site: '%s'\n", bu_optarg);
+		    print_usage();
+		    exit (1);
+		}
+		enqueue_site(&site_list, x, y, z);
+		break;
+	    case 't':
+		if (tail_buf == 0)	 /* Only initialize it once */
+		    tail_buf = bu_vls_vlsinit();
+		break;
+	    case '?':
+	    default:
+		print_usage();
+		exit (ch != '?');
+	}
+
+    switch (argc - bu_optind)
+    {
+	case 0:
+	    inf_name = "stdin";
+	    infp = stdin;
+	    break;
+	case 1:
+	    inf_name = argv[bu_optind++];
+	    if ((infp = fopen(inf_name, "r")) == NULL)
+	    {
+		bu_log ("Cannot open file '%s'\n", inf_name);
+		exit (1);
+	    }
+	    break;
+	default:
+	    print_usage();
+	    exit (1);
+    }
+
+    if (BU_LIST_IS_EMPTY(&site_list))
+    {
+	enqueue_site(&site_list, (fastf_t) 1.0, (fastf_t) 0.0, (fastf_t) 0.0);
+	enqueue_site(&site_list, (fastf_t) 0.0, (fastf_t) 1.0, (fastf_t) 0.0);
+	enqueue_site(&site_list, (fastf_t) 0.0, (fastf_t) 0.0, (fastf_t) 1.0);
+    }
+
+    nm_sites = 0;
+    for (BU_LIST_FOR(sp, site, &site_list))
+	++nm_sites;
+
+    coeff = (fastf_t *)
+		bu_malloc(nm_sites * sizeof(fastf_t), "coefficient array");
+
+    while (read_point(infp, coeff, nm_sites, normalize, tail_buf) != EOF)
+    {
+	x = y = z = 0.0;
+	i = 0;
+	for (BU_LIST_FOR(sp, site, &site_list))
+	{
+	    x += sp -> s_x * coeff[i];
+	    y += sp -> s_y * coeff[i];
+	    z += sp -> s_z * coeff[i];
+	    ++i;
+	}
+	bu_flog(stdout, "%g %g %g", x, y, z);
+	if (tail_buf)
+	    bu_flog(stdout, "%s", bu_vls_addr(tail_buf));
+	bu_flog(stdout, "\n");
+    }
+    return 0;
+}
+@
+
+
+1.13
+log
+@change conf.h to a wrapped config.h
+@
+text
+@d21 1
+a21 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/util/bary.c,v 1.12 2004/04/05 05:46:01 morrison Exp $ (ARL)";
+@
+
+
+1.12
+log
+@merge of ansi-6-0-branch into head
+@
+text
+@d21 1
+a21 1
+static const char RCSid[] = "@@(#)$Header$ (ARL)";
+d24 5
+a28 1
+#include "conf.h"
+@
+
+
+1.11
+log
+@update copyright to include span through 2003
+@
+text
+@d21 1
+a21 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/util/bary.c,v 1.10 2002/08/20 17:08:54 jra Exp $ (ARL)";
+d44 1
+a44 1
+void print_usage ()
+d51 1
+a51 5
+void enqueue_site (sl, x, y, z)
+
+struct bu_list	*sl;
+fastf_t		x, y, z;
+
+d66 1
+a66 4
+void show_sites (sl)
+
+struct bu_list	*sl;
+
+d79 1
+a79 8
+int read_point (fp, c_p, c_len, normalize, tail)
+
+FILE		*fp;
+fastf_t		*c_p;
+int		c_len;
+int		normalize;
+struct bu_vls	*tail;
+
+d141 1
+a141 5
+main (argc, argv)
+
+int	argc;
+char	*argv[];
+
+@
+
+
+1.10
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d17 1
+a17 1
+ *	This software is Copyright (C) 1995 by the United States Army
+d21 1
+a21 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/util/bary.c,v 1.8 2000/10/24 14:40:15 mike Exp $ (ARL)";
+@
+
+
+1.10.4.1
+log
+@sync to HEAD...
+@
+text
+@d17 1
+a17 1
+ *	This software is Copyright (C) 1995-2004 by the United States Army
+d21 1
+a21 1
+static const char RCSid[] = "@@(#)$Header: /n/cad/c/CVS/brlcad/util/bary.c,v 1.11 2004/02/02 17:39:44 morrison Exp $ (ARL)";
+@
+
+
+1.10.10.1
+log
+@merge from HEAD
+@
+text
+@d17 1
+a17 1
+ *	This software is Copyright (C) 1995-2004 by the United States Army
+d21 1
+a21 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/util/bary.c,v 1.11 2004/02/02 17:39:44 morrison Exp $ (ARL)";
+@
+
+
+1.10.10.2
+log
+@merge from head
+@
+text
+@d21 1
+a21 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/util/bary.c,v 1.10.10.1 2004/02/12 19:43:09 erikg Exp $ (ARL)";
+@
+
+
+1.10.2.1
+log
+@Initial ANSIfication
+@
+text
+@d21 1
+a21 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/util/bary.c,v 1.10 2002/08/20 17:08:54 jra Exp $ (ARL)";
+d44 1
+a44 1
+void print_usage (void)
+d51 5
+a55 1
+void enqueue_site (struct bu_list *sl, fastf_t x, fastf_t y, fastf_t z)
+d70 4
+a73 1
+void show_sites (struct bu_list *sl)
+d86 8
+a93 1
+int read_point (FILE *fp, fastf_t *c_p, int c_len, int normalize, struct bu_vls *tail)
+d155 5
+a159 1
+main (int argc, char **argv)
+@
+
+
+1.10.2.2
+log
+@sync branch with HEAD
+@
+text
+@d17 1
+a17 1
+ *	This software is Copyright (C) 1995-2004 by the United States Army
+d21 1
+a21 1
+static const char RCSid[] = "@@(#)$Header$ (ARL)";
+@
+
+
+1.9
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d44 1
+a44 1
+void print_usage (void)
+d51 5
+a55 1
+void enqueue_site (struct bu_list *sl, fastf_t x, fastf_t y, fastf_t z)
+d70 4
+a73 1
+void show_sites (struct bu_list *sl)
+d86 8
+a93 1
+int read_point (FILE *fp, fastf_t *c_p, int c_len, int normalize, struct bu_vls *tail)
+d155 5
+a159 1
+main (int argc, char **argv)
+@
+
+
+1.8
+log
+@
+Changed to use libbu getopt()
+@
+text
+@d21 1
+a21 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/util/bary.c,v 1.7 2000/09/01 03:23:43 mike Exp $ (ARL)";
+d44 1
+a44 1
+void print_usage ()
+d51 1
+a51 5
+void enqueue_site (sl, x, y, z)
+
+struct bu_list	*sl;
+fastf_t		x, y, z;
+
+d66 1
+a66 4
+void show_sites (sl)
+
+struct bu_list	*sl;
+
+d79 1
+a79 8
+int read_point (fp, c_p, c_len, normalize, tail)
+
+FILE		*fp;
+fastf_t		*c_p;
+int		c_len;
+int		normalize;
+struct bu_vls	*tail;
+
+d141 1
+a141 5
+main (argc, argv)
+
+int	argc;
+char	*argv[];
+
+@
+
+
+1.7
+log
+@
+Lint fix
+@
+text
+@d21 1
+a21 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/util/bary.c,v 1.6 2000/08/23 19:04:11 mike Exp $ (ARL)";
+d24 1
+d28 1
+a172 3
+    extern int	optind;			/* index from getopt(3C) */
+    extern char	*optarg;		/* index from getopt(3C) */
+
+d174 1
+a174 1
+    while ((ch = getopt(argc, argv, OPT_STRING)) != EOF)
+d181 1
+a181 1
+		if (sscanf(optarg, "%lf %lf %lf", &x, &y, &z) != 3)
+d183 1
+a183 1
+		    bu_log("Illegal site: '%s'\n", optarg);
+d199 1
+a199 1
+    switch (argc - optind)
+d206 1
+a206 1
+	    inf_name = argv[optind++];
+@
+
+
+1.6
+log
+@
+const RCSid
+@
+text
+@d21 1
+a21 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/util/bary.c,v 1.5 1998/06/25 07:17:24 mike Exp $ (ARL)";
+d93 1
+a93 1
+    char		*cp;
+d152 1
+d249 1
+@
+
+
+1.5
+log
+@Mods for compiling on sun4
+@
+text
+@d21 1
+a21 1
+static char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/util/bary.c,v 1.4 1997/01/08 04:10:54 mike Exp $ (ARL)";
+@
+
+
+1.4
+log
+@Converted to LIBBN/LIBBU
+@
+text
+@d21 1
+a21 1
+static char RCSid[] = "@@(#)$Header: /m/cad/util/RCS/bary.c,v 1.3 1995/12/14 16:28:20 pjt Exp mike $ (ARL)";
+d42 1
+a42 1
+void print_usage (void)
+@
+
+
+1.3
+log
+@Now uses rt_flog() so that output goes to stdout, not stderr
+@
+text
+@d21 1
+a21 1
+static char RCSid[] = "@@(#)$Header: /m/cad/util/RCS/bary.c,v 1.2 1995/12/13 21:17:11 pjt Exp pjt $ (ARL)";
+d33 1
+a33 1
+    struct rt_list	l;
+d46 1
+a46 1
+    rt_log("Usage: 'bary [-nt] [-s \"x y z\"] [file]'\n");
+d51 1
+a51 1
+struct rt_list	*sl;
+d57 1
+a57 1
+    RT_CK_LIST_HEAD(sl);
+d59 1
+a59 1
+    sp = (struct site *) rt_malloc(sizeof(struct site), "site structure");
+d65 1
+a65 1
+    RT_LIST_INSERT(sl, &(sp -> l));
+d70 1
+a70 1
+struct rt_list	*sl;
+d75 1
+a75 1
+    RT_CK_LIST_HEAD(sl);
+d77 1
+a77 1
+    for (RT_LIST_FOR(sp, site, sl))
+d79 1
+a79 1
+	rt_log("I got a site (%g, %g, %g)\n",
+d90 1
+a90 1
+struct rt_vls	*tail;
+d98 1
+a98 1
+    struct rt_vls	*bp;
+d100 1
+a100 1
+    for (bp = rt_vls_vlsinit(); ; rt_vls_trunc(bp, 0))
+d102 1
+a102 1
+	if (rt_vls_gets(bp, fp) == -1)
+d109 1
+a109 1
+	cp = rt_vls_addr(bp);
+d124 2
+a125 2
+		rt_log("Illegal input at line %d: '%s'\n",
+		    line_nm, rt_vls_addr(bp));
+d145 2
+a146 2
+	    rt_vls_trunc(tail, 0);
+	    rt_vls_strcat(tail, cp);
+d148 1
+a148 1
+	rt_vls_vlsfree(bp);
+d166 2
+a167 2
+    struct rt_list	site_list;
+    struct rt_vls	*tail_buf = 0;
+d173 1
+a173 1
+    RT_LIST_INIT(&site_list);
+d183 1
+a183 1
+		    rt_log("Illegal site: '%s'\n", optarg);
+d191 1
+a191 1
+		    tail_buf = rt_vls_vlsinit();
+d209 1
+a209 1
+		rt_log ("Cannot open file '%s'\n", inf_name);
+d218 1
+a218 1
+    if (RT_LIST_IS_EMPTY(&site_list))
+d226 1
+a226 1
+    for (RT_LIST_FOR(sp, site, &site_list))
+d230 1
+a230 1
+		rt_malloc(nm_sites * sizeof(fastf_t), "coefficient array");
+d236 1
+a236 1
+	for (RT_LIST_FOR(sp, site, &site_list))
+d243 1
+a243 1
+	rt_flog(stdout, "%g %g %g", x, y, z);
+d245 2
+a246 2
+	    rt_flog(stdout, "%s", rt_vls_addr(tail_buf));
+	rt_flog(stdout, "\n");
+@
+
+
+1.2
+log
+@Added -t option to transcribe unmolested the tail of each input line
+@
+text
+@d21 1
+a21 1
+static char RCSid[] = "@@(#)$Header: /m/cad/util/RCS/bary.c,v 1.1 1995/12/13 20:47:34 pjt Exp pjt $ (ARL)";
+d243 1
+a243 1
+	rt_log("%g %g %g", x, y, z);
+d245 2
+a246 2
+	    rt_log("%s", rt_vls_addr(tail_buf));
+	rt_log("\n");
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d21 1
+a21 1
+static char RCSid[] = "@@(#)$Header$ (ARL)";
+d44 1
+a44 1
+#define OPT_STRING	"ns:?"
+d46 1
+a46 1
+    rt_log("Usage: 'bary [-n] [-s \"x y z\"] [file]'\n");
+d84 1
+a84 1
+int read_point (fp, c_p, c_len, normalize)
+d86 5
+a90 4
+FILE	*fp;
+fastf_t	*c_p;
+int	c_len;
+int	normalize;
+d143 5
+d167 1
+d189 4
+d232 1
+a232 1
+    while (read_point(infp, coeff, nm_sites, normalize) != EOF)
+d243 4
+a246 1
+	rt_log("%g %g %g\n", x, y, z);
+@

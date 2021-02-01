@@ -1,0 +1,730 @@
+head	14.14;
+access;
+symbols
+	rel-7-10-4:14.13
+	STABLE:14.13.0.2
+	rel-7-10-2:14.12
+	rel-7-10-0:14.12
+	rel-7-8-4:14.10
+	rel-7-8-2:14.9
+	rel-7-8-0:14.9
+	trimnurbs-branch:14.9.0.2
+	help:14.9
+	temp_tag:14.7
+	bobWinPort-20051223-freeze:14.5
+	postmerge-20051223-bobWinPort:14.7
+	premerge-20051223-bobWinPort:14.7
+	rel-7-6-6:14.7
+	rel-7-6-4:14.7
+	rel-7-6-2:14.5
+	rel-7-6-branch:14.5.0.4
+	rel-7-6-0:14.5
+	rel-7-4-2:14.4.2.1
+	rel-7-4-branch:14.4.0.2
+	bobWinPort:14.5.0.2
+	rel-7-4-0:14.4
+	rel-7-2-6:14.3
+	rel-7-2-4:14.3
+	rel-7-2-2:14.3
+	rel-7-2-0:14.3
+	rel-7-0-4:14.2
+	rel-7-0-2:14.2
+	rel-7-0-1:14.2
+	opensource-post:14.2
+	opensource-pre:1.2
+	rel-7-0-branch:1.2.0.2
+	rel-7-0:1.2;
+locks; strict;
+comment	@ * @;
+
+
+14.14
+date	2007.12.02.22.34.25;	author brlcad;	state Exp;
+branches;
+next	14.13;
+
+14.13
+date	2007.09.10.19.32.41;	author brlcad;	state Exp;
+branches;
+next	14.12;
+
+14.12
+date	2007.01.23.01.13.56;	author brlcad;	state Exp;
+branches;
+next	14.11;
+
+14.11
+date	2007.01.20.14.37.06;	author brlcad;	state Exp;
+branches;
+next	14.10;
+
+14.10
+date	2006.07.09.18.25.32;	author brlcad;	state Exp;
+branches;
+next	14.9;
+
+14.9
+date	2006.02.27.10.08.41;	author brlcad;	state Exp;
+branches;
+next	14.8;
+
+14.8
+date	2006.01.18.06.46.27;	author brlcad;	state Exp;
+branches;
+next	14.7;
+
+14.7
+date	2005.10.23.04.44.39;	author brlcad;	state Exp;
+branches;
+next	14.6;
+
+14.6
+date	2005.09.21.19.05.37;	author brlcad;	state Exp;
+branches;
+next	14.5;
+
+14.5
+date	2005.07.26.04.40.53;	author brlcad;	state Exp;
+branches
+	14.5.4.1;
+next	14.4;
+
+14.4
+date	2005.06.30.00.08.37;	author erikgreenwald;	state Exp;
+branches
+	14.4.2.1;
+next	14.3;
+
+14.3
+date	2005.01.30.20.31.33;	author brlcad;	state Exp;
+branches;
+next	14.2;
+
+14.2
+date	2004.12.21.03.45.41;	author butler;	state Exp;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.32;	author morrison;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2004.06.08.22.04.45;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.15.21.51;	author morrison;	state Exp;
+branches;
+next	;
+
+14.4.2.1
+date	2005.08.16.21.03.50;	author brlcad;	state Exp;
+branches;
+next	;
+
+14.5.4.1
+date	2005.11.13.13.46.20;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.14
+log
+@woo hoo, finally got through most of the flawfinder level 4 issues related to string buffer limits (leaving issues that can probably/mostly be ignored).  these changes mostly invovlved using the n-variants of the various string processing functions so that the buffers being written to are properly clamped.
+@
+text
+@/*                     P I X D S P L I T . C
+ * BRL-CAD
+ *
+ * Copyright (c) 1995-2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@file pixdsplit.c
+ *
+ *	Disentangle the chars from the doubles in a pixd(5) stream
+ *
+ *  Author -
+ *	Paul J. Tanenbaum
+ *
+ *  Source -
+ *	The U. S. Army Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005-5068  USA
+ */
+#ifndef lint
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/pixdsplit.c,v 14.13 2007/09/10 19:32:41 brlcad Exp $ (ARL)";
+#endif
+
+#include "common.h"
+
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <math.h>
+#include <errno.h>
+#ifdef HAVE_UNISTD_H
+#  include <unistd.h>
+#endif
+
+#include "machine.h"
+#include "bu.h"
+#include "vmath.h"
+#include "bn.h"
+
+
+#define	made_it()	bu_log("%s:%d\n", __FILE__, __LINE__);
+
+void print_usage (void)
+{
+#define OPT_STRING	"c:d:#:?"
+
+    bu_log("Usage: 'pixdsplit %s'\n",
+	"[-c file.pix] [-d file.d] [-# n.m] [file.pixd]");
+}
+
+int
+main (int argc, char *argv[])
+{
+    unsigned char	*inbuf;		/* Buffer */
+    unsigned char	*cbuf;		/*    "   */
+    unsigned char	*dbuf;		/*    "   */
+    unsigned char	*inbp;		/* Buffer pointer */
+    unsigned char	*cbp;		/*    "      "    */
+    unsigned char	*dbp;		/*    "      "    */
+    char		*inf_name;	/* File name */
+    char		*cf_name;	/*   "    "  */
+    char		*df_name;	/*   "    "  */
+    int			p_per_b;	/* pixels/buffer */
+    int			inb_size;	/* Buffer Size (in bytes) */
+    int			cb_size;	/*   "      "    "   "    */
+    int			db_size;	/*   "      "    "   "    */
+    int			ch;
+    int			i;
+    int			c_per_p;	/* chars/pixel */
+    int			cwidth;		/* chars/pixel (in bytes) */
+    int			d_per_p;	/* doubles/pixel (in doubles) */
+    int			dwidth;		/* doubles/pixel (in bytes) */
+    int			pwidth;		/* bytes/pixel, total */
+    int			num;
+    int			infd;		/* File descriptor */
+    int			cfd = -1;		/*   "       "     */
+    int			dfd = -1;		/*   "       "     */
+
+    extern int	bu_optind;			/* index from bu_getopt(3C) */
+    extern char	*bu_optarg;		/* argument from bu_getopt(3C) */
+
+    c_per_p = 3; cf_name = "-";
+    d_per_p = 1; df_name = "";
+    while ((ch = bu_getopt(argc, argv, OPT_STRING)) != EOF)
+	switch (ch)
+	{
+	    case 'd':
+		df_name = (char *) bu_malloc(strlen(bu_optarg) + 1, "df_name");
+		strncpy(df_name, bu_optarg, strlen(bu_optarg));
+		break;
+	    case 'c':
+		cf_name = (char *) bu_malloc(strlen(bu_optarg) + 1, "cf_name");
+		strncpy(cf_name, bu_optarg, strlen(bu_optarg));
+		break;
+	    case '#':
+		if ((sscanf(bu_optarg, "%d.%d", &c_per_p, &d_per_p) != 2)
+		 && (sscanf(bu_optarg, ".%d", &d_per_p) != 1)
+		 && (sscanf(bu_optarg, "%d", &c_per_p) != 1))
+		{
+		    bu_log("Invalid pixel-size specification: '%s'\n",
+			bu_optarg);
+		    print_usage();
+		    return 1;
+		}
+		break;
+	    case '?':
+	    default:
+		print_usage();
+		exit (ch != '?');
+	}
+
+	if (c_per_p <= 0)
+	{
+	    bu_log("Illegal number of color bytes per pixel: %d\n", c_per_p);
+	    return 1;
+	}
+	if (d_per_p <= 0)
+	{
+	    bu_log("Illegal number of doubles per pixel: %d\n", d_per_p);
+	    return 1;
+	}
+
+    /*
+     *	Establish the input stream
+     */
+    switch (argc - bu_optind)
+    {
+	case 0:
+	    inf_name = "stdin";
+	    infd = 0;
+	    break;
+	case 1:
+	    inf_name = argv[bu_optind++];
+	    if ((infd = open(inf_name, O_RDONLY)) == -1)
+	    {
+		bu_log ("Cannot open file '%s'\n", inf_name);
+		return 1;
+	    }
+	    break;
+	default:
+	    print_usage();
+	    return 1;
+    }
+    /*
+     *	Establish the output stream for chars
+     */
+    if (*cf_name == '\0')
+    {
+	cf_name = 0;
+    }
+    else if ((*cf_name == '-') && (*(cf_name + 1) == '\0'))
+    {
+	cf_name = "stdout";
+	cfd = 1;
+    }
+    else if ((cfd = open(cf_name, O_WRONLY | O_CREAT | O_TRUNC, 0644)) == -1)
+    {
+	bu_log ("Cannot open file '%s'\n", cf_name);
+	return 1;
+    }
+    /*
+     *	Establish the output stream for doubles
+     */
+    if (*df_name == '\0')
+    {
+	df_name = 0;
+    }
+    else if ((*df_name == '-') && (*(df_name + 1) == '\0'))
+    {
+	df_name = "stdout";
+	dfd = 1;
+    }
+    else if ((dfd = open(df_name, O_WRONLY | O_CREAT | O_TRUNC, 0644)) == -1)
+    {
+	bu_log ("Cannot open file '%s'\n", df_name);
+	return 1;
+    }
+
+    cwidth = c_per_p * 1;
+    dwidth = d_per_p * 8;
+    pwidth = cwidth + dwidth;
+    p_per_b = ((1 << 16) / pwidth);	/* A nearly 64-kbyte buffer */
+    inb_size = p_per_b * pwidth;
+    cb_size = p_per_b * cwidth;
+    db_size = p_per_b * dwidth;
+
+    inbuf = (unsigned char *) bu_malloc(inb_size, "char buffer");
+    cbuf = (unsigned char *) bu_malloc(cb_size, "char buffer");
+    dbuf = (unsigned char *) bu_malloc(db_size, "double buffer");
+
+    while ((num = read(infd, inbuf, inb_size)) > 0)
+    {
+	inbp = inbuf;
+	cbp = cbuf;
+	dbp = dbuf;
+	for (i = 0; i < num / pwidth; ++i)
+	{
+	    memcpy(cbp,     inbp,      cwidth);
+	    memcpy(dbp, inbp + cwidth, cwidth);
+	    inbp += pwidth;
+	    cbp += cwidth;
+	    dbp += dwidth;
+	}
+	if (cf_name)
+	    write(cfd, cbuf, i * cwidth);
+	if (df_name)
+	    write(dfd, dbuf, i * dwidth);
+	if (num % pwidth != 0)
+	    bu_log("pixdsplit: WARNING: incomplete final pixel ignored\n");
+    }
+    if (num < 0)
+    {
+	perror("pixdsplit");
+	return 1;
+    }
+    return 0;
+}
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+14.13
+log
+@should only be using common.h, not brlcad_config.h
+@
+text
+@d32 1
+a32 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/pixdsplit.c,v 14.12 2007/01/23 01:13:56 brlcad Exp $ (ARL)";
+d103 1
+a103 1
+		(void) strcpy(df_name, bu_optarg);
+d107 1
+a107 1
+		(void) strcpy(cf_name, bu_optarg);
+@
+
+
+14.12
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@d32 1
+a32 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/pixdsplit.c,v 14.11 2007/01/20 14:37:06 brlcad Exp $ (ARL)";
+d35 1
+a35 1
+#include "brlcad_config.h"
+@
+
+
+14.11
+log
+@update copyright to 2007
+@
+text
+@d8 2
+a9 3
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+d14 1
+a14 1
+ * General Public License for more details.
+d16 2
+a17 2
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+d32 1
+a32 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/pixdsplit.c,v 14.10 2006/07/09 18:25:32 brlcad Exp $ (ARL)";
+@
+
+
+14.10
+log
+@add additional error checking to make sure a -1 return value from read() is handled
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 1995-2006 United States Government as represented by
+d33 1
+a33 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/pixdsplit.c,v 14.9 2006/02/27 10:08:41 brlcad Exp $ (ARL)";
+@
+
+
+14.9
+log
+@stdlib.h and exit()
+@
+text
+@d33 1
+a33 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/pixdsplit.c,v 14.8 2006/01/18 06:46:27 brlcad Exp $ (ARL)";
+d213 2
+a214 7
+#	    if BSD
+		bcopy(    inbp,      cbp, cwidth);
+		bcopy(inbp + cwidth, dbp, dwidth);
+#	    else
+		memcpy(cbp,     inbp,      cwidth);
+		memcpy(dbp, inbp + cwidth, cwidth);
+#	    endif
+@
+
+
+14.8
+log
+@update copyright to 2006
+@
+text
+@d33 1
+a33 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/pixdsplit.c,v 14.7 2005/10/23 04:44:39 brlcad Exp $ (ARL)";
+d38 1
+a45 1
+
+d47 1
+a47 1
+# include <unistd.h>
+d118 1
+a118 1
+		    exit (1);
+d130 1
+a130 1
+	    exit (1);
+d135 1
+a135 1
+	    exit (1);
+d152 1
+a152 1
+		exit (1);
+d157 1
+a157 1
+	    exit (1);
+d174 1
+a174 1
+	exit (1);
+d191 1
+a191 1
+	exit (1);
+d234 1
+a234 1
+	exit (1);
+@
+
+
+14.7
+log
+@trailing ws
+@
+text
+@d4 1
+a4 1
+ * Copyright (C) 1995-2005 United States Government as represented by
+d33 1
+a33 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/pixdsplit.c,v 14.6 2005/09/21 19:05:37 brlcad Exp $ (ARL)";
+@
+
+
+14.6
+log
+@needs bu.h for bu_getopt
+@
+text
+@d27 1
+a27 1
+ *  
+d33 1
+a33 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/pixdsplit.c,v 14.5 2005/07/26 04:40:53 brlcad Exp $ (ARL)";
+@
+
+
+14.5
+log
+@make sure to include the errno.h header before any usage of the errno global just in case so bad things don't happen (like on fedora core)
+@
+text
+@d33 1
+a33 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/pixdsplit.c,v 14.4 2005/06/30 00:08:37 erikgreenwald Exp $ (ARL)";
+d94 2
+a95 2
+    extern int	optind;			/* index from getopt(3C) */
+    extern char	*optarg;		/* argument from getopt(3C) */
+d99 1
+a99 1
+    while ((ch = getopt(argc, argv, OPT_STRING)) != EOF)
+d103 2
+a104 2
+		df_name = (char *) bu_malloc(strlen(optarg) + 1, "df_name");
+		(void) strcpy(df_name, optarg);
+d107 2
+a108 2
+		cf_name = (char *) bu_malloc(strlen(optarg) + 1, "cf_name");
+		(void) strcpy(cf_name, optarg);
+d111 3
+a113 3
+		if ((sscanf(optarg, "%d.%d", &c_per_p, &d_per_p) != 2)
+		 && (sscanf(optarg, ".%d", &d_per_p) != 1)
+		 && (sscanf(optarg, "%d", &c_per_p) != 1))
+d116 1
+a116 1
+			optarg);
+d141 1
+a141 1
+    switch (argc - optind)
+d148 1
+a148 1
+	    inf_name = argv[optind++];
+@
+
+
+14.5.4.1
+log
+@merge changes from HEAD aka rel-7-6-4 to the rel-7-6-branch just in case someone peeks a gander or tries to continue/build the branch
+@
+text
+@d27 1
+a27 1
+ *
+d33 1
+a33 1
+static const char RCSid[] = "@@(#)$Header$ (ARL)";
+d94 2
+a95 2
+    extern int	bu_optind;			/* index from bu_getopt(3C) */
+    extern char	*bu_optarg;		/* argument from bu_getopt(3C) */
+d99 1
+a99 1
+    while ((ch = bu_getopt(argc, argv, OPT_STRING)) != EOF)
+d103 2
+a104 2
+		df_name = (char *) bu_malloc(strlen(bu_optarg) + 1, "df_name");
+		(void) strcpy(df_name, bu_optarg);
+d107 2
+a108 2
+		cf_name = (char *) bu_malloc(strlen(bu_optarg) + 1, "cf_name");
+		(void) strcpy(cf_name, bu_optarg);
+d111 3
+a113 3
+		if ((sscanf(bu_optarg, "%d.%d", &c_per_p, &d_per_p) != 2)
+		 && (sscanf(bu_optarg, ".%d", &d_per_p) != 1)
+		 && (sscanf(bu_optarg, "%d", &c_per_p) != 1))
+d116 1
+a116 1
+			bu_optarg);
+d141 1
+a141 1
+    switch (argc - bu_optind)
+d148 1
+a148 1
+	    inf_name = argv[bu_optind++];
+@
+
+
+14.4
+log
+@added missing includes
+@
+text
+@d33 1
+a33 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/pixdsplit.c,v 14.3 2005/01/30 20:31:33 brlcad Exp $ (ARL)";
+d44 1
+a54 1
+extern int errno;
+@
+
+
+14.4.2.1
+log
+@merge in changes through Aug10 for 7.4.2 release
+@
+text
+@d33 1
+a33 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/pixdsplit.c,v 14.5 2005/07/26 04:40:53 brlcad Exp $ (ARL)";
+a43 1
+#include <errno.h>
+d54 1
+@
+
+
+14.3
+log
+@update copyright to 2005
+@
+text
+@d33 1
+a33 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/pixdsplit.c,v 14.2 2004/12/21 03:45:41 butler Exp $ (ARL)";
+d36 2
+d44 5
+@
+
+
+14.2
+log
+@GPL license changes
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 1995-2004 United States Government as represented by
+d33 1
+a33 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/util/pixdsplit.c,v 14.1 2004/11/16 19:42:32 morrison Exp $ (ARL)";
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@d1 21
+a21 2
+/*
+ *			P I X D S P L I T . C
+a30 9
+ *  
+ *  Distribution Notice -
+ *	Re-distribution of this software is restricted, as described in
+ *	your "Statement of Terms and Conditions for the Release of
+ *	The BRL-CAD Package" agreement.
+ *
+ *  Copyright Notice -
+ *	This software is Copyright (C) 1995-2004 by the United States Army
+ *	in all countries except the USA.  All rights reserved.
+d33 1
+a33 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/util/pixdsplit.c,v 1.2 2004/06/08 22:04:45 morrison Exp $ (ARL)";
+@
+
+
+1.2
+log
+@obliterate externs.h
+@
+text
+@d23 1
+a23 1
+static const char RCSid[] = "@@(#)$Header$ (ARL)";
+d221 10
+@
+
+
+1.1
+log
+@Vast reorganization begins.  Sources moved from top-level directories into src/.
+@
+text
+@d23 1
+a23 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/util/pixdsplit.c,v 1.12 2004/04/05 05:46:02 morrison Exp $ (ARL)";
+a32 1
+#include "externs.h"
+@
+

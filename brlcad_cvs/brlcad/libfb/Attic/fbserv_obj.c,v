@@ -1,0 +1,1637 @@
+head	1.9;
+access;
+symbols
+	ansi-20040405-merged:1.5.2.1
+	postmerge-20040405-ansi:1.6
+	premerge-20040404-ansi:1.5
+	postmerge-autoconf:1.5
+	autoconf-freeze:1.5
+	premerge-autoconf:1.5
+	ansi-20040316-freeze:1.5.2.1
+	postmerge-20040315-windows:1.5
+	premerge-20040315-windows:1.5
+	windows-20040315-freeze:1.5
+	autoconf-20031203:1.5
+	autoconf-20031202:1.5
+	autoconf-branch:1.5.0.10
+	phong-branch:1.5.0.8
+	photonmap-branch:1.5.0.6
+	rel-6-1-DP:1.5
+	windows-branch:1.5.0.4
+	rel-6-0-2:1.3
+	ansi-branch:1.5.0.2
+	rel-6-0-1-branch:1.3.0.2
+	hartley-6-0-post:1.4
+	hartley-6-0-pre:1.3
+	rel-6-0-1:1.3
+	rel-6-0:1.3
+	rel-5-4:1.2
+	offsite-5-3-pre:1.3
+	rel-5-3:1.2
+	rel-5-2:1.2
+	rel-5-1-branch:1.2.0.2
+	rel-5-1:1.2;
+locks; strict;
+comment	@ * @;
+
+
+1.9
+date	2004.05.21.18.07.24;	author morrison;	state dead;
+branches;
+next	1.8;
+
+1.8
+date	2004.05.10.15.30.44;	author erikg;	state Exp;
+branches;
+next	1.7;
+
+1.7
+date	2004.04.07.19.57.46;	author morrison;	state Exp;
+branches;
+next	1.6;
+
+1.6
+date	2004.04.05.07.44.42;	author morrison;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	2002.08.20.17.07.46;	author jra;	state Exp;
+branches
+	1.5.2.1;
+next	1.4;
+
+1.4
+date	2002.08.15.20.55.00;	author hartley;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2000.08.18.20.30.15;	author mike;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2000.01.28.15.50.41;	author bparker;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2000.01.14.23.55.10;	author bparker;	state Exp;
+branches;
+next	;
+
+1.5.2.1
+date	2002.09.19.18.01.18;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.9
+log
+@moved to src/
+@
+text
+@/*
+ *				F B S E R V _ O B J . C
+ *
+ * A framebuffer server object contains the attributes and
+ * methods for implementing an fbserv. This code was developed
+ * in large part by modifying the stand-alone version of fbserv.
+ * 
+ * Source -
+ *	SLAD CAD Team
+ *	The U. S. Army Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005
+ *
+ * Author -
+ *	Robert G. Parker
+ *
+ * Authors of fbserv -
+ *	Phillip Dykstra
+ *	Michael John Muuss
+ *
+ */
+
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+
+#include <stdio.h>
+#include <ctype.h>
+
+#include <sys/socket.h>
+#include <netinet/in.h>		/* For htonl(), etc */
+
+#include "tcl.h"
+#include "machine.h"
+#include "externs.h"		/* For malloc, getopt */
+#include "bu.h"
+#include "vmath.h"
+#include "raytrace.h"
+#include "dm.h"
+#include "../libfb/pkgtypes.h"
+
+int fbs_open(Tcl_Interp *interp, struct fbserv_obj *fbsp, int port);
+int fbs_close(Tcl_Interp *interp, struct fbserv_obj *fbsp);
+
+HIDDEN void new_client(struct fbserv_obj *fbsp, struct pkg_conn *pcp);
+HIDDEN void drop_client(struct fbserv_obj *fbsp, int sub);
+HIDDEN void new_client_handler(ClientData clientData, int mask);
+HIDDEN void existing_client_handler(ClientData clientData, int mask);
+HIDDEN void comm_error(char *str);
+HIDDEN void setup_socket(int fd);
+
+/*
+ * Package Handlers.
+ */
+void	fbs_pkgfoo(struct pkg_conn *pcp, char *buf);	/* foobar message handler */
+void	fbs_rfbopen(struct pkg_conn *pcp, char *buf), fbs_rfbclose(struct pkg_conn *pcp, char *buf), fbs_rfbclear(struct pkg_conn *pcp, char *buf), fbs_rfbread(struct pkg_conn *pcp, char *buf), fbs_rfbwrite(struct pkg_conn *pcp, char *buf);
+void	fbs_rfbcursor(struct pkg_conn *pcp, char *buf), fbs_rfbgetcursor(struct pkg_conn *pcp, char *buf);
+void	fbs_rfbrmap(struct pkg_conn *pcp, char *buf), fbs_rfbwmap(struct pkg_conn *pcp, char *buf);
+void	fbs_rfbhelp(struct pkg_conn *pcp, char *buf);
+void	fbs_rfbreadrect(struct pkg_conn *pcp, char *buf), fbs_rfbwriterect(struct pkg_conn *pcp, char *buf);
+void	fbs_rfbbwreadrect(struct pkg_conn *pcp, char *buf), fbs_rfbbwwriterect(struct pkg_conn *pcp, char *buf);
+void	fbs_rfbpoll(struct pkg_conn *pcp, char *buf), fbs_rfbflush(struct pkg_conn *pcp, char *buf), fbs_rfbfree(struct pkg_conn *pcp, char *buf);
+void	fbs_rfbview(struct pkg_conn *pcp, char *buf), fbs_rfbgetview(struct pkg_conn *pcp, char *buf);
+void	fbs_rfbsetcursor(struct pkg_conn *pcp, char *buf);
+/* Old Routines */
+void	fbs_rfbscursor(struct pkg_conn *pcp, char *buf), fbs_rfbwindow(struct pkg_conn *pcp, char *buf), fbs_rfbzoom(struct pkg_conn *pcp, char *buf);
+
+static struct pkg_switch pkg_switch[] = {
+	{ MSG_FBOPEN,		fbs_rfbopen,	"Open Framebuffer" },
+	{ MSG_FBCLOSE,		fbs_rfbclose,	"Close Framebuffer" },
+	{ MSG_FBCLEAR,		fbs_rfbclear,	"Clear Framebuffer" },
+	{ MSG_FBREAD,		fbs_rfbread,	"Read Pixels" },
+	{ MSG_FBWRITE,		fbs_rfbwrite,	"Write Pixels" },
+	{ MSG_FBWRITE + MSG_NORETURN,	fbs_rfbwrite,	"Asynch write" },
+	{ MSG_FBCURSOR,		fbs_rfbcursor,	"Cursor" },
+	{ MSG_FBGETCURSOR,	fbs_rfbgetcursor,	"Get Cursor" },	   /*NEW*/
+	{ MSG_FBSCURSOR,	fbs_rfbscursor,	"Screen Cursor" }, /*OLD*/
+	{ MSG_FBWINDOW,		fbs_rfbwindow,	"Window" },	   /*OLD*/
+	{ MSG_FBZOOM,		fbs_rfbzoom,	"Zoom" },	   /*OLD*/
+	{ MSG_FBVIEW,		fbs_rfbview,	"View" },	   /*NEW*/
+	{ MSG_FBGETVIEW,	fbs_rfbgetview,	"Get View" },	   /*NEW*/
+	{ MSG_FBRMAP,		fbs_rfbrmap,	"R Map" },
+	{ MSG_FBWMAP,		fbs_rfbwmap,	"W Map" },
+	{ MSG_FBHELP,		fbs_rfbhelp,	"Help Request" },
+	{ MSG_ERROR,		fbs_pkgfoo,		"Error Message" },
+	{ MSG_CLOSE,		fbs_pkgfoo,		"Close Connection" },
+	{ MSG_FBREADRECT, 	fbs_rfbreadrect,	"Read Rectangle" },
+	{ MSG_FBWRITERECT,	fbs_rfbwriterect,	"Write Rectangle" },
+	{ MSG_FBWRITERECT + MSG_NORETURN, fbs_rfbwriterect,"Write Rectangle" },
+	{ MSG_FBBWREADRECT, 	fbs_rfbbwreadrect,"Read BW Rectangle" },
+	{ MSG_FBBWWRITERECT,	fbs_rfbbwwriterect,"Write BW Rectangle" },
+	{ MSG_FBBWWRITERECT+MSG_NORETURN, fbs_rfbbwwriterect,"Write BW Rectangle" },
+	{ MSG_FBFLUSH,		fbs_rfbflush,	"Flush Output" },
+	{ MSG_FBFLUSH + MSG_NORETURN, fbs_rfbflush, "Flush Output" },
+	{ MSG_FBFREE,		fbs_rfbfree,	"Free Resources" },
+	{ MSG_FBPOLL,		fbs_rfbpoll,	"Handle Events" },
+	{ MSG_FBSETCURSOR,	fbs_rfbsetcursor,	"Set Cursor Shape" },
+	{ MSG_FBSETCURSOR + MSG_NORETURN, fbs_rfbsetcursor, "Set Cursor Shape" },
+	{ 0,			NULL,		NULL }
+};
+
+HIDDEN FBIO *curr_fbp;		/* current framebuffer pointer */
+
+int
+fbs_open(Tcl_Interp *interp, struct fbserv_obj *fbsp, int port)
+{
+  struct bu_vls vls;
+  char portname[32];
+  register int i;
+
+  /* Already listening; nothing more to do. */
+  if (fbsp->fbs_listener.fbsl_fd >= 0) {
+    return TCL_OK;
+  }
+
+  fbsp->fbs_listener.fbsl_port = port;
+
+  /* Try a reasonable number of times to hang a listen */
+  for (i = 0; i < MAX_PORT_TRIES; ++i) {
+    if (fbsp->fbs_listener.fbsl_port < 1024)
+      sprintf(portname,"%d", fbsp->fbs_listener.fbsl_port + 5559);
+    else
+      sprintf(portname,"%d", fbsp->fbs_listener.fbsl_port);
+
+    /*
+     * Hang an unending listen for PKG connections
+     */
+    if ((fbsp->fbs_listener.fbsl_fd = pkg_permserver(portname, 0, 0, comm_error)) < 0)
+      ++fbsp->fbs_listener.fbsl_port;
+    else
+      break;
+  }
+
+  if (fbsp->fbs_listener.fbsl_fd < 0) {
+    bu_vls_init(&vls);
+    bu_vls_printf(&vls, "fbs_open: failed to hang a listen on ports %d - %d\n",
+	   fbsp->fbs_listener.fbsl_port, fbsp->fbs_listener.fbsl_port + MAX_PORT_TRIES - 1);
+    Tcl_AppendResult(interp, bu_vls_addr(&vls), (char *)NULL);
+    bu_vls_free(&vls);
+
+    fbsp->fbs_listener.fbsl_port = -1;
+
+    return TCL_ERROR;
+  }
+
+  Tcl_CreateFileHandler(fbsp->fbs_listener.fbsl_fd, TCL_READABLE,
+			new_client_handler, (ClientData)&fbsp->fbs_listener);
+
+  return TCL_OK;
+}
+
+int
+fbs_close(Tcl_Interp *interp, struct fbserv_obj *fbsp)
+{
+  register int i;
+
+  /* first drop all clients */
+  for(i = 0; i < MAX_CLIENTS; ++i)
+    drop_client(fbsp, i);
+
+  Tcl_DeleteFileHandler(fbsp->fbs_listener.fbsl_fd);
+  close(fbsp->fbs_listener.fbsl_fd);
+  fbsp->fbs_listener.fbsl_fd = -1;
+  fbsp->fbs_listener.fbsl_port = -1;
+
+  return TCL_OK;
+}
+
+/*
+ *			N E W _ C L I E N T
+ */
+HIDDEN void
+new_client(struct fbserv_obj *fbsp, struct pkg_conn *pcp)
+{
+  register int	i;
+
+  if (pcp == PKC_ERROR)
+    return;
+
+  for (i = MAX_CLIENTS-1; i >= 0; i--) {
+    /* this slot is being used */
+    if (fbsp->fbs_clients[i].fbsc_fd != 0)
+      continue;
+
+    /* Found an available slot */
+    fbsp->fbs_clients[i].fbsc_fd = pcp->pkc_fd;
+    fbsp->fbs_clients[i].fbsc_pkg = pcp;
+    fbsp->fbs_clients[i].fbsc_fbsp = fbsp;
+    setup_socket(pcp->pkc_fd);
+
+    Tcl_CreateFileHandler(fbsp->fbs_clients[i].fbsc_fd, TCL_READABLE,
+			  existing_client_handler, (ClientData)&fbsp->fbs_clients[i]);
+
+    return;
+  }
+
+  bu_log("new_client: too many clients\n");
+  pkg_close(pcp);
+}
+
+/*
+ *			D R O P _ C L I E N T
+ */
+HIDDEN void
+drop_client(struct fbserv_obj *fbsp, int sub)
+{
+  if(fbsp->fbs_clients[sub].fbsc_pkg != PKC_NULL)  {
+    pkg_close(fbsp->fbs_clients[sub].fbsc_pkg);
+    fbsp->fbs_clients[sub].fbsc_pkg = PKC_NULL;
+  }
+
+  if(fbsp->fbs_clients[sub].fbsc_fd != 0)  {
+    Tcl_DeleteFileHandler(fbsp->fbs_clients[sub].fbsc_fd);
+    close(fbsp->fbs_clients[sub].fbsc_fd);
+    fbsp->fbs_clients[sub].fbsc_fd = 0;
+  }
+}
+
+/*
+ * Accept any new client connections.
+ */
+HIDDEN void
+new_client_handler(ClientData clientData, int mask)
+{
+  struct fbserv_listener *fbslp = (struct fbserv_listener *)clientData;
+  struct fbserv_obj *fbsp = fbslp->fbsl_fbsp;
+  int fd = fbslp->fbsl_fd;
+
+  new_client(fbsp, pkg_getclient(fd, pkg_switch, comm_error, 0));
+}
+
+/*
+ * Process arrivals from existing clients.
+ */
+HIDDEN void
+existing_client_handler(ClientData clientData, int mask)
+{
+  register int i;
+  struct fbserv_client *fbscp = (struct fbserv_client *)clientData;
+  struct fbserv_obj *fbsp = fbscp->fbsc_fbsp;
+  int fd = fbscp->fbsc_fd;
+
+  curr_fbp = fbsp->fbs_fbp;
+
+  for (i = MAX_CLIENTS-1; i >= 0; i--) {
+    if (fbsp->fbs_clients[i].fbsc_fd == 0)
+      continue;
+
+    if ((pkg_process(fbsp->fbs_clients[i].fbsc_pkg)) < 0)
+      bu_log("pkg_process error encountered (1)\n");
+
+    if (fbsp->fbs_clients[i].fbsc_fd != fd)
+      continue;
+
+    if (pkg_suckin(fbsp->fbs_clients[i].fbsc_pkg) <= 0) {
+      /* Probably EOF */
+      drop_client(fbsp, i);
+
+      continue;
+    }
+
+    if ((pkg_process(fbsp->fbs_clients[i].fbsc_pkg)) < 0)
+      bu_log("pkg_process error encountered (2)\n");
+  }
+
+  if (fbsp->fbs_callback != FBS_CALLBACK_NULL)
+    fbsp->fbs_callback(fbsp->fbs_clientData);
+}
+
+HIDDEN void
+setup_socket(int fd)
+{
+  int on = 1;
+
+#if defined(SO_KEEPALIVE)
+  if(setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, (char *)&on, sizeof(on)) < 0){
+    bu_log("setsockopt (SO_KEEPALIVE): %m");
+  }
+#endif
+#if defined(SO_RCVBUF)
+  /* try to set our buffers up larger */
+  {
+    int	m = -1;
+    int n = -1;
+    int	val;
+    int	size;
+
+    for(size = 256; size > 16; size /= 2){
+      val = size * 1024;
+      m = setsockopt(fd, SOL_SOCKET, SO_RCVBUF,
+		      (char *)&val, sizeof(val));
+      val = size * 1024;
+      n = setsockopt(fd, SOL_SOCKET, SO_SNDBUF,
+		      (char *)&val, sizeof(val));
+      if(m >= 0 && n >= 0)  break;
+    }
+
+    if(m < 0 || n < 0)
+      bu_log("setup_socket: setsockopt()");
+  }
+#endif
+}
+
+/*
+ *			C O M M _ E R R O R
+ *
+ *  Communication error.  An error occured on the PKG link.
+ */
+HIDDEN void
+comm_error(char *str)
+{
+  bu_log(str);
+}
+
+/*
+ * This is where we go for message types we don't understand.
+ */
+void
+fbs_pkgfoo(struct pkg_conn *pcp, char *buf)
+{
+  bu_log("fbserv: unable to handle message type %d\n", pcp->pkc_type);
+  (void)free(buf);
+}
+
+/******** Here's where the hooks lead *********/
+
+void
+fbs_rfbopen(struct pkg_conn *pcp, char *buf)
+{
+  char	rbuf[5*NET_LONG_LEN+1];
+  int	want;
+
+  /* Don't really open a new framebuffer --- use existing one */
+  (void)pkg_plong(&rbuf[0*NET_LONG_LEN], 0);	/* ret */
+  (void)pkg_plong(&rbuf[1*NET_LONG_LEN], curr_fbp->if_max_width);
+  (void)pkg_plong(&rbuf[2*NET_LONG_LEN], curr_fbp->if_max_height);
+  (void)pkg_plong(&rbuf[3*NET_LONG_LEN], curr_fbp->if_width);
+  (void)pkg_plong(&rbuf[4*NET_LONG_LEN], curr_fbp->if_height);
+
+  want = 5*NET_LONG_LEN;
+  if( pkg_send( MSG_RETURN, rbuf, want, pcp ) != want )
+    comm_error("pkg_send fb_open reply\n");
+
+  if(buf)
+    (void)free(buf);
+}
+
+void
+fbs_rfbclose(struct pkg_conn *pcp, char *buf)
+{
+  char	rbuf[NET_LONG_LEN+1];
+	
+  /*
+   * We are playing FB server so we don't really close the
+   * frame buffer.  We should flush output however.
+   */
+  (void)fb_flush(curr_fbp);
+  (void)pkg_plong(&rbuf[0], 0);		/* return success */
+
+  /* Don't check for errors, SGI linger mode or other events
+   * may have already closed down all the file descriptors.
+   * If communication has broken, other end will know we are gone.
+   */
+  (void)pkg_send(MSG_RETURN, rbuf, NET_LONG_LEN, pcp);
+
+  if(buf)
+    (void)free(buf);
+}
+
+void
+fbs_rfbfree(struct pkg_conn *pcp, char *buf)
+{
+  char	rbuf[NET_LONG_LEN+1];
+	
+  /* Don't really free framebuffer */
+  if(pkg_send(MSG_RETURN, rbuf, NET_LONG_LEN, pcp) != NET_LONG_LEN)
+    comm_error("pkg_send fb_free reply\n");
+
+  if(buf)
+    (void)free(buf);
+}
+
+void
+fbs_rfbclear(struct pkg_conn *pcp, char *buf)
+{
+  RGBpixel bg;
+  char	rbuf[NET_LONG_LEN+1];
+
+  bg[RED] = buf[0];
+  bg[GRN] = buf[1];
+  bg[BLU] = buf[2];
+
+  (void)pkg_plong(rbuf, fb_clear(curr_fbp, bg));
+  pkg_send(MSG_RETURN, rbuf, NET_LONG_LEN, pcp);
+
+  if(buf)
+    (void)free(buf);
+}
+
+void
+fbs_rfbread(struct pkg_conn *pcp, char *buf)
+{
+	int	x, y, num;
+	int	ret;
+	static unsigned char	*scanbuf = NULL;
+	static int	buflen = 0;
+
+	x = pkg_glong( &buf[0*NET_LONG_LEN] );
+	y = pkg_glong( &buf[1*NET_LONG_LEN] );
+	num = pkg_glong( &buf[2*NET_LONG_LEN] );
+
+	if( num*sizeof(RGBpixel) > buflen ) {
+		if( scanbuf != NULL )
+			free( (char *)scanbuf );
+		buflen = num*sizeof(RGBpixel);
+		if( buflen < 1024*sizeof(RGBpixel) )
+			buflen = 1024*sizeof(RGBpixel);
+		if( (scanbuf = (unsigned char *)malloc( buflen )) == NULL ) {
+			fb_log("fb_read: malloc failed!");
+			if( buf ) (void)free(buf);
+			buflen = 0;
+			return;
+		}
+	}
+
+	ret = fb_read( curr_fbp, x, y, scanbuf, num );
+	if( ret < 0 )  ret = 0;		/* map error indications */
+	/* sending a 0-length package indicates error */
+	pkg_send( MSG_RETURN, scanbuf, ret*sizeof(RGBpixel), pcp );
+	if( buf ) (void)free(buf);
+}
+
+void
+fbs_rfbwrite(struct pkg_conn *pcp, char *buf)
+{
+	int	x, y, num;
+	char	rbuf[NET_LONG_LEN+1];
+	int	ret;
+	int	type;
+
+	x = pkg_glong( &buf[0*NET_LONG_LEN] );
+	y = pkg_glong( &buf[1*NET_LONG_LEN] );
+	num = pkg_glong( &buf[2*NET_LONG_LEN] );
+	type = pcp->pkc_type;
+	ret = fb_write( curr_fbp, x, y, (unsigned char *)&buf[3*NET_LONG_LEN], num );
+
+	if( type < MSG_NORETURN ) {
+		(void)pkg_plong( &rbuf[0*NET_LONG_LEN], ret );
+		pkg_send( MSG_RETURN, rbuf, NET_LONG_LEN, pcp );
+	}
+	if( buf ) (void)free(buf);
+}
+
+/*
+ *			R F B R E A D R E C T
+ */
+void
+fbs_rfbreadrect(struct pkg_conn *pcp, char *buf)
+{
+	int	xmin, ymin;
+	int	width, height;
+	int	num;
+	int	ret;
+	static unsigned char	*scanbuf = NULL;
+	static int	buflen = 0;
+
+	xmin = pkg_glong( &buf[0*NET_LONG_LEN] );
+	ymin = pkg_glong( &buf[1*NET_LONG_LEN] );
+	width = pkg_glong( &buf[2*NET_LONG_LEN] );
+	height = pkg_glong( &buf[3*NET_LONG_LEN] );
+	num = width * height;
+
+	if( num*sizeof(RGBpixel) > buflen ) {
+		if( scanbuf != NULL )
+			free( (char *)scanbuf );
+		buflen = num*sizeof(RGBpixel);
+		if( buflen < 1024*sizeof(RGBpixel) )
+			buflen = 1024*sizeof(RGBpixel);
+		if( (scanbuf = (unsigned char *)malloc( buflen )) == NULL ) {
+			fb_log("fb_read: malloc failed!");
+			if( buf ) (void)free(buf);
+			buflen = 0;
+			return;
+		}
+	}
+
+	ret = fb_readrect( curr_fbp, xmin, ymin, width, height, scanbuf );
+	if( ret < 0 )  ret = 0;		/* map error indications */
+	/* sending a 0-length package indicates error */
+	pkg_send( MSG_RETURN, scanbuf, ret*sizeof(RGBpixel), pcp );
+	if( buf ) (void)free(buf);
+}
+
+/*
+ *			R F B W R I T E R E C T
+ */
+void
+fbs_rfbwriterect(struct pkg_conn *pcp, char *buf)
+{
+	int	x, y;
+	int	width, height;
+	char	rbuf[NET_LONG_LEN+1];
+	int	ret;
+	int	type;
+
+	x = pkg_glong( &buf[0*NET_LONG_LEN] );
+	y = pkg_glong( &buf[1*NET_LONG_LEN] );
+	width = pkg_glong( &buf[2*NET_LONG_LEN] );
+	height = pkg_glong( &buf[3*NET_LONG_LEN] );
+
+	type = pcp->pkc_type;
+	ret = fb_writerect( curr_fbp, x, y, width, height,
+		(unsigned char *)&buf[4*NET_LONG_LEN] );
+
+	if( type < MSG_NORETURN ) {
+		(void)pkg_plong( &rbuf[0*NET_LONG_LEN], ret );
+		pkg_send( MSG_RETURN, rbuf, NET_LONG_LEN, pcp );
+	}
+	if( buf ) (void)free(buf);
+}
+
+/*
+ *			R F B B W R E A D R E C T
+ */
+void
+fbs_rfbbwreadrect(struct pkg_conn *pcp, char *buf)
+{
+	int	xmin, ymin;
+	int	width, height;
+	int	num;
+	int	ret;
+	static unsigned char	*scanbuf = NULL;
+	static int	buflen = 0;
+
+	xmin = pkg_glong( &buf[0*NET_LONG_LEN] );
+	ymin = pkg_glong( &buf[1*NET_LONG_LEN] );
+	width = pkg_glong( &buf[2*NET_LONG_LEN] );
+	height = pkg_glong( &buf[3*NET_LONG_LEN] );
+	num = width * height;
+
+	if( num > buflen ) {
+		if( scanbuf != NULL )
+			free( (char *)scanbuf );
+		buflen = num;
+		if( buflen < 1024 )
+			buflen = 1024;
+		if( (scanbuf = (unsigned char *)malloc( buflen )) == NULL ) {
+			fb_log("fbs_rfbbwreadrect: malloc failed!");
+			if( buf ) (void)free(buf);
+			buflen = 0;
+			return;
+		}
+	}
+
+	ret = fb_bwreadrect( curr_fbp, xmin, ymin, width, height, scanbuf );
+	if( ret < 0 )  ret = 0;		/* map error indications */
+	/* sending a 0-length package indicates error */
+	pkg_send( MSG_RETURN, scanbuf, ret, pcp );
+	if( buf ) (void)free(buf);
+}
+
+/*
+ *			R F B B W W R I T E R E C T
+ */
+void
+fbs_rfbbwwriterect(struct pkg_conn *pcp, char *buf)
+{
+	int	x, y;
+	int	width, height;
+	char	rbuf[NET_LONG_LEN+1];
+	int	ret;
+	int	type;
+
+	x = pkg_glong( &buf[0*NET_LONG_LEN] );
+	y = pkg_glong( &buf[1*NET_LONG_LEN] );
+	width = pkg_glong( &buf[2*NET_LONG_LEN] );
+	height = pkg_glong( &buf[3*NET_LONG_LEN] );
+
+	type = pcp->pkc_type;
+	ret = fb_writerect( curr_fbp, x, y, width, height,
+		(unsigned char *)&buf[4*NET_LONG_LEN] );
+
+	if( type < MSG_NORETURN ) {
+		(void)pkg_plong( &rbuf[0*NET_LONG_LEN], ret );
+		pkg_send( MSG_RETURN, rbuf, NET_LONG_LEN, pcp );
+	}
+	if( buf ) (void)free(buf);
+}
+
+void
+fbs_rfbcursor(struct pkg_conn *pcp, char *buf)
+{
+	int	mode, x, y;
+	char	rbuf[NET_LONG_LEN+1];
+
+	mode = pkg_glong( &buf[0*NET_LONG_LEN] );
+	x = pkg_glong( &buf[1*NET_LONG_LEN] );
+	y = pkg_glong( &buf[2*NET_LONG_LEN] );
+
+	(void)pkg_plong( &rbuf[0], fb_cursor( curr_fbp, mode, x, y ) );
+	pkg_send( MSG_RETURN, rbuf, NET_LONG_LEN, pcp );
+	if( buf ) (void)free(buf);
+}
+
+void
+fbs_rfbgetcursor(struct pkg_conn *pcp, char *buf)
+{
+	int	ret;
+	int	mode, x, y;
+	char	rbuf[4*NET_LONG_LEN+1];
+
+	ret = fb_getcursor( curr_fbp, &mode, &x, &y );
+	(void)pkg_plong( &rbuf[0*NET_LONG_LEN], ret );
+	(void)pkg_plong( &rbuf[1*NET_LONG_LEN], mode );
+	(void)pkg_plong( &rbuf[2*NET_LONG_LEN], x );
+	(void)pkg_plong( &rbuf[3*NET_LONG_LEN], y );
+	pkg_send( MSG_RETURN, rbuf, 4*NET_LONG_LEN, pcp );
+	if( buf ) (void)free(buf);
+}
+
+void
+fbs_rfbsetcursor(struct pkg_conn *pcp, char *buf)
+{
+	char	rbuf[NET_LONG_LEN+1];
+	int	ret;
+	int	xbits, ybits;
+	int	xorig, yorig;
+
+	xbits = pkg_glong( &buf[0*NET_LONG_LEN] );
+	ybits = pkg_glong( &buf[1*NET_LONG_LEN] );
+	xorig = pkg_glong( &buf[2*NET_LONG_LEN] );
+	yorig = pkg_glong( &buf[3*NET_LONG_LEN] );
+
+	ret = fb_setcursor( curr_fbp, (unsigned char *)&buf[4*NET_LONG_LEN],
+		xbits, ybits, xorig, yorig );
+
+	if( pcp->pkc_type < MSG_NORETURN ) {
+		(void)pkg_plong( &rbuf[0*NET_LONG_LEN], ret );
+		pkg_send( MSG_RETURN, rbuf, NET_LONG_LEN, pcp );
+	}
+	if( buf ) (void)free(buf);
+}
+
+/*OLD*/
+void
+fbs_rfbscursor(struct pkg_conn *pcp, char *buf)
+{
+	int	mode, x, y;
+	char	rbuf[NET_LONG_LEN+1];
+
+	mode = pkg_glong( &buf[0*NET_LONG_LEN] );
+	x = pkg_glong( &buf[1*NET_LONG_LEN] );
+	y = pkg_glong( &buf[2*NET_LONG_LEN] );
+
+	(void)pkg_plong( &rbuf[0], fb_scursor( curr_fbp, mode, x, y ) );
+	pkg_send( MSG_RETURN, rbuf, NET_LONG_LEN, pcp );
+	if( buf ) (void)free(buf);
+}
+
+/*OLD*/
+void
+fbs_rfbwindow(struct pkg_conn *pcp, char *buf)
+{
+	int	x, y;
+	char	rbuf[NET_LONG_LEN+1];
+
+	x = pkg_glong( &buf[0*NET_LONG_LEN] );
+	y = pkg_glong( &buf[1*NET_LONG_LEN] );
+
+	(void)pkg_plong( &rbuf[0], fb_window( curr_fbp, x, y ) );
+	pkg_send( MSG_RETURN, rbuf, NET_LONG_LEN, pcp );
+	if( buf ) (void)free(buf);
+}
+
+/*OLD*/
+void
+fbs_rfbzoom(struct pkg_conn *pcp, char *buf)
+{
+	int	x, y;
+	char	rbuf[NET_LONG_LEN+1];
+
+	x = pkg_glong( &buf[0*NET_LONG_LEN] );
+	y = pkg_glong( &buf[1*NET_LONG_LEN] );
+
+	(void)pkg_plong( &rbuf[0], fb_zoom( curr_fbp, x, y ) );
+	pkg_send( MSG_RETURN, rbuf, NET_LONG_LEN, pcp );
+	if( buf ) (void)free(buf);
+}
+
+void
+fbs_rfbview(struct pkg_conn *pcp, char *buf)
+{
+	int	ret;
+	int	xcenter, ycenter, xzoom, yzoom;
+	char	rbuf[NET_LONG_LEN+1];
+
+	xcenter = pkg_glong( &buf[0*NET_LONG_LEN] );
+	ycenter = pkg_glong( &buf[1*NET_LONG_LEN] );
+	xzoom = pkg_glong( &buf[2*NET_LONG_LEN] );
+	yzoom = pkg_glong( &buf[3*NET_LONG_LEN] );
+
+	ret = fb_view( curr_fbp, xcenter, ycenter, xzoom, yzoom );
+	(void)pkg_plong( &rbuf[0], ret );
+	pkg_send( MSG_RETURN, rbuf, NET_LONG_LEN, pcp );
+	if( buf ) (void)free(buf);
+}
+
+void
+fbs_rfbgetview(struct pkg_conn *pcp, char *buf)
+{
+	int	ret;
+	int	xcenter, ycenter, xzoom, yzoom;
+	char	rbuf[5*NET_LONG_LEN+1];
+
+	ret = fb_getview( curr_fbp, &xcenter, &ycenter, &xzoom, &yzoom );
+	(void)pkg_plong( &rbuf[0*NET_LONG_LEN], ret );
+	(void)pkg_plong( &rbuf[1*NET_LONG_LEN], xcenter );
+	(void)pkg_plong( &rbuf[2*NET_LONG_LEN], ycenter );
+	(void)pkg_plong( &rbuf[3*NET_LONG_LEN], xzoom );
+	(void)pkg_plong( &rbuf[4*NET_LONG_LEN], yzoom );
+	pkg_send( MSG_RETURN, rbuf, 5*NET_LONG_LEN, pcp );
+	if( buf ) (void)free(buf);
+}
+
+void
+fbs_rfbrmap(struct pkg_conn *pcp, char *buf)
+{
+	register int	i;
+	char	rbuf[NET_LONG_LEN+1];
+	ColorMap map;
+	unsigned char	cm[256*2*3];
+
+	(void)pkg_plong( &rbuf[0*NET_LONG_LEN], fb_rmap( curr_fbp, &map ) );
+	for( i = 0; i < 256; i++ ) {
+		(void)pkg_pshort( cm+2*(0+i), map.cm_red[i] );
+		(void)pkg_pshort( cm+2*(256+i), map.cm_green[i] );
+		(void)pkg_pshort( cm+2*(512+i), map.cm_blue[i] );
+	}
+	pkg_send( MSG_DATA, cm, sizeof(cm), pcp );
+	pkg_send( MSG_RETURN, rbuf, NET_LONG_LEN, pcp );
+	if( buf ) (void)free(buf);
+}
+
+/*
+ *			R F B W M A P
+ *
+ *  Accept a color map sent by the client, and write it to the framebuffer.
+ *  Network format is to send each entry as a network (IBM) order 2-byte
+ *  short, 256 red shorts, followed by 256 green and 256 blue, for a total
+ *  of 3*256*2 bytes.
+ */
+void
+fbs_rfbwmap(struct pkg_conn *pcp, char *buf)
+{
+	int	i;
+	char	rbuf[NET_LONG_LEN+1];
+	long	ret;
+	ColorMap map;
+
+	if( pcp->pkc_len == 0 )
+		ret = fb_wmap( curr_fbp, COLORMAP_NULL );
+	else {
+		for( i = 0; i < 256; i++ ) {
+			map.cm_red[i] = pkg_gshort( buf+2*(0+i) );
+			map.cm_green[i] = pkg_gshort( buf+2*(256+i) );
+			map.cm_blue[i] = pkg_gshort( buf+2*(512+i) );
+		}
+		ret = fb_wmap( curr_fbp, &map );
+	}
+	(void)pkg_plong( &rbuf[0], ret );
+	pkg_send( MSG_RETURN, rbuf, NET_LONG_LEN, pcp );
+	if( buf ) (void)free(buf);
+}
+
+void
+fbs_rfbflush(struct pkg_conn *pcp, char *buf)
+{
+	int	ret;
+	char	rbuf[NET_LONG_LEN+1];
+
+	ret = fb_flush( curr_fbp );
+
+	if( pcp->pkc_type < MSG_NORETURN ) {
+		(void)pkg_plong( rbuf, ret );
+		pkg_send( MSG_RETURN, rbuf, NET_LONG_LEN, pcp );
+	}
+	if( buf ) (void)free(buf);
+}
+
+void
+fbs_rfbpoll(struct pkg_conn *pcp, char *buf)
+{
+	(void)fb_poll( curr_fbp );
+	if( buf ) (void)free(buf);
+}
+
+/*
+ *  At one time at least we couldn't send a zero length PKG
+ *  message back and forth, so we receive a dummy long here.
+ */
+void
+fbs_rfbhelp(struct pkg_conn *pcp, char *buf)
+{
+	long	ret;
+	char	rbuf[NET_LONG_LEN+1];
+
+	(void)pkg_glong( &buf[0*NET_LONG_LEN] );
+
+	ret = fb_help(curr_fbp);
+	(void)pkg_plong( &rbuf[0], ret );
+	pkg_send( MSG_RETURN, rbuf, NET_LONG_LEN, pcp );
+	if( buf ) (void)free(buf);
+}
+@
+
+
+1.8
+log
+@change conf.h to a wrapped config.h
+@
+text
+@@
+
+
+1.7
+log
+@simplify .. device name created static in one place, make stricmp go away (should use define in config.h)
+@
+text
+@d22 5
+a26 1
+#include "conf.h"
+@
+
+
+1.6
+log
+@merge of ansi-6-0-branch into HEAD
+@
+text
+@a248 5
+#if 0
+    if (npp > 0)
+      dirty = 1;
+#endif
+
+a260 5
+
+#if 0
+    if(npp > 0)
+      dirty = 1;
+#endif
+@
+
+
+1.5
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d39 2
+a40 2
+int fbs_open();
+int fbs_close();
+d42 6
+a47 6
+HIDDEN void new_client();
+HIDDEN void drop_client();
+HIDDEN void new_client_handler();
+HIDDEN void existing_client_handler();
+HIDDEN void comm_error();
+HIDDEN void setup_socket();
+d52 10
+a61 10
+void	fbs_pkgfoo();	/* foobar message handler */
+void	fbs_rfbopen(), fbs_rfbclose(), fbs_rfbclear(), fbs_rfbread(), fbs_rfbwrite();
+void	fbs_rfbcursor(), fbs_rfbgetcursor();
+void	fbs_rfbrmap(), fbs_rfbwmap();
+void	fbs_rfbhelp();
+void	fbs_rfbreadrect(), fbs_rfbwriterect();
+void	fbs_rfbbwreadrect(), fbs_rfbbwwriterect();
+void	fbs_rfbpoll(), fbs_rfbflush(), fbs_rfbfree();
+void	fbs_rfbview(), fbs_rfbgetview();
+void	fbs_rfbsetcursor();
+d63 1
+a63 1
+void	fbs_rfbscursor(), fbs_rfbwindow(), fbs_rfbzoom();
+d102 1
+a102 4
+fbs_open(interp, fbsp, port)
+     Tcl_Interp *interp;
+     struct fbserv_obj *fbsp;
+     int port;
+d150 1
+a150 3
+fbs_close(interp, fbsp)
+     Tcl_Interp *interp;
+     struct fbserv_obj *fbsp;
+d170 1
+a170 3
+new_client(fbsp, pcp)
+     struct fbserv_obj *fbsp;
+     struct pkg_conn	*pcp;
+d202 1
+a202 3
+drop_client(fbsp, sub)
+     struct fbserv_obj *fbsp;
+     int sub;
+d220 1
+a220 3
+new_client_handler(clientData, mask)
+ClientData clientData;
+int mask;
+d233 1
+a233 3
+existing_client_handler(clientData, mask)
+ClientData clientData;
+int mask;
+d278 1
+a278 2
+setup_socket(fd)
+int	fd;
+d317 1
+a317 2
+comm_error(str)
+char *str;
+d326 1
+a326 3
+fbs_pkgfoo(pcp, buf)
+struct pkg_conn *pcp;
+char *buf;
+d335 1
+a335 3
+fbs_rfbopen(pcp, buf)
+struct pkg_conn *pcp;
+char *buf;
+d356 1
+a356 3
+fbs_rfbclose(pcp, buf)
+struct pkg_conn *pcp;
+char *buf;
+d378 1
+a378 3
+fbs_rfbfree(pcp, buf)
+struct pkg_conn *pcp;
+char *buf;
+d391 1
+a391 3
+fbs_rfbclear(pcp, buf)
+struct pkg_conn *pcp;
+char *buf;
+d408 1
+a408 3
+fbs_rfbread(pcp, buf)
+struct pkg_conn *pcp;
+char *buf;
+d441 1
+a441 3
+fbs_rfbwrite(pcp, buf)
+struct pkg_conn *pcp;
+char *buf;
+d465 1
+a465 3
+fbs_rfbreadrect(pcp, buf)
+struct pkg_conn *pcp;
+char *buf;
+d505 1
+a505 3
+fbs_rfbwriterect(pcp, buf)
+struct pkg_conn *pcp;
+char *buf;
+d533 1
+a533 3
+fbs_rfbbwreadrect(pcp, buf)
+struct pkg_conn *pcp;
+char *buf;
+d573 1
+a573 3
+fbs_rfbbwwriterect(pcp, buf)
+struct pkg_conn *pcp;
+char *buf;
+d598 1
+a598 3
+fbs_rfbcursor(pcp, buf)
+struct pkg_conn *pcp;
+char *buf;
+d613 1
+a613 3
+fbs_rfbgetcursor(pcp, buf)
+struct pkg_conn *pcp;
+char *buf;
+d629 1
+a629 3
+fbs_rfbsetcursor(pcp, buf)
+struct pkg_conn *pcp;
+char		*buf;
+d653 1
+a653 3
+fbs_rfbscursor(pcp, buf)
+struct pkg_conn *pcp;
+char *buf;
+d669 1
+a669 3
+fbs_rfbwindow(pcp, buf)
+struct pkg_conn *pcp;
+char *buf;
+d684 1
+a684 3
+fbs_rfbzoom(pcp, buf)
+struct pkg_conn *pcp;
+char *buf;
+d698 1
+a698 3
+fbs_rfbview(pcp, buf)
+struct pkg_conn *pcp;
+char *buf;
+d716 1
+a716 3
+fbs_rfbgetview(pcp, buf)
+struct pkg_conn *pcp;
+char *buf;
+d733 1
+a733 3
+fbs_rfbrmap(pcp, buf)
+struct pkg_conn *pcp;
+char *buf;
+d738 1
+a738 1
+	char	cm[256*2*3];
+d760 1
+a760 3
+fbs_rfbwmap(pcp, buf)
+struct pkg_conn *pcp;
+char *buf;
+d783 1
+a783 3
+fbs_rfbflush(pcp, buf)
+struct pkg_conn *pcp;
+char *buf;
+d798 1
+a798 3
+fbs_rfbpoll(pcp, buf)
+struct pkg_conn *pcp;
+char *buf;
+d809 1
+a809 3
+fbs_rfbhelp(pcp, buf)
+struct pkg_conn *pcp;
+char *buf;
+@
+
+
+1.5.2.1
+log
+@Initial ANSIfication
+@
+text
+@d39 2
+a40 2
+int fbs_open(Tcl_Interp *interp, struct fbserv_obj *fbsp, int port);
+int fbs_close(Tcl_Interp *interp, struct fbserv_obj *fbsp);
+d42 6
+a47 6
+HIDDEN void new_client(struct fbserv_obj *fbsp, struct pkg_conn *pcp);
+HIDDEN void drop_client(struct fbserv_obj *fbsp, int sub);
+HIDDEN void new_client_handler(ClientData clientData, int mask);
+HIDDEN void existing_client_handler(ClientData clientData, int mask);
+HIDDEN void comm_error(char *str);
+HIDDEN void setup_socket(int fd);
+d52 10
+a61 10
+void	fbs_pkgfoo(struct pkg_conn *pcp, char *buf);	/* foobar message handler */
+void	fbs_rfbopen(struct pkg_conn *pcp, char *buf), fbs_rfbclose(struct pkg_conn *pcp, char *buf), fbs_rfbclear(struct pkg_conn *pcp, char *buf), fbs_rfbread(struct pkg_conn *pcp, char *buf), fbs_rfbwrite(struct pkg_conn *pcp, char *buf);
+void	fbs_rfbcursor(struct pkg_conn *pcp, char *buf), fbs_rfbgetcursor(struct pkg_conn *pcp, char *buf);
+void	fbs_rfbrmap(struct pkg_conn *pcp, char *buf), fbs_rfbwmap(struct pkg_conn *pcp, char *buf);
+void	fbs_rfbhelp(struct pkg_conn *pcp, char *buf);
+void	fbs_rfbreadrect(struct pkg_conn *pcp, char *buf), fbs_rfbwriterect(struct pkg_conn *pcp, char *buf);
+void	fbs_rfbbwreadrect(struct pkg_conn *pcp, char *buf), fbs_rfbbwwriterect(struct pkg_conn *pcp, char *buf);
+void	fbs_rfbpoll(struct pkg_conn *pcp, char *buf), fbs_rfbflush(struct pkg_conn *pcp, char *buf), fbs_rfbfree(struct pkg_conn *pcp, char *buf);
+void	fbs_rfbview(struct pkg_conn *pcp, char *buf), fbs_rfbgetview(struct pkg_conn *pcp, char *buf);
+void	fbs_rfbsetcursor(struct pkg_conn *pcp, char *buf);
+d63 1
+a63 1
+void	fbs_rfbscursor(struct pkg_conn *pcp, char *buf), fbs_rfbwindow(struct pkg_conn *pcp, char *buf), fbs_rfbzoom(struct pkg_conn *pcp, char *buf);
+d102 4
+a105 1
+fbs_open(Tcl_Interp *interp, struct fbserv_obj *fbsp, int port)
+d153 3
+a155 1
+fbs_close(Tcl_Interp *interp, struct fbserv_obj *fbsp)
+d175 3
+a177 1
+new_client(struct fbserv_obj *fbsp, struct pkg_conn *pcp)
+d209 3
+a211 1
+drop_client(struct fbserv_obj *fbsp, int sub)
+d229 3
+a231 1
+new_client_handler(ClientData clientData, int mask)
+d244 3
+a246 1
+existing_client_handler(ClientData clientData, int mask)
+d291 2
+a292 1
+setup_socket(int fd)
+d331 2
+a332 1
+comm_error(char *str)
+d341 3
+a343 1
+fbs_pkgfoo(struct pkg_conn *pcp, char *buf)
+d352 3
+a354 1
+fbs_rfbopen(struct pkg_conn *pcp, char *buf)
+d375 3
+a377 1
+fbs_rfbclose(struct pkg_conn *pcp, char *buf)
+d399 3
+a401 1
+fbs_rfbfree(struct pkg_conn *pcp, char *buf)
+d414 3
+a416 1
+fbs_rfbclear(struct pkg_conn *pcp, char *buf)
+d433 3
+a435 1
+fbs_rfbread(struct pkg_conn *pcp, char *buf)
+d468 3
+a470 1
+fbs_rfbwrite(struct pkg_conn *pcp, char *buf)
+d494 3
+a496 1
+fbs_rfbreadrect(struct pkg_conn *pcp, char *buf)
+d536 3
+a538 1
+fbs_rfbwriterect(struct pkg_conn *pcp, char *buf)
+d566 3
+a568 1
+fbs_rfbbwreadrect(struct pkg_conn *pcp, char *buf)
+d608 3
+a610 1
+fbs_rfbbwwriterect(struct pkg_conn *pcp, char *buf)
+d635 3
+a637 1
+fbs_rfbcursor(struct pkg_conn *pcp, char *buf)
+d652 3
+a654 1
+fbs_rfbgetcursor(struct pkg_conn *pcp, char *buf)
+d670 3
+a672 1
+fbs_rfbsetcursor(struct pkg_conn *pcp, char *buf)
+d696 3
+a698 1
+fbs_rfbscursor(struct pkg_conn *pcp, char *buf)
+d714 3
+a716 1
+fbs_rfbwindow(struct pkg_conn *pcp, char *buf)
+d731 3
+a733 1
+fbs_rfbzoom(struct pkg_conn *pcp, char *buf)
+d747 3
+a749 1
+fbs_rfbview(struct pkg_conn *pcp, char *buf)
+d767 3
+a769 1
+fbs_rfbgetview(struct pkg_conn *pcp, char *buf)
+d786 3
+a788 1
+fbs_rfbrmap(struct pkg_conn *pcp, char *buf)
+d793 1
+a793 1
+	unsigned char	cm[256*2*3];
+d815 3
+a817 1
+fbs_rfbwmap(struct pkg_conn *pcp, char *buf)
+d840 3
+a842 1
+fbs_rfbflush(struct pkg_conn *pcp, char *buf)
+d857 3
+a859 1
+fbs_rfbpoll(struct pkg_conn *pcp, char *buf)
+d870 3
+a872 1
+fbs_rfbhelp(struct pkg_conn *pcp, char *buf)
+@
+
+
+1.4
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d39 2
+a40 2
+int fbs_open(Tcl_Interp *interp, struct fbserv_obj *fbsp, int port);
+int fbs_close(Tcl_Interp *interp, struct fbserv_obj *fbsp);
+d42 6
+a47 6
+HIDDEN void new_client(struct fbserv_obj *fbsp, struct pkg_conn *pcp);
+HIDDEN void drop_client(struct fbserv_obj *fbsp, int sub);
+HIDDEN void new_client_handler(ClientData clientData, int mask);
+HIDDEN void existing_client_handler(ClientData clientData, int mask);
+HIDDEN void comm_error(char *str);
+HIDDEN void setup_socket(int fd);
+d52 10
+a61 10
+void	fbs_pkgfoo(struct pkg_conn *pcp, char *buf);	/* foobar message handler */
+void	fbs_rfbopen(struct pkg_conn *pcp, char *buf), fbs_rfbclose(struct pkg_conn *pcp, char *buf), fbs_rfbclear(struct pkg_conn *pcp, char *buf), fbs_rfbread(struct pkg_conn *pcp, char *buf), fbs_rfbwrite(struct pkg_conn *pcp, char *buf);
+void	fbs_rfbcursor(struct pkg_conn *pcp, char *buf), fbs_rfbgetcursor(struct pkg_conn *pcp, char *buf);
+void	fbs_rfbrmap(struct pkg_conn *pcp, char *buf), fbs_rfbwmap(struct pkg_conn *pcp, char *buf);
+void	fbs_rfbhelp(struct pkg_conn *pcp, char *buf);
+void	fbs_rfbreadrect(struct pkg_conn *pcp, char *buf), fbs_rfbwriterect(struct pkg_conn *pcp, char *buf);
+void	fbs_rfbbwreadrect(struct pkg_conn *pcp, char *buf), fbs_rfbbwwriterect(struct pkg_conn *pcp, char *buf);
+void	fbs_rfbpoll(struct pkg_conn *pcp, char *buf), fbs_rfbflush(struct pkg_conn *pcp, char *buf), fbs_rfbfree(struct pkg_conn *pcp, char *buf);
+void	fbs_rfbview(struct pkg_conn *pcp, char *buf), fbs_rfbgetview(struct pkg_conn *pcp, char *buf);
+void	fbs_rfbsetcursor(struct pkg_conn *pcp, char *buf);
+d63 1
+a63 1
+void	fbs_rfbscursor(struct pkg_conn *pcp, char *buf), fbs_rfbwindow(struct pkg_conn *pcp, char *buf), fbs_rfbzoom(struct pkg_conn *pcp, char *buf);
+d102 4
+a105 1
+fbs_open(Tcl_Interp *interp, struct fbserv_obj *fbsp, int port)
+d153 3
+a155 1
+fbs_close(Tcl_Interp *interp, struct fbserv_obj *fbsp)
+d175 3
+a177 1
+new_client(struct fbserv_obj *fbsp, struct pkg_conn *pcp)
+d209 3
+a211 1
+drop_client(struct fbserv_obj *fbsp, int sub)
+d229 3
+a231 1
+new_client_handler(ClientData clientData, int mask)
+d244 3
+a246 1
+existing_client_handler(ClientData clientData, int mask)
+d291 2
+a292 1
+setup_socket(int fd)
+d331 2
+a332 1
+comm_error(char *str)
+d341 3
+a343 1
+fbs_pkgfoo(struct pkg_conn *pcp, char *buf)
+d352 3
+a354 1
+fbs_rfbopen(struct pkg_conn *pcp, char *buf)
+d375 3
+a377 1
+fbs_rfbclose(struct pkg_conn *pcp, char *buf)
+d399 3
+a401 1
+fbs_rfbfree(struct pkg_conn *pcp, char *buf)
+d414 3
+a416 1
+fbs_rfbclear(struct pkg_conn *pcp, char *buf)
+d433 3
+a435 1
+fbs_rfbread(struct pkg_conn *pcp, char *buf)
+d468 3
+a470 1
+fbs_rfbwrite(struct pkg_conn *pcp, char *buf)
+d494 3
+a496 1
+fbs_rfbreadrect(struct pkg_conn *pcp, char *buf)
+d536 3
+a538 1
+fbs_rfbwriterect(struct pkg_conn *pcp, char *buf)
+d566 3
+a568 1
+fbs_rfbbwreadrect(struct pkg_conn *pcp, char *buf)
+d608 3
+a610 1
+fbs_rfbbwwriterect(struct pkg_conn *pcp, char *buf)
+d635 3
+a637 1
+fbs_rfbcursor(struct pkg_conn *pcp, char *buf)
+d652 3
+a654 1
+fbs_rfbgetcursor(struct pkg_conn *pcp, char *buf)
+d670 3
+a672 1
+fbs_rfbsetcursor(struct pkg_conn *pcp, char *buf)
+d696 3
+a698 1
+fbs_rfbscursor(struct pkg_conn *pcp, char *buf)
+d714 3
+a716 1
+fbs_rfbwindow(struct pkg_conn *pcp, char *buf)
+d731 3
+a733 1
+fbs_rfbzoom(struct pkg_conn *pcp, char *buf)
+d747 3
+a749 1
+fbs_rfbview(struct pkg_conn *pcp, char *buf)
+d767 3
+a769 1
+fbs_rfbgetview(struct pkg_conn *pcp, char *buf)
+d786 3
+a788 1
+fbs_rfbrmap(struct pkg_conn *pcp, char *buf)
+d793 1
+a793 1
+	unsigned char	cm[256*2*3];
+d815 3
+a817 1
+fbs_rfbwmap(struct pkg_conn *pcp, char *buf)
+d840 3
+a842 1
+fbs_rfbflush(struct pkg_conn *pcp, char *buf)
+d857 3
+a859 1
+fbs_rfbpoll(struct pkg_conn *pcp, char *buf)
+d870 3
+a872 1
+fbs_rfbhelp(struct pkg_conn *pcp, char *buf)
+@
+
+
+1.3
+log
+@
+Fixed lint
+@
+text
+@d39 2
+a40 2
+int fbs_open();
+int fbs_close();
+d42 6
+a47 6
+HIDDEN void new_client();
+HIDDEN void drop_client();
+HIDDEN void new_client_handler();
+HIDDEN void existing_client_handler();
+HIDDEN void comm_error();
+HIDDEN void setup_socket();
+d52 10
+a61 10
+void	fbs_pkgfoo();	/* foobar message handler */
+void	fbs_rfbopen(), fbs_rfbclose(), fbs_rfbclear(), fbs_rfbread(), fbs_rfbwrite();
+void	fbs_rfbcursor(), fbs_rfbgetcursor();
+void	fbs_rfbrmap(), fbs_rfbwmap();
+void	fbs_rfbhelp();
+void	fbs_rfbreadrect(), fbs_rfbwriterect();
+void	fbs_rfbbwreadrect(), fbs_rfbbwwriterect();
+void	fbs_rfbpoll(), fbs_rfbflush(), fbs_rfbfree();
+void	fbs_rfbview(), fbs_rfbgetview();
+void	fbs_rfbsetcursor();
+d63 1
+a63 1
+void	fbs_rfbscursor(), fbs_rfbwindow(), fbs_rfbzoom();
+d102 1
+a102 4
+fbs_open(interp, fbsp, port)
+     Tcl_Interp *interp;
+     struct fbserv_obj *fbsp;
+     int port;
+d150 1
+a150 3
+fbs_close(interp, fbsp)
+     Tcl_Interp *interp;
+     struct fbserv_obj *fbsp;
+d170 1
+a170 3
+new_client(fbsp, pcp)
+     struct fbserv_obj *fbsp;
+     struct pkg_conn	*pcp;
+d202 1
+a202 3
+drop_client(fbsp, sub)
+     struct fbserv_obj *fbsp;
+     int sub;
+d220 1
+a220 3
+new_client_handler(clientData, mask)
+ClientData clientData;
+int mask;
+d233 1
+a233 3
+existing_client_handler(clientData, mask)
+ClientData clientData;
+int mask;
+d278 1
+a278 2
+setup_socket(fd)
+int	fd;
+d317 1
+a317 2
+comm_error(str)
+char *str;
+d326 1
+a326 3
+fbs_pkgfoo(pcp, buf)
+struct pkg_conn *pcp;
+char *buf;
+d335 1
+a335 3
+fbs_rfbopen(pcp, buf)
+struct pkg_conn *pcp;
+char *buf;
+d356 1
+a356 3
+fbs_rfbclose(pcp, buf)
+struct pkg_conn *pcp;
+char *buf;
+d378 1
+a378 3
+fbs_rfbfree(pcp, buf)
+struct pkg_conn *pcp;
+char *buf;
+d391 1
+a391 3
+fbs_rfbclear(pcp, buf)
+struct pkg_conn *pcp;
+char *buf;
+d408 1
+a408 3
+fbs_rfbread(pcp, buf)
+struct pkg_conn *pcp;
+char *buf;
+d441 1
+a441 3
+fbs_rfbwrite(pcp, buf)
+struct pkg_conn *pcp;
+char *buf;
+d465 1
+a465 3
+fbs_rfbreadrect(pcp, buf)
+struct pkg_conn *pcp;
+char *buf;
+d505 1
+a505 3
+fbs_rfbwriterect(pcp, buf)
+struct pkg_conn *pcp;
+char *buf;
+d533 1
+a533 3
+fbs_rfbbwreadrect(pcp, buf)
+struct pkg_conn *pcp;
+char *buf;
+d573 1
+a573 3
+fbs_rfbbwwriterect(pcp, buf)
+struct pkg_conn *pcp;
+char *buf;
+d598 1
+a598 3
+fbs_rfbcursor(pcp, buf)
+struct pkg_conn *pcp;
+char *buf;
+d613 1
+a613 3
+fbs_rfbgetcursor(pcp, buf)
+struct pkg_conn *pcp;
+char *buf;
+d629 1
+a629 3
+fbs_rfbsetcursor(pcp, buf)
+struct pkg_conn *pcp;
+char		*buf;
+d653 1
+a653 3
+fbs_rfbscursor(pcp, buf)
+struct pkg_conn *pcp;
+char *buf;
+d669 1
+a669 3
+fbs_rfbwindow(pcp, buf)
+struct pkg_conn *pcp;
+char *buf;
+d684 1
+a684 3
+fbs_rfbzoom(pcp, buf)
+struct pkg_conn *pcp;
+char *buf;
+d698 1
+a698 3
+fbs_rfbview(pcp, buf)
+struct pkg_conn *pcp;
+char *buf;
+d716 1
+a716 3
+fbs_rfbgetview(pcp, buf)
+struct pkg_conn *pcp;
+char *buf;
+d733 1
+a733 3
+fbs_rfbrmap(pcp, buf)
+struct pkg_conn *pcp;
+char *buf;
+d738 1
+a738 1
+	char	cm[256*2*3];
+d760 1
+a760 3
+fbs_rfbwmap(pcp, buf)
+struct pkg_conn *pcp;
+char *buf;
+d783 1
+a783 3
+fbs_rfbflush(pcp, buf)
+struct pkg_conn *pcp;
+char *buf;
+d798 1
+a798 3
+fbs_rfbpoll(pcp, buf)
+struct pkg_conn *pcp;
+char *buf;
+d809 1
+a809 3
+fbs_rfbhelp(pcp, buf)
+struct pkg_conn *pcp;
+char *buf;
+@
+
+
+1.2
+log
+@*- conditionally call callback function when data
+   is received
+@
+text
+@d304 2
+a305 1
+    int	m, n;
+@
+
+
+1.1
+log
+@Framebuffer Server Object
+@
+text
+@d285 3
+@
+

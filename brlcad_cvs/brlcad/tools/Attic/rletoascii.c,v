@@ -1,0 +1,384 @@
+head	11.7;
+access;
+symbols
+	ansi-20040405-merged:11.4.2.1
+	postmerge-20040405-ansi:11.5
+	premerge-20040404-ansi:11.4
+	postmerge-autoconf:11.4
+	autoconf-freeze:11.4
+	premerge-autoconf:11.4
+	postmerge-20040315-windows:11.4
+	premerge-20040315-windows:11.4
+	windows-20040315-freeze:11.4
+	autoconf-20031203:11.4
+	autoconf-20031202:11.4
+	autoconf-branch:11.4.0.10
+	phong-branch:11.4.0.8
+	photonmap-branch:11.4.0.6
+	rel-6-1-DP:11.4
+	windows-branch:11.4.0.4
+	rel-6-0-2:11.2
+	ansi-branch:11.4.0.2
+	rel-6-0-1-branch:11.2.0.2
+	hartley-6-0-post:11.3
+	hartley-6-0-pre:11.2
+	rel-6-0-1:11.2
+	rel-6-0:11.2
+	rel-5-4:11.1
+	offsite-5-3-pre:11.2
+	rel-5-3:11.1
+	rel-5-2:11.1
+	rel-5-1-branch:11.1.0.2
+	rel-5-1:11.1
+	rel-5-0:11.1
+	rel-5-0-beta:11.1
+	rel-4-5:11.1
+	ctj-4-5-post:11.1
+	ctj-4-5-pre:11.1
+	rel-4-4:11.1
+	rel-4-0:10.1;
+locks; strict;
+comment	@ * @;
+
+
+11.7
+date	2004.05.21.16.38.59;	author morrison;	state dead;
+branches;
+next	11.6;
+
+11.6
+date	2004.05.10.15.30.50;	author erikg;	state Exp;
+branches;
+next	11.5;
+
+11.5
+date	2004.04.05.05.46.01;	author morrison;	state Exp;
+branches;
+next	11.4;
+
+11.4
+date	2002.08.20.17.08.51;	author jra;	state Exp;
+branches
+	11.4.2.1;
+next	11.3;
+
+11.3
+date	2002.08.15.20.56.02;	author hartley;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	2000.08.24.22.46.23;	author mike;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	95.01.04.10.21.23;	author mike;	state Rel4_4;
+branches;
+next	10.2;
+
+10.2
+date	94.08.11.20.09.18;	author gdurf;	state Exp;
+branches;
+next	10.1;
+
+10.1
+date	91.10.12.06.52.58;	author mike;	state Rel4_0;
+branches;
+next	1.1;
+
+1.1
+date	91.01.24.20.34.03;	author butler;	state Exp;
+branches;
+next	;
+
+11.4.2.1
+date	2002.09.19.18.02.30;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@Original distribution of Rel. 3 patchlevel 2
+@
+
+
+11.7
+log
+@moved to src/tools/
+@
+text
+@/*
+ * This software is copyrighted as noted below.  It may be freely copied,
+ * modified, and redistributed, provided that the copyright notices are 
+ * preserved on all copies.
+ * 
+ * There is no warranty or other guarantee of fitness for this software,
+ * it is provided solely "as is".  Bug reports or fixes may be sent
+ * to the author, who may or may not act on them as he desires.
+ *
+ * You may not include this software in a program or other software product
+ * without supplying the source, or without informing the end-user that the 
+ * source is available for no extra charge.
+ *
+ * If you modify this software, you should include a notice giving the
+ * name of the person performing the modification, the date of modification,
+ * and the reason for such modification.
+ */
+/* 
+ * rletoascii.c - Take a RLE, make it black and white, dump it as ascii chars.
+ * 
+ */
+
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+
+#include <stdio.h>
+#ifdef USE_STRING_H
+#include <string.h>
+#else
+#include <strings.h>
+#endif
+
+#include "machine.h"
+#include "externs.h"			/* For malloc and free */
+#include "rle.h"
+
+typedef FILE	*FILPTR;
+
+/*
+ * usage : rletoascii [-S asciistring] [-r] [-o outfile] [infile]
+ *
+ *      asciistring		String of characters to use for output
+ *      -r			reverse video
+ *	infile			File to dump.  If none, uses stdin.
+ *	-o outfile		Where to put the output.  Default stdout.
+ */
+/* Default string based on X font 6x13, assumes black on white.
+ * @@ = 24
+ * B = 23
+ * R = 22
+ * * = 21
+ * # = 20 
+ * $ = 19
+ * P = 18
+ * X = 17
+ * 0 = 16
+ * w = 15
+ * o = 14
+ * I = 13
+ * c = 12
+ * v = 11
+ * : = 10
+ * + = 9
+ * ! = 8
+ * ~ = 7
+ * " = 6
+ * . = 5
+ * , = 4
+ *   = 0
+ */
+static char default_asciistr[] = "@@BR*#$PX0woIcv:+!~\"., ";
+
+int
+main(int argc, char **argv)
+{
+    FILE   *infile;		/* Input file pointer. */
+    char   *infnam = NULL;	/* Input file name. */
+    int nrow, nscan, i, row, index, rflag=0;
+    unsigned char ** scan;
+    unsigned char * buffer;
+    char *asciistr = NULL;
+    int numchars;
+
+    if (! scanargs( argc,argv,
+	"% S%-ascii_string!s r%- infile%s", &i, &asciistr, &rflag, &infnam ))
+	exit( -1 );
+
+    /* If an input file is specified, open it. Otherwise use stdin. */
+
+    if ( infnam != NULL )
+    {
+	if ( (infile = fopen( infnam, "r" )) == NULL )
+	{
+	    perror( infnam );
+	    exit( -1 );
+	}
+    }
+    else
+	infile = stdin;
+
+    /* Read header information. */
+
+    rle_dflt_hdr.rle_file = infile;
+    rle_get_setup_ok( &rle_dflt_hdr, "rletoascii", infnam );
+    if ( (rle_dflt_hdr.ncolors != 3 ) && (rle_dflt_hdr.ncolors != 1) ) {
+	fprintf( stderr, "%s must have 3 or 1 channels, not %d\n",
+		    infnam ? infnam : "stdin", rle_dflt_hdr.ncolors );
+	exit( 0 );
+    }
+    RLE_CLR_BIT( rle_dflt_hdr, RLE_ALPHA );
+    rle_dflt_hdr.xmax -= rle_dflt_hdr.xmin;
+    rle_dflt_hdr.xmin = 0;
+    nrow = rle_dflt_hdr.xmax + 1;
+    nscan = (rle_dflt_hdr.ymax - rle_dflt_hdr.ymin + 1);
+    buffer = (unsigned char *)malloc( nrow );
+    scan = (unsigned char **) malloc( rle_dflt_hdr.ncolors * 
+				      sizeof( unsigned char * ) );
+    for ( i = 0; i < rle_dflt_hdr.ncolors; i++ )
+	scan[i] = (unsigned char *)malloc( nrow );
+
+    if ( asciistr == NULL ) {
+	asciistr = (char *) malloc( 1 + strlen( default_asciistr ) );
+	strcpy(asciistr, default_asciistr);
+    }
+    numchars = strlen(asciistr);
+
+    /* Read .rle file, dumping ascii as we go. */
+
+    for (row=0; (row<nscan); row++)
+    {
+	if (rle_dflt_hdr.ncolors == 3) {
+	    rle_getrow( &rle_dflt_hdr, scan );
+	    rgb_to_bw( scan[0], scan[1], scan[2], buffer, nrow );
+	}
+	else {
+	    rle_getrow( &rle_dflt_hdr, &buffer );
+	}
+	for (i=0; i < nrow; i++) {
+	    index = ((int)(buffer[i]) * numchars) >> 8;
+	    if (rflag)
+		putchar(asciistr[numchars - (index + 1)]);
+	    else
+		putchar(asciistr[index]);
+	}
+	printf("\n");
+    }
+    return 0;
+}
+@
+
+
+11.6
+log
+@change conf.h to a wrapped config.h
+@
+text
+@@
+
+
+11.5
+log
+@merge of ansi-6-0-branch into head
+@
+text
+@d23 5
+a27 1
+#include "conf.h"
+@
+
+
+11.4
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d73 1
+a73 3
+main(argc, argv)
+int  argc;
+char *argv[];
+@
+
+
+11.4.2.1
+log
+@Initial ANSIfication
+@
+text
+@d73 3
+a75 1
+main(int argc, char **argv)
+@
+
+
+11.3
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d73 3
+a75 1
+main(int argc, char **argv)
+@
+
+
+11.2
+log
+@
+lint
+@
+text
+@d73 1
+a73 3
+main(argc, argv)
+int  argc;
+char *argv[];
+@
+
+
+11.1
+log
+@Release_4.4
+@
+text
+@d72 1
+a72 1
+void
+d148 1
+@
+
+
+10.2
+log
+@Altered #defines and #includes to conform to BRL-CAD standards
+@
+text
+@@
+
+
+10.1
+log
+@Release_4.0
+@
+text
+@d23 2
+a25 6
+#include "rle.h"
+
+#ifdef USE_STDLIB_H
+#include <stdlib.h>
+#else
+
+d32 3
+a34 8
+#ifdef VOID_STAR
+extern void *malloc();
+#else
+extern char *malloc();
+#endif
+extern void free();
+
+#endif /* USE_STDLIB_H */
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@@

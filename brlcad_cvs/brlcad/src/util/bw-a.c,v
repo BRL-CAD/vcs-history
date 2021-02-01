@@ -1,0 +1,611 @@
+head	14.13;
+access;
+symbols
+	rel-7-10-4:14.11
+	STABLE:14.11.0.2
+	rel-7-10-2:14.11
+	rel-7-10-0:14.10
+	rel-7-8-4:14.8
+	rel-7-8-2:14.7
+	rel-7-8-0:14.7
+	trimnurbs-branch:14.7.0.2
+	help:14.7
+	temp_tag:14.5
+	bobWinPort-20051223-freeze:14.3
+	postmerge-20051223-bobWinPort:14.5
+	premerge-20051223-bobWinPort:14.5
+	rel-7-6-6:14.5
+	rel-7-6-4:14.5
+	rel-7-6-2:14.4
+	rel-7-6-branch:14.4.0.2
+	rel-7-6-0:14.4
+	rel-7-4-2:14.3
+	rel-7-4-branch:14.3.0.4
+	bobWinPort:14.3.0.2
+	rel-7-4-0:14.3
+	rel-7-2-6:14.3
+	rel-7-2-4:14.3
+	rel-7-2-2:14.3
+	rel-7-2-0:14.3
+	rel-7-0-4:14.2
+	rel-7-0-2:14.2
+	rel-7-0-1:14.2
+	opensource-post:14.2
+	opensource-pre:1.4
+	rel-7-0-branch:1.4.0.2
+	rel-7-0:1.4;
+locks; strict;
+comment	@ * @;
+
+
+14.13
+date	2007.11.21.20.49.11;	author erikgreenwald;	state Exp;
+branches;
+next	14.12;
+
+14.12
+date	2007.11.21.18.55.37;	author erikgreenwald;	state Exp;
+branches;
+next	14.11;
+
+14.11
+date	2007.07.26.01.13.59;	author brlcad;	state Exp;
+branches;
+next	14.10;
+
+14.10
+date	2007.01.23.01.13.52;	author brlcad;	state Exp;
+branches;
+next	14.9;
+
+14.9
+date	2007.01.20.14.37.05;	author brlcad;	state Exp;
+branches;
+next	14.8;
+
+14.8
+date	2006.08.01.15.02.56;	author brlcad;	state Exp;
+branches;
+next	14.7;
+
+14.7
+date	2006.01.28.22.46.19;	author brlcad;	state Exp;
+branches;
+next	14.6;
+
+14.6
+date	2006.01.18.06.46.27;	author brlcad;	state Exp;
+branches;
+next	14.5;
+
+14.5
+date	2005.09.21.19.05.37;	author brlcad;	state Exp;
+branches;
+next	14.4;
+
+14.4
+date	2005.08.21.14.29.54;	author brlcad;	state Exp;
+branches
+	14.4.2.1;
+next	14.3;
+
+14.3
+date	2005.01.30.20.31.32;	author brlcad;	state Exp;
+branches;
+next	14.2;
+
+14.2
+date	2004.12.21.03.45.40;	author butler;	state Exp;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.32;	author morrison;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	2004.08.02.23.01.53;	author morrison;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2004.06.09.18.21.39;	author erikg;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2004.06.08.22.04.42;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.15.21.41;	author morrison;	state Exp;
+branches;
+next	;
+
+14.4.2.1
+date	2005.11.13.13.46.20;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.13
+log
+@pass bu_exit a NULL instead of an empty string
+@
+text
+@/*                          B W - A . C
+ * BRL-CAD
+ *
+ * Copyright (c) 1986-2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@file bw-a.c
+ *
+ *
+ * Convert a bw file into an ASCII bitmap.
+ *
+ * The output of bw-a can be feed to the X11 program atobm to generated
+ * a bitmap that X11 programs can use.
+ *
+ * It is assumed that the file is in inverse order.
+ *
+ * A translation sequence might be:
+ *	pix-fb -w1280 -n960 -i -Fimage.pixi image.pix	# flip image.
+ *	pix-bw image.pixi | halftone -R -S -w1280 -n960 | \
+ *		bw-a -w1280 -n960 | atobm -name image.bm >image.bm
+ *
+ * Author -
+ *	Christopher T. Johnson	- January 28, 1991
+ *
+ */
+#ifndef lint
+static const char RCSid[] = "$Header: /cvsroot/brlcad/brlcad/src/util/bw-a.c,v 14.12 2007/11/21 18:55:37 erikgreenwald Exp $";
+#endif
+
+#include "common.h"
+
+#include <stdlib.h>
+#include <stdio.h>
+#ifdef HAVE_UNISTD_H
+#  include <unistd.h>
+#endif
+
+#include "machine.h"
+#include "bu.h"
+#include "vmath.h"
+#include "bn.h"
+
+
+static long int	file_width = 512L;
+static int	autosize = 0;
+static char	*file_name;
+static FILE	*infp;
+static int	fileinput = 0;
+
+static char	usage[] = "\
+Usage: bw-a [a] [-s squarefilesize] [-w file_width] [-n file_height]\n\
+	[file.bw]\n";
+
+int
+get_args(int argc, char **argv)
+{
+	int c;
+
+	while ((c=bu_getopt(argc, argv, "as:w:n:")) != EOF ) {
+		switch(c) {
+		case 'a':
+			autosize = 1;
+			break;
+		case 's':
+			file_width = atol(bu_optarg);
+			autosize = 0;
+			break;
+		case 'n':
+			autosize = 0;
+			break;
+		case 'w':
+			file_width = atol(bu_optarg);
+			autosize = 0;
+			break;
+		default:		/* '?' */
+			return(0);
+		}
+	}
+
+	if (bu_optind >= argc ) {
+		if (isatty(fileno(stdin)) ) return(0);
+		file_name = "-";
+		infp = stdin;
+	} else {
+		file_name = argv[bu_optind];
+		if ((infp = fopen(file_name, "r")) == NULL) {
+			(void) fprintf(stderr,
+			    "bw-a: cannot open \"%s\" for reading\n",
+			    file_name);
+			return(0);
+		}
+		fileinput++;
+	}
+
+	if (argc > ++bu_optind) {
+		(void) fprintf(stderr, "bw-a: excess argument(s) ignored\n");
+	}
+	return(1);	/* OK */
+}
+
+int
+main(int argc, char **argv)
+{
+	int c;
+	long int cur_width = 0;
+	long int cur_height = 0;
+
+	if ( !get_args(argc, argv)) {
+		(void) fputs(usage, stderr);
+		bu_exit (1, NULL);
+	}
+
+	/* autosize the input? */
+	if (fileinput && autosize) {
+		unsigned long int	w, h;
+		if ( fb_common_file_size(&w, &h, file_name, 1) ) {
+			file_width = (long)w;
+		} else {
+			fprintf(stderr, "bw-a: unable to autosize\n");
+		}
+	}
+
+	while ((c=getc(infp)) != EOF) {
+		if (c < 127) {
+			putchar('#');
+		} else {
+			putchar('-');
+		}
+		if (++cur_width >= file_width) {
+			putchar('\n');
+			cur_width=0L;
+			cur_height++;
+		}
+	}
+	return 0;
+}
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+14.12
+log
+@exit->bu_exit where applicable
+@
+text
+@d40 1
+a40 1
+static const char RCSid[] = "$Header: /cvsroot/brlcad/brlcad/src/util/bw-a.c,v 14.11 2007/07/26 01:13:59 brlcad Exp $";
+d123 1
+a123 1
+		bu_exit (1, "");
+@
+
+
+14.11
+log
+@remove ephemeral data like phone numbers and addresses, including the misleading 'source' statements on code that is continually evolving and receiving contributions from many many sources
+@
+text
+@d40 1
+a40 1
+static const char RCSid[] = "$Header: /cvsroot/brlcad/brlcad/src/util/bw-a.c,v 14.10 2007/01/23 01:13:52 brlcad Exp $";
+d123 1
+a123 1
+		exit(1);
+@
+
+
+14.10
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@a37 4
+ * Source -
+ *	SECAD/VLD Computing Consortium, Bldg 394
+ *	The U. S. Army Ballistic Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005-5066
+d40 1
+a40 1
+static const char RCSid[] = "$Header: /cvsroot/brlcad/brlcad/src/util/bw-a.c,v 14.9 2007/01/20 14:37:05 brlcad Exp $";
+@
+
+
+14.9
+log
+@update copyright to 2007
+@
+text
+@d8 2
+a9 3
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+d14 1
+a14 1
+ * General Public License for more details.
+d16 2
+a17 2
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+d44 1
+a44 1
+static const char RCSid[] = "$Header: /cvsroot/brlcad/brlcad/src/util/bw-a.c,v 14.8 2006/08/01 15:02:56 brlcad Exp $";
+@
+
+
+14.8
+log
+@refactor the three asize.c implementations (libbn, libfb, & canon) into just one.  libbn had the most comprehensive and updated version, but the logic belongs in libfb.  so, the bn_common autosizing functions are now consolidated to libfb, refactoring accordingly.
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 1986-2006 United States Government as represented by
+d45 1
+a45 1
+static const char RCSid[] = "$Header: /cvsroot/brlcad/brlcad/src/util/bw-a.c,v 14.7 2006/01/28 22:46:19 brlcad Exp $";
+@
+
+
+14.7
+log
+@header cleanup, include stdlib.h for atol(). fixes some 64-bitness
+@
+text
+@d45 1
+a45 1
+static const char RCSid[] = "$Header: /cvsroot/brlcad/brlcad/src/util/bw-a.c,v 14.6 2006/01/18 06:46:27 brlcad Exp $";
+d134 1
+a134 1
+		if ( bn_common_file_size(&w, &h, file_name, 1) ) {
+@
+
+
+14.6
+log
+@update copyright to 2006
+@
+text
+@d45 1
+a45 1
+static const char RCSid[] = "$Header: /cvsroot/brlcad/brlcad/src/util/bw-a.c,v 14.5 2005/09/21 19:05:37 brlcad Exp $";
+d50 2
+a54 1
+#include <stdio.h>
+@
+
+
+14.5
+log
+@needs bu.h for bu_getopt
+@
+text
+@d4 1
+a4 1
+ * Copyright (C) 1986-2005 United States Government as represented by
+d45 1
+a45 1
+static const char RCSid[] = "$Header: /cvsroot/brlcad/brlcad/src/util/bw-a.c,v 14.4 2005/08/21 14:29:54 brlcad Exp $";
+@
+
+
+14.4
+log
+@convert image dimensions to long ints to support larger image sizes.  quell other various const warnings too.
+@
+text
+@d45 1
+a45 1
+static const char RCSid[] = "$Header: /cvsroot/brlcad/brlcad/src/util/bw-a.c,v 14.3 2005/01/30 20:31:32 brlcad Exp $";
+d76 1
+a76 1
+	while ((c=getopt(argc, argv, "as:w:n:")) != EOF ) {
+d82 1
+a82 1
+			file_width = atol(optarg);
+d89 1
+a89 1
+			file_width = atol(optarg);
+d97 1
+a97 1
+	if (optind >= argc ) {
+d102 1
+a102 1
+		file_name = argv[optind];
+d112 1
+a112 1
+	if (argc > ++optind) {
+@
+
+
+14.4.2.1
+log
+@merge changes from HEAD aka rel-7-6-4 to the rel-7-6-branch just in case someone peeks a gander or tries to continue/build the branch
+@
+text
+@d45 1
+a45 1
+static const char RCSid[] = "$Header$";
+d76 1
+a76 1
+	while ((c=bu_getopt(argc, argv, "as:w:n:")) != EOF ) {
+d82 1
+a82 1
+			file_width = atol(bu_optarg);
+d89 1
+a89 1
+			file_width = atol(bu_optarg);
+d97 1
+a97 1
+	if (bu_optind >= argc ) {
+d102 1
+a102 1
+		file_name = argv[bu_optind];
+d112 1
+a112 1
+	if (argc > ++bu_optind) {
+@
+
+
+14.3
+log
+@update copyright to 2005
+@
+text
+@d45 1
+a45 1
+static const char RCSid[] = "$Header: /cvsroot/brlcad/brlcad/src/util/bw-a.c,v 14.2 2004/12/21 03:45:40 butler Exp $";
+d51 1
+a51 1
+# include <unistd.h>
+a52 1
+                                                                                                                                                                            
+d60 2
+a61 1
+static int	file_width = 512;
+d82 1
+a82 1
+			file_width = atoi(optarg);
+d89 1
+a89 1
+			file_width = atoi(optarg);
+d122 2
+a123 2
+	int cur_width = 0;
+	int cur_height = 0;
+d132 1
+a132 1
+		int	w, h;
+d134 1
+a134 1
+			file_width = w;
+d148 1
+a148 1
+			cur_width=0;
+@
+
+
+14.2
+log
+@GPL license changes
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 1986-2004 United States Government as represented by
+d45 1
+a45 1
+static const char RCSid[] = "$Header: /cvs/brlcad/src/util/bw-a.c,v 14.1 2004/11/16 19:42:32 morrison Exp $";
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@d1 21
+a21 2
+/*
+ *		B W - A . C
+a42 4
+ *  
+ *  Copyright Notice -
+ *	This software is Copyright (C) 1986-2004 by the United States Army.
+ *	All rights reserved.
+d45 1
+a45 1
+static const char RCSid[] = "$Header: /cvs/brlcad/src/util/bw-a.c,v 1.4 2004/08/02 23:01:53 morrison Exp $";
+@
+
+
+1.4
+log
+@replace the wrapped config.h block with common.h
+@
+text
+@d30 1
+a30 1
+static const char RCSid[] = "$Header: /cvs/brlcad/src/util/bw-a.c,v 1.3 2004/06/09 18:21:39 erikg Exp $";
+d139 10
+@
+
+
+1.3
+log
+@include unistd.h for getopt stuff
+@
+text
+@d30 1
+a30 1
+static const char RCSid[] = "$Header: /cvs/brlcad/src/util/bw-a.c,v 1.2 2004/06/08 22:04:42 morrison Exp $";
+d33 1
+a33 3
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+@
+
+
+1.2
+log
+@obliterate externs.h
+@
+text
+@d30 1
+a30 1
+static const char RCSid[] = "$Header$";
+d37 4
+@
+
+
+1.1
+log
+@Vast reorganization begins.  Sources moved from top-level directories into src/.
+@
+text
+@d30 1
+a30 1
+static const char RCSid[] = "$Header: /cvs/brlcad/util/bw-a.c,v 11.10 2004/05/10 15:30:50 erikg Exp $";
+a36 2
+
+
+a39 1
+#include "externs.h"			/* For getopt */
+@
+

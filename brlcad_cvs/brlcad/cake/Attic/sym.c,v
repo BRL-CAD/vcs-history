@@ -1,0 +1,428 @@
+head	11.3;
+access;
+symbols
+	ansi-20040405-merged:11.2
+	premerge-autoconf:11.2
+	ansi-20040316-freeze:11.2
+	postmerge-20040315-windows:11.2
+	premerge-20040315-windows:11.2
+	windows-20040315-freeze:11.2
+	autoconf-20031203:11.2
+	autoconf-20031202:11.2
+	phong-branch:11.2.0.12
+	photonmap-branch:11.2.0.10
+	rel-6-1-DP:11.2
+	windows-branch:11.2.0.8
+	rel-6-0-2:11.2
+	ansi-branch:11.2.0.6
+	rel-6-0-1-branch:11.2.0.4
+	hartley-6-0-post:11.2
+	hartley-6-0-pre:11.2
+	rel-6-0-1:11.2
+	rel-6-0:11.2
+	rel-5-4:11.2
+	offsite-5-3-pre:11.2
+	rel-5-3:11.2
+	rel-5-2:11.2
+	rel-5-1-branch:11.2.0.2
+	rel-5-1:11.2
+	rel-5-0:11.2
+	rel-5-0-beta:11.2
+	rel-4-5:11.2
+	ctj-4-5-post:11.2
+	ctj-4-5-pre:11.2
+	rel-4-4:1.2
+	rel-4-0:1.1
+	rel-3-5:1.1
+	rel-3-0:1.1
+	AUTOCONF:11.2.0.14;
+locks; strict;
+comment	@ * @;
+
+
+11.3
+date	2004.03.18.18.15.14;	author erikg;	state dead;
+branches;
+next	11.2;
+
+11.2
+date	97.05.22.16.57.55;	author mike;	state Exp;
+branches
+	11.2.14.1;
+next	11.1;
+
+11.1
+date	95.01.05.06.00.10;	author mike;	state Rel4_4;
+branches;
+next	1.2;
+
+1.2
+date	94.12.07.16.57.12;	author mike;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	88.06.11.00.56.26;	author mike;	state Original;
+branches;
+next	;
+
+11.2.14.1
+date	2004.03.18.18.10.24;	author erikg;	state dead;
+branches;
+next	;
+
+
+desc
+@cake source file 
+@
+
+
+11.3
+log
+@merge of AUTOCONF branch in to HEAD
+@
+text
+@/*
+**	Symbol table module
+*/
+
+static	char
+rcs_id[] = "$Header: /cvs/brlcad/cake/sym.c,v 11.2 1997/05/22 16:57:55 mike Exp $";
+
+#include	"cake.h"
+
+typedef	struct	s_out
+{
+	char	*o_cmd;
+	char	*o_out;
+} Out;
+
+typedef	struct	s_stat
+{
+	char	*s_cmd;
+	int	s_stat;
+} Stat;
+
+extern	int	hash();
+extern	Cast	name_key();	extern	bool	name_equal();
+extern	Cast	node_key();	extern	bool	node_equal();
+extern	Cast	out_key();	extern	bool	out_equal();
+extern	Cast	stat_key();	extern	bool	stat_equal();
+Table	name_tab = { SIZE, NULL, name_key, hash, name_equal };
+Table	node_tab = { SIZE, NULL, node_key, hash, node_equal };
+Table	out_tab  = { SIZE, NULL, out_key,  hash, out_equal  };
+Table	stat_tab = { SIZE, NULL, stat_key, hash, stat_equal };
+
+/*
+**	Initialize the name and the command tables.
+*/
+
+void
+init_sym()
+{
+	init_table(name_tab);
+	init_table(node_tab);
+	init_table(out_tab);
+	init_table(stat_tab);
+}
+
+/**********************************************************************/
+/*	Name table						      */
+
+/*
+**	Save the given string in the name table if not already there;
+**	return its new address. This address is unique, so comparing
+**	two identifiers for equality can be done by comparing their
+**	addresses.
+*/
+
+char *
+new_name(str)
+reg	char	*str;
+{
+	reg	Cast	old;
+	reg	char	*copy;
+
+	if ((old = lookup_table(name_tab, str)) != (Cast)NULL)
+		return (char *) old;
+
+	copy = (char *) newmem(strlen(str) + 1);
+	strcpy(copy, str);
+	insert_table(name_tab, copy);
+
+	return copy;
+}
+
+Cast
+name_key(entry)
+reg	Cast	entry;
+{
+	return entry;
+}
+
+bool
+name_equal(key1, key2)
+reg	Cast	key1, key2;
+{
+	return streq((char *) key1, (char *) key2);
+}
+
+/**********************************************************************/
+/*	Node table						      */
+
+/*
+**	Th insertion function for the node table is chase(),
+**	which is in chase.c with the rest of the chase stuff.
+*/
+
+/*
+**	This function merely reports on the results
+**	of past calls to chase.
+*/
+
+Node *
+chase_node(name)
+reg	char	*name;
+{
+	return (Node *) lookup_table(node_tab, name);
+}
+
+/*
+**	Return a list of all the nodes of this run.
+*/
+
+List *
+get_allnodes()
+{
+	return contents_table(node_tab);
+}
+
+Cast
+node_key(entry)
+reg	Cast	entry;
+{
+	return (Cast) ((Node *) entry)->n_name;
+}
+
+bool
+node_equal(key1, key2)
+reg	Cast	key1, key2;
+{
+#ifdef	EXTRACHECK
+	if (key1 != key2 && streq((char *) key1, (char *) key2))
+	{
+		fprintf(stderr, "cake internal error: inconsistency in node_equal\n");
+		exit_cake(TRUE);
+	}
+#endif
+
+	return key1 == key2;
+}
+
+/**********************************************************************/
+/*	Command output table					      */
+
+#ifdef	STATS_FILE
+int	out_tried = 0;
+int	out_found = 0;
+#endif
+
+/*
+**	Save a command and its output.
+*/
+void
+new_out(cmd, output)
+reg	char	*cmd;
+reg	char	*output;
+{
+	reg	Out	*out;
+
+	out = make(Out);
+	out->o_cmd = cmd;
+	out->o_out = output;
+	insert_table(out_tab, out);
+}
+
+/*
+**	Return the output if any associated with a given command.
+*/
+
+char *
+get_out(cmd)
+reg	char	*cmd;
+{
+	reg	Out	*out;
+
+#ifdef	STATS_FILE
+	out_tried++;
+#endif
+
+	if ((out = (Out *) lookup_table(out_tab, cmd)) == NULL)
+		return NULL;
+
+#ifdef	STATS_FILE
+	out_found++;
+#endif
+
+	return out->o_out;
+}
+
+Cast
+out_key(entry)
+reg	Cast	entry;
+{
+	return (Cast) ((Out *) entry)->o_cmd;
+}
+
+bool
+out_equal(key1, key2)
+reg	Cast	key1, key2;
+{
+#ifdef	EXTRACHECK
+	if (key1 != key2 && streq((char *) key1, (char *) key2))
+	{
+		fprintf(stderr, "cake internal error: inconsistency in out_equal\n");
+		exit_cake(TRUE);
+	}
+#endif
+
+	return key1 == key2;
+}
+
+/**********************************************************************/
+/*	Command status table					      */
+
+#ifdef	STATS_FILE
+int	stat_tried = 0;
+int	stat_found = 0;
+#endif
+
+/*
+**	Save a command and its status.
+*/
+void
+new_stat(cmd, status)
+reg	char	*cmd;
+reg	int	status;
+{
+	reg	Stat	*stat;
+
+	stat = make(Stat);
+	stat->s_cmd  = cmd;
+	stat->s_stat = status;
+	insert_table(stat_tab, stat);
+}
+
+/*
+**	Return the status if any associated with a given command.
+*/
+
+bool
+get_stat(cmd, code)
+reg	char	*cmd;
+reg	int	*code;
+{
+	reg	Stat	*stat;
+
+#ifdef	STATS_FILE
+	stat_tried++;
+#endif
+
+	if ((stat = (Stat *) lookup_table(stat_tab, cmd)) == NULL)
+		return FALSE;
+
+#ifdef	STATS_FILE
+	stat_found++;
+#endif
+
+	*code = stat->s_stat;
+	return TRUE;
+}
+
+Cast
+stat_key(entry)
+reg	Cast	entry;
+{
+	return (Cast) ((Stat *) entry)->s_cmd;
+}
+
+bool
+stat_equal(key1, key2)
+reg	Cast	key1, key2;
+{
+#ifdef	EXTRACHECK
+	if (key1 != key2 && streq((char *) key1, (char *) key2))
+	{
+		fprintf(stderr, "cake internal error: inconsistency in stat_equal\n");
+		exit_cake(TRUE);
+	}
+#endif
+
+	return key1 == key2;
+}
+@
+
+
+11.2
+log
+@Added (void) declarations for IRIX 6 compiler.
+@
+text
+@d6 1
+a6 1
+rcs_id[] = "$Header: /m/cad/cake/RCS/sym.c,v 11.1 1995/01/05 06:00:10 mike Rel4_4 mike $";
+@
+
+
+11.2.14.1
+log
+@merge from head
+@
+text
+@d6 1
+a6 1
+rcs_id[] = "$Header: /cvs/brlcad/cake/sym.c,v 11.2 1997/05/22 16:57:55 mike Exp $";
+@
+
+
+11.1
+log
+@Release_4_4
+@
+text
+@d6 1
+a6 1
+rcs_id[] = "$Header: /m/cad/cake/RCS/sym.c,v 1.2 94/12/07 16:57:12 mike Exp $";
+d36 1
+d149 1
+a149 1
+
+d219 1
+a219 1
+
+@
+
+
+1.2
+log
+@GCC
+@
+text
+@d6 1
+a6 1
+rcs_id[] = "$Header: /m/cad/cake/RCS/sym.c,v 1.1 88/06/11 00:56:26 mike Original Locker: mike $";
+@
+
+
+1.1
+log
+@Original CAKE version from net.sources
+@
+text
+@d6 1
+a6 1
+rcs_id[] = "$Header: /mip/zs/src/sys/cake/RCS/sym.c,v 1.15 87/10/05 20:16:08 zs Exp $";
+d61 1
+a61 1
+	if ((old = lookup_table(name_tab, str)) != NULL)
+@

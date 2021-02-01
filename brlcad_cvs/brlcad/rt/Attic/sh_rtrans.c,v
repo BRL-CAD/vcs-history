@@ -1,0 +1,396 @@
+head	1.12;
+access;
+symbols
+	rel-4-5:1.10
+	ctj-4-5-post:1.9
+	ctj-4-5-pre:1.9;
+locks; strict;
+comment	@ * @;
+
+
+1.12
+date	98.09.22.01.43.11;	author mike;	state dead;
+branches;
+next	1.11;
+
+1.11
+date	98.06.30.22.54.18;	author mike;	state Exp;
+branches;
+next	1.10;
+
+1.10
+date	97.12.31.09.01.40;	author mike;	state Exp;
+branches;
+next	1.9;
+
+1.9
+date	97.05.14.13.14.55;	author jra;	state Exp;
+branches;
+next	1.8;
+
+1.8
+date	96.08.31.08.46.01;	author butler;	state Exp;
+branches;
+next	1.7;
+
+1.7
+date	96.08.31.08.29.28;	author butler;	state Exp;
+branches;
+next	1.6;
+
+1.6
+date	96.08.30.00.08.21;	author butler;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	96.05.07.19.26.36;	author jra;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	96.03.28.19.29.07;	author jra;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	95.12.12.14.41.36;	author jra;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	95.10.20.04.43.53;	author butler;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	95.08.24.14.56.11;	author jra;	state Exp;
+branches;
+next	;
+
+
+desc
+@Random Transparency shader (for use with stacker).
+@
+
+
+1.12
+log
+@Moved sh_*.c shaders from rt/ to liboptical/ directory.
+Moved and split rt/material.h into h/shadefuncs.h and h/shadework.h
+Changed calling sequence of mlib_setup() to get shader list head explicitly.
+Initialization of shader library is now via optical_shader_init().
+
+Note that the "proper" location of shade.c, material.c, and refract.c
+(presently in the rt/ directory) are a bit muddled, as they will be
+shared with libmultispectral/ shader functions, but aren't quite
+wholesome and pure yet.  To minimize impact to Lee's ongoing shader
+developments, they haven't been changed.
+@
+text
+@/*
+ *	S H _ R T R A N S . C
+ *
+ *	Random transparency shader. A random number from 0 to 1 is drawn
+ * for each pixel rendered. If the random number is less than the threshold
+ * value, the pixel is rendered as 100% transparent
+ */
+#include "conf.h"
+
+#include <stdio.h>
+#include <math.h>
+#include "machine.h"
+#include "vmath.h"
+#include "raytrace.h"
+#include "msr.h"
+#include "./material.h"
+#include "./mathtab.h"
+#include "./rdebug.h"
+
+#define RTRANS_MAGIC 0x4a6f686e
+struct rtrans_specific {
+	long	magic;
+	double	threshold;
+	struct msr_unif	*msr;
+};
+#define CK_RTRANS_SP(_p) RT_CKMAG(_p, RTRANS_MAGIC, "rtrans_specific")
+
+static struct rtrans_specific rtrans_defaults = {
+	RTRANS_MAGIC,
+	0.5,
+	(struct msr_unif *)NULL	};
+
+#define SHDR_NULL	((struct rtrans_specific *)0)
+#define SHDR_O(m)	offsetof(struct rtrans_specific, m)
+#define SHDR_AO(m)	offsetofarray(struct rtrans_specific, m)
+
+struct bu_structparse rtrans_parse[] = {
+	{"%f",  1, "threshold",		SHDR_O(threshold),		FUNC_NULL },
+	{"%f",  1, "t",			SHDR_O(threshold),		FUNC_NULL },
+	{"",	0, (char *)0,		0,			FUNC_NULL }
+};
+
+HIDDEN int	rtrans_setup(), rtrans_render();
+HIDDEN void	rtrans_print(), rtrans_free();
+
+struct mfuncs rtrans_mfuncs[] = {
+	{MF_MAGIC,	"rtrans",	0,		0,	0,
+	rtrans_setup,	rtrans_render,	rtrans_print,	rtrans_free },
+
+	{0,		(char *)0,	0,		0,	0,
+	0,		0,		0,		0 }
+};
+
+
+/*	R T R A N S _ S E T U P
+ *
+ *	This routine is called (at prep time)
+ *	once for each region which uses this shader.
+ *	Any shader-specific initialization should be done here.
+ */
+HIDDEN int
+rtrans_setup( rp, matparm, dpp, mfp, rtip)
+register struct region	*rp;
+struct rt_vls		*matparm;
+char			**dpp;	/* pointer to reg_udata in *rp */
+struct mfuncs		*mfp;
+struct rt_i		*rtip;	/* New since 4.4 release */
+{
+	register struct rtrans_specific	*rtrans_sp;
+	mat_t	tmp;
+
+	RT_CHECK_RTI(rtip);
+	RT_VLS_CHECK( matparm );
+	RT_CK_REGION(rp);
+	GETSTRUCT( rtrans_sp, rtrans_specific );
+	*dpp = (char *)rtrans_sp;
+
+	memcpy(rtrans_sp, &rtrans_defaults, sizeof(struct rtrans_specific) );
+
+	if( bu_struct_parse( matparm, rtrans_parse, (char *)rtrans_sp ) < 0 )
+		return(-1);
+
+	rtrans_sp->msr = msr_unif_init( 0, 0 );
+
+	if( rdebug&RDEBUG_SHADE)
+		bu_struct_print( rp->reg_name, rtrans_parse, (char *)rtrans_sp );
+
+	return(1);
+}
+
+/*
+ *	R T R A N S _ P R I N T
+ */
+HIDDEN void
+rtrans_print( rp, dp )
+register struct region *rp;
+char	*dp;
+{
+	bu_struct_print( rp->reg_name, rtrans_parse, (char *)dp );
+}
+
+/*
+ *	R T R A N S _ F R E E
+ */
+HIDDEN void
+rtrans_free( cp )
+char *cp;
+{
+	rt_free( cp, "rtrans_specific" );
+}
+
+/*
+ *	R T R A N S _ R E N D E R
+ *
+ *	This is called (from viewshade() in shade.c)
+ *	once for each hit point to be shaded.
+ */
+int
+rtrans_render( ap, pp, swp, dp )
+struct application	*ap;
+struct partition	*pp;
+struct shadework	*swp;
+char	*dp;
+{
+	register struct rtrans_specific *rtrans_sp =
+		(struct rtrans_specific *)dp;
+	point_t pt;
+
+	RT_AP_CHECK(ap);
+	RT_CHECK_PT(pp);
+	CK_RTRANS_SP(rtrans_sp);
+
+	if( rdebug&RDEBUG_SHADE)
+		bu_struct_print( "random transparency", rtrans_parse, (char *)rtrans_sp );
+
+	if( rtrans_sp->threshold >= 1.0 ||
+	    0.5 + MSR_UNIF_DOUBLE( rtrans_sp->msr ) < rtrans_sp->threshold )
+	{
+		swp->sw_transmit = 1.0;
+		swp->sw_reflect = 0.0;
+		swp->sw_refrac_index = 1.0;
+		VSETALL( swp->sw_basecolor, 1.0 );
+
+		if( swp->sw_reflect > 0 || swp->sw_transmit > 0 )
+			(void)rr_render( ap, pp, swp );
+	}
+
+	return(1);
+}
+@
+
+
+1.11
+log
+@Can't make "struct mfuncs" a CONST, because the forward link needs
+to be filled in at runtime, and some compilers put CONST data into
+read-only pages (like FreeBSD).
+@
+text
+@@
+
+
+1.10
+log
+@Required magic number to be first in mfunc table,
+consistent with all other BRL-CAD magic numbers.
+Required magic number to be initialized at compile time.
+Added code to check the magic numbers.
+Made the xxx_mfunc arrays CONST, so they can't get trashed by
+runtime runaway pointer problems.
+@
+text
+@d46 1
+a46 1
+CONST struct mfuncs rtrans_mfuncs[] = {
+@
+
+
+1.9
+log
+@Added some comments.
+@
+text
+@d46 2
+a47 2
+struct mfuncs rtrans_mfuncs[] = {
+	{"rtrans",	0,	0,		0,	0,
+d50 1
+a50 1
+	{(char *)0,	0,		0,		0,	0,
+@
+
+
+1.8
+log
+@bu_struct_print
+@
+text
+@d4 3
+@
+
+
+1.7
+log
+@bu_struct_parse
+@
+text
+@d83 1
+a83 1
+		bu_structprint( rp->reg_name, rtrans_parse, (char *)rtrans_sp );
+d96 1
+a96 1
+	bu_structprint( rp->reg_name, rtrans_parse, (char *)dp );
+d131 1
+a131 1
+		bu_structprint( "random transparency", rtrans_parse, (char *)rtrans_sp );
+@
+
+
+1.6
+log
+@structparse moved to libbu
+@
+text
+@d77 1
+a77 1
+	if( bu_structparse( matparm, rtrans_parse, (char *)rtrans_sp ) < 0 )
+@
+
+
+1.5
+log
+@Individual shaders now call rr_render() directly.
+@
+text
+@d34 1
+a34 1
+struct structparse rtrans_parse[] = {
+d77 1
+a77 1
+	if( rt_structparse( matparm, rtrans_parse, (char *)rtrans_sp ) < 0 )
+d83 1
+a83 1
+		rt_structprint( rp->reg_name, rtrans_parse, (char *)rtrans_sp );
+d96 1
+a96 1
+	rt_structprint( rp->reg_name, rtrans_parse, (char *)dp );
+d131 1
+a131 1
+		rt_structprint( "random transparency", rtrans_parse, (char *)rtrans_sp );
+@
+
+
+1.4
+log
+@Eliminated srand48.
+@
+text
+@d140 3
+@
+
+
+1.3
+log
+@Set sw_reflect and sw_refrac_index in renderer.
+@
+text
+@d12 1
+a16 1
+
+d21 1
+d27 2
+a28 1
+	0.5	};
+a41 1
+double		drand48();
+d80 1
+a80 1
+	srand48( (long)137 );
+d133 2
+a134 1
+	if( rtrans_sp->threshold >= 1.0 || drand48() < rtrans_sp->threshold )
+@
+
+
+1.2
+log
+@edited mfuncs table to account for new "mf_flags" element in struct mfuncs.
+@
+text
+@d135 2
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d43 1
+a43 1
+	{"rtrans",	0,	0,		0,
+d46 1
+a46 1
+	{(char *)0,	0,		0,		0,
+@

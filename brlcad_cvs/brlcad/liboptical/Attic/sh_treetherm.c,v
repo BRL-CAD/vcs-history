@@ -1,0 +1,1461 @@
+head	11.22;
+access;
+symbols
+	ansi-20040405-merged:11.19.2.1
+	postmerge-20040405-ansi:11.20
+	premerge-20040404-ansi:11.19
+	postmerge-autoconf:11.19
+	autoconf-freeze:11.19
+	premerge-autoconf:11.19
+	ansi-20040316-freeze:11.19.2.1
+	postmerge-20040315-windows:11.19
+	premerge-20040315-windows:11.19
+	windows-20040315-freeze:11.19
+	autoconf-20031203:11.19
+	autoconf-20031202:11.19
+	autoconf-branch:11.19.0.10
+	phong-branch:11.19.0.8
+	photonmap-branch:11.19.0.6
+	rel-6-1-DP:11.19
+	windows-branch:11.19.0.4
+	rel-6-0-2:11.17
+	ansi-branch:11.19.0.2
+	rel-6-0-1-branch:11.17.0.2
+	hartley-6-0-post:11.18
+	hartley-6-0-pre:11.17
+	rel-6-0-1:11.17
+	rel-6-0:11.17
+	rel-5-4:11.12
+	offsite-5-3-pre:11.16
+	rel-5-3:11.12
+	rel-5-2:11.12
+	rel-5-1-branch:11.12.0.2
+	rel-5-1:11.12
+	rel-5-0:11.4
+	rel-5-0-beta:11.2;
+locks; strict;
+comment	@ * @;
+
+
+11.22
+date	2004.05.21.18.07.28;	author morrison;	state dead;
+branches;
+next	11.21;
+
+11.21
+date	2004.05.10.15.30.45;	author erikg;	state Exp;
+branches;
+next	11.20;
+
+11.20
+date	2004.04.05.07.43.37;	author morrison;	state Exp;
+branches;
+next	11.19;
+
+11.19
+date	2002.08.20.17.07.52;	author jra;	state Exp;
+branches
+	11.19.2.1;
+next	11.18;
+
+11.18
+date	2002.08.15.20.55.05;	author hartley;	state Exp;
+branches;
+next	11.17;
+
+11.17
+date	2001.10.17.07.40.03;	author morrison;	state Exp;
+branches;
+next	11.16;
+
+11.16
+date	2000.09.09.04.30.52;	author mike;	state Exp;
+branches;
+next	11.15;
+
+11.15
+date	2000.08.23.05.09.08;	author butler;	state Exp;
+branches;
+next	11.14;
+
+11.14
+date	2000.08.20.00.44.47;	author butler;	state Exp;
+branches;
+next	11.13;
+
+11.13
+date	2000.07.25.16.40.38;	author butler;	state Exp;
+branches;
+next	11.12;
+
+11.12
+date	2000.04.24.20.37.45;	author butler;	state Exp;
+branches;
+next	11.11;
+
+11.11
+date	2000.04.24.20.00.17;	author butler;	state Exp;
+branches;
+next	11.10;
+
+11.10
+date	2000.02.19.21.05.02;	author butler;	state Exp;
+branches;
+next	11.9;
+
+11.9
+date	2000.01.21.21.43.35;	author butler;	state Exp;
+branches;
+next	11.8;
+
+11.8
+date	2000.01.14.20.07.36;	author butler;	state Exp;
+branches;
+next	11.7;
+
+11.7
+date	99.12.16.19.31.40;	author butler;	state Exp;
+branches;
+next	11.6;
+
+11.6
+date	99.12.16.19.03.57;	author butler;	state Exp;
+branches;
+next	11.5;
+
+11.5
+date	99.10.30.03.06.25;	author butler;	state Exp;
+branches;
+next	11.4;
+
+11.4
+date	99.07.02.22.20.42;	author mike;	state Exp;
+branches;
+next	11.3;
+
+11.3
+date	99.07.01.20.08.49;	author mike;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	99.05.08.00.16.35;	author mike;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	99.02.19.03.38.11;	author butler;	state Exp;
+branches;
+next	;
+
+11.19.2.1
+date	2002.09.19.18.01.26;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+11.22
+log
+@moved to src/
+@
+text
+@/*
+ *	S H _ T R E E T H E R M . C
+ *
+ */
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <math.h>
+#include "machine.h"
+#include "vmath.h"
+#include "raytrace.h"
+#include "shadefuncs.h"
+#include "shadework.h"
+#include "rtprivate.h"
+#include "rtgeom.h"
+
+#define tthrm_MAGIC 0x7468726d	/* 'thrm' */
+#define CK_tthrm_SP(_p) BU_CKMAG(_p, tthrm_MAGIC, "tthrm_specific")
+
+
+/*
+ * The thermal data file starts with a long indicating the number of
+ * "cylinder" structures that follow.  The cyliner structure consists
+ * of 18 bytes in 5 entries.  First is a 2 byte short integer indicating the 
+ * number of "segments" that follow.  Max Lorenzo promises this value is 
+ * always "1".  A segment consists of n tuples.  Max Lorenzo promises that
+ * "n" is always 8 (it's a compile-time option to treetherm).  Each tuple 
+ * consists of 4 (4-byte) float values: x, y, z, temperature.  
+ *
+ * Because there is always 1 segment, the cylinder is a constant 130 bytes.
+ *
+ * So the file looks like:
+ *
+ *	long	#_of_cyls		# Beware:  may be 4 or 8 bytes!!!!
+ *
+ *	short	segs	(always 1)	# 2 bytes
+ *	float	x,y,z,temperature	# 4 X 4 = 16 bytes
+ *	float	x,y,z,temperature	# 4 X 4 = 16 bytes
+ *	float	x,y,z,temperature	# 4 X 4 = 16 bytes
+ *	float	x,y,z,temperature	# 4 X 4 = 16 bytes
+ *	float	x,y,z,temperature	# 4 X 4 = 16 bytes
+ *	float	x,y,z,temperature	# 4 X 4 = 16 bytes
+ *	float	x,y,z,temperature	# 4 X 4 = 16 bytes
+ *	float	x,y,z,temperature	# 4 X 4 = 16 bytes
+ *
+ *	short	segs	(always 1)
+ *	float	x,y,z,temperature
+ *	float	x,y,z,temperature
+ *	float	x,y,z,temperature
+ *	float	x,y,z,temperature
+ *	float	x,y,z,temperature
+ *	float	x,y,z,temperature
+ *	float	x,y,z,temperature
+ *	float	x,y,z,temperature
+ *
+ *	.
+ *	.
+ *	.
+ *	.
+ */
+/* return byte offset into file of "float x" in n'th cyl structure */
+
+
+struct branch_seg {
+	struct bu_list		bs_siblings;
+	struct branch_seg	*bs_next;	/* toward leaves/ends/tips */
+	struct branch_seg	*bs_prev;	/* toward root/source */
+
+	point_t			bs_start;	/* location of segment start */
+	vect_t			bs_dir;		/* direction of segment */
+	double			bs_length;	/* length of segment */
+	double			bs_sradius;	/* start radius */
+	double			bs_eradius;	/* end radius */
+	double			bs_dist;	/* total distance from root */
+	float			*bs_nodes[4];	/* point+temp for nodes */
+};
+
+
+#define NUM_NODES 8
+#define THRM_SEG_MAGIC 246127
+#define CK_THRM_SEG(_p) BU_CKMAG(_p, THRM_SEG_MAGIC, "thrm_seg")
+struct thrm_seg {
+	long	magic;
+	float	pt[3];			/* center point of nodes */
+	float	dir[3];
+	float	node[NUM_NODES][3];	/* vectors from center to each node */
+	float	vect[NUM_NODES][3];	/* vectors from center to each node */
+	float	temperature[NUM_NODES]; /* temperature from treetherm file */
+};
+
+/*
+ * the shader specific structure contains all variables which are unique
+ * to any particular use of the shader.
+ */
+struct tthrm_specific {
+	long			magic;	
+	char			tt_name[64];
+	long			tt_max_seg;
+	fastf_t			tt_min_temp;
+	fastf_t			tt_max_temp;
+	float			tt_temp_scale;
+	struct bu_list		*tt_br;
+	struct thrm_seg		*tt_segs;
+	mat_t	tthrm_m_to_sh;	/* model to shader space matrix */
+};
+
+
+
+/* The default values for the variables in the shader specific structure */
+#define SHDR_NULL	((struct tthrm_specific *)0)
+#define SHDR_O(m)	offsetof(struct tthrm_specific, m)
+#define SHDR_AO(m)	bu_offsetofarray(struct tthrm_specific, m)
+
+
+/* description of how to parse/print the arguments to the shader
+ * There is at least one line here for each variable in the shader specific
+ * structure above
+ */
+struct bu_structparse tthrm_parse[] = {
+	{"%f",	1, "l",			SHDR_O(tt_min_temp),	BU_STRUCTPARSE_FUNC_NULL },
+	{"%f",	1, "h", 		SHDR_O(tt_max_temp),	BU_STRUCTPARSE_FUNC_NULL },
+	{"%s",	64, "file",		SHDR_O(tt_name),	BU_STRUCTPARSE_FUNC_NULL },
+	{"",	0, (char *)0,		0,			BU_STRUCTPARSE_FUNC_NULL }
+};
+
+HIDDEN int	tthrm_setup(register struct region *rp, struct bu_vls *matparm, char **dpp, struct mfuncs *mfp, struct rt_i *rtip), tthrm_render(struct application *ap, struct partition *pp, struct shadework *swp, char *dp);
+HIDDEN void	tthrm_print(register struct region *rp, char *dp), tthrm_free(char *cp);
+
+/* The "mfuncs" structure defines the external interface to the shader.
+ * Note that more than one shader "name" can be associated with a given
+ * shader by defining more than one mfuncs struct in this array.
+ * See sh_phong.c for an example of building more than one shader "name"
+ * from a set of source functions.  There you will find that "glass" "mirror"
+ * and "plastic" are all names for the same shader with different default
+ * values for the parameters.
+ */
+struct mfuncs tthrm_mfuncs[] = {
+	{MF_MAGIC,	"tthrm",		0,		MFI_NORMAL|MFI_HIT|MFI_UV,	0,
+	tthrm_setup,	tthrm_render,	tthrm_print,	tthrm_free },
+
+	{0,		(char *)0,	0,		0,		0,
+	0,		0,		0,		0 }
+};
+void
+print_thrm_seg(struct thrm_seg *ts)
+{
+	int i;
+	CK_THRM_SEG(ts);
+
+	bu_log("Thermal cylinder\n");
+	bu_log("Center: (%g %g %g)\n", V3ARGS(ts->pt));
+	bu_log("   dir: (%g %g %g)\n", V3ARGS(ts->dir));
+	bu_log(" Nodes:\n");
+	for (i=0 ; i < NUM_NODES ; i++) {
+
+		bu_log("\t(%g %g %g) %17.14e  (%g %g %g)\n",
+			V3ARGS(ts->node[i]),
+			ts->temperature[i],
+			V3ARGS(ts->vect[i])
+			);
+	}
+}
+
+
+void
+tree_parse(struct bu_list *br, union tree *tr)
+{
+	switch (tr->tr_b.tb_op) {
+		case OP_SOLID: break;
+		case OP_UNION: break;
+		case OP_INTERSECT: break;
+		case OP_SUBTRACT: break;
+		case OP_XOR: break;
+		case OP_REGION: break;
+		case OP_NOP: break;
+/* Internal to library routines */
+		case OP_NOT: break;
+		case OP_GUARD: break;
+		case OP_XNOP: break;
+		case OP_NMG_TESS: break;
+/* LIBWDB import/export interface to combinations */
+		case OP_DB_LEAF: break;
+	}
+
+}
+
+void
+build_tree(struct bu_list *br, struct region *rp)
+{
+	tree_parse(br, rp->reg_treetop);
+}
+
+
+/*	T R E E T H E R M _ S E T U P
+ *
+ *	This routine is called (at prep time)
+ *	once for each region which uses this shader.
+ *	Any shader-specific initialization should be done here.
+ */
+HIDDEN int
+tthrm_setup(register struct region *rp, struct bu_vls *matparm, char **dpp, struct mfuncs *mfp, struct rt_i *rtip)
+                      	    
+             		         
+    			      	/* pointer to reg_udata in *rp */
+             		     
+           		      	/* New since 4.4 release */
+{
+	register struct tthrm_specific	*tthrm_sp;
+	struct bu_mapped_file	*tt_file;
+	char			*tt_data;
+	long			cyl_tot = 0;
+	long			tseg;
+	float			*fp;
+	float			fv[4];
+	double			min_temp;
+	double			max_temp;
+	point_t			center;
+	point_t			pt;
+	vect_t			dir;
+	static const double	inv_nodes = 1.0/8.0;
+	int			node;
+	int			i;
+	int			long_size = 0;
+	int			file_size_long;
+	int			file_size_int;
+
+	/* check the arguments */
+	RT_CHECK_RTI(rtip);
+	BU_CK_VLS( matparm );
+	RT_CK_REGION(rp);
+
+	if (rdebug&RDEBUG_SHADE)
+		bu_log("tthrm_setup(Region:\"%s\", tthrm(%s))\n",
+			rp->reg_name, bu_vls_addr(matparm));
+
+	/* Get memory for the shader parameters and shader-specific data */
+	BU_GETSTRUCT( tthrm_sp, tthrm_specific );
+	*dpp = (char *)tthrm_sp;
+	tthrm_sp->magic = tthrm_MAGIC;
+
+	tthrm_sp->tt_name[0] = '\0';
+	tthrm_sp->tt_min_temp = tthrm_sp->tt_max_temp = 0.0;
+
+	if (rdebug&RDEBUG_SHADE)
+		bu_log("Parsing: (%s)\n", bu_vls_addr(matparm));
+
+	if (bu_struct_parse( matparm, tthrm_parse, (char *)tthrm_sp ) < 0 ) {
+		bu_bomb(__FILE__);
+	}
+	if (tthrm_sp->tt_name[0] == '\0') {
+		bu_log("Must specify file for tthrm shader on %s (got \"%s\"\n",
+		       rp->reg_name, bu_vls_addr(matparm));
+		bu_bomb(__FILE__);
+	}
+
+	tt_file = bu_open_mapped_file( tthrm_sp->tt_name, (char *)NULL);
+	if (!tt_file) {
+		bu_log("Error mapping \"%s\"\n",  tthrm_sp->tt_name);
+		bu_bomb("shader tthrm: can't get thermal data");
+	}
+	tt_data = tt_file->buf;
+
+
+	if (rdebug&RDEBUG_SHADE)
+		bu_log("tthrm_setup() data: %08lx total\n",
+			(unsigned long)tt_data);
+
+	/* Compute how big the file should be, so that we can guess
+	 * at the size of the integer at the front of the file
+	 */
+	file_size_int = sizeof(int) + *((int *)tt_data) * 
+		(sizeof(short) + sizeof(float) * 4 * NUM_NODES);
+
+	file_size_long = sizeof(long) + *((long *)tt_data) * 
+		(sizeof(short) + sizeof(float) * 4 * NUM_NODES);
+
+	switch (sizeof(long)) {
+	case 8:
+		if (tt_file->buflen == file_size_long) {
+			/* 64bit data on 64bit host */
+			long_size = sizeof(long);
+			tthrm_sp->tt_max_seg = cyl_tot = *((long *)tt_data);
+		} else if (tt_file->buflen == file_size_int) {
+			/* 32bit data on 32bit host */
+			long_size = sizeof(int);
+			tthrm_sp->tt_max_seg = cyl_tot = *((int *)tt_data);
+		}
+		break;
+	case 4:
+		if (tt_file->buflen == file_size_long) {
+			/* 32bit data on 32bit host */
+			long_size = sizeof(long);
+			tthrm_sp->tt_max_seg = cyl_tot = *((long *)tt_data);
+		} else if (tt_file->buflen == (file_size_long+4)) {
+			/* 64bit data on 32bit host */
+
+			cyl_tot = *((int *)tt_data);
+			if (cyl_tot != 0) {
+				bu_log("%s:%d thermal data written on 64bit machine with more that 2^32 segs\n", __FILE__, __LINE__);
+				bu_bomb("");
+			}
+
+			long_size = sizeof(long) + 4;
+			tthrm_sp->tt_max_seg = cyl_tot = 
+				((int *)tt_data)[1];
+		}
+		break;
+	default:
+		bu_log("a long int is %d bytes on this machine\n", sizeof(long));
+		bu_bomb("I can only handle 4 or 8 byte longs\n");
+		break;
+	}
+
+	if (rdebug&RDEBUG_SHADE)
+		bu_log("cyl_tot = %ld\n", cyl_tot);
+
+	tthrm_sp->tt_segs = (struct thrm_seg *)
+		bu_calloc(cyl_tot, sizeof(struct thrm_seg), "thermal segs");
+
+	min_temp = MAX_FASTF;
+	max_temp = -MAX_FASTF;
+
+#define CYL_DATA(_n) ((float *) (&tt_data[ \
+	 long_size + \
+	(_n) * (sizeof(short) + sizeof(float) * 4 * NUM_NODES) + \
+	sizeof(short) \
+	] ))
+
+	for (tseg = 0 ; tseg < cyl_tot ; tseg++) {
+
+		/* compute centerpoint, min/max temperature values */
+		fp = CYL_DATA(tseg);
+		VSETALL(center, 0.0);
+		for (node=0 ; node < NUM_NODES ; node++, fp+=4) {
+			/* this is necessary to assure that all float
+			 * values are aligned on 4-byte boundaries
+			 */
+			memcpy(fv, fp, sizeof(float)*4);
+
+			if (rdebug&RDEBUG_SHADE)
+			    bu_log("tthrm_setup() node %d (%g %g %g) %g\n",
+					node, fv[0], fv[1], fv[2], fv[3]);
+
+			/* make sure we don't have any "infinity" values */
+			for (i=0 ; i < 4 ; i++) {
+				if (fv[i] > MAX_FASTF || fv[i] < -MAX_FASTF) {
+					bu_log("%s:%d seg %d node %d coord %d out of bounds: %g\n",
+						__FILE__, __LINE__, tseg, node, i, fv[i]);
+					bu_bomb("choke, gasp, *croak*\n");
+				}
+			}
+
+			/* copy the values to the segment list, converting
+			 * from Meters to Millimeters in the process
+			 */
+			VSCALE(tthrm_sp->tt_segs[tseg].node[node], fv, 1000.0);
+			tthrm_sp->tt_segs[tseg].temperature[node] = fv[3];
+
+			VADD2(center, center, fv);
+
+			if (fv[3] > max_temp) max_temp = fv[3];
+			if (fv[3] < min_temp) min_temp = fv[3];
+		}
+
+		VSCALE(center, center, 1000.0);
+		VSCALE(tthrm_sp->tt_segs[tseg].pt, center, inv_nodes);
+
+		if (rdebug&RDEBUG_SHADE) {
+			bu_log("Center: (%g %g %g) (now in mm, not m)\n", 
+					V3ARGS(tthrm_sp->tt_segs[tseg].pt));
+		}
+
+		/* compute vectors from center pt for each node */
+		fp = CYL_DATA(tseg);
+		for (node=0 ; node < NUM_NODES ; node++, fp+=4) {
+			/* this is necessary to assure that all float
+			 * values are aligned on 4-byte boundaries
+			 */
+			memcpy(fv, fp, sizeof(float)*4);
+
+			VSCALE(pt, fv, 1000.0);
+			VSUB2(tthrm_sp->tt_segs[tseg].vect[node],
+				pt,
+				tthrm_sp->tt_segs[tseg].pt
+				);
+		}
+
+		/* compute a direction vector for the thermal segment */
+		VCROSS(dir, tthrm_sp->tt_segs[tseg].vect[0],
+				 tthrm_sp->tt_segs[tseg].vect[2]);
+		VUNITIZE(dir);
+		VMOVE(tthrm_sp->tt_segs[tseg].dir, dir);
+		tthrm_sp->tt_segs[tseg].magic = THRM_SEG_MAGIC;
+	}
+
+	bu_close_mapped_file(tt_file);
+
+	if (tthrm_sp->tt_min_temp == 0.0 && tthrm_sp->tt_max_temp == 0.0 ) {
+		tthrm_sp->tt_min_temp = min_temp;
+		tthrm_sp->tt_max_temp = max_temp;
+		bu_log("computed temp min/max on %s: %g/%g\n", rp->reg_name, min_temp, max_temp);
+	} else {
+		min_temp =tthrm_sp->tt_min_temp;
+		max_temp = tthrm_sp->tt_max_temp;
+		bu_log("taking user specified on %s: min/max %g/%g\n", rp->reg_name, min_temp, max_temp);
+	}
+
+	if (max_temp != min_temp) {
+		tthrm_sp->tt_temp_scale = 1.0 / (max_temp - min_temp);
+	} else {
+		/* min and max are equal, maybe zero */
+		if (NEAR_ZERO(max_temp, SQRT_SMALL_FASTF))
+			tthrm_sp->tt_temp_scale = 0.0;
+		else
+			tthrm_sp->tt_temp_scale = 255.0/max_temp;
+	}
+	/* The shader needs to operate in a coordinate system which stays
+	 * fixed on the region when the region is moved (as in animation)
+	 * we need to get a matrix to perform the appropriate transform(s).
+	 *
+	 * Shading is done in "region coordinates":
+	 */
+	db_region_mat(tthrm_sp->tthrm_m_to_sh, rtip->rti_dbip, rp->reg_name, &rt_uniresource);
+
+	if (rdebug&RDEBUG_SHADE) {
+		bu_log("min_temp: %17.14e  max_temp %17.14e temp_scale: %17.14e\n",
+			tthrm_sp->tt_min_temp, 
+			tthrm_sp->tt_max_temp, 
+			tthrm_sp->tt_temp_scale);
+
+		bu_log("tthrm_setup(%s, %s)done\n",
+			rp->reg_name, bu_vls_addr(matparm));
+		tthrm_print(rp, *dpp);
+	}
+
+	return(1);
+}
+
+/*
+ *	T R E E T H E R M _ P R I N T
+ */
+HIDDEN void
+tthrm_print(register struct region *rp, char *dp)
+{
+	struct tthrm_specific *tthrm_sp = (struct tthrm_specific *)dp;
+
+	bu_log("%s\n", tthrm_sp->tt_name);
+	bn_mat_print( "m_to_sh", tthrm_sp->tthrm_m_to_sh );
+#if 0
+	bu_struct_print( rp->reg_name, tthrm_print_tab, (char *)dp );
+#endif
+}
+
+/*
+ *	T R E E T H E R M _ F R E E
+ */
+HIDDEN void
+tthrm_free(char *cp)
+{
+	struct tthrm_specific *tthrm_sp = (struct tthrm_specific *)cp;
+
+	bu_free(tthrm_sp->tt_segs, "thermal segs");
+	bu_free(tthrm_sp->tt_name, "bu_vls_strdup");
+
+	tthrm_sp->tt_segs = (struct thrm_seg *)NULL;
+	tthrm_sp->tt_name[0] = '\0';
+	tthrm_sp->magic = 0;
+
+	bu_free( cp, "tthrm_specific" );
+}
+
+/*
+ * God help us, we've got to extract the node number from the name
+ * of the solid that was hit.
+ */
+static int
+get_solid_number(struct partition *pp)
+{
+	char *solid_name;
+	char *solid_digits;
+
+	solid_name = pp->pt_inseg->seg_stp->st_dp->d_namep;
+
+	if (pp->pt_inseg->seg_stp->st_id != ID_PARTICLE) {
+		bu_log("%s:%d solid named %s isn't a particle\n",
+			__FILE__, __LINE__, solid_name);
+		bu_bomb("Choke! ack! gasp! wheeeeeeze.\n");
+	}
+
+	if (! (solid_digits=strrchr(solid_name, (int)'_'))) {
+		bu_log("%s:%d solid name %s doesn't have '_'\n",
+			__FILE__, __LINE__, solid_name);
+		bu_bomb("Choke! ack! gasp! wheeeeeeze.\n");
+	}
+
+	solid_digits++;
+
+	if (! strlen(solid_digits)) {
+		bu_log("%s:%d solid name %s doesn't have digits after '_'\n",
+			__FILE__, __LINE__, solid_name);
+		bu_bomb("Choke! ack! gasp! wheeeeeeze.\n");
+	}
+
+	return atoi(solid_digits);
+}
+
+/*
+ *	T R E E T H E R M _ R E N D E R
+ *
+ *	This is called (from viewshade() in shade.c) once for each hit point
+ *	to be shaded.  The purpose here is to fill in values in the shadework
+ *	structure.
+ */
+int
+tthrm_render(struct application *ap, struct partition *pp, struct shadework *swp, char *dp)
+                  	    
+                	    
+                	     	/* defined in material.h */
+    			    	/* ptr to the shader-specific struct */
+{
+	register struct tthrm_specific *tthrm_sp =
+		(struct tthrm_specific *)dp;
+	struct rt_part_internal *part_p;
+
+	point_t pt;
+	vect_t pt_v;
+	vect_t v;
+	int   solid_number;
+	struct thrm_seg *thrm_seg;
+	int	best_idx;
+	double	best_val;
+	double	Vdot;
+	int node;
+
+	/* check the validity of the arguments we got */
+	RT_AP_CHECK(ap);
+	RT_CHECK_PT(pp);
+	CK_tthrm_SP(tthrm_sp);
+
+	/* We are performing the shading in "region" space.  We must 
+	 * transform the hit point from "model" space to "region" space.
+	 * See the call to db_region_mat in tthrm_setup().
+	 */
+	MAT4X3PNT(pt, tthrm_sp->tthrm_m_to_sh, swp->sw_hit.hit_point);
+
+	if (rdebug&RDEBUG_SHADE)
+		bu_log( "tthrm_render(%s, %g %g %g)\n", tthrm_sp->tt_name,
+			V3ARGS(pt));
+
+
+	solid_number = get_solid_number(pp);
+
+	if (solid_number > tthrm_sp->tt_max_seg ) {
+		bu_log("%s:%d solid name %s has solid number higher than %ld\n",
+			__FILE__, __LINE__, tthrm_sp->tt_max_seg);
+		bu_bomb("Choke! ack! gasp! wheeeeeeze.\n");
+	}
+
+	thrm_seg = &tthrm_sp->tt_segs[solid_number];
+	CK_THRM_SEG(thrm_seg);
+
+
+
+	/* Extract the solid parameters for the particle we hit,
+	 * Compare them to the values for the node extracted.  If they
+	 * don't match, then we probably have a mis-match between the
+	 * geometry and the treetherm output files.
+	 */
+	if (pp->pt_inseg->seg_stp->st_id != ID_PARTICLE) {
+		bu_log("%d != ID_PART\n", pp->pt_inseg->seg_stp->st_id);
+		bu_bomb("");
+	}
+	part_p = (struct rt_part_internal *)pp->pt_inseg->seg_stp->st_specific;
+	RT_PART_CK_MAGIC(part_p);
+	VSUB2(v, part_p->part_V, thrm_seg->pt);
+	if (MAGSQ(v) > 100.0) {
+		double dist;
+		dist = MAGNITUDE(v);
+		/* Distance between particle origin and centroid of themal 
+		 * segment nodes is > 10.0mm (1cm).  This suggests that
+		 * they aren't related
+		 */
+		bu_log(
+"----------------------------- W A R N I N G -----------------------------\n\
+%s:%d distance %g between origin of particle and thermal node centroid is\n\
+too large.  Probable mis-match between geometry and thermal data\n"
+			__FILE__, __LINE__, dist);
+		bu_bomb("");
+	}
+
+
+	if (rdebug&RDEBUG_SHADE) {
+		vect_t unit_H;
+		VMOVE(unit_H, part_p->part_H);
+		VUNITIZE(unit_H);
+
+		bu_log("particle rooted at:\n\t(%g %g %g) radius %g\n\tdir: (%g %g %g) (%g %g %g)\n",
+			V3ARGS(part_p->part_V), part_p->part_vrad, 
+			V3ARGS(unit_H),
+			V3ARGS(part_p->part_H));
+
+		print_thrm_seg(thrm_seg);
+	}
+
+	/* form vector from node center to hit point */
+	VSUB2(pt_v, pt, thrm_seg->pt);
+
+	/* The output of treetherm is much too imprecise.  Computed centroid
+	 * from truncated floating point values is off.   We'll try to 
+	 * compensate by doing a double-vector-cross product to get a vector
+	 * for our point that is in the plane of the thermal node.
+	 */
+	VUNITIZE(pt_v);
+	VCROSS(v, pt_v, thrm_seg->dir);
+
+	VUNITIZE(v);
+	VCROSS(pt_v, thrm_seg->dir, v);
+
+	VUNITIZE(pt_v);
+
+	/* find closest node to hit point by comparing the vectors for the
+	 * thermal nodes with the vector for the hit point in the plane
+	 * of the nodes
+	 */
+	best_idx = -1;
+	best_val = -2.0;
+
+	for (node=0 ; node < NUM_NODES ; node++) {
+		Vdot = VDOT(pt_v, thrm_seg->vect[node]);
+		if (Vdot > best_val) {
+			best_idx = node;
+			best_val = Vdot;
+		}
+	}
+
+
+	/* set color to temperature */
+	swp->sw_temperature = thrm_seg->temperature[best_idx];
+	best_val = (thrm_seg->temperature[best_idx] - 
+		    tthrm_sp->tt_min_temp) * tthrm_sp->tt_temp_scale;
+
+	/* We do non-grayscale to indicate values 
+	 * outside the range specified
+	 */
+	if (best_val > 1.0) {
+		/* hotter than maximum */
+		best_val -= 1.0;
+		if (best_val > 1.0) best_val = 1.0;
+		VSET(swp->sw_color, 1.0, best_val, 0.03921568);
+	} else if (best_val < 0.0) {
+		/* Colder than minimum */
+		best_val += 2.0;
+		if (best_val < 0.0) best_val = 0.0;
+
+		VSET(swp->sw_color, 0.03921568, best_val, 1.0);
+	} else {
+		VSET(swp->sw_color, best_val, best_val, best_val);
+	}
+
+	if (rdebug&RDEBUG_SHADE) {
+		bu_log("closest point is: (%g %g %g) temp: %17.14e\n",
+			V3ARGS(thrm_seg->node[best_idx]),
+			thrm_seg->temperature[best_idx]);
+
+		bu_log("min_temp: %17.14e  max_temp %17.14e temp_scale: %17.14e\n",
+			tthrm_sp->tt_min_temp, 
+			tthrm_sp->tt_max_temp, 
+			tthrm_sp->tt_temp_scale);
+
+		bu_log("color: %g (%g)\n", best_val, best_val * 255.0);
+	}
+
+
+	if (rdebug&RDEBUG_SHADE) {
+		bu_log("tthrm_render()\n\t  model:(%g %g %g)\n\t shader:(%g %g %g)\n", 
+		V3ARGS(swp->sw_hit.hit_point),
+		V3ARGS(pt) );
+	}
+	return(1);
+}
+@
+
+
+11.21
+log
+@change conf.h to a wrapped config.h
+@
+text
+@@
+
+
+11.20
+log
+@merge of ansi-6-0-branch into HEAD
+@
+text
+@d5 5
+a9 1
+#include "conf.h"
+@
+
+
+11.19
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d128 2
+a129 2
+HIDDEN int	tthrm_setup(), tthrm_render();
+HIDDEN void	tthrm_print(), tthrm_free();
+d147 1
+a147 2
+print_thrm_seg(ts)
+struct thrm_seg *ts;
+d168 1
+a168 3
+tree_parse(br, tr)
+struct bu_list *br;
+union tree *tr;
+d190 1
+a190 3
+build_tree(br, rp)
+struct bu_list *br;
+struct region *rp;
+d203 6
+a208 6
+tthrm_setup( rp, matparm, dpp, mfp, rtip)
+register struct region	*rp;
+struct bu_vls		*matparm;
+char			**dpp;	/* pointer to reg_udata in *rp */
+struct mfuncs		*mfp;
+struct rt_i		*rtip;	/* New since 4.4 release */
+d445 1
+a445 3
+tthrm_print( rp, dp )
+register struct region *rp;
+char	*dp;
+d460 1
+a460 2
+tthrm_free( cp )
+char *cp;
+d479 1
+a479 2
+get_solid_number(pp)
+struct partition	*pp;
+d517 5
+a521 5
+tthrm_render( ap, pp, swp, dp )
+struct application	*ap;
+struct partition	*pp;
+struct shadework	*swp;	/* defined in material.h */
+char			*dp;	/* ptr to the shader-specific struct */
+@
+
+
+11.19.2.1
+log
+@Initial ANSIfication
+@
+text
+@d128 2
+a129 2
+HIDDEN int	tthrm_setup(register struct region *rp, struct bu_vls *matparm, char **dpp, struct mfuncs *mfp, struct rt_i *rtip), tthrm_render(struct application *ap, struct partition *pp, struct shadework *swp, char *dp);
+HIDDEN void	tthrm_print(register struct region *rp, char *dp), tthrm_free(char *cp);
+d147 2
+a148 1
+print_thrm_seg(struct thrm_seg *ts)
+d169 3
+a171 1
+tree_parse(struct bu_list *br, union tree *tr)
+d193 3
+a195 1
+build_tree(struct bu_list *br, struct region *rp)
+d208 6
+a213 6
+tthrm_setup(register struct region *rp, struct bu_vls *matparm, char **dpp, struct mfuncs *mfp, struct rt_i *rtip)
+                      	    
+             		         
+    			      	/* pointer to reg_udata in *rp */
+             		     
+           		      	/* New since 4.4 release */
+d450 3
+a452 1
+tthrm_print(register struct region *rp, char *dp)
+d467 2
+a468 1
+tthrm_free(char *cp)
+d487 2
+a488 1
+get_solid_number(struct partition *pp)
+d526 5
+a530 5
+tthrm_render(struct application *ap, struct partition *pp, struct shadework *swp, char *dp)
+                  	    
+                	    
+                	     	/* defined in material.h */
+    			    	/* ptr to the shader-specific struct */
+@
+
+
+11.18
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d128 2
+a129 2
+HIDDEN int	tthrm_setup(register struct region *rp, struct bu_vls *matparm, char **dpp, struct mfuncs *mfp, struct rt_i *rtip), tthrm_render(struct application *ap, struct partition *pp, struct shadework *swp, char *dp);
+HIDDEN void	tthrm_print(register struct region *rp, char *dp), tthrm_free(char *cp);
+d147 2
+a148 1
+print_thrm_seg(struct thrm_seg *ts)
+d169 3
+a171 1
+tree_parse(struct bu_list *br, union tree *tr)
+d193 3
+a195 1
+build_tree(struct bu_list *br, struct region *rp)
+d208 6
+a213 6
+tthrm_setup(register struct region *rp, struct bu_vls *matparm, char **dpp, struct mfuncs *mfp, struct rt_i *rtip)
+                      	    
+             		         
+    			      	/* pointer to reg_udata in *rp */
+             		     
+           		      	/* New since 4.4 release */
+d450 3
+a452 1
+tthrm_print(register struct region *rp, char *dp)
+d467 2
+a468 1
+tthrm_free(char *cp)
+d487 2
+a488 1
+get_solid_number(struct partition *pp)
+d526 5
+a530 5
+tthrm_render(struct application *ap, struct partition *pp, struct shadework *swp, char *dp)
+                  	    
+                	    
+                	     	/* defined in material.h */
+    			    	/* ptr to the shader-specific struct */
+@
+
+
+11.17
+log
+@Mac OS X warning and error fixes for non-production build
+@
+text
+@d128 2
+a129 2
+HIDDEN int	tthrm_setup(), tthrm_render();
+HIDDEN void	tthrm_print(), tthrm_free();
+d147 1
+a147 2
+print_thrm_seg(ts)
+struct thrm_seg *ts;
+d168 1
+a168 3
+tree_parse(br, tr)
+struct bu_list *br;
+union tree *tr;
+d190 1
+a190 3
+build_tree(br, rp)
+struct bu_list *br;
+struct region *rp;
+d203 6
+a208 6
+tthrm_setup( rp, matparm, dpp, mfp, rtip)
+register struct region	*rp;
+struct bu_vls		*matparm;
+char			**dpp;	/* pointer to reg_udata in *rp */
+struct mfuncs		*mfp;
+struct rt_i		*rtip;	/* New since 4.4 release */
+d445 1
+a445 3
+tthrm_print( rp, dp )
+register struct region *rp;
+char	*dp;
+d460 1
+a460 2
+tthrm_free( cp )
+char *cp;
+d479 1
+a479 2
+get_solid_number(pp)
+struct partition	*pp;
+d517 5
+a521 5
+tthrm_render( ap, pp, swp, dp )
+struct application	*ap;
+struct partition	*pp;
+struct shadework	*swp;	/* defined in material.h */
+char			*dp;	/* ptr to the shader-specific struct */
+@
+
+
+11.16
+log
+@
+Struct db_tree_state finally got a magic number. Added resource argument
+to ft_describe(), db_region_mat(), db_shader_mat(),
+db_init_db_tree_state(), and db_path_to_mat().
+@
+text
+@d201 1
+a201 1
+/*	T R E E T H E R M _ S E T U P
+d446 1
+a446 1
+/*
+d518 1
+a518 1
+/*
+@
+
+
+11.15
+log
+@Compilation warning messages eliminated
+Light sample point parsing added
+@
+text
+@d430 1
+a430 1
+	db_region_mat(tthrm_sp->tthrm_m_to_sh, rtip->rti_dbip, rp->reg_name);
+@
+
+
+11.14
+log
+@Misc commpilation changes and enhancements to light shader
+@
+text
+@d218 1
+a218 1
+	long			cyl_tot;
+d230 1
+a230 1
+	int			long_size;
+@
+
+
+11.13
+log
+@Changes to use rtprivate.h instead of ../rt/rdebug.h
+@
+text
+@a230 1
+	int			computed_size;
+@
+
+
+11.12
+log
+@patches for 32/64 bit problems
+@
+text
+@d16 1
+a16 1
+#include "../rt/rdebug.h"
+@
+
+
+11.11
+log
+@Misc 63/32 bit patches
+@
+text
+@d285 19
+a303 10
+	
+	if (tt_file->buflen == file_size_long) {
+		long_size = sizeof(long);
+		tthrm_sp->tt_max_seg = cyl_tot = *((long *)tt_data);
+	} else if (tt_file->buflen == file_size_int) {
+		long_size = sizeof(int);
+		tthrm_sp->tt_max_seg = cyl_tot = *((int *)tt_data);
+	} else {
+		bu_log("file size %d sb %ld or %ld\n",
+			tt_file->buflen, file_size_int, file_size_long);
+d305 5
+a309 3
+		bu_log("cyl_tot is either %ld or %ld\n",
+			*((int *)tt_data),
+			*((long *)tt_data));
+d311 9
+a319 1
+		bu_bomb("");
+@
+
+
+11.10
+log
+@Changes to support movement of CLAMP() macro into vmath.h
+Altered "if( " statements to "if (" for readability.
+@
+text
+@d230 1
+a230 1
+	int			long_size = sizeof(long);
+d232 2
+d252 3
+a254 1
+	bu_log("Parsing: (%s)\n", bu_vls_addr(matparm));
+a270 1
+	tthrm_sp->tt_max_seg = cyl_tot = *((long *)tt_data);
+d273 2
+a274 15
+		bu_log("tthrm_setup() data: %08lx total cyl: %ld\n",
+			(unsigned long)tt_data, cyl_tot);
+
+	if (sizeof(cyl_tot) == 4 && cyl_tot == 0) {
+
+		bu_log(
+"-------- Probable architecture mismatch from treetherm run ---\n");
+		bu_log("attempting to correct .... ");
+
+		/* very high probability that treetherm was run on 64 bit
+		 * machine, and we're running on a 32 bit machine.
+		 */
+		tthrm_sp->tt_max_seg = cyl_tot = ((long *)tt_data)[1];
+		long_size = 8;
+
+d276 23
+a298 3
+		computed_size = long_size + 
+			cyl_tot * 
+			(sizeof(short) + sizeof(float) * 4 * NUM_NODES);
+d300 1
+a300 16
+		if (computed_size == tt_file->buflen) {
+			bu_log("corrected\n");
+
+			bu_log("buflen %ld\n", tt_file->buflen);
+			bu_log("cyl_tot %ld\n", cyl_tot);
+			bu_log("computed: %d\n", computed_size);
+		} else {
+			bu_log("failed: possible node count != %d?\n",
+			NUM_NODES);
+
+			bu_log("buflen %ld\n", tt_file->buflen);
+			bu_log("cyl_tot %ld\n", cyl_tot);
+			bu_log("computed: %d\n", computed_size);
+
+			bu_bomb("please use correct data file\n");
+		}
+d303 2
+d358 1
+a358 1
+			bu_log("Center: (%g %g %g)\n", 
+@
+
+
+11.9
+log
+@Deleted unused variable declarations
+@
+text
+@d238 1
+a238 1
+	if( rdebug&RDEBUG_SHADE)
+d251 1
+a251 1
+	if( bu_struct_parse( matparm, tthrm_parse, (char *)tthrm_sp ) < 0 ) {
+d269 1
+a269 1
+	if( rdebug&RDEBUG_SHADE)
+d360 1
+a360 1
+		if( rdebug&RDEBUG_SHADE) {
+d417 1
+a417 1
+	if( rdebug&RDEBUG_SHADE) {
+d542 1
+a542 1
+	if( rdebug&RDEBUG_SHADE)
+d588 1
+a588 1
+	if( rdebug&RDEBUG_SHADE) {
+d656 1
+a656 1
+	if( rdebug&RDEBUG_SHADE) {
+d670 1
+a670 1
+	if( rdebug&RDEBUG_SHADE) {
+@
+
+
+11.8
+log
+@Misc color enhancements, and adaptation for rendering on 32bit arch when
+treetherm was run on a 64bit architecture.
+@
+text
+@a157 1
+		point_t pt;
+a158 1
+		VADD2(pt, ts->pt, ts->vect[i]);
+a215 2
+	mat_t	tmp;
+	vect_t	bb_min, bb_max, v_tmp;
+a223 1
+	double			temp_scale;
+a524 1
+	float	*fp;
+@
+
+
+11.7
+log
+@Added warning about int size to the comment describing the format of
+the output of treetherm
+@
+text
+@d235 2
+d278 33
+a310 4
+	if (cyl_tot <= 0) {
+		bu_log("%s:%d  Thermal file \"%s\" indicates %ld segments\n"
+			__FILE__, __LINE__, tthrm_sp->tt_name, cyl_tot);
+		bu_bomb("Probable machine architecture mis-match.\n");
+d313 1
+d321 3
+a323 4
+	( sizeof(long) + \
+	  (_n) * (sizeof(float) * 4 * NUM_NODES) + \
+	  (_n) * sizeof(short) + 2 \
+	)  \
+d644 17
+a660 1
+	VSET(swp->sw_color, best_val, best_val, best_val);
+@
+
+
+11.6
+log
+@Changed from pseudo-thermal green to pseudo-thermal gray
+@
+text
+@d36 1
+a36 1
+ *	long	#_of_cyls
+@
+
+
+11.5
+log
+@Moved mathtab/rand_half from rt into libbn
+Expanded structparse to include description and default
+@
+text
+@d613 1
+a613 1
+	VSET(swp->sw_color, best_val*0.5, best_val, best_val*0.5);
+@
+
+
+11.4
+log
+@
+Removed dependence on compat4.h
+@
+text
+@a15 1
+#include "../rt/mathtab.h"
+@
+
+
+11.3
+log
+@
+compat4
+@
+text
+@d123 4
+a126 4
+	{"%f",	1, "l",			SHDR_O(tt_min_temp),	FUNC_NULL },
+	{"%f",	1, "h", 		SHDR_O(tt_max_temp),	FUNC_NULL },
+	{"%s",	64, "file",		SHDR_O(tt_name),	FUNC_NULL },
+	{"",	0, (char *)0,		0,			FUNC_NULL }
+@
+
+
+11.2
+log
+@Lee's Belvoir mods to sh_treetherm.c
+@
+text
+@d21 1
+a21 1
+#define CK_tthrm_SP(_p) RT_CKMAG(_p, tthrm_MAGIC, "tthrm_specific")
+d84 1
+a84 1
+#define CK_THRM_SEG(_p) RT_CKMAG(_p, THRM_SEG_MAGIC, "thrm_seg")
+d115 1
+a115 1
+#define SHDR_AO(m)	offsetofarray(struct tthrm_specific, m)
+d213 1
+a213 1
+struct rt_vls		*matparm;
+d239 1
+a239 1
+	RT_VLS_CHECK( matparm );
+d247 1
+a247 1
+	GETSTRUCT( tthrm_sp, tthrm_specific );
+d417 1
+a417 1
+	mat_print( "m_to_sh", tthrm_sp->tthrm_m_to_sh );
+d439 1
+a439 1
+	rt_free( cp, "tthrm_specific" );
+@
+
+
+11.1
+log
+@Added treetherm shader
+@
+text
+@d100 1
+a100 1
+	char			*tt_name;
+d102 2
+a103 2
+	float			tt_min_temp;
+	float			tt_max_temp;
+a109 22
+void
+print_thrm_seg(ts)
+struct thrm_seg *ts;
+{
+	int i;
+	CK_THRM_SEG(ts);
+
+	bu_log("Thermal cylinder\n");
+	bu_log("Center: (%g %g %g)\n", V3ARGS(ts->pt));
+	bu_log("   dir: (%g %g %g)\n", V3ARGS(ts->dir));
+	bu_log(" Nodes:\n");
+	for (i=0 ; i < NUM_NODES ; i++) {
+		point_t pt;
+
+		VADD2(pt, ts->pt, ts->vect[i]);
+		bu_log("\t(%g %g %g) %17.14e  (%g %g %g)\n",
+			V3ARGS(ts->node[i]),
+			ts->temperature[i],
+			V3ARGS(ts->vect[i])
+			);
+	}
+}
+d122 4
+a125 6
+#if 0
+struct bu_structparse tthrm_print_tab[] = {
+	{"%f",  1, "val",		SHDR_O(tthrm_val),	FUNC_NULL },
+	{"%f",  3, "delta",		SHDR_AO(tthrm_delta),	FUNC_NULL },
+	{"%f",  3, "max",		SHDR_AO(tthrm_max),	FUNC_NULL },
+	{"%f",  3, "min",		SHDR_AO(tthrm_min),	FUNC_NULL },
+d127 1
+a128 8
+};
+struct bu_structparse tthrm_parse_tab[] = {
+	{"i",	bu_byteoffset(tthrm_print_tab[0]), "tthrm_print_tab", 0, FUNC_NULL },
+	{"%f",  1, "v",			SHDR_O(tthrm_val),	FUNC_NULL },
+	{"%f",  3, "d",			SHDR_AO(tthrm_delta),	FUNC_NULL },
+	{"",	0, (char *)0,		0,			FUNC_NULL }
+};
+#endif
+d147 23
+d251 12
+a262 1
+	tthrm_sp->tt_name = bu_vls_strdup( matparm );
+d264 1
+a264 1
+	tt_file = bu_open_mapped_file(bu_vls_addr(matparm), (char *)NULL);
+d266 1
+a266 1
+		bu_log("Error mapping \"%s\"\n", bu_vls_addr(matparm));
+d365 9
+a373 2
+	tthrm_sp->tt_min_temp = min_temp;
+	tthrm_sp->tt_max_temp = max_temp;
+d436 1
+a436 1
+	tthrm_sp->tt_name = (char *)NULL;
+@

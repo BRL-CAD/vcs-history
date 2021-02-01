@@ -1,0 +1,730 @@
+head	1.4;
+access;
+symbols
+	ansi-20040405-merged:1.1.4.1
+	postmerge-20040405-ansi:1.2
+	premerge-20040404-ansi:1.2
+	postmerge-autoconf:1.2
+	autoconf-freeze:1.1.12.1
+	premerge-autoconf:1.2
+	postmerge-20040315-windows:1.2
+	premerge-20040315-windows:1.2
+	windows-20040315-freeze:1.1.6.1
+	autoconf-20031203:1.1
+	autoconf-20031202:1.1
+	autoconf-branch:1.1.0.12
+	phong-branch:1.1.0.10
+	photonmap-branch:1.1.0.8
+	rel-6-1-DP:1.1
+	windows-branch:1.1.0.6
+	rel-6-0-2:1.1
+	ansi-branch:1.1.0.4
+	rel-6-0-1-branch:1.1.0.2
+	hartley-6-0-post:1.1
+	hartley-6-0-pre:1.1
+	rel-6-0-1:1.1
+	rel-6-0:1.1;
+locks; strict;
+comment	@# @;
+
+
+1.4
+date	2004.05.21.16.41.20;	author morrison;	state dead;
+branches;
+next	1.3;
+
+1.3
+date	2004.05.10.15.25.29;	author morrison;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2004.02.02.17.39.43;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2001.10.23.15.23.36;	author bparker;	state Exp;
+branches
+	1.1.4.1
+	1.1.6.1
+	1.1.12.1;
+next	;
+
+1.1.4.1
+date	2004.03.17.21.23.09;	author morrison;	state Exp;
+branches;
+next	;
+
+1.1.6.1
+date	2004.03.11.23.48.52;	author morrison;	state Exp;
+branches;
+next	;
+
+1.1.12.1
+date	2004.02.12.18.34.48;	author erikg;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.4
+log
+@moved to src/tclscripts/
+@
+text
+@##                 T A B L E . T C L
+#
+# Author -
+#	Bob Parker
+#
+# Source -
+#	The U. S. Army Research Laboratory
+#	Aberdeen Proving Ground, Maryland  21005
+#
+# Distribution Notice -
+#	Re-distribution of this software is restricted, as described in
+#	your "Statement of Terms and Conditions for the Release of
+#	The BRL-CAD Package" agreement.
+#
+# Copyright Notice -
+#	This software is Copyright (C) 1998-2004 by the United States Army
+#	in all countries except the USA.  All rights reserved.
+#
+# Description -
+#       This class comprises a collection of methods for querying/modifying tables.
+#       For the purposes of this class, a table is a list of lists with each sublist
+#       being a row in the table.
+#
+
+::itcl::class Table {
+    constructor {args} {}
+    destructor {}
+
+    public {
+	# initialize table with 1 row and 1 col
+	variable table {{{}}}
+	variable rows 1
+	variable cols 1
+
+	# methods that operate on items
+	method getEntry {i j}
+	method setEntry {i j val}
+
+	# methods that operate on rows
+	method getRow {i}
+	method getRows {i1 i2}
+	method setRow {i rdata}
+	method appendRow {rdata}
+	method deleteRow {i}
+	method insertRow {i rdata}
+
+	# methods that operate on columns
+	method getCol {j}
+	method getCols {j1 j2}
+	method setCol {j cdata}
+	method appendCol {cdata}
+	method deleteCol {j}
+	method insertCol {j cdata}
+	method initCol {j ival}
+	method initColRange {j i1 i2 ival}
+
+	method isValidRow {i}
+	method isValidCol {j}
+	method getFirstEmptyRow {j}
+
+	method isData {i mark}
+	method countData {i mark}
+    }
+}
+
+::itcl::configbody Table::table {
+    if {![llength $table]} {
+	error "Table: table is zero length"
+    }
+
+    set i 1
+    set j [llength [lindex $table 0]]
+    foreach row [lrange $table 1 end] {
+	incr i
+	if {[llength $row] != $j} {
+	    error "Table: table has differing row lengths, expecting $j, got [llength $row]\n\toffending row - $row"
+	}
+    }
+
+    set rows $i
+    set cols $j
+}
+
+::itcl::configbody Table::rows {
+    error "Table: this option is read-only"
+}
+
+::itcl::configbody Table::cols {
+    error "Table: this option is read-only"
+}
+
+::itcl::body Table::constructor {args} {
+    # process options
+    eval configure $args
+}
+
+::itcl::body Table::getEntry {i j} {
+    if {![isValidRow $i]} {
+	error "Table::getEntry: i must be in the range (1,$rows) inclusive"
+    }
+
+    if {![isValidCol $j]} {
+	error "Table::getEntry: j must be in the range (1,$cols) inclusive"
+    }
+
+    incr i -1
+    incr j -1
+    lindex [lindex $table $i] $j
+}
+
+::itcl::body Table::setEntry {i j val} {
+    if {![isValidRow $i]} {
+	error "Table::setEntry: i must be in the range (1,$rows) inclusive"
+    }
+
+    if {![isValidCol $j]} {
+	error "Table::setEntry: j must be in the range (1,$cols) inclusive"
+    }
+
+    incr i -1
+    incr j -1
+    set table [lreplace $table $i $i [lreplace [lindex $table $i] $j $j $val]]
+    return
+}
+
+::itcl::body Table::getRow {i} {
+    if {![isValidRow $i]} {
+	error "Table::getRow: i must be in the range (1,$rows) inclusive"
+    }
+
+    incr i -1
+    lindex $table $i
+}
+
+::itcl::body Table::getRows {i1 i2} {
+    if {![isValidRow $i1]} {
+	error "Table::getRows: i1 must be in the range (1,$rows) inclusive"
+    }
+
+    if {![isValidRow $i2]} {
+	error "Table::getRows: i2 must be in the range (1,$rows) inclusive"
+    }
+
+    incr i1 -1
+    incr i2 -1
+    lrange $table $i1 $i2
+}
+
+::itcl::body Table::setRow {i rdata} {
+    if {![isValidRow $i]} {
+	error "Table::setRow: i must be in the range (1,$rows) inclusive"
+    }
+
+    incr i -1
+    if {[llength $rdata] != $cols} {
+	error "Table::setRow: number of values in row must be $cols"
+    }
+
+    set table [lreplace $table $i $i $rdata]
+    return
+}
+
+::itcl::body Table::appendRow {rdata} {
+    if {[llength $rdata] != $cols} {
+	error "Table::appendRow: number of values in row must be $cols"
+    }
+
+    lappend table $rdata
+    incr rows
+    return
+}
+
+::itcl::body Table::deleteRow {i} {
+    if {![isValidRow $i]} {
+	error "Table::deleteRow: i must be in the range (1, $rows) inclusive"
+    }
+
+    if {$rows < 2} {
+	error "Table::deleteRow: can't delete last row"
+    }
+
+    incr i -1
+    incr rows -1
+    set table [lreplace $table $i $i]
+    return
+}
+
+::itcl::body Table::insertRow {i rdata} {
+    if {![isValidRow $i]} {
+	error "Table::insertRow: i must be in the range (1, $rows) inclusive"
+    }
+
+    if {[llength $rdata] != $cols} {
+	error "Table::insertRow: number of values in row must be $cols"
+    }
+	
+    incr i -1
+    if {0 < $i} {
+	set _i [expr {$i - 1}]
+	set newtable [lrange $table 0 $_i]
+    } else {
+	set newtable ""
+    }
+
+    lappend newtable $rdata
+    eval lappend newtable [lrange $table $i end]
+    set table $newtable
+    incr rows
+    return
+}
+
+::itcl::body Table::getCol {j} {
+    if {![isValidCol $j]} {
+	error "Table::getCol: j must be in the range (1,$cols) inclusive"
+    }
+
+    incr j -1
+    foreach row $table {
+	lappend vals [lindex $row $j]
+    }
+
+    return $vals
+}
+
+::itcl::body Table::getCols {j1 j2} {
+    if {![isValidCol $j1]} {
+	error "Table::getCols: j must be in the range (1,$cols) inclusive"
+    }
+
+    if {![isValidCol $j2]} {
+	error "Table::getCols: j must be in the range (1,$cols) inclusive"
+    }
+
+    # quietly return
+    if {$j2 < $j1} {
+	return
+    }
+
+    incr j1 -1
+    incr j2 -1
+
+    # create local variables to hold each column
+    foreach row $table {
+	for {set j $j1} {$j <= $j2} {incr j} {
+	    lappend val$j [lindex $row $j]
+	}
+    }
+
+    # bundle up the cols
+    for {set j $j1} {$j <= $j2} {incr j} {
+	lappend vals [subst $[subst val$j]]
+    }
+
+    return $vals
+}
+
+::itcl::body Table::setCol {j cdata} {
+    if {![isValidCol $j]} {
+	error "Table::setCol: j must be in the range (1,$cols) inclusive"
+    }
+
+    set len [llength $cdata]
+    if {$len < $rows} {
+	# pad cdata
+	for {set i $len} {$i < $rows} {incr i} {
+	    lappend cdata {}
+	}
+    } elseif {$rows < $len} {
+	# truncate cdata
+	set cdata [lrange $cdata 0 [expr {$rows - 1}]]
+    }
+
+    incr j -1
+    set newtable ""
+    foreach row $table val $cdata {
+	lappend newtable [lreplace $row $j $j $val]
+    }
+    set table $newtable
+    return
+}
+
+::itcl::body Table::appendCol {cdata} {
+    if {[llength $cdata] != $rows} {
+	error "Table::appendCol: number of values in column must be $rows"
+    }
+
+    set newtable ""
+    foreach row $table val $cdata {
+	lappend newtable [lappend row $val]
+    }
+    set table $newtable
+    incr cols
+    return
+}
+
+::itcl::body Table::deleteCol {j} {
+    if {![isValidCol $j]} {
+	error "Table::deleteCol: j must be in the range (1,$cols) inclusive"
+    }
+
+    if {$cols < 2} {
+	error "Table::deleteCol: can't delete last col"
+    }
+
+    incr j -1
+    incr cols -1
+    set newtable ""
+    foreach row $table {
+	lappend newtable [lreplace $row $j $j]
+    }
+    set table $newtable
+    return
+}
+
+::itcl::body Table::insertCol {j cdata} {
+    if {![isValidCol $j]} {
+	error "Table::insertCol: j must be in the range (1,$cols) inclusive"
+    }
+
+    if {[llength $cdata] != $rows} {
+	error "Table::insertCol: number of values in column must be $rows"
+    }
+
+    incr j -1
+    incr cols
+    set newtable ""
+    if {0 < $j} {
+	set _j [expr {$j - 1}]
+	foreach row $table val $cdata {
+	    lappend newtable "[lrange $row 0 $_j] $val [lrange $row $j end]"
+	}
+    } else {
+	foreach row $table val $cdata {
+	    lappend newtable "$val $row"
+	}
+    }
+    set table $newtable
+    return
+}
+
+::itcl::body Table::initCol {j ival} {
+    if {![isValidCol $j]} {
+	error "Table::initCol: j must be in the range (1,$cols) inclusive"
+    }
+
+    incr j -1
+    set newtable ""
+    foreach row $table {
+	lappend newtable [lreplace $row $j $j $ival]
+    }
+    set table $newtable
+    return
+}
+
+::itcl::body Table::initColRange {j i1 i2 ival} {
+    if {![isValidCol $j]} {
+	error "Table::initColRange: j must be in the range (1,$cols) inclusive"
+    }
+
+    if {![isValidRow $i1] ||
+	![isValidRow $i2] ||
+	$i2 < $i1} {
+	error "Table::initColRange: bad values for i1($i1) or i2($i2)"
+    }
+
+    incr j -1
+    incr i1 -1
+    incr i2 -1
+    set i 0
+    set newtable ""
+    foreach row $table {
+	if {$i1 <= $i &&
+	    $i <= $i2} {
+	    lappend newtable [lreplace $row $j $j $ival]
+	} else {
+	    lappend newtable $row
+	}
+	incr i
+    }
+    set table $newtable
+    return
+}
+
+::itcl::body Table::isValidRow {i} {
+    if {![string is digit $i] || $i < 1 || $rows < $i} {
+	return 0
+    }
+
+    return 1
+}
+
+::itcl::body Table::isValidCol {j} {
+    if {![string is digit $j] || $j < 1 || $cols < $j} {
+	return 0
+    }
+
+    return 1
+}
+
+::itcl::body Table::getFirstEmptyRow {j} {
+    if {![isValidCol $j]} {
+	error "Table::getFirstEmptyRow: j must be in the range (1,$cols) inclusive"
+    }
+
+    incr j -1
+    set i 1
+    foreach row $table {
+	set val [lindex $row $j]
+	if {$val != ""} {
+	    incr i
+	    continue
+	}
+
+	return $i
+    }
+
+    # out of range value indicates no empty values in this column
+    return 0
+}
+
+::itcl::body Table::isData {i mark} {
+    if {![isValidRow $i]} {
+	error "Table::isData: i must be in the range (1,$rows) inclusive"
+    }
+
+    incr i -1
+    if {[lindex [lindex [lindex $table $i] 0] 0] != $mark} {
+	return 1
+    }
+
+    return 0
+}
+
+::itcl::body Table::countData {i mark} {
+    if {![isValidRow $i]} {
+	error "Table::countData: i must be in the range (1,$rows) inclusive"
+    }
+
+    set ri 0
+    set dcount 0
+    foreach row $table {
+	if {$i <= $ri} {
+	    break
+	}
+
+	if {[lindex [lindex $row 0] 0] != $mark} {
+	    incr dcount
+	}
+
+	incr ri
+    }
+
+    return $dcount
+}
+@
+
+
+1.3
+log
+@Bob Parker's view modifications, png framebuffer support, shaded drawing mode
+@
+text
+@@
+
+
+1.2
+log
+@update copyright to include span through 2003
+@
+text
+@d21 1
+a21 1
+#       For the purposes of this class, tables are lists of lists with each sublist
+d25 1
+a25 1
+itcl::class Table {
+d42 2
+a43 2
+	method setRow {i row}
+	method appendRow {row}
+d45 1
+a45 1
+	method insertRow {i row}
+d50 2
+a51 2
+	method setCol {j col}
+	method appendCol {col}
+d53 10
+a62 1
+	method insertCol {j col}
+d66 1
+a66 1
+itcl::configbody Table::table {
+d84 1
+a84 1
+itcl::configbody Table::rows {
+d88 1
+a88 1
+itcl::configbody Table::cols {
+d92 1
+a92 1
+itcl::body Table::constructor {args} {
+d97 2
+a98 2
+itcl::body Table::getEntry {i j} {
+    if {![string is digit $i] || $i < 1 || $rows < $i} {
+d102 1
+a102 1
+    if {![string is digit $j] || $j < 1 || $cols < $j} {
+d111 2
+a112 2
+itcl::body Table::setEntry {i j val} {
+    if {![string is digit $i] || $i < 1 || $rows < $i} {
+d116 1
+a116 1
+    if {![string is digit $j] || $j < 1 || $cols < $j} {
+d126 2
+a127 2
+itcl::body Table::getRow {i} {
+    if {![string is digit $i] || $i < 1 || $rows < $i} {
+d135 2
+a136 2
+itcl::body Table::getRows {i1 i2} {
+    if {![string is digit $i1] || $i1 < 1 || $rows < $i1} {
+d140 1
+a140 1
+    if {![string is digit $i2] || $i2 < 1 || $rows < $i2} {
+d149 2
+a150 2
+itcl::body Table::setRow {i row} {
+    if {![string is digit $i] || $i < 1 || $rows < $i} {
+d155 1
+a155 1
+    if {[llength $row] != $cols} {
+d159 1
+a159 1
+    set table [lreplace $table $i $i $row]
+d163 2
+a164 2
+itcl::body Table::appendRow {row} {
+    if {[llength $row] != $cols} {
+d168 1
+a168 1
+    lappend table $row
+d173 2
+a174 2
+itcl::body Table::deleteRow {i} {
+    if {![string is digit $i] || $i < 1 || $rows < $i} {
+d188 2
+a189 2
+itcl::body Table::insertRow {i row} {
+    if {![string is digit $i] || $i < 1 || $rows < $i} {
+d193 1
+a193 1
+    if {[llength $row] != $cols} {
+d205 1
+a205 1
+    lappend newtable $row
+d212 2
+a213 2
+itcl::body Table::getCol {j} {
+    if {![string is digit $j] || $j < 1 || $cols < $j} {
+d225 2
+a226 2
+itcl::body Table::getCols {j1 j2} {
+    if {![string is digit $j1] || $j1 < 1 || $cols < $j1} {
+d230 1
+a230 1
+    if {![string is digit $j2] || $j2 < 1 || $cols < $j2} {
+d257 2
+a258 2
+itcl::body Table::setCol {j col} {
+    if {![string is digit $j] || $j < 1 || $cols < $j} {
+d262 9
+a270 2
+    if {[llength $col] != $rows} {
+	error "Table::setCol: number of values in column must be $rows"
+d275 1
+a275 1
+    foreach row $table val $col {
+d282 2
+a283 2
+itcl::body Table::appendCol {col} {
+    if {[llength $col] != $rows} {
+d288 1
+a288 1
+    foreach row $table val $col {
+d296 2
+a297 2
+itcl::body Table::deleteCol {j} {
+    if {![string is digit $j] || $j < 1 || $cols < $j} {
+d315 2
+a316 2
+itcl::body Table::insertCol {j col} {
+    if {![string is digit $j] || $j < 1 || $cols < $j} {
+d320 1
+a320 1
+    if {[llength $col] != $rows} {
+d329 1
+a329 1
+	foreach row $table val $col {
+d333 1
+a333 1
+	foreach row $table val $col {
+d339 115
+@
+
+
+1.1
+log
+@This class comprises a collection of methods for querying/modifying tables.
+@
+text
+@d16 1
+a16 1
+#	This software is Copyright (C) 1998 by the United States Army
+@
+
+
+1.1.4.1
+log
+@sync branch with HEAD
+@
+text
+@d16 1
+a16 1
+#	This software is Copyright (C) 1998-2004 by the United States Army
+@
+
+
+1.1.6.1
+log
+@sync to HEAD...
+@
+text
+@d16 1
+a16 1
+#	This software is Copyright (C) 1998-2004 by the United States Army
+@
+
+
+1.1.12.1
+log
+@merge from HEAD
+@
+text
+@d16 1
+a16 1
+#	This software is Copyright (C) 1998-2004 by the United States Army
+@
+
+

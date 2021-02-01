@@ -1,0 +1,460 @@
+head	11.7;
+access;
+symbols
+	ansi-20040405-merged:11.4.2.1
+	postmerge-20040405-ansi:11.5
+	premerge-20040404-ansi:11.4
+	postmerge-autoconf:11.4
+	autoconf-freeze:11.4
+	premerge-autoconf:11.4
+	postmerge-20040315-windows:11.4
+	premerge-20040315-windows:11.4
+	windows-20040315-freeze:11.4
+	autoconf-20031203:11.4
+	autoconf-20031202:11.4
+	autoconf-branch:11.4.0.10
+	phong-branch:11.4.0.8
+	photonmap-branch:11.4.0.6
+	rel-6-1-DP:11.4
+	windows-branch:11.4.0.4
+	rel-6-0-2:11.2
+	ansi-branch:11.4.0.2
+	rel-6-0-1-branch:11.2.0.2
+	hartley-6-0-post:11.3
+	hartley-6-0-pre:11.2
+	rel-6-0-1:11.2
+	rel-6-0:11.2
+	rel-5-4:11.1
+	offsite-5-3-pre:11.1
+	rel-5-3:11.1
+	rel-5-2:11.1
+	rel-5-1-branch:11.1.0.2
+	rel-5-1:11.1
+	rel-5-0:11.1
+	rel-5-0-beta:11.1
+	rel-4-5:11.1
+	ctj-4-5-post:11.1
+	ctj-4-5-pre:11.1
+	rel-4-4:11.1
+	rel-4-0:10.1
+	rel-3-5:9.1
+	rel-3-0:8.1;
+locks; strict;
+comment	@ * @;
+
+
+11.7
+date	2004.05.21.13.50.00;	author morrison;	state dead;
+branches;
+next	11.6;
+
+11.6
+date	2004.05.10.15.30.51;	author erikg;	state Exp;
+branches;
+next	11.5;
+
+11.5
+date	2004.04.05.05.46.03;	author morrison;	state Exp;
+branches;
+next	11.4;
+
+11.4
+date	2002.08.20.17.09.12;	author jra;	state Exp;
+branches
+	11.4.2.1;
+next	11.3;
+
+11.3
+date	2002.08.15.20.56.23;	author hartley;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	2001.08.10.18.36.57;	author jra;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	95.01.04.10.18.25;	author mike;	state Rel4_4;
+branches;
+next	10.4;
+
+10.4
+date	94.12.23.09.16.31;	author jra;	state Exp;
+branches;
+next	10.3;
+
+10.3
+date	94.11.14.23.21.42;	author mike;	state Exp;
+branches;
+next	10.2;
+
+10.2
+date	94.08.23.19.49.18;	author gdurf;	state Exp;
+branches;
+next	10.1;
+
+10.1
+date	91.10.12.06.50.23;	author mike;	state Rel4_0;
+branches;
+next	9.1;
+
+9.1
+date	89.05.19.06.13.49;	author mike;	state Rel3_5;
+branches;
+next	8.1;
+
+8.1
+date	88.10.05.00.52.38;	author mike;	state Rel3_0;
+branches;
+next	1.6;
+
+1.6
+date	88.05.15.23.50.59;	author mike;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	88.05.07.04.04.03;	author mike;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	88.01.30.01.01.15;	author phil;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	88.01.09.03.50.34;	author mike;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	88.01.06.07.29.31;	author mike;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	88.01.05.20.17.50;	author mike;	state Exp;
+branches;
+next	;
+
+11.4.2.1
+date	2002.09.19.18.02.52;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@Lyon Lamb VAS IV
+@
+
+
+11.7
+log
+@moved to src/vas4/
+@
+text
+@/*
+ * record_seq.c - control the display of a series of images
+ *	and record them frame by frame
+ *
+ * 	The interface to the framebuffer is that this program will execute
+ *	a command int the form: display_image n    where n will be a sequence
+ *	number from 0 to N-1 where N is the number of images specified
+ *	in the command line of this command.
+ *
+ *	The user will typically provide a shell script
+ *	that will display the appropriate image on the framebuffer.
+ */
+
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+
+#include <stdlib.h>
+#include <stdio.h>
+#ifdef USE_STRING_H
+#include <string.h>
+#else
+#include <strings.h>
+#endif
+
+/* #define DEBUG 1  Define to only print system commands */
+
+#ifdef DEBUG
+#define SYSTEM(c)	fprintf(stderr,"system(%s);\n",c)
+#else
+#define SYSTEM(c)	fprintf(stderr,"system(%s);\n",c); system(c)
+#endif
+
+#define CBARS_TIME	10		/* Normal */
+
+void
+record_seq(int number_of_images, int number_of_frames, int start_seq_number)
+{
+	char cmd[100];
+	int i;
+
+	fprintf(stderr,
+		"number of images is %d, number of frames per image is %d\n",
+		number_of_images,number_of_frames);
+
+	
+	SYSTEM("fbcbars");	/* Start out with color bars */
+
+	/* Make initial scene title matte recording */
+	SYSTEM("vas4 new");
+	SYSTEM("vas4 reset_time");
+
+	/* Handle the color bars specially. It is the first recording */
+	fprintf(stderr,"Record color bars for %d seconds\n",CBARS_TIME);
+	sprintf(cmd,"vas4 record %dsec", CBARS_TIME);
+	SYSTEM(cmd);
+
+	/* Now record the user files */
+	for (i=start_seq_number; i < start_seq_number+number_of_images; i++) {
+		sprintf(cmd,"display_image %d",i);
+		SYSTEM(cmd);
+		sprintf(cmd,"vas4 record %d",number_of_frames);
+		SYSTEM(cmd);
+	}
+
+	/* Record last frame for 30 more seconds */
+	fprintf(stderr,"Last image\n");
+	SYSTEM("vas4 record 30sec\n");
+
+	/* Wrap up by stopping the controller and rewind */
+	SYSTEM("vas4 time0\n");
+	SYSTEM("vas4 stop\n");
+
+}
+@
+
+
+11.6
+log
+@change conf.h to a wrapped config.h
+@
+text
+@@
+
+
+11.5
+log
+@merge of ansi-6-0-branch into head
+@
+text
+@d14 5
+a18 1
+#include "conf.h"
+@
+
+
+11.4
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d35 1
+a35 3
+record_seq(number_of_images, number_of_frames, start_seq_number)
+int number_of_images, number_of_frames;
+int start_seq_number;
+@
+
+
+11.4.2.1
+log
+@Initial ANSIfication
+@
+text
+@d35 3
+a37 1
+record_seq(int number_of_images, int number_of_frames, int start_seq_number)
+@
+
+
+11.3
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d35 3
+a37 1
+record_seq(int number_of_images, int number_of_frames, int start_seq_number)
+@
+
+
+11.2
+log
+@lint
+@
+text
+@d35 1
+a35 3
+record_seq(number_of_images, number_of_frames, start_seq_number)
+int number_of_images, number_of_frames;
+int start_seq_number;
+@
+
+
+11.1
+log
+@Release_4.4
+@
+text
+@d16 1
+@
+
+
+10.4
+log
+@Fixed a /* in a comment.
+@
+text
+@@
+
+
+10.3
+log
+@Irix 6
+@
+text
+@d23 1
+a23 1
+/* #define DEBUG 1 /* Define to only print system commands */
+@
+
+
+10.2
+log
+@Factored ifdefs
+@
+text
+@a31 1
+/*#define CBARS_TIME	2		/* Testing mode */
+a39 3
+	int scene_number = 1;
+	int start_frame = 1;
+
+@
+
+
+10.1
+log
+@Release_4.0
+@
+text
+@d14 2
+d17 3
+a19 1
+#ifdef BSD
+a20 2
+#else
+#include <string.h>
+@
+
+
+9.1
+log
+@Release_3.5
+@
+text
+@@
+
+
+8.1
+log
+@Release_3.0
+@
+text
+@@
+
+
+1.6
+log
+@lint fixes
+@
+text
+@@
+
+
+1.5
+log
+@Added BSD/SYSV flag
+@
+text
+@d32 1
+a32 1
+
+@
+
+
+1.4
+log
+@name change cbars-fb to fbcbars
+@
+text
+@d15 1
+d17 3
+@
+
+
+1.3
+log
+@Minor cleanups
+@
+text
+@d44 1
+a44 1
+	SYSTEM("cbars-fb");	/* Start out with color bars */
+@
+
+
+1.2
+log
+@Updated for use at BRL
+@
+text
+@a24 2
+#define SECONDS(x)	(x * 30)    /* 30 frames/sec */
+
+d44 1
+a44 1
+	SYSTEM("ikcolorbars");	/* Start out with color bars */
+d48 1
+d52 1
+a52 1
+	sprintf(cmd,"vas4 record %d", SECONDS(CBARS_TIME));
+d65 1
+a65 1
+	SYSTEM("vas4 record 900\n");
+d68 2
+a69 3
+	fprintf(stderr,"Init and Rewind\n");
+	SYSTEM("vas4 init\n");
+	SYSTEM("vas4 rewind\n");
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d2 2
+a3 2
+ * record_seq.c - control the display of a series of ikonas images
+ *	and record them frame by frame on the ikonas
+d5 1
+a5 1
+ * 	The interface to the ikonas is that this program will execute
+d11 1
+a11 1
+ *	that will display the appropriate image on the Ikonas.
+a46 1
+	init_ik();		/* Set up Ikonas */
+@

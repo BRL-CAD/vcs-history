@@ -1,0 +1,564 @@
+head	11.10;
+access;
+symbols
+	ansi-20040405-merged:11.7.2.2
+	postmerge-20040405-ansi:11.9
+	premerge-20040404-ansi:11.8
+	postmerge-autoconf:11.8
+	autoconf-freeze:11.7.10.2
+	premerge-autoconf:11.8
+	postmerge-20040315-windows:11.8
+	premerge-20040315-windows:11.8
+	windows-20040315-freeze:11.7.4.1
+	autoconf-20031203:11.7
+	autoconf-20031202:11.7
+	autoconf-branch:11.7.0.10
+	phong-branch:11.7.0.8
+	photonmap-branch:11.7.0.6
+	rel-6-1-DP:11.7
+	windows-branch:11.7.0.4
+	rel-6-0-2:11.5
+	ansi-branch:11.7.0.2
+	rel-6-0-1-branch:11.5.0.2
+	hartley-6-0-post:11.6
+	hartley-6-0-pre:11.5
+	rel-6-0-1:11.5
+	rel-6-0:11.5
+	rel-5-4:11.3
+	offsite-5-3-pre:11.5
+	rel-5-3:11.3
+	rel-5-2:11.3
+	rel-5-1-branch:11.3.0.2
+	rel-5-1:11.3
+	rel-5-0:11.2
+	rel-5-0-beta:11.2
+	rel-4-5:11.2
+	ctj-4-5-post:11.2
+	ctj-4-5-pre:11.2
+	rel-4-4:11.1;
+locks; strict;
+comment	@ * @;
+
+
+11.10
+date	2004.05.21.14.57.50;	author morrison;	state dead;
+branches;
+next	11.9;
+
+11.9
+date	2004.04.05.05.46.02;	author morrison;	state Exp;
+branches;
+next	11.8;
+
+11.8
+date	2004.02.02.17.39.46;	author morrison;	state Exp;
+branches;
+next	11.7;
+
+11.7
+date	2002.08.20.17.09.01;	author jra;	state Exp;
+branches
+	11.7.2.1
+	11.7.4.1
+	11.7.10.1;
+next	11.6;
+
+11.6
+date	2002.08.15.20.56.13;	author hartley;	state Exp;
+branches;
+next	11.5;
+
+11.5
+date	2000.09.01.03.23.54;	author mike;	state Exp;
+branches;
+next	11.4;
+
+11.4
+date	2000.08.23.19.04.43;	author mike;	state Exp;
+branches;
+next	11.3;
+
+11.3
+date	2000.01.31.16.03.09;	author jra;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	96.12.13.15.05.51;	author jra;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	95.01.04.10.12.32;	author mike;	state Rel4_4;
+branches;
+next	1.2;
+
+1.2
+date	94.08.23.15.05.52;	author gdurf;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	91.10.28.20.42.26;	author mike;	state Exp;
+branches;
+next	;
+
+11.7.2.1
+date	2002.09.19.18.02.40;	author morrison;	state Exp;
+branches;
+next	11.7.2.2;
+
+11.7.2.2
+date	2004.03.17.21.23.28;	author morrison;	state Exp;
+branches;
+next	;
+
+11.7.4.1
+date	2004.03.11.23.52.31;	author morrison;	state Exp;
+branches;
+next	;
+
+11.7.10.1
+date	2004.02.12.19.43.10;	author erikg;	state Exp;
+branches;
+next	11.7.10.2;
+
+11.7.10.2
+date	2004.03.15.14.08.13;	author erikg;	state Exp;
+branches;
+next	;
+
+
+desc
+@Program to strip backgrounds out of images.
+Good for removing shaded backgrounds, so EDPIX can be used.
+Written for Jill, so she can touch up some demo images.
+@
+
+
+11.10
+log
+@moved to src/util/
+@
+text
+@/*
+ *			P I X B G S T R I P . C
+ *
+ * Function -
+ *	Backgound Un-Maker
+ *
+ *  Author -
+ *	Michael John Muuss
+ *  
+ *  Source -
+ *	SECAD/VLD Computing Consortium, Bldg 394
+ *	The U. S. Army Ballistic Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005-5066
+ *  
+ *  Copyright Notice -
+ *	This software is Copyright (C) 1991-2004 by the United States Army.
+ *	All rights reserved.
+ */
+#ifndef lint
+static const char RCSid[] = "@@(#)$Header: /n/xoff/cvs/brlcad/util/pixbgstrip.c,v 11.9 2004/04/05 05:46:02 morrison Exp $ (BRL)";
+#endif
+
+#include <stdio.h>	
+#include "machine.h"
+#include "externs.h"			/* For getopt */
+#include "bu.h"
+#include "vmath.h"
+#include "bn.h"
+#include "fb.h"
+
+static unsigned char *scanline;		/* 1 scanline pixel buffer */
+static int	scanbytes;		/* # of bytes of scanline */
+
+static char	*file_name;
+static FILE	*infp;
+static int	fileinput = 0;		/* file of pipe on input? */
+
+static int	autosize = 0;		/* !0 to autosize input */
+
+static int	file_width = 512;	/* default input width */
+
+static int	thresh = 1;
+static int	bg_x_offset = 0;
+
+static char usage[] = "\
+Usage: pixbgstrip [-a -h] [-t thresh] [-x x_off for bg pixel]\n\
+	[-s squarefilesize] [-w file_width] [-n file_height]\n\
+	[file.pix]\n";
+
+int
+get_args(int argc, register char **argv)
+{
+	register int c;
+
+	while ( (c = getopt( argc, argv, "ahs:w:n:t:x:" )) != EOF )  {
+		switch( c )  {
+		case 'a':
+			autosize = 1;
+			break;
+		case 'h':
+			/* high-res */
+			file_width = 1024;
+			autosize = 0;
+			break;
+		case 's':
+			/* square file size */
+			file_width = atoi(optarg);
+			autosize = 0;
+			break;
+		case 'w':
+			file_width = atoi(optarg);
+			autosize = 0;
+			break;
+		case 'n':
+			autosize = 0;
+			break;
+		case 't':
+			thresh = atoi(optarg);
+			break;
+		case 'x':
+			bg_x_offset = atoi(optarg);
+			break;
+
+		default:		/* '?' */
+			return(0);
+		}
+	}
+
+	if( optind >= argc )  {
+		if( isatty(fileno(stdin)) )
+			return(0);
+		file_name = "-";
+		infp = stdin;
+	} else {
+		file_name = argv[optind];
+		if( (infp = fopen(file_name, "r")) == NULL )  {
+			perror(file_name);
+			(void)fprintf( stderr,
+				"pixbgstrip: cannot open \"%s\" for reading\n",
+				file_name );
+			exit(1);
+		}
+		fileinput++;
+	}
+
+	if ( argc > ++optind )
+		(void)fprintf( stderr, "pixbgstrip: excess argument(s) ignored\n" );
+
+	return(1);		/* OK */
+}
+
+int
+main(int argc, char **argv)
+{
+	register int	r,g,b;
+	register int	i;
+
+	if ( !get_args( argc, argv ) )  {
+		(void)fputs(usage, stderr);
+		exit( 1 );
+	}
+
+	if( isatty(fileno(stdout)) )  {
+		(void)fputs("Binary output must be redirected away from the terminal\n", stderr);
+		(void)fputs(usage, stderr);
+		exit( 1 );
+	}
+
+	/* autosize input? */
+	if( fileinput && autosize ) {
+		int	w, h;
+		if( bn_common_file_size(&w, &h, file_name, 3) ) {
+			file_width = w;
+		} else {
+			fprintf(stderr,"pixbgstrip: unable to autosize\n");
+		}
+	}
+
+	scanbytes = file_width * sizeof(RGBpixel);
+	if( (scanline = (unsigned char *)malloc(scanbytes)) == (unsigned char *)NULL )  {
+		fprintf(stderr,
+			"pixbgstrip:  malloc(%d) failure for scanline buffer\n",
+			scanbytes);
+		exit(2);
+	}
+
+	while( !feof(infp) )  {
+		if( fread( scanline, 1, scanbytes, infp ) != scanbytes )
+			break;
+		r = scanline[bg_x_offset*3+0];
+		g = scanline[bg_x_offset*3+1];
+		b = scanline[bg_x_offset*3+2];
+		for( i=0; i<file_width; i++ )  {
+			register int diff;
+
+			diff = scanline[i*3+0] - r;
+			if( diff <= -thresh || diff >= thresh ) continue;
+
+			diff = scanline[i*3+1] - g;
+			if( diff <= -thresh || diff >= thresh ) continue;
+
+			diff = scanline[i*3+2] - b;
+			if( diff <= -thresh || diff >= thresh ) continue;
+
+			/* Input pixel matches background, set to black */
+			scanline[i*3+0] =
+				scanline[i*3+1] =
+				scanline[i*3+2] = 0;
+		}
+		if( fwrite( scanline, 1, scanbytes, stdout) != scanbytes )  {
+			perror("pixbgstrip: fwrite()");
+			exit(1);
+		}
+	}
+	return(0);
+}
+@
+
+
+11.9
+log
+@merge of ansi-6-0-branch into head
+@
+text
+@d20 1
+a20 1
+static const char RCSid[] = "@@(#)$Header$ (BRL)";
+@
+
+
+11.8
+log
+@update copyright to include span through 2003
+@
+text
+@d20 1
+a20 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/util/pixbgstrip.c,v 11.7 2002/08/20 17:09:01 jra Exp $ (BRL)";
+d51 1
+a51 2
+get_args( argc, argv )
+register char **argv;
+d113 1
+a113 3
+main(argc, argv)
+int	argc;
+char	**argv;
+@
+
+
+11.7
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d16 1
+a16 1
+ *	This software is Copyright (C) 1991 by the United States Army.
+d20 1
+a20 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/util/pixbgstrip.c,v 11.5 2000/09/01 03:23:54 mike Exp $ (BRL)";
+@
+
+
+11.7.4.1
+log
+@sync to HEAD...
+@
+text
+@d16 1
+a16 1
+ *	This software is Copyright (C) 1991-2004 by the United States Army.
+d20 1
+a20 1
+static const char RCSid[] = "@@(#)$Header: /n/cad/c/CVS/brlcad/util/pixbgstrip.c,v 11.8 2004/02/02 17:39:46 morrison Exp $ (BRL)";
+@
+
+
+11.7.10.1
+log
+@merge from HEAD
+@
+text
+@d16 1
+a16 1
+ *	This software is Copyright (C) 1991-2004 by the United States Army.
+d20 1
+a20 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/util/pixbgstrip.c,v 11.8 2004/02/02 17:39:46 morrison Exp $ (BRL)";
+@
+
+
+11.7.10.2
+log
+@merge from head
+@
+text
+@d20 1
+a20 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/util/pixbgstrip.c,v 11.7.10.1 2004/02/12 19:43:10 erikg Exp $ (BRL)";
+@
+
+
+11.7.2.1
+log
+@Initial ANSIfication
+@
+text
+@d20 1
+a20 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/util/pixbgstrip.c,v 11.7 2002/08/20 17:09:01 jra Exp $ (BRL)";
+d51 2
+a52 1
+get_args(int argc, register char **argv)
+d114 3
+a116 1
+main(int argc, char **argv)
+@
+
+
+11.7.2.2
+log
+@sync branch with HEAD
+@
+text
+@d16 1
+a16 1
+ *	This software is Copyright (C) 1991-2004 by the United States Army.
+d20 1
+a20 1
+static const char RCSid[] = "@@(#)$Header$ (BRL)";
+@
+
+
+11.6
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d51 2
+a52 1
+get_args(int argc, register char **argv)
+d114 3
+a116 1
+main(int argc, char **argv)
+@
+
+
+11.5
+log
+@
+Lint fix
+@
+text
+@d20 1
+a20 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/util/pixbgstrip.c,v 11.4 2000/08/23 19:04:43 mike Exp $ (BRL)";
+d51 1
+a51 2
+get_args( argc, argv )
+register char **argv;
+d113 1
+a113 3
+main(argc, argv)
+int	argc;
+char	**argv;
+@
+
+
+11.4
+log
+@
+const RCSid
+@
+text
+@d20 1
+a20 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/util/pixbgstrip.c,v 11.3 2000/01/31 16:03:09 jra Exp $ (BRL)";
+d26 3
+d50 1
+d113 1
+@
+
+
+11.3
+log
+@Eliminated some unused variables
+@
+text
+@d20 1
+a20 1
+static char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/util/pixbgstrip.c,v 11.2 1996/12/13 15:05:51 jra Exp $ (BRL)";
+@
+
+
+11.2
+log
+@Mods to account for asize routines now in libbn.
+@
+text
+@d20 1
+a20 1
+static char RCSid[] = "@@(#)$Header: /m/cad/util/RCS/pixbgstrip.c,v 11.1 1995/01/04 10:12:32 mike Rel4_4 jra $ (BRL)";
+a37 1
+static int	file_height = 512;	/* default input height */
+d59 1
+a59 1
+			file_height = file_width = 1024;
+d64 1
+a64 1
+			file_height = file_width = atoi(optarg);
+a71 1
+			file_height = atoi(optarg);
+a131 1
+			file_height = h;
+@
+
+
+11.1
+log
+@Release_4.4
+@
+text
+@d20 1
+a20 1
+static char RCSid[] = "@@(#)$Header: /m/cad/util/RCS/pixbgstrip.c,v 1.2 94/08/23 15:05:52 gdurf Exp $ (BRL)";
+d132 1
+a132 1
+		if( fb_common_file_size(&w, &h, file_name, 3) ) {
+@
+
+
+1.2
+log
+@Factored ifdefs
+@
+text
+@d20 1
+a20 1
+static char RCSid[] = "@@(#)$Header: /m/cad/util/RCS/pixbgstrip.c,v 1.1 1991/10/28 20:42:26 mike Exp gdurf $ (BRL)";
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d20 1
+a20 1
+static char RCSid[] = "@@(#)$Header: /m/cad/util/RCS/pixbackgnd.c,v 10.1 91/10/12 06:48:32 mike Rel4_0 $ (BRL)";
+d25 1
+a25 1
+#include "externs.h"
+a26 5
+
+extern int	getopt();
+extern char	*optarg;
+extern int	optind;
+
+@

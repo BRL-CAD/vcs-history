@@ -1,0 +1,190 @@
+head	1.4;
+access;
+symbols
+	ansi-20040405-merged:1.3
+	postmerge-20040405-ansi:1.3
+	premerge-20040404-ansi:1.3
+	postmerge-autoconf:1.3
+	autoconf-freeze:1.3
+	premerge-autoconf:1.3
+	postmerge-20040315-windows:1.3
+	premerge-20040315-windows:1.3
+	windows-20040315-freeze:1.3
+	autoconf-20031203:1.3
+	autoconf-20031202:1.3
+	autoconf-branch:1.3.0.12
+	phong-branch:1.3.0.10
+	photonmap-branch:1.3.0.8
+	rel-6-1-DP:1.3
+	windows-branch:1.3.0.6
+	rel-6-0-2:1.3
+	ansi-branch:1.3.0.4
+	rel-6-0-1-branch:1.3.0.2
+	hartley-6-0-post:1.3
+	hartley-6-0-pre:1.3
+	rel-6-0-1:1.3
+	rel-6-0:1.3
+	rel-5-4:1.1.2.1
+	offsite-5-3-pre:1.2
+	rel-5-3:1.1.2.1
+	rel-5-2:1.1
+	rel-5-1-branch:1.1.0.2
+	rel-5-1:1.1
+	rel-5-0:1.1
+	rel-5-0-beta:1.1;
+locks; strict;
+comment	@# @;
+
+
+1.4
+date	2004.05.21.16.41.31;	author morrison;	state dead;
+branches;
+next	1.3;
+
+1.3
+date	2001.11.09.20.26.48;	author bparker;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2001.01.05.18.50.22;	author jra;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	98.04.09.21.01.18;	author bparker;	state Exp;
+branches
+	1.1.2.1;
+next	;
+
+1.1.2.1
+date	2001.01.05.18.39.51;	author jra;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.4
+log
+@moved to src/tclscripts/
+@
+text
+@#
+#			R A Y . T C L
+#
+#  Authors -
+#	Mike J. Muuss
+#	Robert G. Parker
+#
+#  Description -
+#	Tcl routines that use LIBRT's Tcl interface.
+#
+
+proc mouse_shoot_ray { x y } {
+    global perspective_mode
+
+    # get zclip setting
+    set zclip [dm set zclip]
+
+    eval .inmem rt_gettrees ray -i -u [_mged_who]
+    ray prep 1
+    ray no_bool 1
+    set xx [expr $x / 2048.0]
+    set yy [expr $y / 2048.0]
+    set target [view2model $xx $yy 0]
+    if {$perspective_mode} {
+	set start [view2model 0 0 1]
+    } elseif {!$zclip} {
+	# calculate a view Z that's in front of all geometry
+
+	# get center and size of displayed geometry
+	set center_size [get_autoview]
+
+	# extract view Z from center of geometry, then back the rest of the way out of the geometry
+	set Z [expr [lindex [eval model2view [lindex $center_size 1]] 2] + [expr [lindex $center_size 3] / [size]]]
+	if {$Z < 1} {
+	    set Z 1
+	}
+
+	set start [view2model $xx $yy $Z]
+    } else {
+	set start [view2model $xx $yy 1]
+    }
+
+    return [ray shootray $start at $target]
+}
+
+proc ray_get_info { ray key1 key2 } {
+    set items {}
+
+    foreach partition $ray {
+	set item [bu_get_value_by_keyword $key1 $partition]
+
+	if {$key2 == ""} {
+	    lappend items $item
+	} else {
+	    lappend items [bu_get_value_by_keyword $key2 $item]
+	}
+    }
+
+    return $items
+}
+@
+
+
+1.3
+log
+@*- mods to mouse_shoot_ray:
+	Take into account whether or not we're zclipping.
+	If we are not, then back out of the geometry
+	before shooting.
+@
+text
+@@
+
+
+1.2
+log
+@mouse_shoot_ray now works in perspective mode
+@
+text
+@d15 3
+d24 1
+a24 1
+    if { $perspective_mode } {
+d26 13
+@
+
+
+1.1
+log
+@Tcl routines that use LIBRT's Tcl interface.
+@
+text
+@d13 2
+d21 5
+a25 1
+    set start [view2model $xx $yy 1]
+@
+
+
+1.1.2.1
+log
+@mouse_shoot_ray now works correctly in perspective mode
+@
+text
+@a12 2
+    global perspective_mode
+
+d19 1
+a19 5
+    if { $perspective_mode } {
+	set start [view2model 0 0 1]
+    } else {
+	set start [view2model $xx $yy 1]
+    }
+@
+

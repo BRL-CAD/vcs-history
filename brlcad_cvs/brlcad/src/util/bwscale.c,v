@@ -1,0 +1,1328 @@
+head	14.15;
+access;
+symbols
+	rel-7-10-4:14.12
+	STABLE:14.12.0.2
+	rel-7-10-2:14.12
+	rel-7-10-0:14.11
+	rel-7-8-4:14.9
+	rel-7-8-2:14.9
+	rel-7-8-0:14.8
+	trimnurbs-branch:14.8.0.2
+	help:14.8
+	temp_tag:14.6
+	bobWinPort-20051223-freeze:14.3
+	postmerge-20051223-bobWinPort:14.6
+	premerge-20051223-bobWinPort:14.6
+	rel-7-6-6:14.6
+	rel-7-6-4:14.6
+	rel-7-6-2:14.3
+	rel-7-6-branch:14.3.0.6
+	rel-7-6-0:14.3
+	rel-7-4-2:14.3
+	rel-7-4-branch:14.3.0.4
+	bobWinPort:14.3.0.2
+	rel-7-4-0:14.3
+	rel-7-2-6:14.3
+	rel-7-2-4:14.3
+	rel-7-2-2:14.3
+	rel-7-2-0:14.3
+	rel-7-0-4:14.2
+	rel-7-0-2:14.2
+	rel-7-0-1:14.2
+	opensource-post:14.2
+	opensource-pre:1.5
+	rel-7-0-branch:1.5.0.2
+	rel-7-0:1.5;
+locks; strict;
+comment	@ * @;
+
+
+14.15
+date	2007.11.21.20.49.13;	author erikgreenwald;	state Exp;
+branches;
+next	14.14;
+
+14.14
+date	2007.11.21.18.55.37;	author erikgreenwald;	state Exp;
+branches;
+next	14.13;
+
+14.13
+date	2007.09.15.16.23.23;	author brlcad;	state Exp;
+branches;
+next	14.12;
+
+14.12
+date	2007.07.26.01.13.59;	author brlcad;	state Exp;
+branches;
+next	14.11;
+
+14.11
+date	2007.01.23.01.13.52;	author brlcad;	state Exp;
+branches;
+next	14.10;
+
+14.10
+date	2007.01.20.14.37.05;	author brlcad;	state Exp;
+branches;
+next	14.9;
+
+14.9
+date	2006.06.03.21.09.42;	author brlcad;	state Exp;
+branches;
+next	14.8;
+
+14.8
+date	2006.02.19.03.48.27;	author brlcad;	state Exp;
+branches;
+next	14.7;
+
+14.7
+date	2006.01.18.06.46.27;	author brlcad;	state Exp;
+branches;
+next	14.6;
+
+14.6
+date	2005.10.23.04.44.39;	author brlcad;	state Exp;
+branches;
+next	14.5;
+
+14.5
+date	2005.09.22.00.21.51;	author brlcad;	state Exp;
+branches;
+next	14.4;
+
+14.4
+date	2005.09.21.19.05.37;	author brlcad;	state Exp;
+branches;
+next	14.3;
+
+14.3
+date	2005.01.30.20.31.32;	author brlcad;	state Exp;
+branches
+	14.3.6.1;
+next	14.2;
+
+14.2
+date	2004.12.21.03.45.40;	author butler;	state Exp;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.32;	author morrison;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	2004.09.09.04.53.00;	author kermit;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	2004.08.02.23.01.53;	author morrison;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2004.06.09.18.21.39;	author erikg;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2004.06.08.22.04.43;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.15.21.43;	author morrison;	state Exp;
+branches;
+next	;
+
+14.3.6.1
+date	2005.11.13.13.46.20;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.15
+log
+@pass bu_exit a NULL instead of an empty string
+@
+text
+@/*                       B W S C A L E . C
+ * BRL-CAD
+ *
+ * Copyright (c) 1986-2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@file bwscale.c
+ *
+ *  Scale a black and white picture.
+ *
+ *  To scale up, we use bilinear interpolation.
+ *  To scale down, we assume "square pixels" and preserve the
+ *  amount of light energy per unit area.
+ *
+ *  This is a buffered version that can handle files of
+ *  almost arbitrary size.
+ *  Note: this buffer code also appears in bwcrop.c
+ *
+ *  Author -
+ *	Phillip Dykstra
+ *	16 June 1986
+ *
+ */
+#ifndef lint
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/bwscale.c,v 14.14 2007/11/21 18:55:37 erikgreenwald Exp $ (BRL)";
+#endif
+
+#include "common.h"
+
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+
+#ifdef HAVE_UNISTD_H
+#  include <unistd.h>
+#endif
+
+#include "machine.h"
+#include "bu.h"
+
+
+#define	MAXBUFBYTES	4096*4096	/* max bytes to malloc in buffer space */
+
+unsigned char	*outbuf;
+unsigned char	*buffer;
+int	scanlen;			/* length of infile (and buffer) scanlines */
+int	buflines;			/* Number of lines held in buffer */
+int	buf_start = -1000;		/* First line in buffer */
+
+int	bufy;				/* y coordinate in buffer */
+FILE	*buffp;
+static char	*file_name;
+
+int	rflag = 0;
+int	inx = 512;
+int	iny = 512;
+int	outx = 512;
+int	outy = 512;
+
+
+static	char usage[] = "\
+Usage: bwscale [-h] [-r] [-s squareinsize] [-w inwidth] [-n inheight]\n\
+	[-S squareoutsize] [-W outwidth] [-N outheight] [in.bw] > out.bw\n";
+
+static int
+get_args(int argc, register char **argv)
+{
+    register int c;
+
+    while ( (c = bu_getopt( argc, argv, "rhs:w:n:S:W:N:" )) != EOF )  {
+	switch( c )  {
+	    case 'r':
+		/* pixel replication */
+		rflag = 1;
+		break;
+	    case 'h':
+		/* high-res */
+		inx = iny = 1024;
+		break;
+	    case 'S':
+		/* square size */
+		outx = outy = atoi(bu_optarg);
+		break;
+	    case 's':
+		/* square size */
+		inx = iny = atoi(bu_optarg);
+		break;
+	    case 'W':
+		outx = atoi(bu_optarg);
+		break;
+	    case 'w':
+		inx = atoi(bu_optarg);
+		break;
+	    case 'N':
+		outy = atoi(bu_optarg);
+		break;
+	    case 'n':
+		iny = atoi(bu_optarg);
+		break;
+
+	    default:		/* '?' */
+		return(0);
+	}
+    }
+
+    /* XXX - backward compatability hack */
+    if( bu_optind+5 == argc ) {
+	file_name = argv[bu_optind++];
+	if( (buffp = fopen(file_name, "r")) == NULL )  {
+	    (void)fprintf( stderr,
+			   "bwscale: cannot open \"%s\" for reading\n",
+			   file_name );
+	    return(0);
+	}
+	inx = atoi(argv[bu_optind++]);
+	iny = atoi(argv[bu_optind++]);
+	outx = atoi(argv[bu_optind++]);
+	outy = atoi(argv[bu_optind++]);
+	return(1);
+    }
+    if ((bu_optind >= argc ) ||
+	(argv[bu_optind][0] == '-' && argv[bu_optind][1] == '\n')) {
+
+	/* input presumably from standard input */
+	if( isatty(fileno(stdin)) ) {
+	    return(0);
+	}
+	file_name = "-";
+	buffp = stdin;
+    } else {
+	file_name = argv[bu_optind];
+	if ((buffp = fopen(file_name, "r")) == NULL )  {
+	    (void)fprintf( stderr,
+			   "bwscale: cannot open \"%s\" for reading\n",
+			   file_name );
+	    return(0);
+	}
+    }
+
+    if ( argc > ++bu_optind )
+	(void)fprintf( stderr, "bwscale: excess argument(s) ignored\n" );
+
+    return(1);		/* OK */
+}
+
+/****** THIS PROBABLY SHOULD BE ELSEWHERE *******/
+
+/* ceiling and floor functions for positive numbers */
+#define	CEILING(x)	(((x) > (int)(x)) ? (int)(x)+1 : (int)(x))
+#define	FLOOR(x)	((int)(x))
+#define	MIN(x,y)	(((x) > (y)) ? (y) : (x))
+
+
+/*
+ * Load the buffer with scan lines centered around
+ * the given y coordinate.
+ */
+static void
+fill_buffer(int y)
+{
+    buf_start = y - buflines/2;
+    if( buf_start < 0 ) buf_start = 0;
+
+    if( fseek( buffp, buf_start * scanlen, 0 ) < 0 ) {
+	fprintf( stderr, "bwscale: Can't seek to input pixel!\n" );
+	/*		bu_exit ( 3, NULL ); */
+    }
+    fread( buffer, scanlen, buflines, buffp );
+}
+
+
+/*
+ * Determine max number of lines to buffer.
+ *  and malloc space for it.
+ *  XXX - CHECK FILE SIZE
+ */
+void
+init_buffer(int scanlen)
+{
+    int	max;
+
+    /* See how many we could buffer */
+    max = MAXBUFBYTES / scanlen;
+
+    /*
+     * XXX We really should see how big
+     * the input file is to decide if we should buffer
+     * less than our max.
+     */
+    if( max > 4096) max = 4096;
+
+    buflines = max;
+    buf_start = (-buflines);
+    buffer = (unsigned char *)bu_calloc( buflines, scanlen, "buffer" );
+}
+
+
+/*
+ * Bilinear Interpolate a file of pixels.
+ *
+ * This version preserves the outside pixels and interps inside only.
+ */
+void
+binterp(FILE *ofp, int ix, int iy, int ox, int oy)
+{
+    int	i, j;
+    double	x, y, dx, dy, mid1, mid2;
+    double	xstep, ystep;
+    unsigned char *op, *up, *lp;
+
+    xstep = (double)(ix - 1) / (double)ox - 1.0e-6;
+    ystep = (double)(iy - 1) / (double)oy - 1.0e-6;
+
+    /* For each output pixel */
+    for( j = 0; j < oy; j++ ) {
+	y = j * ystep;
+	/*
+	 * Make sure we have this row (and the one after it)
+	 * in the buffer
+	 */
+	bufy = (int)y - buf_start;
+	if( bufy < 0 || bufy >= buflines-1 ) {
+	    fill_buffer( (int)y );
+	    bufy = (int)y - buf_start;
+	}
+
+	op = outbuf;
+
+	for( i = 0; i < ox; i++ ) {
+	    x = i * xstep;
+	    dx = x - (int)x;
+	    dy = y - (int)y;
+
+	    /* Note: (1-a)*foo + a*bar = foo + a*(bar-foo) */
+
+	    lp = &buffer[bufy*scanlen+(int)x];
+	    up = &buffer[(bufy+1)*scanlen+(int)x];
+
+	    mid1 = lp[0] + dx * ((double)lp[1] - (double)lp[0]);
+	    mid2 = up[0] + dx * ((double)up[1] - (double)up[0]);
+
+	    *op++ = mid1 + dy * (mid2 - mid1);
+	}
+
+	(void) fwrite( outbuf, 1, ox, ofp );
+    }
+}
+
+/*
+ * Nearest Neighbor Interpolate a file of pixels.
+ *
+ * This version preserves the outside pixels and interps inside only.
+ */
+void
+ninterp(FILE *ofp, int ix, int iy, int ox, int oy)
+{
+    int	i, j;
+    double	x, y;
+    double	xstep, ystep;
+    unsigned char *op, *lp;
+
+    xstep = (double)(ix - 1) / (double)ox - 1.0e-6;
+    ystep = (double)(iy - 1) / (double)oy - 1.0e-6;
+
+    /* For each output pixel */
+    for( j = 0; j < oy; j++ ) {
+	y = j * ystep;
+	/*
+	 * Make sure we have this row (and the one after it)
+	 * in the buffer
+	 */
+	bufy = (int)y - buf_start;
+	if( bufy < 0 || bufy >= buflines-1 ) {
+	    fill_buffer( (int)y );
+	    bufy = (int)y - buf_start;
+	}
+
+	op = outbuf;
+
+	for( i = 0; i < ox; i++ ) {
+	    x = i * xstep;
+	    lp = &buffer[bufy*scanlen+(int)x];
+	    *op++ = lp[0];
+	}
+
+	(void) fwrite( outbuf, 1, ox, ofp );
+    }
+}
+
+
+/*
+ * Scale a file of pixels to a different size.
+ *
+ * To scale down we make a square pixel assumption.
+ * We will preserve the amount of light energy per unit area.
+ * To scale up we use bilinear interpolation.
+ */
+int
+scale(FILE *ofp, int ix, int iy, int ox, int oy)
+{
+    int	i, j, k, l;
+    double	pxlen, pylen;			/* # old pixels per new pixel */
+    double	xstart, xend, ystart, yend;	/* edges of new pixel in old coordinates */
+    double	xdist, ydist;			/* length of new pixel sides in old coord */
+    double	sum;
+    unsigned char *op;
+
+    pxlen = (double)ix / (double)ox;
+    pylen = (double)iy / (double)oy;
+    if ( (pxlen < 1.0 && pylen > 1.0) || (pxlen > 1.0 && pylen < 1.0) ) {
+	fprintf( stderr, "bwscale: can't stretch one way and compress another!\n" );
+	return( -1 );
+    }
+    if( pxlen < 1.0 || pylen < 1.0 ) {
+	/* scale up */
+	if( rflag ) {
+	    /* nearest neighbor interpolate */
+	    ninterp( ofp, ix, iy, ox, oy );
+	} else {
+	    /* bilinear interpolate */
+	    binterp( ofp, ix, iy, ox, oy );
+	}
+	return( 0 );
+    }
+
+    /* for each output pixel */
+    for( j = 0; j < oy ; j++ ) {
+	ystart = j * pylen;
+	yend = ystart + pylen;
+	op = outbuf;
+	for( i = 0; i < ox; i++ ) {
+	    xstart = i * pxlen;
+	    xend = xstart + pxlen;
+	    sum = 0.0;
+	    /*
+	     * For each pixel of the original falling
+	     *  inside this new pixel.
+	     */
+	    for( l = FLOOR(ystart); l < CEILING(yend); l++ ) {
+
+		/* Make sure we have this row in the buffer */
+		bufy = l - buf_start;
+		if( bufy < 0 || bufy >= buflines ) {
+		    fill_buffer( l );
+		    bufy = l - buf_start;
+		}
+
+		/* Compute height of this row */
+		if( (double)l < ystart )
+		    ydist = CEILING(ystart) - ystart;
+		else
+		    ydist = MIN( 1.0, yend - (double)l );
+
+		for( k = FLOOR(xstart); k < CEILING(xend); k++ ) {
+		    /* Compute width of column */
+		    if( (double)k < xstart )
+			xdist = CEILING(xstart) - xstart;
+		    else
+			xdist = MIN( 1.0, xend - (double)k );
+
+		    /* Add this pixels contribution */
+		    /* sum += old[l][k] * xdist * ydist; */
+		    sum += buffer[bufy * scanlen + k] * xdist * ydist;
+		}
+	    }
+	    *op++ = (int)(sum / (pxlen * pylen));
+	    if (op > (outbuf+scanlen))
+		abort();
+	}
+	(void) fwrite( outbuf, 1, ox, ofp );
+    }
+    return( 1 );
+}
+
+
+int
+main(int argc, char **argv)
+{
+    int i;
+
+    if ( !get_args( argc, argv ) || isatty(fileno(stdout)) )  {
+	(void)fputs(usage, stderr);
+	bu_exit ( 1, NULL );
+    }
+
+    if( inx <= 0 || iny <= 0 || outx <= 0 || outy <= 0 ) {
+	fprintf( stderr, "bwscale: bad size\n" );
+	bu_exit ( 2, NULL );
+    }
+
+    /* See how many lines we can buffer */
+    scanlen = inx;
+    init_buffer( scanlen );
+
+    i = (inx < outx) ? outx : inx;
+    outbuf = (unsigned char *)bu_malloc(i, "outbuf");
+
+    /* Here we go */
+    i = scale( stdout, inx, iny, outx, outy );
+
+    bu_free( outbuf, (const char *)buffer );
+    bu_free( buffer, (const char *)buffer );
+    return(0);
+}
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+14.14
+log
+@exit->bu_exit where applicable
+@
+text
+@d38 1
+a38 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/bwscale.c,v 14.13 2007/09/15 16:23:23 brlcad Exp $ (BRL)";
+d179 1
+a179 1
+	/*		bu_exit ( 3, "" ); */
+d396 1
+a396 1
+	bu_exit ( 1, "" );
+d401 1
+a401 1
+	bu_exit ( 2, "" );
+@
+
+
+14.13
+log
+@more c89 embracing.  c89 provides string.h for all of the various str*() and mem*() functions, so remove the check for its presence.  there is still likely to be work required for strict c89 conformance for the various bsd strings.h functions that may be in use.
+@
+text
+@d38 1
+a38 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/bwscale.c,v 14.12 2007/07/26 01:13:59 brlcad Exp $ (BRL)";
+d179 1
+a179 1
+	/*		exit( 3 ); */
+d396 1
+a396 1
+	exit( 1 );
+d401 1
+a401 1
+	exit( 2 );
+@
+
+
+14.12
+log
+@remove ephemeral data like phone numbers and addresses, including the misleading 'source' statements on code that is continually evolving and receiving contributions from many many sources
+@
+text
+@d38 1
+a38 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/bwscale.c,v 14.11 2007/01/23 01:13:52 brlcad Exp $ (BRL)";
+a42 4
+#ifdef HAVE_UNISTD_H
+#  include <unistd.h>
+#endif
+
+d45 1
+d47 2
+a48 4
+#ifdef HAVE_STRING_H
+#  include <string.h>
+#else
+#  include <strings.h>
+@
+
+
+14.11
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@a35 4
+ *  Source -
+ *	SECAD/VLD Computing Consortium, Bldg 394
+ *	The U. S. Army Ballistic Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005-5066
+d38 1
+a38 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/bwscale.c,v 14.10 2007/01/20 14:37:05 brlcad Exp $ (BRL)";
+@
+
+
+14.10
+log
+@update copyright to 2007
+@
+text
+@d8 2
+a9 3
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+d14 1
+a14 1
+ * General Public License for more details.
+d16 2
+a17 2
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+d42 1
+a42 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/bwscale.c,v 14.9 2006/06/03 21:09:42 brlcad Exp $ (BRL)";
+@
+
+
+14.9
+log
+@quell type warnings on bu_free
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 1986-2006 United States Government as represented by
+d43 1
+a43 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/bwscale.c,v 14.8 2006/02/19 03:48:27 brlcad Exp $ (BRL)";
+@
+
+
+14.8
+log
+@add support for '-' as the input file to designate stdin, use libbu memory management, reorder functions, and ws.
+@
+text
+@d43 1
+a43 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/bwscale.c,v 14.7 2006/01/18 06:46:27 brlcad Exp $ (BRL)";
+d424 2
+a425 2
+    bu_free( outbuf, buffer );
+    bu_free( buffer, buffer );
+@
+
+
+14.7
+log
+@update copyright to 2006
+@
+text
+@d43 1
+a43 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/bwscale.c,v 14.6 2005/10/23 04:44:39 brlcad Exp $ (BRL)";
+d49 1
+a49 1
+# include <unistd.h>
+d56 1
+a56 1
+#include <string.h>
+d58 1
+a58 1
+#include <strings.h>
+a64 3
+#if 0
+#define	MAXBUFBYTES	1024*1024	/* max bytes to malloc in buffer space */
+#else
+d66 1
+a66 1
+#endif
+a82 1
+void	init_buffer(int scanlen), fill_buffer(int y), binterp(FILE *ofp, int ix, int iy, int ox, int oy), ninterp(FILE *ofp, int ix, int iy, int ox, int oy);
+d88 1
+a88 1
+int
+d91 1
+a91 37
+	register int c;
+
+	while ( (c = bu_getopt( argc, argv, "rhs:w:n:S:W:N:" )) != EOF )  {
+		switch( c )  {
+		case 'r':
+			/* pixel replication */
+			rflag = 1;
+			break;
+		case 'h':
+			/* high-res */
+			inx = iny = 1024;
+			break;
+		case 'S':
+			/* square size */
+			outx = outy = atoi(bu_optarg);
+			break;
+		case 's':
+			/* square size */
+			inx = iny = atoi(bu_optarg);
+			break;
+		case 'W':
+			outx = atoi(bu_optarg);
+			break;
+		case 'w':
+			inx = atoi(bu_optarg);
+			break;
+		case 'N':
+			outy = atoi(bu_optarg);
+			break;
+		case 'n':
+			iny = atoi(bu_optarg);
+			break;
+
+		default:		/* '?' */
+			return(0);
+		}
+	}
+d93 67
+a159 28
+	/* XXX - backward compatability hack */
+	if( bu_optind+5 == argc ) {
+		file_name = argv[bu_optind++];
+		if( (buffp = fopen(file_name, "r")) == NULL )  {
+			(void)fprintf( stderr,
+				"bwscale: cannot open \"%s\" for reading\n",
+				file_name );
+			return(0);
+		}
+		inx = atoi(argv[bu_optind++]);
+		iny = atoi(argv[bu_optind++]);
+		outx = atoi(argv[bu_optind++]);
+		outy = atoi(argv[bu_optind++]);
+		return(1);
+	}
+	if( bu_optind >= argc )  {
+		if( isatty(fileno(stdin)) )
+			return(0);
+		file_name = "-";
+		buffp = stdin;
+	} else {
+		file_name = argv[bu_optind];
+		if( (buffp = fopen(file_name, "r")) == NULL )  {
+			(void)fprintf( stderr,
+				"bwscale: cannot open \"%s\" for reading\n",
+				file_name );
+			return(0);
+		}
+d161 1
+d163 2
+a164 2
+	if ( argc > ++bu_optind )
+		(void)fprintf( stderr, "bwscale: excess argument(s) ignored\n" );
+d166 1
+a166 1
+	return(1);		/* OK */
+d176 1
+d178 2
+a179 5
+ * Scale a file of pixels to a different size.
+ *
+ * To scale down we make a square pixel assumption.
+ * We will preserve the amount of light energy per unit area.
+ * To scale up we use bilinear interpolation.
+d181 2
+a182 2
+int
+scale(FILE *ofp, int ix, int iy, int ox, int oy)
+d184 2
+a185 24
+	int	i, j, k, l;
+	double	pxlen, pylen;			/* # old pixels per new pixel */
+	double	xstart, xend, ystart, yend;	/* edges of new pixel in old coordinates */
+	double	xdist, ydist;			/* length of new pixel sides in old coord */
+	double	sum;
+	unsigned char *op;
+
+	pxlen = (double)ix / (double)ox;
+	pylen = (double)iy / (double)oy;
+	if ( (pxlen < 1.0 && pylen > 1.0) || (pxlen > 1.0 && pylen < 1.0) ) {
+		fprintf( stderr, "bwscale: can't stretch one way and compress another!\n" );
+		return( -1 );
+	}
+	if( pxlen < 1.0 || pylen < 1.0 ) {
+		/* scale up */
+		if( rflag ) {
+			/* nearest neighbor interpolate */
+			ninterp( ofp, ix, iy, ox, oy );
+		} else {
+			/* bilinear interpolate */
+			binterp( ofp, ix, iy, ox, oy );
+		}
+		return( 0 );
+	}
+d187 5
+a191 47
+	/* for each output pixel */
+	for( j = 0; j < oy ; j++ ) {
+		ystart = j * pylen;
+		yend = ystart + pylen;
+		op = outbuf;
+		for( i = 0; i < ox; i++ ) {
+			xstart = i * pxlen;
+			xend = xstart + pxlen;
+			sum = 0.0;
+			/*
+			 * For each pixel of the original falling
+			 *  inside this new pixel.
+			 */
+			for( l = FLOOR(ystart); l < CEILING(yend); l++ ) {
+
+				/* Make sure we have this row in the buffer */
+				bufy = l - buf_start;
+				if( bufy < 0 || bufy >= buflines ) {
+					fill_buffer( l );
+					bufy = l - buf_start;
+				}
+
+				/* Compute height of this row */
+				if( (double)l < ystart )
+					ydist = CEILING(ystart) - ystart;
+				else
+					ydist = MIN( 1.0, yend - (double)l );
+
+				for( k = FLOOR(xstart); k < CEILING(xend); k++ ) {
+					/* Compute width of column */
+					if( (double)k < xstart )
+						xdist = CEILING(xstart) - xstart;
+					else
+						xdist = MIN( 1.0, xend - (double)k );
+
+					/* Add this pixels contribution */
+					/* sum += old[l][k] * xdist * ydist; */
+					sum += buffer[bufy * scanlen + k] * xdist * ydist;
+				}
+			}
+			*op++ = (int)(sum / (pxlen * pylen));
+			if (op > (outbuf+scanlen))
+				abort();
+		}
+		(void) fwrite( outbuf, 1, ox, ofp );
+	}
+	return( 1 );
+a194 34
+
+int
+main(int argc, char **argv)
+{
+	int i;
+
+	if ( !get_args( argc, argv ) || isatty(fileno(stdout)) )  {
+		(void)fputs(usage, stderr);
+		exit( 1 );
+	}
+
+	if( inx <= 0 || iny <= 0 || outx <= 0 || outy <= 0 ) {
+		fprintf( stderr, "bwscale: bad size\n" );
+		exit( 2 );
+	}
+
+	/* See how many lines we can buffer */
+	scanlen = inx;
+	init_buffer( scanlen );
+
+	if (inx < outx) i = outx;
+	else i = inx;
+
+	if( (outbuf = (unsigned char *)malloc(i)) == (unsigned char *)NULL )
+		exit( 4 );
+
+	/* Here we go */
+	i = scale( stdout, inx, iny, outx, outy );
+
+	free( outbuf );
+	free( buffer );
+	return(0);
+}
+
+d203 1
+a203 1
+	int	max;
+d205 2
+a206 9
+	/* See how many we could buffer */
+	max = MAXBUFBYTES / scanlen;
+
+	/*
+	 * XXX We really should see how big
+	 * the input file is to decide if we should buffer
+	 * less than our max.
+	 */
+	if( max > 4096) max = 4096;
+d208 10
+a217 26
+	buflines = max;
+	buf_start = (-buflines);
+	if ((buffer = (unsigned char *)malloc( buflines * scanlen ))
+	  == (unsigned char *)NULL) {
+		fprintf(stderr, "Cannot allocate buffer\n");
+		exit(-1);
+	} else {
+		bzero((char *)buffer, buflines * scanlen);
+	}
+}
+
+/*
+ * Load the buffer with scan lines centered around
+ * the given y coordinate.
+ */
+void
+fill_buffer(int y)
+{
+	buf_start = y - buflines/2;
+	if( buf_start < 0 ) buf_start = 0;
+
+	if( fseek( buffp, buf_start * scanlen, 0 ) < 0 ) {
+		fprintf( stderr, "bwscale: Can't seek to input pixel!\n" );
+/*		exit( 3 ); */
+	}
+	fread( buffer, scanlen, buflines, buffp );
+d229 20
+a248 20
+	int	i, j;
+	double	x, y, dx, dy, mid1, mid2;
+	double	xstep, ystep;
+	unsigned char *op, *up, *lp;
+
+	xstep = (double)(ix - 1) / (double)ox - 1.0e-6;
+	ystep = (double)(iy - 1) / (double)oy - 1.0e-6;
+
+	/* For each output pixel */
+	for( j = 0; j < oy; j++ ) {
+		y = j * ystep;
+		/*
+		 * Make sure we have this row (and the one after it)
+		 * in the buffer
+		 */
+		bufy = (int)y - buf_start;
+		if( bufy < 0 || bufy >= buflines-1 ) {
+			fill_buffer( (int)y );
+			bufy = (int)y - buf_start;
+		}
+d250 1
+a250 1
+		op = outbuf;
+d252 4
+a255 4
+		for( i = 0; i < ox; i++ ) {
+			x = i * xstep;
+			dx = x - (int)x;
+			dy = y - (int)y;
+d257 1
+a257 1
+			/* Note: (1-a)*foo + a*bar = foo + a*(bar-foo) */
+d259 2
+a260 2
+			lp = &buffer[bufy*scanlen+(int)x];
+			up = &buffer[(bufy+1)*scanlen+(int)x];
+d262 2
+a263 2
+			mid1 = lp[0] + dx * ((double)lp[1] - (double)lp[0]);
+			mid2 = up[0] + dx * ((double)up[1] - (double)up[0]);
+d265 2
+a266 2
+			*op++ = mid1 + dy * (mid2 - mid1);
+		}
+d268 2
+a269 2
+		(void) fwrite( outbuf, 1, ox, ofp );
+	}
+d280 89
+a368 19
+	int	i, j;
+	double	x, y;
+	double	xstep, ystep;
+	unsigned char *op, *lp;
+
+	xstep = (double)(ix - 1) / (double)ox - 1.0e-6;
+	ystep = (double)(iy - 1) / (double)oy - 1.0e-6;
+
+	/* For each output pixel */
+	for( j = 0; j < oy; j++ ) {
+		y = j * ystep;
+		/*
+		 * Make sure we have this row (and the one after it)
+		 * in the buffer
+		 */
+		bufy = (int)y - buf_start;
+		if( bufy < 0 || bufy >= buflines-1 ) {
+			fill_buffer( (int)y );
+			bufy = (int)y - buf_start;
+d371 27
+a397 1
+		op = outbuf;
+d399 4
+a402 5
+		for( i = 0; i < ox; i++ ) {
+			x = i * xstep;
+			lp = &buffer[bufy*scanlen+(int)x];
+			*op++ = lp[0];
+		}
+d404 23
+a426 2
+		(void) fwrite( outbuf, 1, ox, ofp );
+	}
+@
+
+
+14.6
+log
+@trailing ws
+@
+text
+@d4 1
+a4 1
+ * Copyright (C) 1986-2005 United States Government as represented by
+d43 1
+a43 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/bwscale.c,v 14.5 2005/09/22 00:21:51 brlcad Exp $ (BRL)";
+@
+
+
+14.5
+log
+@add bu.h for bu_getopt stuff
+@
+text
+@d36 1
+a36 1
+ *  
+d43 1
+a43 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/bwscale.c,v 14.4 2005/09/21 19:05:37 brlcad Exp $ (BRL)";
+@
+
+
+14.4
+log
+@needs bu.h for bu_getopt
+@
+text
+@d43 1
+a43 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/bwscale.c,v 14.3 2005/01/30 20:31:32 brlcad Exp $ (BRL)";
+d62 1
+@
+
+
+14.3
+log
+@update copyright to 2005
+@
+text
+@d43 1
+a43 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/bwscale.c,v 14.2 2004/12/21 03:45:40 butler Exp $ (BRL)";
+d96 1
+a96 1
+	while ( (c = getopt( argc, argv, "rhs:w:n:S:W:N:" )) != EOF )  {
+d108 1
+a108 1
+			outx = outy = atoi(optarg);
+d112 1
+a112 1
+			inx = iny = atoi(optarg);
+d115 1
+a115 1
+			outx = atoi(optarg);
+d118 1
+a118 1
+			inx = atoi(optarg);
+d121 1
+a121 1
+			outy = atoi(optarg);
+d124 1
+a124 1
+			iny = atoi(optarg);
+d133 2
+a134 2
+	if( optind+5 == argc ) {
+		file_name = argv[optind++];
+d141 4
+a144 4
+		inx = atoi(argv[optind++]);
+		iny = atoi(argv[optind++]);
+		outx = atoi(argv[optind++]);
+		outy = atoi(argv[optind++]);
+d147 1
+a147 1
+	if( optind >= argc )  {
+d153 1
+a153 1
+		file_name = argv[optind];
+d162 1
+a162 1
+	if ( argc > ++optind )
+@
+
+
+14.3.6.1
+log
+@merge changes from HEAD aka rel-7-6-4 to the rel-7-6-branch just in case someone peeks a gander or tries to continue/build the branch
+@
+text
+@d36 1
+a36 1
+ *
+d43 1
+a43 1
+static const char RCSid[] = "@@(#)$Header$ (BRL)";
+a61 1
+#include "bu.h"
+d96 1
+a96 1
+	while ( (c = bu_getopt( argc, argv, "rhs:w:n:S:W:N:" )) != EOF )  {
+d108 1
+a108 1
+			outx = outy = atoi(bu_optarg);
+d112 1
+a112 1
+			inx = iny = atoi(bu_optarg);
+d115 1
+a115 1
+			outx = atoi(bu_optarg);
+d118 1
+a118 1
+			inx = atoi(bu_optarg);
+d121 1
+a121 1
+			outy = atoi(bu_optarg);
+d124 1
+a124 1
+			iny = atoi(bu_optarg);
+d133 2
+a134 2
+	if( bu_optind+5 == argc ) {
+		file_name = argv[bu_optind++];
+d141 4
+a144 4
+		inx = atoi(argv[bu_optind++]);
+		iny = atoi(argv[bu_optind++]);
+		outx = atoi(argv[bu_optind++]);
+		outy = atoi(argv[bu_optind++]);
+d147 1
+a147 1
+	if( bu_optind >= argc )  {
+d153 1
+a153 1
+		file_name = argv[bu_optind];
+d162 1
+a162 1
+	if ( argc > ++bu_optind )
+@
+
+
+14.2
+log
+@GPL license changes
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 1986-2004 United States Government as represented by
+d43 1
+a43 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/util/bwscale.c,v 14.1 2004/11/16 19:42:32 morrison Exp $ (BRL)";
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@d1 21
+a21 2
+/*
+ *		B W S C A L E . C
+a40 4
+ *  
+ *  Copyright Notice -
+ *	This software is Copyright (C) 1986-2004 by the United States Army.
+ *	All rights reserved.
+d43 1
+a43 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/util/bwscale.c,v 1.5 2004/09/09 04:53:00 kermit Exp $ (BRL)";
+@
+
+
+1.5
+log
+@Added <stdlib.h> to fix implicit cast (for IA64 architecture).
+@
+text
+@d28 1
+a28 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/util/bwscale.c,v 1.4 2004/08/02 23:01:53 morrison Exp $ (BRL)";
+d419 10
+@
+
+
+1.4
+log
+@replace the wrapped config.h block with common.h
+@
+text
+@d28 1
+a28 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/util/bwscale.c,v 1.3 2004/06/09 18:21:39 erikg Exp $ (BRL)";
+a35 1
+                                                                                                                                                                            
+d37 1
+d39 1
+d45 1
+d47 1
+@
+
+
+1.3
+log
+@include unistd.h for getopt stuff
+@
+text
+@d28 1
+a28 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/util/bwscale.c,v 1.2 2004/06/08 22:04:43 morrison Exp $ (BRL)";
+d31 1
+a31 3
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+@
+
+
+1.2
+log
+@obliterate externs.h
+@
+text
+@d28 1
+a28 1
+static const char RCSid[] = "@@(#)$Header$ (BRL)";
+d34 5
+@
+
+
+1.1
+log
+@Vast reorganization begins.  Sources moved from top-level directories into src/.
+@
+text
+@d28 1
+a28 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/util/bwscale.c,v 11.13 2004/05/10 15:30:50 erikg Exp $ (BRL)";
+a34 2
+
+
+a41 1
+#include "externs.h"
+@
+

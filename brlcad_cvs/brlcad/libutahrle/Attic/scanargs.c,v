@@ -1,0 +1,1442 @@
+head	11.10;
+access;
+symbols
+	ansi-20040405-merged:11.7.2.1
+	postmerge-20040405-ansi:11.8
+	premerge-20040404-ansi:11.7
+	postmerge-autoconf:11.7
+	autoconf-freeze:11.7
+	premerge-autoconf:11.7
+	postmerge-20040315-windows:11.7
+	premerge-20040315-windows:11.7
+	windows-20040315-freeze:11.7
+	autoconf-20031203:11.7
+	autoconf-20031202:11.7
+	autoconf-branch:11.7.0.10
+	phong-branch:11.7.0.8
+	photonmap-branch:11.7.0.6
+	rel-6-1-DP:11.7
+	windows-branch:11.7.0.4
+	rel-6-0-2:11.5
+	ansi-branch:11.7.0.2
+	rel-6-0-1-branch:11.5.0.2
+	hartley-6-0-post:11.6
+	hartley-6-0-pre:11.5
+	rel-6-0-1:11.5
+	rel-6-0:11.5
+	rel-5-4:11.2
+	offsite-5-3-pre:11.4
+	rel-5-3:11.2
+	rel-5-2:11.2
+	rel-5-1-branch:11.2.0.2
+	rel-5-1:11.2
+	rel-5-0:11.2
+	rel-5-0-beta:11.2
+	rel-4-5:11.2
+	ctj-4-5-post:11.2
+	ctj-4-5-pre:11.2
+	rel-4-4:11.1
+	rel-4-0:10.1;
+locks; strict;
+comment	@ * @;
+
+
+11.10
+date	2004.05.21.17.59.50;	author morrison;	state dead;
+branches;
+next	11.9;
+
+11.9
+date	2004.05.10.15.30.47;	author erikg;	state Exp;
+branches;
+next	11.8;
+
+11.8
+date	2004.04.05.07.40.44;	author morrison;	state Exp;
+branches;
+next	11.7;
+
+11.7
+date	2002.08.20.17.08.19;	author jra;	state Exp;
+branches
+	11.7.2.1;
+next	11.6;
+
+11.6
+date	2002.08.15.20.55.29;	author hartley;	state Exp;
+branches;
+next	11.5;
+
+11.5
+date	2001.04.20.22.31.07;	author morrison;	state Exp;
+branches;
+next	11.4;
+
+11.4
+date	2000.11.01.21.30.21;	author mike;	state Exp;
+branches;
+next	11.3;
+
+11.3
+date	2000.09.01.19.19.12;	author mike;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	96.07.15.15.06.04;	author jra;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	95.01.04.10.05.34;	author mike;	state Rel4_4;
+branches;
+next	10.5;
+
+10.5
+date	94.12.30.09.00.40;	author stay;	state Exp;
+branches;
+next	10.4;
+
+10.4
+date	94.08.22.13.29.42;	author gdurf;	state Exp;
+branches;
+next	10.3;
+
+10.3
+date	94.08.10.23.20.34;	author gdurf;	state Exp;
+branches;
+next	10.2;
+
+10.2
+date	94.08.10.22.33.24;	author gdurf;	state Exp;
+branches;
+next	10.1;
+
+10.1
+date	91.10.12.06.38.48;	author mike;	state Rel4_0;
+branches;
+next	1.1;
+
+1.1
+date	91.01.03.17.31.07;	author butler;	state Exp;
+branches;
+next	;
+
+11.7.2.1
+date	2002.09.19.18.01.57;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@Dist 3.0 patchlevel 2 installation
+@
+
+
+11.10
+log
+@moved from top-level to src/other/.
+@
+text
+@/* 
+ * $Id: scanargs.c,v 11.9 2004/05/10 15:30:47 erikg Exp $
+ * 		Version 7 compatible
+ * 	Argument scanner, scans argv style argument list.
+ * 
+ * 	Some stuff is a kludge because sscanf screws up
+ * 
+ * 	Gary Newman - 10/4/1979 - Ampex Corp. 
+ * 
+ * 	Modified by Spencer W. Thomas, Univ. of Utah, 5/81 to
+ * 	add args introduced by 	a flag, add qscanargs call,
+ * 	allow empty flags.
+ * 
+ * 	If you make improvements we'd like to get them too.
+ * 	Jay Lepreau	lepreau@@utah-20, decvax!harpo!utah-cs!lepreau
+ * 	Spencer Thomas	thomas@@utah-20, decvax!harpo!utah-cs!thomas 
+ * 
+ *	(I know the code is ugly, but it just grew, you see ...)
+ * 
+ * Modified by:	Spencer W. Thomas
+ * 	Date:	Feb 25 1983
+ * 1. Fixed scanning of optional args.  Now args introduced by a flag
+ *    must follow the flag which introduces them and precede any other
+ *    flag argument.  It is still possible for a flag introduced
+ *    argument to be mistaken for a "bare" argument which occurs
+ *    earlier in the format string.  This implies that flags may not
+ *    be conditional upon other flags, and a message will be generated
+ *    if this is attempted.
+ * 
+ * 2. Usage message can be formatted by inserting newlines, tabs and
+ *    spaces into the format string.  This is especially useful for
+ *    long argument lists.
+ * 
+ * 3. Added n/N types for "numeric" args.  These args are scanned
+ *    using the C language conventions - a number starting 0x is
+ *    hexadecimal, a number starting with 0 is octal, otherwise it is
+ *    decimal.
+ *
+ *  Modified at BRL 16-May-88 by Mike Muuss to avoid Alliant STDC desire
+ *  to have all "void" functions so declared.
+ */
+
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+
+#include <stdio.h>
+#include <ctype.h>
+#if defined(HAVE_STDARG_H)
+# include <stdarg.h>
+#endif
+#if !defined(HAVE_STDARG_H) && defined(HAVE_VARARGS_H)
+# include <varargs.h>
+#endif
+#if !defined(HAVE_STDARG_H) && !defined(HAVE_VARARGS_H)
+# include "Need stdarg.h or varargs.h"
+#endif
+
+#include "machine.h"
+#include "externs.h"
+
+typedef char bool;
+/* 
+ * An explicit assumption is made in this code that all pointers look
+ * alike, except possibly char * pointers.
+ */
+typedef int *ptr;
+
+#ifndef YES
+#define YES 1
+#endif
+#ifndef NO
+#define NO 0
+#endif
+#ifndef ERROR
+#define ERROR(msg)  {fprintf(stderr, "%s\n", msg); goto error; }
+#endif
+
+/* 
+ * Storage allocation macros
+ */
+#define NEW( type, cnt )	(type *) malloc( (cnt) * sizeof( type ) )
+#define RENEW( type, ptr, cnt )	(type *) realloc( ptr, (cnt) * sizeof( type ) )
+
+#ifndef USE_PROTOTYPES
+static char * prformat();
+static int isnum();
+static int	_do_scanargs();
+void		scan_usage();
+#else
+static const char * prformat( const char *, int );
+static int isnum( const char *, int, int );
+static int	_do_scanargs( int argc, char **argv, const char *format,
+			      va_list argl );
+void		scan_usage( char **, const char * );
+#endif
+
+/* 
+ * Argument list is (argc, argv, format, ... )
+ */
+int
+#ifdef HAVE_STDARG_H
+scanargs ( int argc, char **argv, const char *format, ... )
+#else
+scanargs ( va_alist )
+va_dcl
+#endif
+{
+    va_list argl;
+    int retval;
+#ifdef HAVE_STDARG_H
+    va_start( argl, format );
+#else
+    int argc;
+    char ** argv;
+    const char *format;
+
+    va_start( argl );
+    argc = va_arg( argl, int );
+    argv = va_arg( argl, char ** );
+    format = va_arg( argl, const char * );
+#endif
+    retval = _do_scanargs( argc, argv, format, argl );
+    va_end( argl );
+    return retval;
+}
+    
+/* 
+ * This routine is necessary because of a pyramid compiler botch that
+ * uses parameter registers in a varargs routine.  The extra
+ * subroutine call isolates the args on the register stack so they
+ * don't get trashed.
+ */
+
+static int
+_do_scanargs(int argc, char **argv, const char *format, va_list argl)
+             			/* Actual arguments */
+             
+                     
+             
+{
+
+    register int    check;			/* check counter to be sure all argvs
+					   are processed */
+    register const char  *cp;
+    register int    cnt;
+    int	    optarg = 0;			/* where optional args start */
+    int	    nopt = 0;
+    char    tmpflg,			/* temp flag */
+	    typchr;			/* type char from format string */
+    char    c;
+    bool  * arg_used;			/* array of flags */
+    ptr	    aptr = 0;			/* pointer to return loc */
+
+    bool    required;
+    int	    excnt;			/* which flag is set */
+    bool    exflag;			/* when set, one of a set of exclusive
+					   flags is set */
+
+    bool    list_of;			/* set if parsing off a list of args */
+    bool    comma_list;			/* set if AT&T style multiple args */
+    int	  * cnt_arg = 0;		/* where to stuff list count */
+    int	    list_cnt;			/* how many in list */
+    /* These are used to build return lists */
+    char ** strlist = 0;
+    int   * intlist = 0;
+    long  * longlist = 0;
+    float * fltlist = 0;
+    double *dbllist = 0;
+    char  * argp;			/* Pointer to argument. */
+
+    const char   *ncp;		/* remember cp during flag scanning */
+    static char   cntrl[7] = "%  %1s";	/* control string for scanf's */
+    char    junk[2];			/* junk buffer for scanf's */
+
+    arg_used = NEW( bool, argc );
+    if (arg_used == NULL)
+    {
+	fprintf(stderr, "malloc failed in scanargs, exiting\n");
+	exit(-1);
+    }
+    else
+    {
+	for (cnt=0; cnt<argc; cnt++)
+	    arg_used[cnt] = NO;
+    }
+
+    check = 0;
+    cp = format;
+    /* 
+     * Skip program name
+     */
+    while ( *cp != ' ' && *cp != '\t' && *cp != '\n' && *cp != '\0' )
+	cp++;
+
+    while (*cp)
+    {
+	required = NO;			/* reset per-arg flags */
+	list_of = NO;
+	comma_list = NO;
+	list_cnt = 0;
+	switch (*(cp++))
+	{
+	    default: 			/* all other chars */
+		break;
+	    case ' ':			/* separators */
+	    case '\t':
+	    case '\n':
+		optarg = 0;		/* end of optional arg string */
+		break;
+
+	    case '!': 			/* required argument */
+		required = YES;
+	    case '%': 			/* not required argument */
+reswitch:				/* after finding '*' or ',' */
+		switch (typchr = *(cp++))
+		{
+		    case ',':		/* argument is AT&T list of things */
+			comma_list = YES;
+		    case '*':		/* argument is list of things */
+			list_of = YES;
+			list_cnt = 0;	/* none yet */
+			cnt_arg = va_arg( argl, int *);	/* item count * here */
+			goto reswitch;	/* try again */
+
+		    case '$':		/* "rest" of argument list */
+			while ( argc > 1 && !arg_used[argc-1] )
+			    argc--;	/* find last used argument */
+			*va_arg( argl, int * ) = argc;
+			break;
+
+		    case '-': 		/* argument is flag */
+			if (optarg > 0)
+			    ERROR("Format error: flag conditional on flag not allowed");
+
+		    /* go back to label */
+			ncp = cp-1;	/* remember */
+			cp -= 3;
+			for (excnt = exflag = 0
+				; *cp != ' ' && !(*cp=='-' &&(cp[-1]=='!'||cp[-1]=='%'));
+				(--cp, excnt++))
+			{
+			    for (cnt = optarg+1; cnt < argc; cnt++)
+			    {
+			    /* flags all start with - */
+				if (*argv[cnt] == '-' && !arg_used[cnt] &&
+					!isdigit(argv[cnt][1]))
+				    if (*(argv[cnt] + 1) == *cp)
+				    {
+					if (*(argv[cnt] + 2) != 0)
+					    ERROR ("extra flags ignored");
+					if (exflag)
+					    ERROR ("more than one exclusive flag chosen");
+					exflag++;
+					required = NO;
+					check += cnt;
+					arg_used[cnt] = 1;
+					nopt = cnt;
+					*va_arg( argl, int *) |= (1 << excnt);
+					break;
+				    }
+			    }
+			}
+			if (required)
+			    ERROR ("flag argument missing");
+			cp = ncp;
+			/* 
+			 * If none of these flags were found, skip any
+			 * optional arguments (in the varargs list, too).
+			 */
+			if (!exflag)
+			{
+			    (void)va_arg( argl, int * );/* skip the arg, too */
+			    while (*++cp && ! isspace(*cp))
+				if (*cp == '!' || *cp == '%')
+				{
+				    if ( *++cp == '*' || *cp == ',' )
+				    {
+					cp++;
+					(void)va_arg( argl, int * );
+				    }
+				    /* 
+				     * Assume that char * might be a
+				     * different size, but that all
+				     * other pointers are same size.
+				     */
+				    if ( *cp == 's' )
+					(void)va_arg( argl, char * );
+				    else
+					(void)va_arg( argl, ptr );
+				}
+			}
+			else
+			{
+			    optarg = nopt;
+			    cp++;	/* skip over - */
+			}
+
+			break;
+
+		    case 's': 		/* char string */
+		    case 'd': 		/* decimal # */
+		    case 'o': 		/* octal # */
+		    case 'x': 		/* hexadecimal # */
+		    case 'n':		/* "number" in C syntax */
+		    case 'f': 		/* floating # */
+		    case 'D': 		/* long decimal # */
+		    case 'O': 		/* long octal # */
+		    case 'X': 		/* long hexadecimal # */
+		    case 'N':		/* long number in C syntax */
+		    case 'F': 		/* double precision floating # */
+			for (cnt = optarg+1; cnt < argc; cnt++)
+			{
+			    argp = argv[cnt];
+
+			    if ( isnum( argp, typchr, comma_list ) )
+			    {
+				;	/* it's ok, then */
+			    }
+			    else if ( *argp == '-' && argp[1] != '\0' )
+			    {
+				if ( optarg > 0 ) /* end optional args? */
+				{
+				    /* Eat the arg, too, if necessary */
+				    if ( list_cnt == 0 )
+				    {
+					if ( typchr == 's' )
+					    (void)va_arg( argl, char * );
+					else
+					    (void)va_arg( argl, ptr );
+				    }
+				    break;
+				}
+				else
+				{
+				    continue;
+				}
+			    }
+			    else if ( typchr != 's' )
+				continue;	/* not number, keep looking */
+			    
+			    /* 
+			     * Otherwise usable argument may already
+			     * be used.  (Must check this after
+			     * checking for flag, though.)
+			     */
+			    if (arg_used[cnt]) continue;
+
+			    /* 
+			     * If it's a comma-and-or-space-separated
+			     * list then count how many, and separate
+			     * the list into an array of strings.
+			     */
+			    if ( comma_list )
+			    {
+				register char * s;
+				int pass;
+
+				/* 
+				 * On pass 0, just count them.  On
+				 * pass 1, null terminate each string 
+				 */
+				for ( pass = 0; pass <= 1; pass++ )
+				{
+				    for ( s = argp; *s != '\0'; )
+				    {
+					if ( pass )
+					    strlist[list_cnt] = s;
+					while ( (c = *s) != '\0' && c != ' ' &&
+						c != '\t' && c != ',' )
+					    s++;
+					if ( pass )
+					    *s = '\0';
+
+					list_cnt++;	/* count separators */
+					/* 
+					 * Two commas in a row give a null
+					 * string, but two spaces
+					 * don't.  Also skip spaces
+					 * after a comma.
+					 */
+					if ( c != '\0' )
+					    while ( *++s == ' ' || *s == '\t' )
+						;
+				    }
+				    if ( pass == 0 )
+				    {
+					strlist = NEW( char *, list_cnt );
+					list_cnt = 0;
+				    }
+				}
+			    }
+			    else if ( list_of )
+				list_cnt++;   /* getting them one at a time */
+			    /* 
+			     * If it's either type of list, then alloc
+			     * storage space for the returned values
+			     * (except that comma-separated string
+			     * lists already are done).
+			     */
+			    if ( list_of )
+			    {
+				if ( list_cnt == 1 || comma_list )
+				    switch( typchr )
+				    {
+					case 's':
+					    if ( !comma_list )
+						strlist = NEW( char *, 1 );
+					    aptr = (ptr) &strlist[0];
+					    break;
+					case 'n':
+					case 'd':
+					case 'o':
+					case 'x':
+					    intlist = NEW( int, list_cnt );
+					    aptr = (ptr) &intlist[0];
+					    break;
+					case 'N':
+					case 'D':
+					case 'O':
+					case 'X':
+					    longlist = NEW( long, list_cnt );
+					    aptr = (ptr) &longlist[0];
+					    break;
+					case 'f':
+					    fltlist = NEW( float, list_cnt );
+					    aptr = (ptr) &fltlist[0];
+					    break;
+					case 'F':
+					    dbllist = NEW( double, list_cnt );
+					    aptr = (ptr) &dbllist[0];
+					    break;
+				    }
+				else
+				    switch( typchr )
+				    {
+					case 's':
+					    strlist = RENEW( char *, strlist,
+							     list_cnt );
+					    aptr = (ptr) &strlist[list_cnt-1];
+					    break;
+					case 'n':
+					case 'd':
+					case 'o':
+					case 'x':
+					    intlist = RENEW( int, intlist,
+							     list_cnt );
+					    aptr = (ptr) &intlist[list_cnt-1];
+					    break;
+					case 'N':
+					case 'D':
+					case 'O':
+					case 'X':
+					    longlist = RENEW( long, longlist,
+							      list_cnt );
+					    aptr = (ptr) &longlist[list_cnt-1];
+					    break;
+					case 'f':
+					    fltlist = RENEW( float, fltlist,
+							     list_cnt );
+					    aptr = (ptr) &fltlist[list_cnt-1];
+					    break;
+					case 'F':
+					    dbllist = RENEW( double, dbllist,
+							     list_cnt );
+					    aptr = (ptr) &dbllist[list_cnt-1];
+					    break;
+				    }
+			    }
+			    else
+				aptr = va_arg( argl, ptr );
+
+			    if ( typchr == 's' )
+			    {
+				if ( ! comma_list )
+				    *(char **)aptr = argp;
+			    }
+			    else
+			    {
+				nopt = 0;
+				do {
+				    /* 
+				     * Need to update aptr if parsing
+				     * a comma list
+				     */
+				    if ( comma_list && nopt > 0 )
+				    {
+					argp = strlist[nopt];
+					switch( typchr )
+					{
+					    case 'n':
+					    case 'd':
+					    case 'o':
+					    case 'x':
+						aptr = (ptr) &intlist[nopt];
+						break;
+					    case 'N':
+					    case 'D':
+					    case 'O':
+					    case 'X':
+						aptr = (ptr) &longlist[nopt];
+						break;
+					    case 'f':
+						aptr = (ptr) &fltlist[nopt];
+						break;
+					    case 'F':
+						aptr = (ptr) &dbllist[nopt];
+						break;
+					}
+				    }
+				    /* 
+				     * Do conversion for n and N types
+				     */
+				    tmpflg = typchr;
+				    if (typchr == 'n' || typchr == 'N' )
+				    {
+					if (*argp != '0')
+					    tmpflg = 'd';
+					else if (*(argp+1) == 'x' ||
+						 *(argp+1) == 'X')
+					{
+					    tmpflg = 'x';
+					    argp += 2;
+					}
+					else
+					    tmpflg = 'o';
+				    }
+				    if (typchr == 'N')
+					tmpflg = toupper( tmpflg );
+
+
+				    /* put in conversion */
+				    if ( isupper( tmpflg ) )
+				    {
+					cntrl[1] = 'l';
+					cntrl[2] = tolower( tmpflg );
+				    }
+				    else
+				    {
+					cntrl[1] = tmpflg;
+					cntrl[2] = ' ';
+				    }
+				    if (sscanf (argp, cntrl, aptr, junk) != 1)
+					ERROR ("Bad numeric argument");
+				} while ( comma_list && ++nopt < list_cnt );
+			    }
+			    check += cnt;
+			    arg_used[cnt] = 1;
+			    required = NO;
+			    /*
+			     * If not looking for multiple args,
+			     * then done, otherwise, keep looking.
+			     */
+			    if ( !( list_of && !comma_list ) )
+				break;
+			    else
+				continue;
+			}
+			if (required)
+			    switch (typchr)
+			    {
+				case 'x': 
+				case 'X': 
+				    ERROR ("missing hexadecimal argument");
+				case 's': 
+				    ERROR ("missing string argument");
+				case 'o': 
+				case 'O': 
+				    ERROR ("missing octal argument");
+				case 'd': 
+				case 'D': 
+				    ERROR ("missing decimal argument");
+				case 'f': 
+				case 'F': 
+				    ERROR ("missing floating argument");
+				case 'n':
+				case 'N':
+				    ERROR ("missing numeric argument");
+			    }
+			if ( list_cnt > 0 )
+			{
+			    *cnt_arg = list_cnt;
+			    switch ( typchr )
+			    {
+				case 's':
+				    *va_arg( argl, char *** ) = strlist;
+				    break;
+				case 'n':
+				case 'd':
+				case 'o':
+				case 'x':
+				    *va_arg( argl, int ** ) = intlist;
+				    break;
+				case 'N':
+				case 'D':
+				case 'O':
+				case 'X':
+				    *va_arg( argl, long ** ) = longlist;
+				    break;
+				case 'f':
+				    *va_arg( argl, float ** ) = fltlist;
+				    break;
+				case 'F':
+				    *va_arg( argl, double **) = dbllist;
+				    break;
+			    }
+			    if ( typchr != 's' && comma_list )
+				free( (char *) strlist );
+			}
+			else if ( cnt >= argc )
+			{
+			    /* Fell off end looking, so must eat the arg */
+			    if ( typchr == 's' )
+				(void)va_arg( argl, char * );
+			    else
+				(void)va_arg( argl, ptr );
+			}
+			break;
+		    default: 		/* error */
+			fprintf (stderr,
+				 "scanargs: Corrupt or invalid format spec\n");
+			return (0);
+		}
+	}
+    }
+
+    /*  Count up empty flags */
+    for (cnt=1; cnt<argc; cnt++)
+	if (argv[cnt][0] == '-' && argv[cnt][1] == '-' && argv[cnt][2] == 0
+	    && !arg_used[cnt] )
+	    check += cnt;
+
+    /* sum from 1 to N = n*(n+1)/2 used to count up checks */
+    if (check != (((argc - 1) * argc) / 2))
+	ERROR ("extra arguments not processed");
+
+    free(arg_used);
+    return (1);
+
+error: 
+    scan_usage( argv, format );
+    free(arg_used);
+    return 0;
+}
+
+void
+scan_usage(char **argv, const char *format)
+{
+    register const char * cp;
+
+    fprintf (stderr, "usage : ");
+    if (*(cp = format) != ' ')
+    {
+	if ( *cp == '%' )
+	{
+	    /* 
+	     * This is bogus, but until everyone can agree on a name
+	     * for (rindex/strrchr) ....
+	     */
+	    for ( cp = argv[0]; *cp != '\0'; cp++ )
+		;			/* find the end of the string */
+	    for ( ; cp > argv[0] && *cp != '/'; cp-- )
+		;			/* find the last / */
+	    if ( *cp == '/' )
+		cp++;
+	    fprintf( stderr, "%s", cp );
+
+	    cp = format + 1;		/* reset to where it should be */
+	}
+	while (putc (*cp++, stderr) != ' ');
+    }
+    else
+	fprintf (stderr, "?? ");
+    while (*cp == ' ')
+	cp++;
+    (void)prformat (cp, NO);
+}
+
+static const char *
+prformat (const char *format, int recurse)
+{
+    register const char  *cp;
+    bool    required, comma_list;
+    int    list_of;
+
+    cp = format;
+    if (recurse)
+	putc (' ', stderr);
+
+    required = NO;
+    list_of = 0;
+    comma_list = NO;
+    while (*cp)
+    {
+	switch (*cp)
+	{
+	    default:
+	    	cp++;
+		break;
+	    case ' ':
+	    case '\n':
+	    case '\t':
+		/* allow annotations */
+		for ( ; format < cp; format++ )
+		    putc( *format, stderr );
+		putc(*cp, stderr);
+		format = ++cp;
+		break;
+	    case '!': 
+		required = YES;
+	    case '%': 
+reswitch:
+		switch (*++cp)
+		{
+		    case ',':
+			comma_list++;
+		    case '*':
+			list_of++;
+			goto reswitch;
+
+		    case '$':		/* "rest" of argument list */
+			if (!required)
+			    putc ('[', stderr);
+			for (; format < cp - 1 - list_of; format++)
+			    putc (*format, stderr);
+			fputs( " ...", stderr );
+			if ( !required )
+			    putc( ']', stderr );
+			break;
+
+		    case '-': 		/* flags */
+			if (!required)
+			    putc ('[', stderr);
+			putc ('-', stderr);
+
+			if (cp - format > 2 + list_of)
+			    putc ('{', stderr);
+			cp = format;
+			while (*cp != '%' && *cp != '!')
+			    putc (*cp++, stderr);
+			if (cp - format > 1 + list_of)
+			    putc ('}', stderr);
+			cp += 2;	/* skip !- or %- */
+			if (*cp && !isspace(*cp))
+			    cp = prformat (cp, YES);
+					/* this is a recursive call */
+
+			cp--;	/* don't ignore next character */
+
+			if (!required)
+			    putc (']', stderr);
+			break;
+		    case 's': 		/* char string */
+		    case 'd': 		/* decimal # */
+		    case 'o': 		/* octal # */
+		    case 'x': 		/* hexadecimal # */
+		    case 'f': 		/* floating # */
+		    case 'D': 		/* long decimal # */
+		    case 'O': 		/* long octal # */
+		    case 'X': 		/* long hexadecimal # */
+		    case 'F': 		/* double precision floating # */
+		    case 'n':		/* numeric arg (C format) */
+		    case 'N':		/* long numeric arg */
+			if (!required)
+			    putc ('[', stderr);
+			for (; format < cp - 1 - list_of; format++)
+			    putc (*format, stderr);
+			if ( list_of != 0 )
+			{
+			    if ( comma_list )
+				putc( ',', stderr );
+			    else
+				putc( ' ', stderr );
+			    fputs( "...", stderr );
+			}
+			if (!required)
+			    putc (']', stderr);
+			break;
+		    default: 
+			break;
+		}
+		required = NO;
+		list_of = NO;
+		comma_list = NO;
+		if (*cp)		/* check for end of string */
+		    format = ++cp;
+		if (*cp && !isspace(*cp))
+		    putc (' ', stderr);
+	}
+	if (recurse && isspace(*cp))
+	    break;
+    }
+    if (!recurse)
+    {
+	for ( ; format < cp; format++ )
+	    putc( *format, stderr );
+	putc ('\n', stderr);
+    }
+    return (cp);
+}
+
+/* 
+ * isnum - determine whether a string MIGHT represent a number.
+ * typchr indicates the type of argument we are looking for, and
+ * determines the legal character set.  If comma_list is YES, then
+ * space and comma are also legal characters.
+ */
+static int
+isnum(register const char *str, int typchr, int comma_list)
+{
+    register const char *allowed, *digits, *cp;
+    int hasdigit = NO;
+
+    switch( typchr )
+    {
+	case 'n':
+	case 'N':
+	    allowed = " \t,+-x0123456789abcdefABCDEF";
+	    break;
+	case 'd':
+	case 'D':
+	    allowed = " \t,+-0123456789";
+	    break;
+	case 'o':
+	case 'O':
+	    allowed = " \t,01234567";
+	    break;
+	case 'x':
+	case 'X':
+	    allowed = " \t,0123456789abcdefABCDEF";
+	    break;
+	case 'f':
+	case 'F':
+	    allowed = " \t,+-eE.0123456789";
+	    break;
+	case 's':			/* only throw out decimal numbers */
+	default:
+	    allowed = " \t,+-.0123456789";
+	    break;
+    }
+    digits = allowed;
+    while ( *digits != '0' )
+	digits++;
+    if ( ! comma_list )
+	allowed += 3;		      /* then don't allow space, tab, comma */
+
+    while ( *str != '\0' )
+    {
+    	for ( cp = allowed; *cp != '\0' && *cp != *str; cp++ )
+    	    ;
+    	if ( *cp == '\0' )
+	    return NO;		     /* if not in allowed chars, not number */
+	if ( cp - digits >= 0 )
+	    hasdigit = YES;
+	str++;
+    }
+    return hasdigit;
+}
+@
+
+
+11.9
+log
+@change conf.h to a wrapped config.h
+@
+text
+@d2 1
+a2 1
+ * $Id: scanargs.c,v 11.8 2004/04/05 07:40:44 morrison Exp $
+@
+
+
+11.8
+log
+@merge of ansi-6-0-branch into HEAD
+@
+text
+@d2 1
+a2 1
+ * $Id$
+d43 5
+a47 1
+#include "conf.h"
+@
+
+
+11.7
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d2 1
+a2 1
+ * $Id: scanargs.c,v 11.5 2001/04/20 22:31:07 morrison Exp $
+d134 5
+a138 5
+_do_scanargs( argc, argv, format, argl )
+int     argc;			/* Actual arguments */
+char  **argv;
+const char   *format;
+va_list argl;
+d645 1
+a645 3
+scan_usage( argv, format )
+char ** argv;
+const char * format;
+d678 1
+a678 3
+prformat (format, recurse)
+const char   *format;
+int 	recurse;
+d807 1
+a807 4
+isnum( str, typchr, comma_list )
+register const char * str;
+int typchr;
+int comma_list;
+@
+
+
+11.7.2.1
+log
+@Initial ANSIfication
+@
+text
+@d2 1
+a2 1
+ * $Id: scanargs.c,v 11.7 2002/08/20 17:08:19 jra Exp $
+d134 5
+a138 5
+_do_scanargs(int argc, char **argv, const char *format, va_list argl)
+             			/* Actual arguments */
+             
+                     
+             
+d645 3
+a647 1
+scan_usage(char **argv, const char *format)
+d680 3
+a682 1
+prformat (const char *format, int recurse)
+d811 4
+a814 1
+isnum(register const char *str, int typchr, int comma_list)
+@
+
+
+11.6
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d134 5
+a138 5
+_do_scanargs(int argc, char **argv, const char *format, va_list argl)
+             			/* Actual arguments */
+             
+                     
+             
+d645 3
+a647 1
+scan_usage(char **argv, const char *format)
+d680 3
+a682 1
+prformat (const char *format, int recurse)
+d811 4
+a814 1
+isnum(register const char *str, int typchr, int comma_list)
+@
+
+
+11.5
+log
+@CONST to const
+@
+text
+@d2 1
+a2 1
+ * $Id: scanargs.c,v 11.4 2000/11/01 21:30:21 mike Exp $
+d134 5
+a138 5
+_do_scanargs( argc, argv, format, argl )
+int     argc;			/* Actual arguments */
+char  **argv;
+const char   *format;
+va_list argl;
+d645 1
+a645 3
+scan_usage( argv, format )
+char ** argv;
+const char * format;
+d678 1
+a678 3
+prformat (format, recurse)
+const char   *format;
+int 	recurse;
+d807 1
+a807 4
+isnum( str, typchr, comma_list )
+register const char * str;
+int typchr;
+int comma_list;
+@
+
+
+11.4
+log
+@
+lint
+@
+text
+@d2 1
+a2 1
+ * $Id: scanargs.c,v 11.3 2000/09/01 19:19:12 mike Exp $
+d89 3
+a91 3
+static CONST char * prformat( CONST char *, int );
+static int isnum( CONST char *, int, int );
+static int	_do_scanargs( int argc, char **argv, CONST char *format,
+d93 1
+a93 1
+void		scan_usage( char **, CONST char * );
+d101 1
+a101 1
+scanargs ( int argc, char **argv, CONST char *format, ... )
+d114 1
+a114 1
+    CONST char *format;
+d119 1
+a119 1
+    format = va_arg( argl, CONST char * );
+d137 1
+a137 1
+CONST char   *format;
+d143 1
+a143 1
+    register CONST char  *cp;
+d170 1
+a170 1
+    CONST char   *ncp;		/* remember cp during flag scanning */
+d647 1
+a647 1
+CONST char * format;
+d649 1
+a649 1
+    register CONST char * cp;
+d679 1
+a679 1
+static CONST char *
+d681 1
+a681 1
+CONST char   *format;
+d684 1
+a684 1
+    register CONST char  *cp;
+d812 1
+a812 1
+register CONST char * str;
+d816 1
+a816 1
+    register CONST char *allowed, *digits, *cp;
+@
+
+
+11.3
+log
+@
+lint
+@
+text
+@d2 1
+a2 1
+ * $Id: scanargs.c,v 11.2 1996/07/15 15:06:04 jra Exp $
+d319 1
+d333 1
+d335 2
+@
+
+
+11.2
+log
+@Minor Mods for IRIX 6.2
+@
+text
+@d2 1
+a2 1
+ * $Id: scanargs.c,v 11.1 1995/01/04 10:05:34 mike Rel4_4 jra $
+d323 1
+d328 1
+d510 1
+d521 1
+@
+
+
+11.1
+log
+@Release_4.4
+@
+text
+@d2 1
+a2 1
+ * $Id: scanargs.c,v 10.5 94/12/30 09:00:40 stay Exp $
+d141 1
+a141 1
+    register    check;			/* check counter to be sure all argvs
+d144 1
+a144 1
+    register    cnt;
+@
+
+
+10.5
+log
+@fixed control elif for non-ansi comilers
+@
+text
+@d2 1
+a2 1
+ * $Id: scanargs.c,v 10.4 94/08/22 13:29:42 gdurf Exp Locker: stay $
+@
+
+
+10.4
+log
+@Removed unportable #error directive
+@
+text
+@d2 1
+a2 1
+ * $Id: scanargs.c,v 10.3 1994/08/10 23:20:34 gdurf Exp gdurf $
+d49 2
+a50 1
+#elif defined(HAVE_VARARGS_H)
+d52 2
+a53 1
+#else
+@
+
+
+10.3
+log
+@Altered #defines and #includes to conform to BRL-CAD standards
+@
+text
+@d2 1
+a2 1
+ * $Id: scanargs.c,v 10.2 1994/08/10 22:33:24 gdurf Exp $
+d52 1
+a52 1
+# error "Need stdarg.h or varargs.h"
+@
+
+
+10.2
+log
+@Factored ifdefs
+@
+text
+@d2 1
+a2 1
+ * $Id: scanargs.c,v 10.1 1991/10/12 06:38:48 mike Rel4_0 gdurf $
+a43 1
+#include "rle_config.h"
+d48 1
+a48 1
+#include <stdarg.h>
+d50 1
+a50 1
+#include <varargs.h>
+d52 1
+a52 1
+#error "Need stdarg.h or varargs.h"
+d61 1
+a61 1
+ * alike, except possible char * pointers.
+d65 2
+a66 2
+#ifndef CONST_DECL
+#define CONST_DECL
+d68 1
+a68 2
+
+#define YES 1
+d70 2
+d73 1
+d87 3
+a89 3
+static CONST_DECL char * prformat( CONST_DECL char *, int );
+static int isnum( CONST_DECL char *, int, int );
+static int	_do_scanargs( int argc, char **argv, CONST_DECL char *format,
+d91 1
+a91 1
+void		scan_usage( char **, CONST_DECL char * );
+d99 1
+a99 1
+scanargs ( int argc, char **argv, CONST_DECL char *format, ... )
+d112 1
+a112 1
+    CONST_DECL char *format;
+d117 1
+a117 1
+    format = va_arg( argl, CONST_DECL char * );
+d135 1
+a135 1
+CONST_DECL char   *format;
+d141 1
+a141 1
+    register CONST_DECL char  *cp;
+d168 1
+a168 1
+    CONST_DECL char   *ncp;		/* remember cp during flag scanning */
+d637 1
+a637 1
+CONST_DECL char * format;
+d639 1
+a639 1
+    register CONST_DECL char * cp;
+d669 1
+a669 1
+static CONST_DECL char *
+d671 1
+a671 1
+CONST_DECL char   *format;
+d674 1
+a674 1
+    register CONST_DECL char  *cp;
+d802 1
+a802 1
+register CONST_DECL char * str;
+d806 1
+a806 1
+    register CONST_DECL char *allowed, *digits, *cp;
+@
+
+
+10.1
+log
+@Release_4.0
+@
+text
+@d2 1
+a2 1
+ * $Id: scanargs.c,v 3.0.1.1 90/11/19 17:04:44 spencer Exp $
+d43 1
+d45 1
+d48 3
+a50 1
+#ifndef USE_STDARG
+d53 1
+a53 1
+#include <stdarg.h>
+d56 2
+a57 12
+#ifdef USE_STDLIB_H
+#include <stdlib.h>
+#else
+
+#ifndef VOID_STAR
+extern char *malloc();
+extern char *realloc();
+#else
+extern void *malloc();
+extern void *realloc();
+#endif
+void free();
+a58 1
+#endif /* USE_STDLIB_H */
+a79 4
+#if defined(c_plusplus) && !defined(USE_PROTOTYPES)
+#define USE_PROTOTYPES
+#endif
+
+d97 3
+a99 1
+#ifndef USE_STDARG
+d102 1
+a102 3
+#else
+scanargs ( int argc, char **argv, CONST_DECL char *format, ... )
+#endif /* !USE_STDARG */
+d106 3
+a108 1
+#ifndef USE_STDARG
+a116 2
+#else
+    va_start( argl, format );
+a306 4
+#if defined(sgi) && !defined(mips)
+			/* Fix for broken SGI IRIS 2400/3000 floats */
+			if ( typchr == 'F' ) typchr = 'f';
+#endif /* sgi */
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@@

@@ -1,0 +1,617 @@
+head	14.12;
+access;
+symbols
+	rel-7-10-2:14.11
+	rel-7-10-0:14.10
+	rel-7-8-4:14.7
+	rel-7-8-2:14.5
+	rel-7-8-0:14.5
+	trimnurbs-branch:14.5.0.2
+	help:14.5
+	temp_tag:14.4
+	bobWinPort-20051223-freeze:14.3
+	postmerge-20051223-bobWinPort:14.4
+	premerge-20051223-bobWinPort:14.4
+	rel-7-6-6:14.4
+	rel-7-6-4:14.4
+	rel-7-6-2:14.3
+	rel-7-6-branch:14.3.0.6
+	rel-7-6-0:14.3
+	rel-7-4-2:14.3
+	rel-7-4-branch:14.3.0.4
+	bobWinPort:14.3.0.2
+	rel-7-4-0:14.3
+	rel-7-2-6:14.3
+	rel-7-2-4:14.3
+	rel-7-2-2:14.3
+	rel-7-2-0:14.3
+	rel-7-0-4:14.2
+	rel-7-0-2:14.2
+	rel-7-0-1:14.2
+	opensource-post:14.2
+	opensource-pre:1.1
+	rel-7-0-branch:1.1.0.2
+	rel-7-0:1.1;
+locks; strict;
+comment	@ * @;
+
+
+14.12
+date	2007.08.16.20.36.52;	author brlcad;	state dead;
+branches;
+next	14.11;
+
+14.11
+date	2007.07.26.01.14.00;	author brlcad;	state Exp;
+branches;
+next	14.10;
+
+14.10
+date	2007.01.27.01.41.53;	author brlcad;	state Exp;
+branches;
+next	14.9;
+
+14.9
+date	2007.01.23.01.13.55;	author brlcad;	state Exp;
+branches;
+next	14.8;
+
+14.8
+date	2007.01.20.14.37.06;	author brlcad;	state Exp;
+branches;
+next	14.7;
+
+14.7
+date	2006.08.29.23.44.51;	author brlcad;	state Exp;
+branches;
+next	14.6;
+
+14.6
+date	2006.07.09.18.25.32;	author brlcad;	state Exp;
+branches;
+next	14.5;
+
+14.5
+date	2006.01.18.06.46.27;	author brlcad;	state Exp;
+branches;
+next	14.4;
+
+14.4
+date	2005.09.21.19.05.37;	author brlcad;	state Exp;
+branches;
+next	14.3;
+
+14.3
+date	2005.01.30.20.31.33;	author brlcad;	state Exp;
+branches
+	14.3.6.1;
+next	14.2;
+
+14.2
+date	2004.12.21.03.45.40;	author butler;	state Exp;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.32;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.15.21.46;	author morrison;	state Exp;
+branches;
+next	;
+
+14.3.6.1
+date	2005.11.13.13.46.20;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.12
+log
+@remove the op-bw utility, an obsolete tool written to read images from an Optronics scanner into a bw.  tool can be removed when they are no longer in use and impose a burden to maintain. (sorry Phil)
+@
+text
+@/*                         O P - B W . C
+ * BRL-CAD
+ *
+ * Copyright (c) 1988-2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ */
+
+/***
+ *** THIS PROGRAM IS MARKED OBSOLETE AND WILL BE REMOVED IN A FUTURE
+ *** RELEASE. PLEASE CONTACT ONE OF THE PROJECT DEVELOPERS IF YOU ARE
+ *** USING THIS CODE OR THE PROGRAM IT GENERATES.
+ ***/
+
+/** @@file op-bw.c
+ *
+ *  Read 8-bit (.bw) images from an Optronics Scanner
+ *
+ *  Author -
+ *	Phillip Dykstra
+ *
+ * Acknowledgment:
+ * 	This grew out of opread.c by
+ *	Doug Kingston and
+ *	Charles M. Kennedy
+ *
+ */
+#ifndef lint
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/op-bw.c,v 14.11 2007/07/26 01:14:00 brlcad Exp $ (BRL)";
+#endif
+
+#include "common.h"
+
+#include <stdio.h>
+#include <stdlib.h>
+#ifdef HAVE_UNISTD_H
+#  include <unistd.h>
+#endif
+#ifdef HAVE_STRING_H
+#  include <string.h>
+#else
+#  include <strings.h>
+#endif
+#ifdef vax
+# include <vaxuba/opio.h>
+# include <sys/ioctl.h>
+
+int	step = 4;	/* 12.5 micron steps per scanline */
+int	offset = 0;	/* pixels in "left margin" */
+int	roffset = 0;	/* Rotational offset (pixels) before read starts */
+int	verbose = 0;
+int	width = 512;
+int	nlines = 512;
+char	*buf;
+
+extern int	bu_getopt();
+extern char	*bu_optarg;
+extern int	bu_optind;
+
+static char usage[] = "\
+Usage: op-bw [-hv] [-S step] [-x xoffset] [-y yoffset]\n\
+	[-s squaresize] [-w width] [-n nlines] > file.bw\n";
+
+/*
+ *			G E T_ A R G S
+ */
+get_args( argc, argv )
+register char **argv;
+{
+
+	register int c;
+
+	while ( (c = bu_getopt( argc, argv, "hvx:y:o:r:S:w:n:s:" )) != EOF )  {
+		switch( c )  {
+		case 'v':
+			verbose++;
+			break;
+		case 'h':
+			nlines = width = 1024;
+			break;
+		case 'y':
+		case 'o':
+			offset = atoi( bu_optarg );
+			break;
+		case 'x':
+		case 'r':
+			roffset = atoi( bu_optarg );
+			break;
+		case 'S':
+			step = atoi( bu_optarg );
+			break;
+		case 'w':
+			width = atoi( bu_optarg );
+			break;
+		case 'n':
+			nlines = atoi( bu_optarg );
+			break;
+		case 's':
+			width = nlines = atoi( bu_optarg );
+			break;
+		default:		/* '?' */
+			return(0);
+		}
+	}
+
+	if ( argc > bu_optind )
+		(void)fprintf( stderr, "fbline: excess argument(s) ignored\n" );
+
+	return(1);		/* OK */
+}
+
+int
+main( argc, argv )
+int	argc;
+char	**argv;
+{
+	int	fd;
+	int	status;
+	struct opstate ops;
+	struct opseek opseek;
+
+	if ( !get_args( argc, argv ) || isatty(fileno(stdout)) ) {
+		fputs( usage, stderr);
+		exit( 1 );
+	}
+
+	if( width % 512 != 0 ) {
+		fprintf( stderr, "op-bw: Warning, width is not a multiple of 512\n" );
+	}
+	if( (buf = malloc(width)) == NULL ) {
+		fprintf( stderr, "op-bw: can't malloc a buffer for %d pixels\n", width );
+		exit( 1 );
+	}
+
+	if (verbose)
+		fprintf( stderr, "step=%d, offset=%d, rotational offset=%d\n",
+			step, offset, roffset );
+
+	if( (fd = open("/dev/op0", 0)) < 0 ) {
+		perror("/dev/op0");
+		exit(8);
+	}
+	/* Make Optronics fd stdin so dd can read from it. */
+	dup2( fd, 0 );
+	close( fd );
+
+	sync();			/* Force disk update now so it will
+				   not interrupt the Optronics */
+
+	ops.op_var = OPINCR;
+	ops.op_val = step;
+	if( step && ioctl(0, OPIOCSET, &ops) < 0 ) {
+		perror("OPIOCSET: OPINCR");
+		fprintf( stderr, "op_var=%d, op_val=%d\n",
+			ops.op_var, ops.op_val );
+		exit(1);
+	}
+
+	ops.op_var = OPDRUM;
+	ops.op_val = roffset;
+	if( ioctl(0, OPIOCSET, &ops) < 0 ) {
+		perror("OPIOCSET: OPDRUM");
+		fprintf( stderr, "op_var=%d, op_val=%d\n",
+			ops.op_var, ops.op_val );
+		exit(1);
+	}
+
+	opseek.op_cmd = OPRIGHT;
+	opseek.op_arg = offset;
+	if( ioctl(0, OPIOSEEK, &opseek) < 0 ) {
+		perror("OPIOSEEK: OPRIGHT");
+		fprintf( stderr, "op_cmd=%d, op_arg=%d\n",
+			opseek.op_cmd, opseek.op_arg );
+		exit(1);
+	}
+
+	return( doit() );
+}
+
+doit()
+{
+	int	i, n;
+
+	for( i = 0; i < nlines; i++ ) {
+		if( (n = read( 0, buf, width )) != width ) {
+		    if (n < 0) {
+			perror("op-bw READ ERROR");
+		    } else {
+			fprintf( stderr, "op-bw: read returned %d\n", n );
+		    }
+		    return 1;
+		}
+		if( (n = write( 1, buf, width )) != width ) {
+		    if (n < 0) {
+			perror("op-bw WRITE ERROR");
+		    } else {
+			fprintf( stderr, "op-bw: write returned %d\n", n );
+		    }
+		    return 1;
+		}
+	}
+
+	return 0;
+}
+#else
+int
+main(void)
+{
+	fprintf( stderr, "op-bw: this is a vax specific program\n" );
+	exit( 1 );
+}
+#endif /* Not vax */
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+14.11
+log
+@remove ephemeral data like phone numbers and addresses, including the misleading 'source' statements on code that is continually evolving and receiving contributions from many many sources
+@
+text
+@d41 1
+a41 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/op-bw.c,v 14.10 2007/01/27 01:41:53 brlcad Exp $ (BRL)";
+@
+
+
+14.10
+log
+@ws. lots and lots of ws.  see sh/ws.sh for details (cases 'abcdeg').
+@
+text
+@a38 4
+ *  Source -
+ *	SECAD/VLD Computing Consortium, Bldg 394
+ *	The U. S. Army Ballistic Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005-5066
+d41 1
+a41 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/op-bw.c,v 14.9 2007/01/23 01:13:55 brlcad Exp $ (BRL)";
+@
+
+
+14.9
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@d45 1
+a45 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/op-bw.c,v 14.8 2007/01/20 14:37:06 brlcad Exp $ (BRL)";
+d78 1
+a78 1
+        [-s squaresize] [-w width] [-n nlines] > file.bw\n";
+@
+
+
+14.8
+log
+@update copyright to 2007
+@
+text
+@d8 2
+a9 3
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+d14 1
+a14 1
+ * General Public License for more details.
+d16 2
+a17 2
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+d45 1
+a45 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/op-bw.c,v 14.7 2006/08/29 23:44:51 brlcad Exp $ (BRL)";
+@
+
+
+14.7
+log
+@op-bw had a long run but seeing as it is vax-specific, it is being marked obsolete.  the sources are marked for removal at the next minor update (probably by 7.10).
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 1988-2006 United States Government as represented by
+d46 1
+a46 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/op-bw.c,v 14.6 2006/07/09 18:25:32 brlcad Exp $ (BRL)";
+@
+
+
+14.6
+log
+@add additional error checking to make sure a -1 return value from read() is handled
+@
+text
+@d21 7
+d46 1
+a46 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/op-bw.c,v 14.5 2006/01/18 06:46:27 brlcad Exp $ (BRL)";
+d49 3
+a51 1
+# include <stdio.h>
+d53 3
+d57 1
+a57 1
+#include <string.h>
+d59 1
+a59 1
+#include <strings.h>
+a64 2
+char	*malloc();
+
+@
+
+
+14.5
+log
+@update copyright to 2006
+@
+text
+@d39 1
+a39 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/op-bw.c,v 14.4 2005/09/21 19:05:37 brlcad Exp $ (BRL)";
+d193 3
+d197 2
+a198 1
+			return 1;
+d201 3
+d205 2
+a206 1
+			return 1;
+@
+
+
+14.4
+log
+@needs bu.h for bu_getopt
+@
+text
+@d4 1
+a4 1
+ * Copyright (C) 1988-2005 United States Government as represented by
+d39 1
+a39 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/op-bw.c,v 14.3 2005/01/30 20:31:33 brlcad Exp $ (BRL)";
+@
+
+
+14.3
+log
+@update copyright to 2005
+@
+text
+@d39 1
+a39 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/op-bw.c,v 14.2 2004/12/21 03:45:40 butler Exp $ (BRL)";
+d63 3
+a65 3
+extern int	getopt();
+extern char	*optarg;
+extern int	optind;
+d80 1
+a80 1
+	while ( (c = getopt( argc, argv, "hvx:y:o:r:S:w:n:s:" )) != EOF )  {
+d90 1
+a90 1
+			offset = atoi( optarg );
+d94 1
+a94 1
+			roffset = atoi( optarg );
+d97 1
+a97 1
+			step = atoi( optarg );
+d100 1
+a100 1
+			width = atoi( optarg );
+d103 1
+a103 1
+			nlines = atoi( optarg );
+d106 1
+a106 1
+			width = nlines = atoi( optarg );
+d113 1
+a113 1
+	if ( argc > optind )
+@
+
+
+14.3.6.1
+log
+@merge changes from HEAD aka rel-7-6-4 to the rel-7-6-branch just in case someone peeks a gander or tries to continue/build the branch
+@
+text
+@d39 1
+a39 1
+static const char RCSid[] = "@@(#)$Header$ (BRL)";
+d63 3
+a65 3
+extern int	bu_getopt();
+extern char	*bu_optarg;
+extern int	bu_optind;
+d80 1
+a80 1
+	while ( (c = bu_getopt( argc, argv, "hvx:y:o:r:S:w:n:s:" )) != EOF )  {
+d90 1
+a90 1
+			offset = atoi( bu_optarg );
+d94 1
+a94 1
+			roffset = atoi( bu_optarg );
+d97 1
+a97 1
+			step = atoi( bu_optarg );
+d100 1
+a100 1
+			width = atoi( bu_optarg );
+d103 1
+a103 1
+			nlines = atoi( bu_optarg );
+d106 1
+a106 1
+			width = nlines = atoi( bu_optarg );
+d113 1
+a113 1
+	if ( argc > bu_optind )
+@
+
+
+14.2
+log
+@GPL license changes
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 1988-2004 United States Government as represented by
+d39 1
+a39 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/util/op-bw.c,v 14.1 2004/11/16 19:42:32 morrison Exp $ (BRL)";
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@d1 21
+a21 2
+/*
+ *			O P - B W . C
+a36 4
+ *  
+ *  Copyright Notice -
+ *	This software is Copyright (C) 1988-2004 by the United States Army.
+ *	All rights reserved.
+d39 1
+a39 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/util/op-bw.c,v 1.1 2004/05/20 15:21:46 morrison Exp $ (BRL)";
+@
+
+
+1.1
+log
+@Vast reorganization begins.  Sources moved from top-level directories into src/.
+@
+text
+@d24 1
+a24 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/util/op-bw.c,v 11.8 2004/04/05 05:46:02 morrison Exp $ (BRL)";
+d197 10
+@
+

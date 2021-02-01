@@ -1,0 +1,684 @@
+head	14.10;
+access;
+symbols
+	rel-7-10-4:14.9
+	STABLE:14.9.0.2
+	stable-branch:14.4
+	rel-7-10-2:14.9
+	rel-7-10-0:14.9
+	rel-7-8-4:14.7
+	rel-7-8-2:14.7
+	rel-7-8-0:14.7
+	trimnurbs-branch:14.7.0.2
+	help:14.7
+	temp_tag:14.5
+	bobWinPort-20051223-freeze:14.4
+	postmerge-20051223-bobWinPort:14.5
+	premerge-20051223-bobWinPort:14.5
+	rel-7-6-6:14.5
+	rel-7-6-4:14.5
+	rel-7-6-2:14.4
+	rel-7-6-branch:14.4.0.6
+	rel-7-6-0:14.4
+	rel-7-4-2:14.4
+	rel-7-4-branch:14.4.0.4
+	bobWinPort:14.4.0.2
+	rel-7-4-0:14.4
+	rel-7-2-6:14.4
+	rel-7-2-4:14.4
+	rel-7-2-2:14.4
+	rel-7-2-0:14.4
+	rel-7-0-4:14.3
+	rel-7-0-2:14.3
+	rel-7-0-1:14.2
+	opensource-post:14.2
+	opensource-pre:1.3
+	rel-7-0-branch:1.3.0.2
+	rel-7-0:1.3;
+locks; strict;
+comment	@ * @;
+
+
+14.10
+date	2007.09.15.16.23.20;	author brlcad;	state Exp;
+branches;
+next	14.9;
+
+14.9
+date	2007.01.23.01.13.45;	author brlcad;	state Exp;
+branches;
+next	14.8;
+
+14.8
+date	2007.01.20.14.37.00;	author brlcad;	state Exp;
+branches;
+next	14.7;
+
+14.7
+date	2006.02.27.10.08.41;	author brlcad;	state Exp;
+branches;
+next	14.6;
+
+14.6
+date	2006.01.18.06.46.23;	author brlcad;	state Exp;
+branches;
+next	14.5;
+
+14.5
+date	2005.10.23.04.44.38;	author brlcad;	state Exp;
+branches;
+next	14.4;
+
+14.4
+date	2005.01.30.20.31.09;	author brlcad;	state Exp;
+branches
+	14.4.6.1;
+next	14.3;
+
+14.3
+date	2004.12.24.01.40.00;	author brlcad;	state Exp;
+branches;
+next	14.2;
+
+14.2
+date	2004.12.21.06.38.22;	author morrison;	state Exp;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.31;	author morrison;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2004.09.03.23.30.59;	author morrison;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2004.08.02.23.01.52;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.15.20.46;	author morrison;	state Exp;
+branches;
+next	;
+
+14.4.6.1
+date	2005.11.13.13.46.19;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.10
+log
+@more c89 embracing.  c89 provides string.h for all of the various str*() and mem*() functions, so remove the check for its presence.  there is still likely to be work required for strict c89 conformance for the various bsd strings.h functions that may be in use.
+@
+text
+@/*                       R T R E G I S . C
+ * BRL-CAD
+ *
+ * Copyright (c) 1991-2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@file rtregis.c
+ *
+ *  This is a program will register a Unix-Plot file with its companion
+ *  pix file.  It is assumed that both images were ray-traced at the same
+ *  rotation.  A homogeneous transformation matrix is constructed from the
+ *  RT log files of the two images.  This matrix will permit the translation
+ *  and scaling of the plot file so that it can be readily overlaid onto its
+ *  pixel image mate.
+ *
+ *  It is expected that the first log file given corresponds to the image
+ *  file to be overlaid onto the image that corresponds to the second log
+ *  file.  Also for the moment it is expected that the first log will
+ *  correspond to a Unix-Plot file, whereas the second will correspond to a
+ *  pixel file.  If both images where Unix-Plot files, they can be overlaid
+ *  by simply concatentating them: "cat file.pl file.pl >> out.pl"
+ *
+ *  The program conisists of three parts:
+ *	1) take view, orientation, eye_position, and size from two rt log
+ *          files, and use this information to build up the registration matrix;
+ *	2) puts out a registration matrix and a new space command to be
+ *	   used by plrot in lieu of -a#, -e#, -g to rotate/transform the
+ *	   UNIX_Plot file
+ *			and
+ *	3) involve pix-fb -o to do the overlaying of the actual files.
+ *	4) Note: two pixel files (one lo-res, one hi-res) will be registered
+ *	   later in a slightly different way.
+ *
+ *  Authors -
+ *	Susanne L. Muuss, J.D.
+ *
+ *  Source -
+ *	SECAD/VLD Computing Consortium, Bldg. 394
+ *	The U. S. Army Ballistic Reasearch Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005
+ *
+ */
+#ifndef lint
+static const char RCSregis[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/rt/rtregis.c,v 14.9 2007/01/23 01:13:45 brlcad Exp $";
+#endif
+
+#include "common.h"
+
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+#include <math.h>
+
+#include "machine.h"
+#include "vmath.h"
+#include "bu.h"
+#include "raytrace.h"
+
+
+#define NAMELEN 40
+#define BUFF_LEN 256
+#define FALSE 0
+#define TRUE 1
+
+char usage[] = "\
+Usage:  regis plot.log pix.log\n";
+
+
+int	mat_build(fastf_t *mat1, fastf_t *mat2, fastf_t *regismat);
+int	read_rt_file(FILE *infp, char *name, fastf_t *model2view);
+void	print_info(fastf_t *mat);
+
+static FILE	*fp;
+int		verbose;		/* to be used for debugging */
+
+/*
+ *
+ *                     M A I N
+ *
+ *  Main exists to coordinate the actions of the parts of this program.
+ *  It also processes its own arguments (argc and argv).
+ */
+int
+main(int argc, char **argv)
+{
+
+	mat_t		mod2view1;		/* first log matrix its view */
+	mat_t		mod2view2;		/* second log matrix to its view*/
+	mat_t		regismat;		/* registration matrix */
+	mat_t		view2model;		/* matrix for converting from view to model space */
+	int		ret;			/* function return code */
+
+	MAT_IDN(mod2view1);				/* makes an identity matrix */
+	MAT_IDN(mod2view2);
+	MAT_IDN(regismat);
+
+	/* Check to see that the correct format is given, else print
+	 * usage message.
+	 */
+
+	if(argc != 3)  {
+		fputs(usage, stderr);
+		return 1;
+	}
+
+	/* Now process the arguments from main: i.e. open the log files
+	 * for reading and send to read_rt_file().
+	 * Send read_rt_file() a pointer to local model matrix
+	 * and to the appropriate log file.
+	 * ( Note &view2model[0] can be used, but is not elegant.)
+	 */
+
+	fp = fopen(argv[1], "r");
+	if( fp == NULL )  {
+		perror(argv[1]);
+		return 1;
+	}
+
+	ret = read_rt_file(fp, argv[1], mod2view1);
+	if(ret < 0)  {
+	    return 2;
+	}
+	fclose(fp);		/* clean up */
+
+	fp = fopen(argv[2], "r");
+	if( fp == NULL )  {
+		perror(argv[2]);
+		return 2;
+	}
+
+	ret = read_rt_file(fp, argv[2], mod2view2);
+	if(ret < 0)  {
+	    return 2;
+	}
+
+	fclose(fp);
+
+	if(verbose)  {
+		bn_mat_inv(view2model, mod2view1);
+		bn_mat_print("mod2view1-plot.log", mod2view1);
+		bn_mat_print("mod2view2-pix.log", mod2view2);
+		fprintf(stderr, "mod2view1[0, 1, 2, 3, 15]: %.6f, %.6f, %.6f, %.6f, %.6f\n",
+		mod2view1[0], mod2view1[1], mod2view1[2], mod2view1[3], mod2view1[15]);
+	}
+
+	/* Now build the registration matrix for the two files. */
+
+	ret = mat_build(mod2view1, mod2view2, regismat);
+	if(ret == FALSE)  {
+		fprintf(stderr, "regis: can't build registration matrix!\n");
+		return 3;
+	}
+	print_info(regismat);
+
+	return 0;
+}
+
+
+/*
+ *		 M A T _ B U I L D
+ *
+ * This routine takes pointers to two matices corresponding to the two
+ * files to be registered and a registration matrix.
+ * It builds the registration matrix.  It returns success or failure.
+ */
+
+int
+mat_build(fastf_t *mat1, fastf_t *mat2, fastf_t *regismat)
+{
+
+	vect_t	adelta, bdelta;		/* deltas for mod1 and mod2 */
+	vect_t	delta;			/* difference bet. mod1 and mod2 deltas */
+	fastf_t	scale;
+
+	/* At this point it is important to check that the rotation part
+	 * of the matices is within a certain tolerance: ie. that the
+	 * two images were raytraced from the same angle.  No overlays will
+	 * be possible if they are not at the same rotation.
+	 */
+
+	/* Now record the deltas: the translation part of the matrix. */
+	VSET(adelta, mat1[MDX], mat1[MDY], mat1[MDZ]);
+	VSET(bdelta, mat2[MDX], mat2[MDY], mat2[MDZ]);
+
+	/* Take the difference between the deltas. Also scale the size
+	 * of the model (scale).  These will be used to register two
+	 * pixel files later on.
+	 */
+
+	VSUB2(delta, adelta, bdelta);
+	scale = mat1[15]/mat2[15];
+
+	VPRINT("delta", delta);
+	fprintf(stderr, "scale: %.6f\n", scale);
+
+	/* If the first log corresponds to a UNIX-Plot file, following
+	 * applies.  Since UNIX-Plot files are in model coordinates, the
+	 * mod2view2 ("model2pix") is also the registration matrix.  In
+	 * this case, pl-fb needs to learn that the UNIX-Plot file's space
+	 * runs from -1 -> 1 in x and y.  This can be done by adding an
+	 * alternate space command in that program. Therefore the below
+	 * applies.
+	 * What if the first log corresponds to a hi-res pixel file to be
+	 * registered with a lo-res pixel file?  Then the above calculated
+	 * deltas are used.   This will be implemented later.
+	 */
+
+	MAT_COPY( regismat, mat2);
+	bn_mat_print("regismat", regismat);
+	return(1);				/* OK */
+}
+
+
+/*		P R I N T _ I N F O
+ *
+ *  This routine takes as its input parameter a registration matrix.  Its
+ *  sole task is to print this matrix out in a form usable by plrot.  It
+ *  also prints out the parameters for the new space command for plrot.
+ */
+
+void
+print_info(fastf_t *mat)
+{
+
+	int	i;
+
+	fprintf(stdout, "plrot -m\"");
+	for( i = 0; i < 15; i++ )  {
+		fprintf(stdout, "%.6f ", mat[i]);
+	}
+	fprintf(stdout, "%g\" -S\"-1 -1 -1 1 1 1\"\n", mat[15]);
+	return;
+}
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+14.9
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@d57 1
+a57 1
+static const char RCSregis[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/rt/rtregis.c,v 14.8 2007/01/20 14:37:00 brlcad Exp $";
+d64 1
+a64 5
+#ifdef HAVE_STRING_H
+#  include <string.h>
+#else
+#  include <strings.h>
+#endif
+@
+
+
+14.8
+log
+@update copyright to 2007
+@
+text
+@d8 2
+a9 3
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+d14 1
+a14 1
+ * General Public License for more details.
+d16 2
+a17 2
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+d57 1
+a57 1
+static const char RCSregis[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/rt/rtregis.c,v 14.7 2006/02/27 10:08:41 brlcad Exp $";
+@
+
+
+14.7
+log
+@stdlib.h and exit()
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 1991-2006 United States Government as represented by
+d58 1
+a58 1
+static const char RCSregis[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/rt/rtregis.c,v 14.6 2006/01/18 06:46:23 brlcad Exp $";
+@
+
+
+14.6
+log
+@update copyright to 2006
+@
+text
+@d58 1
+a58 1
+static const char RCSregis[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/rt/rtregis.c,v 14.5 2005/10/23 04:44:38 brlcad Exp $";
+d63 1
+a64 1
+
+d70 1
+a71 1
+#include <math.h>
+d77 1
+d121 1
+a121 1
+		exit(-1);
+d134 1
+a134 1
+		exit(-1);
+d139 1
+a139 1
+		exit(-1);
+d146 1
+a146 1
+		exit(-1);
+d151 1
+a151 1
+		exit(-1);
+d169 1
+a169 1
+		exit(-1);
+a171 1
+	exit(0);
+d173 1
+@
+
+
+14.5
+log
+@trailing ws
+@
+text
+@d4 1
+a4 1
+ * Copyright (C) 1991-2005 United States Government as represented by
+d58 1
+a58 1
+static const char RCSregis[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/rt/rtregis.c,v 14.4 2005/01/30 20:31:09 brlcad Exp $";
+@
+
+
+14.4
+log
+@update copyright to 2005
+@
+text
+@d29 1
+a29 1
+ *  
+d38 1
+a38 1
+ *	1) take view, orientation, eye_position, and size from two rt log 
+d41 1
+a41 1
+ *	   used by plrot in lieu of -a#, -e#, -g to rotate/transform the 
+d58 1
+a58 1
+static const char RCSregis[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/rt/rtregis.c,v 14.3 2004/12/24 01:40:00 brlcad Exp $";
+d125 2
+a126 2
+	 * Send read_rt_file() a pointer to local model matrix 
+	 * and to the appropriate log file. 
+d170 1
+a170 1
+	print_info(regismat);	
+d211 1
+a211 1
+	fprintf(stderr, "scale: %.6f\n", scale);	
+d214 1
+a214 1
+	 * applies.  Since UNIX-Plot files are in model coordinates, the 
+@
+
+
+14.4.6.1
+log
+@merge changes from HEAD aka rel-7-6-4 to the rel-7-6-branch just in case someone peeks a gander or tries to continue/build the branch
+@
+text
+@d29 1
+a29 1
+ *
+d38 1
+a38 1
+ *	1) take view, orientation, eye_position, and size from two rt log
+d41 1
+a41 1
+ *	   used by plrot in lieu of -a#, -e#, -g to rotate/transform the
+d58 1
+a58 1
+static const char RCSregis[] = "@@(#)$Header$";
+d125 2
+a126 2
+	 * Send read_rt_file() a pointer to local model matrix
+	 * and to the appropriate log file.
+d170 1
+a170 1
+	print_info(regismat);
+d211 1
+a211 1
+	fprintf(stderr, "scale: %.6f\n", scale);
+d214 1
+a214 1
+	 * applies.  Since UNIX-Plot files are in model coordinates, the
+@
+
+
+14.3
+log
+@add the mysteriously missing gpl header..
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 1991-2004 United States Government as represented by
+d58 1
+a58 1
+static const char RCSregis[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/rt/rtregis.c,v 14.2 2004/12/21 06:38:22 morrison Exp $";
+@
+
+
+14.2
+log
+@remove the old copyright notice section
+@
+text
+@d1 56
+a56 37
+/*                    R E G I S T E R
+*
+*  This is a program will register a Unix-Plot file with its companion
+*  pix file.  It is assumed that both images were ray-traced at the same
+*  rotation.  A homogeneous transformation matrix is constructed from the
+*  RT log files of the two images.  This matrix will permit the translation
+*  and scaling of the plot file so that it can be readily overlaid onto its
+*  pixel image mate.
+*  
+*  It is expected that the first log file given corresponds to the image
+*  file to be overlaid onto the image that corresponds to the second log
+*  file.  Also for the moment it is expected that the first log will
+*  correspond to a Unix-Plot file, whereas the second will correspond to a
+*  pixel file.  If both images where Unix-Plot files, they can be overlaid
+*  by simply concatentating them: "cat file.pl file.pl >> out.pl"
+*
+*  The program conisists of three parts:
+*	1) take view, orientation, eye_position, and size from two rt log 
+*          files, and use this information to build up the registration matrix;
+*	2) puts out a registration matrix and a new space command to be
+*	   used by plrot in lieu of -a#, -e#, -g to rotate/transform the 
+*	   UNIX_Plot file
+*			and
+*	3) involve pix-fb -o to do the overlaying of the actual files.
+*	4) Note: two pixel files (one lo-res, one hi-res) will be registered
+*	   later in a slightly different way.
+*
+*  Authors -
+*	Susanne L. Muuss, J.D.
+*	
+*
+*  Source -
+*	SECAD/VLD Computing Consortium, Bldg. 394
+*	The U. S. Army Ballistic Reasearch Laboratory
+*	Aberdeen Proving Ground, Maryland  21005
+*
+*/
+d58 1
+a58 1
+static const char RCSregis[] = "@@(#)$Header: /cvs/brlcad/src/rt/rtregis.c,v 14.1 2004/11/16 19:42:31 morrison Exp $";
+a62 2
+
+
+d66 1
+a66 1
+#include <string.h>
+d68 1
+a68 1
+#include <strings.h>
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@a36 3
+*  Copyright Notice -
+*	This software is Copyright (C) 1991-2004 by the United States Army.
+*	All rights reserved.
+d39 1
+a39 1
+static const char RCSregis[] = "@@(#)$Header: /cvs/brlcad/src/rt/rtregis.c,v 1.3 2004/09/03 23:30:59 morrison Exp $";
+@
+
+
+1.3
+log
+@USE_STRING_H is no more.. it's HAVE_STRING_H
+@
+text
+@d42 1
+a42 1
+static const char RCSregis[] = "@@(#)$Header: /cvs/brlcad/src/rt/rtregis.c,v 1.2 2004/08/02 23:01:52 morrison Exp $";
+d237 10
+@
+
+
+1.2
+log
+@replace the wrapped config.h block with common.h
+@
+text
+@d42 1
+a42 1
+static const char RCSregis[] = "@@(#)$Header: /cvs/brlcad/src/rt/rtregis.c,v 1.1 2004/05/20 15:20:46 morrison Exp $";
+d51 1
+a51 1
+#ifdef USE_STRING_H
+@
+
+
+1.1
+log
+@Vast reorganization begins.  Sources moved from top-level directories into src/.
+@
+text
+@d42 1
+a42 1
+static const char RCSregis[] = "@@(#)$Header: /cvs/brlcad/rt/rtregis.c,v 11.13 2004/05/10 15:30:49 erikg Exp $";
+d45 1
+a45 3
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+@
+

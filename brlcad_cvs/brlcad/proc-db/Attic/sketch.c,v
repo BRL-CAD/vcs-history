@@ -1,0 +1,595 @@
+head	11.13;
+access;
+symbols
+	ansi-20040405-merged:11.9.2.2
+	postmerge-20040405-ansi:11.11
+	premerge-20040404-ansi:11.10
+	postmerge-autoconf:11.10
+	autoconf-freeze:11.9.10.2
+	premerge-autoconf:11.10
+	postmerge-20040315-windows:11.10
+	premerge-20040315-windows:11.10
+	windows-20040315-freeze:11.9.4.1
+	autoconf-20031203:11.9
+	autoconf-20031202:11.9
+	autoconf-branch:11.9.0.10
+	phong-branch:11.9.0.8
+	photonmap-branch:11.9.0.6
+	rel-6-1-DP:11.9
+	windows-branch:11.9.0.4
+	rel-6-0-2:11.7
+	ansi-branch:11.9.0.2
+	rel-6-0-1-branch:11.7.0.2
+	hartley-6-0-post:11.8
+	hartley-6-0-pre:11.7
+	rel-6-0-1:11.7
+	rel-6-0:11.7
+	rel-5-4:11.2
+	offsite-5-3-pre:11.5
+	rel-5-3:11.2
+	rel-5-2:11.2
+	rel-5-1-branch:11.2.0.2
+	rel-5-1:11.2;
+locks; strict;
+comment	@ * @;
+
+
+11.13
+date	2004.05.21.17.33.46;	author morrison;	state dead;
+branches;
+next	11.12;
+
+11.12
+date	2004.05.10.15.30.49;	author erikg;	state Exp;
+branches;
+next	11.11;
+
+11.11
+date	2004.04.05.05.45.58;	author morrison;	state Exp;
+branches;
+next	11.10;
+
+11.10
+date	2004.02.02.17.39.37;	author morrison;	state Exp;
+branches;
+next	11.9;
+
+11.9
+date	2002.08.20.17.08.35;	author jra;	state Exp;
+branches
+	11.9.2.1
+	11.9.4.1
+	11.9.10.1;
+next	11.8;
+
+11.8
+date	2002.08.15.20.55.46;	author hartley;	state Exp;
+branches;
+next	11.7;
+
+11.7
+date	2001.05.16.21.38.11;	author morrison;	state Exp;
+branches;
+next	11.6;
+
+11.6
+date	2001.04.25.13.45.44;	author jra;	state Exp;
+branches;
+next	11.5;
+
+11.5
+date	2000.07.12.21.59.08;	author mike;	state Exp;
+branches;
+next	11.4;
+
+11.4
+date	2000.07.10.23.38.22;	author mike;	state Exp;
+branches;
+next	11.3;
+
+11.3
+date	2000.07.10.23.35.40;	author mike;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	2000.03.16.13.39.28;	author jra;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	2000.01.31.13.45.31;	author jra;	state Exp;
+branches;
+next	;
+
+11.9.2.1
+date	2002.09.19.18.02.13;	author morrison;	state Exp;
+branches;
+next	11.9.2.2;
+
+11.9.2.2
+date	2004.03.17.21.22.55;	author morrison;	state Exp;
+branches;
+next	;
+
+11.9.4.1
+date	2004.03.10.15.06.37;	author morrison;	state Exp;
+branches;
+next	;
+
+11.9.10.1
+date	2004.02.12.19.50.52;	author erikg;	state Exp;
+branches;
+next	11.9.10.2;
+
+11.9.10.2
+date	2004.03.15.14.08.05;	author erikg;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+11.13
+log
+@moved to src/proc-db/
+@
+text
+@/*
+ *			S K E T C H . C
+ *
+ *  Program to generate test sketches
+ *
+ *  Author -
+ *	John Anderson
+ *
+ *  Source -
+ *	The U. S. Army Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005-5068  USA
+ *  
+ *  Distribution Notice -
+ *	Re-distribution of this software is restricted, as described in
+ *	your "Statement of Terms and Conditions for the Release of
+ *	The BRL-CAD Package" agreement.
+ *
+ *  Copyright Notice -
+ *	This software is Copyright (C) 2000-2004 by the United States Army
+ *	in all countries except the USA.  All rights reserved.
+ */
+#ifndef lint
+static const char RCSid[] = "@@(#)$Header: /n/xoff/cvs/brlcad/proc-db/sketch.c,v 11.12 2004/05/10 15:30:49 erikg Exp $ (BRL)";
+#endif
+
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+
+#include <stdio.h>
+#include <math.h>
+#include "machine.h"
+#include "externs.h"
+#include "bu.h"
+#include "vmath.h"
+#include "bn.h"
+#include "raytrace.h"
+#include "wdb.h"
+#include "rtgeom.h"
+
+extern struct rt_sketch_internal *sketch_start();
+
+struct rt_wdb *outfp;
+
+int
+main(int argc, char **argv)
+{
+	struct rt_sketch_internal *skt;
+	struct bezier_seg *bsg;
+	struct line_seg *lsg;
+	struct carc_seg *csg;
+	point_t V;
+	vect_t u_vec, v_vec;
+	point2d_t verts[] = {
+		{ 250, 0 },	/* 0 */
+		{ 500, 0 },	/* 1 */
+		{ 500, 500 },	/* 2 */
+		{ 0, 500 },	/* 3 */
+		{ 0, 250 },	/* 4 */
+		{ 250, 250 },	/* 5 */
+		{ 125, 125 },	/* 6 */
+		{ 0, 125 },	/* 7 */
+		{ 125, 0 },	/* 8 */
+		{ 200, 200 }	/* 9 */
+	};
+	int i;
+
+	VSET( V, 10, 20, 30 );
+	VSET( u_vec, 1, 0, 0 );
+	VSET( v_vec, 0, 1, 0 );
+
+	skt = (struct rt_sketch_internal *)bu_calloc( 1, sizeof( struct rt_sketch_internal ), "sketch" );
+	skt->magic = RT_SKETCH_INTERNAL_MAGIC;
+	VMOVE( skt->V, V );
+	VMOVE( skt->u_vec, u_vec );
+	VMOVE( skt->v_vec, v_vec );
+	skt->vert_count = 10;
+	skt->verts = (point2d_t *)bu_calloc( skt->vert_count, sizeof( point2d_t ), "verts" );
+	for( i=0 ; i<skt->vert_count ; i++ ) {
+		V2MOVE( skt->verts[i], verts[i] );
+	}
+
+	skt->skt_curve.seg_count = 6;
+	skt->skt_curve.reverse = (int *)bu_calloc( skt->skt_curve.seg_count, sizeof( int ), "sketch: reverse" );
+
+	skt->skt_curve.segments = (genptr_t *)bu_calloc( skt->skt_curve.seg_count, sizeof( genptr_t ), "segs" );
+	bsg = (struct bezier_seg *)bu_malloc( sizeof( struct bezier_seg ), "sketch: bsg" );
+	bsg->magic = CURVE_BEZIER_MAGIC;
+	bsg->degree = 4;
+	bsg->ctl_points = (int *)bu_calloc( bsg->degree+1, sizeof( int ), "sketch: bsg->ctl_points" );
+	bsg->ctl_points[0] = 4;
+	bsg->ctl_points[1] = 7;
+	bsg->ctl_points[2] = 9;
+	bsg->ctl_points[3] = 8;
+	bsg->ctl_points[4] = 0;
+	skt->skt_curve.segments[0] = (genptr_t)bsg;
+
+	lsg = (struct line_seg *)bu_malloc( sizeof( struct line_seg ), "sketch: lsg" );
+	lsg->magic = CURVE_LSEG_MAGIC;
+	lsg->start = 0;
+	lsg->end = 1;
+
+	skt->skt_curve.segments[1] = (genptr_t)lsg;
+
+	lsg = (struct line_seg *)bu_malloc( sizeof( struct line_seg ), "sketch: lsg" );
+	lsg->magic = CURVE_LSEG_MAGIC;
+	lsg->start = 1;
+	lsg->end = 2;
+
+	skt->skt_curve.segments[2] = (genptr_t)lsg;
+
+	lsg = (struct line_seg *)bu_malloc( sizeof( struct line_seg ), "sketch: lsg" );
+	lsg->magic = CURVE_LSEG_MAGIC;
+	lsg->start = 2;
+	lsg->end = 3;
+
+	skt->skt_curve.segments[3] = (genptr_t)lsg;
+
+	lsg = (struct line_seg *)bu_malloc( sizeof( struct line_seg ), "sketch: lsg" );
+	lsg->magic = CURVE_LSEG_MAGIC;
+	lsg->start = 3;
+	lsg->end = 4;
+
+	skt->skt_curve.segments[4] = (genptr_t)lsg;
+
+	csg = (struct carc_seg *)bu_malloc( sizeof( struct carc_seg ), "sketch: csg" );
+	csg->magic = CURVE_CARC_MAGIC;
+	csg->radius = -1.0;
+	csg->start = 6;
+	csg->end = 5;
+
+	skt->skt_curve.segments[5] = (genptr_t)csg;
+
+	outfp = wdb_fopen( "sketch.g" );
+	mk_id( outfp, "sketch test" );
+	mk_sketch( outfp, "test_sketch", skt );
+	return 0;
+}
+@
+
+
+11.12
+log
+@change conf.h to a wrapped config.h
+@
+text
+@d23 1
+a23 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/proc-db/sketch.c,v 11.11 2004/04/05 05:45:58 morrison Exp $ (BRL)";
+@
+
+
+11.11
+log
+@merge of ansi-6-0-branch into head
+@
+text
+@d23 1
+a23 1
+static const char RCSid[] = "@@(#)$Header$ (BRL)";
+d26 5
+a30 1
+#include "conf.h"
+@
+
+
+11.10
+log
+@update copyright to include span through 2003
+@
+text
+@d23 1
+a23 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/proc-db/sketch.c,v 11.9 2002/08/20 17:08:35 jra Exp $ (BRL)";
+d44 1
+a44 3
+main( argc, argv )
+int argc;
+char *argv[];
+@
+
+
+11.9
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d19 1
+a19 1
+ *	This software is Copyright (C) 2000 by the United States Army
+d23 1
+a23 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/proc-db/sketch.c,v 11.7 2001/05/16 21:38:11 morrison Exp $ (BRL)";
+@
+
+
+11.9.4.1
+log
+@merge in updates from HEAD
+@
+text
+@d19 1
+a19 1
+ *	This software is Copyright (C) 2000-2004 by the United States Army
+d23 1
+a23 1
+static const char RCSid[] = "@@(#)$Header: /n/cad/c/CVS/brlcad/proc-db/sketch.c,v 11.10 2004/02/02 17:39:37 morrison Exp $ (BRL)";
+@
+
+
+11.9.10.1
+log
+@merge from HEAD
+@
+text
+@d19 1
+a19 1
+ *	This software is Copyright (C) 2000-2004 by the United States Army
+d23 1
+a23 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/proc-db/sketch.c,v 11.10 2004/02/02 17:39:37 morrison Exp $ (BRL)";
+@
+
+
+11.9.10.2
+log
+@merge from head
+@
+text
+@d23 1
+a23 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/proc-db/sketch.c,v 11.9.10.1 2004/02/12 19:50:52 erikg Exp $ (BRL)";
+@
+
+
+11.9.2.1
+log
+@Initial ANSIfication
+@
+text
+@d23 1
+a23 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/proc-db/sketch.c,v 11.9 2002/08/20 17:08:35 jra Exp $ (BRL)";
+d44 3
+a46 1
+main(int argc, char **argv)
+@
+
+
+11.9.2.2
+log
+@sync branch with HEAD
+@
+text
+@d19 1
+a19 1
+ *	This software is Copyright (C) 2000-2004 by the United States Army
+d23 1
+a23 1
+static const char RCSid[] = "@@(#)$Header$ (BRL)";
+@
+
+
+11.8
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d44 3
+a46 1
+main(int argc, char **argv)
+@
+
+
+11.7
+log
+@PRODUCTION optimizations
+@
+text
+@d23 1
+a23 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/proc-db/sketch.c,v 11.6 2001/04/25 13:45:44 jra Exp $ (BRL)";
+d44 1
+a44 3
+main( argc, argv )
+int argc;
+char *argv[];
+@
+
+
+11.6
+log
+@Now creates a sketch with a Bezier curve segment
+@
+text
+@d23 1
+a23 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/proc-db/sketch.c,v 11.5 2000/07/12 21:59:08 mike Exp $ (BRL)";
+a53 1
+	struct curve *crv;
+@
+
+
+11.5
+log
+@
+Converted to use new version of LIBWDB.
+@
+text
+@d23 1
+a23 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/proc-db/sketch.c,v 11.4 2000/07/10 23:38:22 mike Exp $ (BRL)";
+d49 3
+a54 1
+	struct carc_seg *csg;
+d56 10
+a65 5
+		{ 20, 10 },
+		{ 10, 10 },
+		{ 0, 0 },
+		{ 50, 0 },
+		{ 0, 50 }
+d74 1
+d78 1
+a78 1
+	skt->vert_count = 5;
+d80 44
+a123 2
+	for( i=0 ; i<skt->vert_count ; i++ )
+		V2MOVE( skt->verts[i], verts[i] )
+d125 3
+a127 7
+	/* curve is a full cirle */
+	crv = &skt->skt_curve;
+	crv->seg_count = 1;
+	crv->segments = (genptr_t *)bu_calloc( 3, sizeof( genptr_t ), "segments" );
+	crv->reverse = (int *)bu_calloc( 3, sizeof( int ), "reverse" );
+	csg = (struct carc_seg *)bu_calloc( 1, sizeof( struct carc_seg ), "carc" );
+	crv->segments[0] = (genptr_t)csg;
+a128 2
+	csg->start = 0;
+	csg->end = 1;
+d130 4
+a133 1
+	csg->orientation = 0;
+@
+
+
+11.4
+log
+@
+const RCSid
+@
+text
+@d23 1
+a23 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/proc-db/sketch.c,v 11.3 2000/07/10 23:35:40 mike Exp $ (BRL)";
+d41 3
+a52 2
+	struct line_seg lsg[3];
+	int vert_count=5;
+d88 4
+a91 2
+	mk_id( stdout, "sketch test" );
+	mk_sketch( stdout, "test_sketch", skt );
+@
+
+
+11.3
+log
+@
+raytrace.h before wdb.h
+Eliminated use of db.h
+@
+text
+@d23 1
+a23 1
+static char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/proc-db/sketch.c,v 11.2 2000/03/16 13:39:28 jra Exp $ (BRL)";
+@
+
+
+11.2
+log
+@Sketch solid can only have one curve now
+@
+text
+@d23 1
+a23 1
+static char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/proc-db/sketch.c,v 11.1 2000/01/31 13:45:31 jra Exp $ (BRL)";
+a35 1
+#include "rtlist.h"
+@
+
+
+11.1
+log
+@Sketch sample
+@
+text
+@d23 1
+a23 1
+static char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/proc-db/bottest.c,v 1.3 1999/12/20 20:26:27 jra Exp $ (BRL)";
+d49 2
+a50 2
+	struct curve crv;
+	struct carc_seg csg;
+d60 1
+d66 21
+a86 43
+	skt = sketch_start( V, u_vec, v_vec );
+
+	sketch_add_verts( skt, vert_count, verts );
+
+	/* first curve is a full cirle */
+	strcpy( crv.crv_name, "first_curve" );
+	crv.seg_count = 1;
+	crv.segments = (genptr_t *)bu_calloc( 3, sizeof( genptr_t ), "segments" );
+	crv.reverse = (int *)bu_calloc( 3, sizeof( int ), "reverse" );
+	crv.segments[0] = (genptr_t)&csg;
+	csg.magic = CURVE_CARC_MAGIC;
+	csg.start = 0;
+	csg.end = 1;
+	csg.radius = -1.0;
+	csg.orientation = 0;
+	csg.curve_count = 1;
+	csg.curves = (genptr_t)&crv;
+
+	sketch_add_curve( skt, &crv );
+
+	/* second curve is a triangle */
+	strcpy( crv.crv_name, "second_curve" );
+	crv.seg_count = 3;
+	crv.segments[0] = (genptr_t)&lsg[0];
+	crv.segments[1] = (genptr_t)&lsg[1];
+	crv.segments[2] = (genptr_t)&lsg[2];
+	lsg[0].magic = CURVE_LSEG_MAGIC;
+	lsg[0].start = 2;
+	lsg[0].end = 3;
+	lsg[0].curve_count = 1;
+	lsg[0].curves = (genptr_t)&crv;
+	lsg[1].magic = CURVE_LSEG_MAGIC;
+	lsg[1].start = 3;
+	lsg[1].end = 4;
+	lsg[1].curve_count = 1;
+	lsg[1].curves = (genptr_t)&crv;
+	lsg[2].magic = CURVE_LSEG_MAGIC;
+	lsg[2].start = 4;
+	lsg[2].end = 2;
+	lsg[2].curve_count = 1;
+	lsg[2].curves = (genptr_t)&crv;
+
+	sketch_add_curve( skt, &crv );
+@
+

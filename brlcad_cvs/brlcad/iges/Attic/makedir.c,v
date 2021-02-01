@@ -1,0 +1,669 @@
+head	11.15;
+access;
+symbols
+	ansi-20040405-merged:11.13.6.1
+	postmerge-20040405-ansi:11.14
+	premerge-20040404-ansi:11.14
+	postmerge-autoconf:11.14
+	autoconf-freeze:11.13.14.1
+	premerge-autoconf:11.14
+	ansi-20040316-freeze:11.13
+	postmerge-20040315-windows:11.14
+	premerge-20040315-windows:11.14
+	windows-20040315-freeze:11.13.8.1
+	autoconf-20031203:11.13
+	autoconf-20031202:11.13
+	autoconf-branch:11.13.0.14
+	phong-branch:11.13.0.12
+	photonmap-branch:11.13.0.10
+	rel-6-1-DP:11.13
+	windows-branch:11.13.0.8
+	rel-6-0-2:11.13
+	ansi-branch:11.13.0.6
+	rel-6-0-1-branch:11.13.0.4
+	hartley-6-0-post:11.13
+	hartley-6-0-pre:11.13
+	rel-6-0-1:11.13
+	rel-6-0:11.13
+	rel-5-4:11.13
+	offsite-5-3-pre:11.13
+	rel-5-3:11.13
+	rel-5-2:11.13
+	rel-5-1-branch:11.13.0.2
+	rel-5-1:11.13
+	rel-5-0:11.12
+	rel-5-0-beta:11.12
+	rel-4-5:11.12
+	ctj-4-5-post:11.12
+	ctj-4-5-pre:11.12
+	rel-4-4:11.7
+	rel-4-0:10.1;
+locks; strict;
+comment	@ * @;
+
+
+11.15
+date	2004.05.24.04.01.08;	author morrison;	state dead;
+branches;
+next	11.14;
+
+11.14
+date	2004.02.02.17.39.05;	author morrison;	state Exp;
+branches;
+next	11.13;
+
+11.13
+date	2000.03.29.18.42.46;	author mike;	state Exp;
+branches
+	11.13.6.1
+	11.13.8.1
+	11.13.14.1;
+next	11.12;
+
+11.12
+date	97.03.14.20.53.37;	author jra;	state Exp;
+branches;
+next	11.11;
+
+11.11
+date	96.07.15.19.19.47;	author jra;	state Exp;
+branches;
+next	11.10;
+
+11.10
+date	95.12.08.17.49.39;	author jra;	state Exp;
+branches;
+next	11.9;
+
+11.9
+date	95.12.06.13.25.06;	author jra;	state Exp;
+branches;
+next	11.8;
+
+11.8
+date	95.11.28.21.35.45;	author jra;	state Exp;
+branches;
+next	11.7;
+
+11.7
+date	95.01.04.10.07.55;	author mike;	state Rel4_4;
+branches;
+next	11.6;
+
+11.6
+date	94.11.08.14.50.16;	author jra;	state Exp;
+branches;
+next	11.5;
+
+11.5
+date	94.08.22.19.31.51;	author gdurf;	state Exp;
+branches;
+next	11.4;
+
+11.4
+date	94.01.10.16.19.16;	author jra;	state Exp;
+branches;
+next	11.3;
+
+11.3
+date	94.01.07.15.45.51;	author jra;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	94.01.07.15.16.04;	author jra;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	93.06.28.10.08.54;	author jra;	state Exp;
+branches;
+next	10.2;
+
+10.2
+date	93.06.03.09.52.37;	author jra;	state Exp;
+branches;
+next	10.1;
+
+10.1
+date	91.10.12.06.45.22;	author mike;	state Rel4_0;
+branches;
+next	1.2;
+
+1.2
+date	91.06.12.20.27.48;	author mike;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	91.06.12.19.59.24;	author mike;	state Exp;
+branches;
+next	;
+
+11.13.6.1
+date	2004.03.17.21.16.32;	author morrison;	state Exp;
+branches;
+next	;
+
+11.13.8.1
+date	2004.03.11.23.41.15;	author morrison;	state Exp;
+branches;
+next	;
+
+11.13.14.1
+date	2004.02.12.19.41.39;	author erikg;	state Exp;
+branches;
+next	;
+
+
+desc
+@IGES converter
+@
+
+
+11.15
+log
+@moved to src/iges/
+@
+text
+@/*
+ *  Authors -
+ *	John R. Anderson
+ *	Susanne L. Muuss
+ *	Earl P. Weaver
+ *
+ *  Source -
+ *	VLD/ASB Building 1065
+ *	The U. S. Army Ballistic Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005
+ *  
+ *  Copyright Notice -
+ *	This software is Copyright (C) 1990-2004 by the United States Army.
+ *	All rights reserved.
+ */
+
+/* Routine to read the directory section of an IGES file.
+	and store needed info in the 'directory' structures.
+	dir[n] is the structure for entity #n.
+	The directory entry for entity #n is located on
+	line D'2n+1' of the iges file.	*/
+
+#include "./iges_struct.h"
+#include "./iges_extern.h"
+
+#define	CR	'\015'
+
+void
+Makedir()
+{
+	
+	int found,i,saverec,entcount=(-1),paramptr=0,paramguess=0;
+	char str[9];
+	
+	str[8] = '\0';
+	bu_log( "Reading Directory Section...\n" );
+	bu_log( "Number of entities checked:\n" );
+
+	if( totentities < 1 )
+		goto out;
+
+	Readrec( dstart+1 );	/* read first record in directory section */
+	
+	while( 1 )
+	{
+		if( card[72] != 'D' )	/* We are not in the directory section */
+			break;
+		
+		entcount++;	/* increment count of entities */
+
+		if( entcount%100 == 0 )
+		{
+			sprintf( str , "\t%d%c" , entcount , CR );
+			write( 1 , str , strlen( str ) );
+		}
+
+		/* save the directory record number for this entity */
+		dir[entcount]->direct = atoi( &card[73] );
+
+		/* set reference count to 0 */
+		dir[entcount]->referenced = 0;
+
+		/* set record number to read for next entity */
+		saverec = currec + 2;
+
+		Readcols( str , 8 );	/* read entity type */
+		dir[entcount]->type = atoi( str );
+
+		Readcols( str , 8 );	/* read pointer to parameter entry */
+
+		/* convert it to a file record number */
+		paramptr = atoi( str );
+		if( paramptr == 0 && entcount > 0 )
+		{
+			paramguess = 1;
+			dir[entcount]->param = dir[entcount-1]->param + dir[entcount-1]->paramlines;
+		}
+		else if( paramptr > 0 )
+			dir[entcount]->param = paramptr + pstart;
+		else
+			bu_log( "Entity number %d does not have a correct parameter pointer\n",
+				entcount );
+
+		if( dir[entcount]->type == 422 )
+		{
+			/* This is an attribute instance, so get the definition */
+			Readcols( str , 8 );
+			dir[entcount]->referenced = (-atoi(str));
+		}
+		else
+			counter += 8;
+
+		counter += 16;	/* skip 16 columns */
+
+		Readcols( str , 8 );    /* read pointer to view entity */
+		dir[entcount]->view = atoi( str );
+
+		Readcols( str , 8 );	/* read pointer to transformation entity */
+
+		/* convert it to a "dir" index
+		 * Use (DE + 1)/2 - 1 rather than (DE-1)/2 to get
+		 * a (-1) value in "trans" field when DE is 0
+		 */
+		dir[entcount]->trans = (atoi( str ) + 1)/2 - 1;
+
+		/* skip next field */
+		counter += 8;
+
+		Readcols( str , 8 );	/* read status entry */
+		dir[entcount]->status = atoi( str );
+
+		Readrec( currec + 1 );	/* read next record into buffer */
+		counter += 16;		/* skip first two fields */
+
+		Readcols( str , 8 );	/* read pointer to color entity */
+		/* if pointer is negative, convert to a 'dir' index */
+		dir[entcount]->colorp = atoi( str );
+		if( dir[entcount]->colorp < 0 )
+			dir[entcount]->colorp = (dir[entcount]->colorp + 1)/2;
+
+		Readcols( str , 8 );	/* read parameter line count */
+		dir[entcount]->paramlines = atoi( str );
+		if( dir[entcount]->paramlines == 0 )
+			dir[entcount]->paramlines = 1;
+		Readcols( str , 8 );	/* read form number */
+		dir[entcount]->form = atoi( str );
+		
+		/* Look for entity type in list and incrememt that count */
+		
+		found = 0;
+		for( i=0 ; i<ntypes ; i++ )
+		{
+			if( typecount[i].type == dir[entcount]->type )
+			{
+				typecount[i].count++;
+				found = 1;
+				break;
+			}
+		}
+		if( !found )
+		{
+			typecount[0].count++;
+			if( dir[entcount]->type > 0 )
+				dir[entcount]->type = (-dir[entcount]->type); /* for easy recognition */
+		}
+
+		/* Check if this is a transformation entity */
+		if( dir[entcount]->type == 124 || dir[entcount]->type == 700 )
+		{
+			/* Read and store the matrix */
+			if( dir[entcount]->param <= pstart )
+			{
+				bu_log( "Illegal parameter pointer for entity D%07d (%s)\n" ,
+						dir[entcount]->direct , dir[entcount]->name );
+				dir[entcount]->rot = NULL;
+			}
+			else
+			{
+				dir[entcount]->rot = (mat_t *)bu_malloc( sizeof( mat_t ) , "Makedir:matrix" );
+				Readmatrix( dir[entcount]->param , *dir[entcount]->rot );
+			}
+		}
+		else /* set to NULL */
+			dir[entcount]->rot = NULL;
+
+	Readrec( saverec ); /* restore previous record */
+	}
+
+out:
+	bu_log( "\t%d\n\n" ,entcount+1 );
+	if( paramguess )
+		bu_log( "Some entities did not have proper parameter pointers, so a resonable guess was made\n" );
+}
+
+@
+
+
+11.14
+log
+@update copyright to include span through 2003
+@
+text
+@@
+
+
+11.13
+log
+@
+Converted from Release 4 names to know about libbu and libbn
+@
+text
+@d13 1
+a13 1
+ *	This software is Copyright (C) 1990 by the United States Army.
+@
+
+
+11.13.6.1
+log
+@sync branch with HEAD
+@
+text
+@d13 1
+a13 1
+ *	This software is Copyright (C) 1990-2004 by the United States Army.
+@
+
+
+11.13.8.1
+log
+@sync to HEAD...
+@
+text
+@d13 1
+a13 1
+ *	This software is Copyright (C) 1990-2004 by the United States Army.
+@
+
+
+11.13.14.1
+log
+@merge from HEAD
+@
+text
+@d13 1
+a13 1
+ *	This software is Copyright (C) 1990-2004 by the United States Army.
+@
+
+
+11.12
+log
+@Converted to use rt_comb_internal.
+@
+text
+@d36 2
+a37 2
+	rt_log( "Reading Directory Section...\n" );
+	rt_log( "Number of entities checked:\n" );
+d81 1
+a81 1
+			rt_log( "Entity number %d does not have a correct parameter pointer\n",
+d153 1
+a153 1
+				rt_log( "Illegal parameter pointer for entity D%07d (%s)\n" ,
+d159 1
+a159 1
+				dir[entcount]->rot = (mat_t *)rt_malloc( sizeof( mat_t ) , "Makedir:matrix" );
+d170 1
+a170 1
+	rt_log( "\t%d\n\n" ,entcount+1 );
+d172 1
+a172 1
+		rt_log( "Some entities did not have proper parameter pointers, so a resonable guess was made\n" );
+@
+
+
+11.11
+log
+@Minor Mods for IRIX 6.2
+@
+text
+@d141 1
+d143 3
+@
+
+
+11.10
+log
+@Mods to get trimmed surfaces with subfigures working.
+@
+text
+@d28 1
+@
+
+
+11.9
+log
+@All logging done via rt_log
+@
+text
+@d37 4
+d99 5
+a103 2
+		/* convert it to a "dir" index */
+		dir[entcount]->trans = (atoi( str ) - 1)/2;
+d164 1
+@
+
+
+11.8
+log
+@Mods to handle TNURB BREP. Also added RT_EXTERNS to iges_struct.h.
+@
+text
+@d35 2
+a36 2
+	printf( "Reading Directory Section...\n" );
+	printf( "Number of entities checked:\n" );
+d76 1
+a76 1
+			fprintf( stderr , "Entity number %d does not have a correct parameter pointer\n",
+d141 1
+a141 1
+				printf( "Illegal parameter pointer for entity D%07d (%s)\n" ,
+d157 1
+a157 1
+	printf( "\t%d\n\n" ,entcount+1 );
+d159 1
+a159 1
+		printf( "Some entities did not have proper parameter pointers, so a resonable guess was made\n" );
+@
+
+
+11.7
+log
+@Release_4.4
+@
+text
+@a22 7
+#include "conf.h"
+
+#include <stdio.h>
+#include <math.h>
+
+#include "machine.h"
+#include "vmath.h"
+@
+
+
+11.6
+log
+@Mods for Irix 6.
+@
+text
+@@
+
+
+11.5
+log
+@Factored ifdefs
+@
+text
+@a153 2
+				int j;
+
+a155 1
+
+@
+
+
+11.4
+log
+@Added code to fill-in view field in directory structure.
+@
+text
+@d23 2
+d26 2
+a29 1
+#include <math.h>
+@
+
+
+11.3
+log
+@Removed excess debug prints
+@
+text
+@d92 5
+a96 1
+		counter += 24;	/* skip 24 columns */
+@
+
+
+11.2
+log
+@Modified header files
+@
+text
+@a151 7
+				rt_log( "Transform (in Makedir):\n" );
+				for( j=0 ; j<16 ; j++ )
+				{
+					rt_log( "%f " , (*dir[entcount]->rot)[j] );
+					if( (j+1)%4 == 0 )
+						rt_log( "\n" );
+				}
+d160 3
+a162 3
+printf( "\t%d\n\n" ,entcount+1 );
+if( paramguess )
+	printf( "Some entities did not have proper parameter pointers, so a resonable guess was made\n" );
+@
+
+
+11.1
+log
+@Major Upgrade to IGES 5.1
+@
+text
+@d98 6
+d147 2
+d151 8
+@
+
+
+10.2
+log
+@modification for new typecount struct
+@
+text
+@d50 1
+a50 1
+		if( entcount%20 == 0 )
+a66 45
+		switch( dir[entcount]->type )
+		{
+			case 150:
+				sprintf( dir[entcount]->name , "block.%d" , entcount );
+				break;
+			case 152:
+				sprintf( dir[entcount]->name , "wedge.%d" , entcount );
+				break;
+			case 154:
+				sprintf( dir[entcount]->name , "cyl.%d" , entcount );
+				break;
+			case 156:
+				sprintf( dir[entcount]->name , "cone.%d" , entcount );
+				break;
+			case 158:
+				sprintf( dir[entcount]->name , "sphere.%d" , entcount );
+				break;
+			case 160:
+				sprintf( dir[entcount]->name , "torus.%d" , entcount );
+				break;
+			case 162:
+				sprintf( dir[entcount]->name , "revolution.%d" , entcount );
+				break;
+			case 164:
+				sprintf( dir[entcount]->name , "extrusion.%d" , entcount );
+				break;
+			case 168:
+				sprintf( dir[entcount]->name , "ell.%d" , entcount );
+				break;
+			case 180:
+				sprintf( dir[entcount]->name , "region.%d" , entcount );
+				break;
+			case 184:
+				sprintf( dir[entcount]->name , "group.%d" , entcount );
+				break;
+			case 430:
+				sprintf( dir[entcount]->name , "inst.%d" , entcount );
+				break;
+			case 128:
+				sprintf( dir[entcount]->name , "nurb.%d" , entcount );
+				break;
+			default:
+				sprintf( dir[entcount]->name , "entity%d" , entcount );
+				break;
+		}
+d83 10
+a92 1
+		counter = counter + 32;	/* skip 32 columns */
+d141 1
+a141 1
+				dir[entcount]->rot = (mat_t *)malloc( sizeof( mat_t ) );
+@
+
+
+10.1
+log
+@Release_4.0
+@
+text
+@d155 1
+a155 1
+			if( typecount[i][0] == dir[entcount]->type )
+d157 1
+a157 1
+				typecount[i][1]++;
+d163 1
+a163 1
+			typecount[ntypes][1]++;
+@
+
+
+1.2
+log
+@Modified for Release 4.0
+@
+text
+@@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d24 2
+@

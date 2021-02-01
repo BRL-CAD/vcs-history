@@ -1,0 +1,485 @@
+head	1.6;
+access;
+symbols
+	rel-7-10-4:1.5
+	STABLE:1.5.0.2
+	rel-7-10-2:1.5
+	rel-7-10-0:1.4
+	rel-7-8-4:1.2
+	rel-7-8-2:1.2
+	rel-7-8-0:1.2
+	trimnurbs-branch:1.2.0.2
+	help:1.2
+	temp_tag:1.1
+	postmerge-20051223-bobWinPort:1.1
+	premerge-20051223-bobWinPort:1.1
+	rel-7-6-6:1.1
+	rel-7-6-branch:1.1.0.2
+	rel-7-6-4:1.1;
+locks; strict;
+comment	@ * @;
+
+
+1.6
+date	2007.10.22.17.42.35;	author brlcad;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	2007.05.18.04.13.44;	author brlcad;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	2007.01.23.01.13.26;	author brlcad;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2007.01.20.14.36.47;	author brlcad;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2006.01.18.06.46.14;	author brlcad;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2005.10.27.03.44.49;	author brlcad;	state Exp;
+branches
+	1.1.2.1;
+next	;
+
+1.1.2.1
+date	2005.10.27.03.44.49;	author brlcad;	state dead;
+branches;
+next	1.1.2.2;
+
+1.1.2.2
+date	2005.11.13.17.45.00;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.6
+log
+@whoosh, another 10% complete on the bu_bomb to bu_exit conversion review.  also includes a slew of custom exit() calls that can use bu_exit() as well as toning down a slew of overzealous exclamation point use.  (20% complete overall)
+@
+text
+@/*                    G E T _ V E R T E X . C
+ * BRL-CAD
+ *
+ * Copyright (c) 1993-2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@file get_vertex.c
+ *  Authors -
+ *	John R. Anderson
+ *
+ *  Source -
+ *	SLAD/BVLD/VMB
+ *	The U. S. Army Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005
+ *
+ */
+
+#include "./iges_struct.h"
+#include "./iges_extern.h"
+
+struct vertex **
+Get_vertex( edge_use )
+struct iges_edge_use *edge_use;
+{
+	struct iges_edge_list		*e_list;
+	struct iges_vertex_list		*v_list;
+	int				edge_index;
+	int				vert_index;
+	int				vert_de;
+
+	if( (e_list = Get_edge_list( edge_use )) == NULL )
+		return( (struct vertex **)NULL );
+
+	edge_index = edge_use->index-1;
+	if( edge_use->orient )
+	{
+		vert_de = e_list->i_edge[edge_index].start_vert_de;
+		vert_index = e_list->i_edge[edge_index].start_vert_index - 1;
+	}
+	else
+	{
+		vert_de = e_list->i_edge[edge_index].end_vert_de;
+		vert_index = e_list->i_edge[edge_index].end_vert_index - 1;
+	}
+
+	if( (v_list = Get_vertex_list( vert_de )) == NULL )
+		return( (struct vertex **)NULL );
+
+	return( &v_list->i_verts[vert_index].v );
+}
+
+int
+Put_vertex( v, edge )
+struct vertex *v;
+struct iges_edge_use *edge;
+{
+	struct iges_edge_list		*e_list;
+	struct iges_edge_list		*el;
+	struct iges_vertex_list		*v_list;
+	int				vert_index;
+	int				vert_de;
+
+	if( (e_list = Get_edge_list( edge )) == NULL )
+		return( 0 );
+
+
+	el = e_list;
+	while( el && el->edge_de != edge->edge_de )
+		el = el->next;
+
+	if( !el )
+	{
+		bu_exit(1, "Cannot find an edge list with edge_de = %d\n" , edge->edge_de );
+	}
+
+	if( edge->orient )
+	{
+		vert_de = el->i_edge[edge->index-1].start_vert_de;
+		vert_index = el->i_edge[edge->index-1].start_vert_index-1;
+	}
+	else
+	{
+		vert_de = el->i_edge[edge->index-1].end_vert_de;
+		vert_index = el->i_edge[edge->index-1].end_vert_index-1;
+	}
+
+
+	if( (v_list = Get_vertex_list( vert_de )) == NULL )
+		return( 0 );
+
+	if( v_list->i_verts[vert_index].v )
+	{
+		bu_log( "vertex already assigned x%x, trying to assign x%x\n", v_list->i_verts[vert_index].v, v );
+		bu_exit(1, "Multiple vertex assignments\n" );
+	}
+
+	v_list->i_verts[vert_index].v = v;
+	return( 1 );
+}
+
+struct iges_edge *
+Get_edge( e_use )
+struct iges_edge_use *e_use;
+{
+	struct iges_edge_list	*e_list;
+
+	if( (e_list = Get_edge_list( e_use )) == NULL )
+		return( (struct iges_edge *)NULL );
+
+	return( &e_list->i_edge[e_use->index-1] );
+}
+
+struct vertex *
+Get_edge_start_vertex( edge )
+struct iges_edge *edge;
+{
+	struct iges_vertex_list *v_list;
+
+	if( (v_list = Get_vertex_list( edge->start_vert_de )) == NULL )
+		return( (struct vertex *)NULL );
+
+	return( v_list->i_verts[edge->start_vert_index-1].v );
+}
+
+
+struct vertex *
+Get_edge_end_vertex( edge )
+struct iges_edge *edge;
+{
+	struct iges_vertex_list *v_list;
+
+	if( (v_list = Get_vertex_list( edge->end_vert_de )) == NULL )
+		return( (struct vertex *)NULL );
+
+	return( v_list->i_verts[edge->end_vert_index-1].v );
+}
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+1.5
+log
+@rt_bomb() has been deprecated since before 7.0, but even our sources weren't properly updated to reflect this change.  update all of our sources to use bu_bomb() now.
+@
+text
+@d86 1
+a86 2
+		bu_log( "Cannot find an edge list with edge_de = %d\n" , edge->edge_de );
+		bu_bomb( "Cannot find correct edge list\n" );
+d107 1
+a107 1
+		bu_bomb( "Multiple vertex assignments\n" );
+@
+
+
+1.4
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@d87 1
+a87 1
+		rt_bomb( "Cannot find correct edge list\n" );
+d108 1
+a108 1
+		rt_bomb( "Multiple vertex assignments\n" );
+@
+
+
+1.3
+log
+@update copyright to 2007
+@
+text
+@d8 2
+a9 3
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+d14 1
+a14 1
+ * General Public License for more details.
+d16 2
+a17 2
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+@
+
+
+1.2
+log
+@update copyright to 2006
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 1993-2006 United States Government as represented by
+@
+
+
+1.1
+log
+@moved all the geometry converter directories from src/. to src/conv/.
+@
+text
+@d4 1
+a4 1
+ * Copyright (C) 1993-2005 United States Government as represented by
+@
+
+
+1.1.2.1
+log
+@file get_vertex.c was added on branch rel-7-6-branch on 2005-11-13 17:45:00 +0000
+@
+text
+@d1 161
+@
+
+
+1.1.2.2
+log
+@more merging changes from HEAD aka rel-7-6-4 to the rel-7-6-branch, adding the items that were moved and resolving rcs keyword conflicts
+@
+text
+@a0 161
+/*                    G E T _ V E R T E X . C
+ * BRL-CAD
+ *
+ * Copyright (C) 1993-2005 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@file get_vertex.c
+ *  Authors -
+ *	John R. Anderson
+ *
+ *  Source -
+ *	SLAD/BVLD/VMB
+ *	The U. S. Army Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005
+ *
+ */
+
+#include "./iges_struct.h"
+#include "./iges_extern.h"
+
+struct vertex **
+Get_vertex( edge_use )
+struct iges_edge_use *edge_use;
+{
+	struct iges_edge_list		*e_list;
+	struct iges_vertex_list		*v_list;
+	int				edge_index;
+	int				vert_index;
+	int				vert_de;
+
+	if( (e_list = Get_edge_list( edge_use )) == NULL )
+		return( (struct vertex **)NULL );
+
+	edge_index = edge_use->index-1;
+	if( edge_use->orient )
+	{
+		vert_de = e_list->i_edge[edge_index].start_vert_de;
+		vert_index = e_list->i_edge[edge_index].start_vert_index - 1;
+	}
+	else
+	{
+		vert_de = e_list->i_edge[edge_index].end_vert_de;
+		vert_index = e_list->i_edge[edge_index].end_vert_index - 1;
+	}
+
+	if( (v_list = Get_vertex_list( vert_de )) == NULL )
+		return( (struct vertex **)NULL );
+
+	return( &v_list->i_verts[vert_index].v );
+}
+
+int
+Put_vertex( v, edge )
+struct vertex *v;
+struct iges_edge_use *edge;
+{
+	struct iges_edge_list		*e_list;
+	struct iges_edge_list		*el;
+	struct iges_vertex_list		*v_list;
+	int				vert_index;
+	int				vert_de;
+
+	if( (e_list = Get_edge_list( edge )) == NULL )
+		return( 0 );
+
+
+	el = e_list;
+	while( el && el->edge_de != edge->edge_de )
+		el = el->next;
+
+	if( !el )
+	{
+		bu_log( "Cannot find an edge list with edge_de = %d\n" , edge->edge_de );
+		rt_bomb( "Cannot find correct edge list\n" );
+	}
+
+	if( edge->orient )
+	{
+		vert_de = el->i_edge[edge->index-1].start_vert_de;
+		vert_index = el->i_edge[edge->index-1].start_vert_index-1;
+	}
+	else
+	{
+		vert_de = el->i_edge[edge->index-1].end_vert_de;
+		vert_index = el->i_edge[edge->index-1].end_vert_index-1;
+	}
+
+
+	if( (v_list = Get_vertex_list( vert_de )) == NULL )
+		return( 0 );
+
+	if( v_list->i_verts[vert_index].v )
+	{
+		bu_log( "vertex already assigned x%x, trying to assign x%x\n", v_list->i_verts[vert_index].v, v );
+		rt_bomb( "Multiple vertex assignments\n" );
+	}
+
+	v_list->i_verts[vert_index].v = v;
+	return( 1 );
+}
+
+struct iges_edge *
+Get_edge( e_use )
+struct iges_edge_use *e_use;
+{
+	struct iges_edge_list	*e_list;
+
+	if( (e_list = Get_edge_list( e_use )) == NULL )
+		return( (struct iges_edge *)NULL );
+
+	return( &e_list->i_edge[e_use->index-1] );
+}
+
+struct vertex *
+Get_edge_start_vertex( edge )
+struct iges_edge *edge;
+{
+	struct iges_vertex_list *v_list;
+
+	if( (v_list = Get_vertex_list( edge->start_vert_de )) == NULL )
+		return( (struct vertex *)NULL );
+
+	return( v_list->i_verts[edge->start_vert_index-1].v );
+}
+
+
+struct vertex *
+Get_edge_end_vertex( edge )
+struct iges_edge *edge;
+{
+	struct iges_vertex_list *v_list;
+
+	if( (v_list = Get_vertex_list( edge->end_vert_de )) == NULL )
+		return( (struct vertex *)NULL );
+
+	return( v_list->i_verts[edge->end_vert_index-1].v );
+}
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+

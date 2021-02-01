@@ -1,0 +1,693 @@
+head	11.10;
+access;
+symbols
+	ansi-20040405-merged:11.7.2.1
+	postmerge-20040405-ansi:11.8
+	premerge-20040404-ansi:11.7
+	postmerge-autoconf:11.7
+	autoconf-freeze:11.7
+	premerge-autoconf:11.7
+	postmerge-20040315-windows:11.7
+	premerge-20040315-windows:11.7
+	windows-20040315-freeze:11.7
+	autoconf-20031203:11.7
+	autoconf-20031202:11.7
+	autoconf-branch:11.7.0.10
+	phong-branch:11.7.0.8
+	photonmap-branch:11.7.0.6
+	rel-6-1-DP:11.7
+	windows-branch:11.7.0.4
+	rel-6-0-2:11.5
+	ansi-branch:11.7.0.2
+	rel-6-0-1-branch:11.5.0.2
+	hartley-6-0-post:11.6
+	hartley-6-0-pre:11.5
+	rel-6-0-1:11.5
+	rel-6-0:11.5
+	rel-5-4:11.3
+	offsite-5-3-pre:11.5
+	rel-5-3:11.3
+	rel-5-2:11.3
+	rel-5-1-branch:11.3.0.2
+	rel-5-1:11.3
+	rel-5-0:11.3
+	rel-5-0-beta:11.3
+	rel-4-5:11.3
+	ctj-4-5-post:11.1
+	ctj-4-5-pre:11.1
+	rel-4-4:11.1
+	rel-4-0:10.1;
+locks; strict;
+comment	@ * @;
+
+
+11.10
+date	2004.05.21.17.47.36;	author morrison;	state dead;
+branches;
+next	11.9;
+
+11.9
+date	2004.05.10.15.30.48;	author erikg;	state Exp;
+branches;
+next	11.8;
+
+11.8
+date	2004.04.05.09.09.11;	author morrison;	state Exp;
+branches;
+next	11.7;
+
+11.7
+date	2002.08.20.17.08.21;	author jra;	state Exp;
+branches
+	11.7.2.1;
+next	11.6;
+
+11.6
+date	2002.08.15.20.55.32;	author hartley;	state Exp;
+branches;
+next	11.5;
+
+11.5
+date	2000.08.24.22.11.57;	author mike;	state Exp;
+branches;
+next	11.4;
+
+11.4
+date	2000.08.19.03.10.42;	author mike;	state Exp;
+branches;
+next	11.3;
+
+11.3
+date	97.08.25.14.51.05;	author jra;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	97.08.22.22.38.22;	author mike;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	95.01.04.10.02.41;	author mike;	state Rel4_4;
+branches;
+next	10.5;
+
+10.5
+date	94.12.16.20.39.05;	author gdurf;	state Exp;
+branches;
+next	10.4;
+
+10.4
+date	94.12.16.19.35.33;	author gdurf;	state Exp;
+branches;
+next	10.3;
+
+10.3
+date	94.08.23.18.42.39;	author gdurf;	state Exp;
+branches;
+next	10.2;
+
+10.2
+date	94.08.09.14.50.06;	author gdurf;	state Exp;
+branches;
+next	10.1;
+
+10.1
+date	91.10.12.06.43.09;	author mike;	state Rel4_0;
+branches;
+next	1.1;
+
+1.1
+date	91.09.20.15.43.53;	author mike;	state Exp;
+branches;
+next	;
+
+11.7.2.1
+date	2002.09.19.18.01.59;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@Compute area of polygon.
+@
+
+
+11.10
+log
+@moved to src/mged/
+@
+text
+@/*
+ *			C A D _ P A R E A
+ *
+ *	cad_parea -- area of polygon
+ *
+ *  Author -
+ *	D A Gwyn
+ *
+ *  Source -
+ *	SECAD/VLD Computing Consortium, Bldg 394
+ *	The U. S. Army Ballistic Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005-5066
+ *  
+ *  Distribution Status -
+ *	Public Domain, Distribution Unlimitied.
+ */
+#ifndef lint
+static const char RCSid[] = "@@(#)$Header: /n/xoff/cvs/brlcad/mged/cad_parea.c,v 11.9 2004/05/10 15:30:48 erikg Exp $ (BRL)";
+#endif
+
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+
+#include <stdio.h>
+#ifdef USE_STRING_H
+#include <string.h>
+#else
+#include <strings.h>
+#endif
+
+#include "machine.h"
+#include "bu.h"
+#include "externs.h"
+
+#include	"./vld_std.h"
+
+
+typedef struct
+	{
+	double	x;			/* X coordinate */
+	double	y;			/* Y coordinate */
+}	point;			/* polygon vertex */
+
+static bool	GetArgs(int argc, char **argv), Input(register point *coop);
+static void	Output(double result), Usage(void);
+
+
+static void
+Usage(void) 				/* print usage message */
+{
+	(void)printf( "usage: cad_parea[ -i input][ -o output]\n"
+	    );
+}
+
+
+int
+main(int argc, char **argv)			/* "cad_parea" entry point */
+   		     		/* argument count */
+    		        	/* argument strings */
+{
+	point		previous;	/* previous point */
+	point		current;	/* current point */
+	point		first;		/* saved first point */
+	register bool	saved;		/* "`first' valid" flag */
+	double		sum;		/* accumulator */
+
+	if ( !GetArgs( argc, argv ) )	/* process command arguments */
+	{
+		Output( 0.0 );
+		return 1;
+	}
+
+	saved = false;
+	sum = 0.0;
+
+	while ( Input( &current ) )
+	{			/* scan input record */
+		if ( !saved )
+		{		/* first input only */
+			first = current;
+			saved = true;
+		}
+		else	/* accumulate cross-product */
+			sum += previous.x * current.y -
+			    previous.y * current.x;
+
+		previous = current;
+	}
+
+	if ( saved )			/* normally true */
+		sum += previous.x * first.y - previous.y * first.x;
+
+	Output( sum / 2.0 );
+	return 0;			/* success! */
+}
+
+
+static bool
+GetArgs(int argc, char **argv)			/* process command arguments */
+   		     		/* argument count */
+    		        	/* argument strings */
+{
+	static bool	iflag = false;	/* set if "-i" option found */
+	static bool	oflag = false;	/* set if "-o" option found */
+	int		c;		/* option letter */
+
+	while ( (c = bu_getopt( argc, argv, "i:o:" )) != EOF )
+		switch ( c )
+		{
+		case 'i':
+			if ( iflag )
+			{
+				(void)printf(
+				    "cad_parea: too many -i options\n"
+				    );
+				return false;
+			}
+			iflag = true;
+
+			if ( strcmp( bu_optarg, "-" ) != 0
+			    && freopen( bu_optarg, "r", stdin ) == NULL
+			    )	{
+				(void)printf(
+				    "cad_parea: can't open \"%s\"\n",
+				    bu_optarg
+				    );
+				return false;
+			}
+			break;
+
+		case 'o':
+			if ( oflag )
+			{
+				(void)printf(
+				    "cad_parea: too many -o options\n"
+				    );
+				return false;
+			}
+			oflag = true;
+
+			if ( strcmp( bu_optarg, "-" ) != 0
+			    && freopen( bu_optarg, "w", stdout ) == NULL
+			    )	{
+				(void)printf(
+				    "cad_parea: can't create \"%s\"\n",
+				    bu_optarg
+				    );
+				return false;
+			}
+			break;
+
+		case '?':
+			Usage();	/* print usage message */
+			return false;
+		}
+
+	return true;
+}
+
+
+static bool
+Input(register point *coop)				/* input a coordinate record */
+              	      		/* -> input coordinates */
+{
+	char		inbuf[82];	/* input record buffer */
+
+	while ( fgets( inbuf, (int)sizeof inbuf, stdin ) != NULL )
+	{			/* scan input record */
+		register int	cvt;	/* # converted fields */
+
+		cvt = sscanf( inbuf, " %le %le", &coop->x, &coop->y );
+
+		if ( cvt == 0 )
+			continue;	/* skip color, comment, etc. */
+
+		if ( cvt == 2 )
+			return true;	/* successfully converted */
+
+		(void)printf( "cad_parea: bad input:\n%s\n", inbuf
+		    );
+		Output( 0.0 );
+		exit( 2 );		/* return false insufficient */
+	}
+
+	return false;			/* EOF */
+}
+
+
+static void
+Output(double result)			/* output computed area */
+      	        		/* computed area */
+{
+	printf( "%g\n", result );
+}
+@
+
+
+11.9
+log
+@change conf.h to a wrapped config.h
+@
+text
+@d18 1
+a18 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/mged/cad_parea.c,v 11.8 2004/04/05 09:09:11 morrison Exp $ (BRL)";
+@
+
+
+11.8
+log
+@merge of ansi-6-0-branch into HEAD
+@
+text
+@d18 1
+a18 1
+static const char RCSid[] = "@@(#)$Header$ (BRL)";
+d21 5
+a25 1
+#include "conf.h"
+@
+
+
+11.7
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d18 1
+a18 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/mged/cad_parea.c,v 11.5 2000/08/24 22:11:57 mike Exp $ (BRL)";
+d43 2
+a44 2
+static bool	GetArgs(), Input();
+static void	Output(), Usage();
+d48 1
+a48 1
+Usage() 				/* print usage message */
+d56 3
+a58 3
+main( argc, argv )			/* "cad_parea" entry point */
+int		argc;		/* argument count */
+char		*argv[];	/* argument strings */
+d98 3
+a100 3
+GetArgs( argc, argv )			/* process command arguments */
+int		argc;		/* argument count */
+char		*argv[];	/* argument strings */
+d161 2
+a162 2
+Input( coop )				/* input a coordinate record */
+register point	*coop;		/* -> input coordinates */
+d189 2
+a190 2
+Output( result )			/* output computed area */
+double	result; 		/* computed area */
+@
+
+
+11.7.2.1
+log
+@Initial ANSIfication
+@
+text
+@d18 1
+a18 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/mged/cad_parea.c,v 11.7 2002/08/20 17:08:21 jra Exp $ (BRL)";
+d43 2
+a44 2
+static bool	GetArgs(int argc, char **argv), Input(register point *coop);
+static void	Output(double result), Usage(void);
+d48 1
+a48 1
+Usage(void) 				/* print usage message */
+d56 3
+a58 3
+main(int argc, char **argv)			/* "cad_parea" entry point */
+   		     		/* argument count */
+    		        	/* argument strings */
+d98 3
+a100 3
+GetArgs(int argc, char **argv)			/* process command arguments */
+   		     		/* argument count */
+    		        	/* argument strings */
+d161 2
+a162 2
+Input(register point *coop)				/* input a coordinate record */
+              	      		/* -> input coordinates */
+d189 2
+a190 2
+Output(double result)			/* output computed area */
+      	        		/* computed area */
+@
+
+
+11.6
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d43 2
+a44 2
+static bool	GetArgs(int argc, char **argv), Input(register point *coop);
+static void	Output(double result), Usage(void);
+d48 1
+a48 1
+Usage(void) 				/* print usage message */
+d56 3
+a58 3
+main(int argc, char **argv)			/* "cad_parea" entry point */
+   		     		/* argument count */
+    		        	/* argument strings */
+d98 3
+a100 3
+GetArgs(int argc, char **argv)			/* process command arguments */
+   		     		/* argument count */
+    		        	/* argument strings */
+d161 2
+a162 2
+Input(register point *coop)				/* input a coordinate record */
+              	      		/* -> input coordinates */
+d189 2
+a190 2
+Output(double result)			/* output computed area */
+      	        		/* computed area */
+@
+
+
+11.5
+log
+@
+Lint
+@
+text
+@d18 1
+a18 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/mged/cad_parea.c,v 11.4 2000/08/19 03:10:42 mike Exp $ (BRL)";
+d43 2
+a44 2
+static bool	GetArgs(), Input();
+static void	Output(), Usage();
+d48 1
+a48 1
+Usage() 				/* print usage message */
+d56 3
+a58 3
+main( argc, argv )			/* "cad_parea" entry point */
+int		argc;		/* argument count */
+char		*argv[];	/* argument strings */
+d98 3
+a100 3
+GetArgs( argc, argv )			/* process command arguments */
+int		argc;		/* argument count */
+char		*argv[];	/* argument strings */
+d161 2
+a162 2
+Input( coop )				/* input a coordinate record */
+register point	*coop;		/* -> input coordinates */
+d189 2
+a190 2
+Output( result )			/* output computed area */
+double	result; 		/* computed area */
+@
+
+
+11.4
+log
+@
+const RCSid
+@
+text
+@d18 1
+a18 2
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/mged/cad_parea.c,v 11.3 1997/08/25 14:51:05 jra Exp $ (BRL)";
+static char	sccsid[] = "@@(#)cad_parea.c	1.6";
+d55 1
+@
+
+
+11.3
+log
+@Needed libbu for cad_parea and cad_boundp.
+@
+text
+@d18 1
+a18 1
+static char RCSid[] = "@@(#)$Header: /m/cad/mged/RCS/cad_parea.c,v 11.2 1997/08/22 22:38:22 mike Exp jra $ (BRL)";
+@
+
+
+11.2
+log
+@Made use of bu_getopt() explicit, rather than depending on
+#define in bu.h
+@
+text
+@d18 1
+a18 1
+static char RCSid[] = "@@(#)$Header: /m/cad/mged/RCS/cad_parea.c,v 11.1 1995/01/04 10:02:41 mike Rel4_4 mike $ (BRL)";
+d32 1
+@
+
+
+11.1
+log
+@Release_4.4
+@
+text
+@d18 1
+a18 1
+static char RCSid[] = "@@(#)$Header: /m/cad/mged/RCS/cad_parea.c,v 10.5 94/12/16 20:39:05 gdurf Exp $ (BRL)";
+d105 1
+a105 1
+	while ( (c = getopt( argc, argv, "i:o:" )) != EOF )
+d118 2
+a119 2
+			if ( strcmp( optarg, "-" ) != 0
+			    && freopen( optarg, "r", stdin ) == NULL
+d123 1
+a123 1
+				    optarg
+d139 2
+a140 2
+			if ( strcmp( optarg, "-" ) != 0
+			    && freopen( optarg, "w", stdout ) == NULL
+d144 1
+a144 1
+				    optarg
+@
+
+
+10.5
+log
+@Fixed rt_log messup
+@
+text
+@d18 1
+a18 1
+static char RCSid[] = "@@(#)$Header: /m/cad/mged/RCS/cad_parea.c,v 10.4 1994/12/16 19:35:33 gdurf Exp gdurf $ (BRL)";
+@
+
+
+10.4
+log
+@Converted printf(...) and fprintf(stdout, ...) to rt_log(...).
+@
+text
+@d18 1
+a18 1
+static char RCSid[] = "@@(#)$Header: /m/cad/mged/RCS/cad_parea.c,v 10.3 1994/08/23 18:42:39 gdurf Exp gdurf $ (BRL)";
+d50 1
+a50 1
+	(void)rt_log( "usage: cad_parea[ -i input][ -o output]\n"
+d111 1
+a111 1
+				(void)rt_log(
+d121 1
+a121 1
+				(void)rt_log(
+d132 1
+a132 1
+				(void)rt_log(
+d142 1
+a142 1
+				(void)rt_log(
+d177 1
+a177 1
+		(void)rt_log( "cad_parea: bad input:\n%s\n", inbuf
+d191 1
+a191 1
+	rt_log( "%g\n", result );
+@
+
+
+10.3
+log
+@Cleaned up includes
+@
+text
+@d18 1
+a18 1
+static char RCSid[] = "@@(#)$Header: /m/cad/mged/RCS/cad_parea.c,v 10.2 1994/08/09 14:50:06 gdurf Exp gdurf $ (BRL)";
+d50 1
+a50 1
+	(void)fprintf( stderr, "usage: cad_parea[ -i input][ -o output]\n"
+d111 1
+a111 1
+				(void)fprintf( stderr,
+d121 1
+a121 1
+				(void)fprintf( stderr,
+d132 1
+a132 1
+				(void)fprintf( stderr,
+d142 1
+a142 1
+				(void)fprintf( stderr,
+d177 1
+a177 1
+		(void)fprintf( stderr, "cad_parea: bad input:\n%s\n", inbuf
+d191 1
+a191 1
+	(void)printf( "%g\n", result );
+@
+
+
+10.2
+log
+@Added includes, removed superfluous function definitions
+@
+text
+@d18 1
+a18 1
+static char RCSid[] = "@@(#)$Header: /m/cad/mged/RCS/cad_parea.c,v 10.1 91/10/12 06:43:09 mike Rel4_0 $ (BRL)";
+d24 9
+a32 2
+#include	<stdio.h>
+#include	<string.h>
+a35 2
+#include "machine.h"
+#include "externs.h"
+@
+
+
+10.1
+log
+@Release_4.0
+@
+text
+@d18 1
+a18 1
+static char RCSid[] = "@@(#)$Header: /m/cad/mged/RCS/cad_parea.c,v 1.1 91/09/20 15:43:53 mike Exp $ (BRL)";
+d22 2
+d29 2
+a30 4
+extern void	exit();
+extern int	getopt();
+
+extern char	*optarg;
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d18 1
+a18 1
+static char RCSid[] = "@@(#)$Header$ (BRL)";
+@

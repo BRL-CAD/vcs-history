@@ -1,0 +1,326 @@
+head	1.7;
+access;
+symbols;
+locks; strict;
+comment	@ * @;
+
+
+1.7
+date	2007.04.03.17.14.36;	author erikgreenwald;	state Exp;
+branches;
+next	1.6;
+
+1.6
+date	2007.04.02.20.05.49;	author erikgreenwald;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	2007.03.29.17.55.26;	author erikgreenwald;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	2007.03.15.16.54.06;	author erikgreenwald;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2007.02.23.21.56.09;	author erikgreenwald;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2007.02.20.18.11.46;	author erikgreenwald;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2007.02.15.15.19.22;	author erikgreenwald;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.7
+log
+@use the partition list comparison function instead of blindly printing out the lists
+@
+text
+@/*
+ * raytrace comparision util.
+ *
+ * Erik Greenwald <erikg@@arl.army.mil>
+ *
+ * $Id: rtcmp.c,v 1.6 2007/04/02 20:05:49 erikgreenwald Exp $
+ */
+
+
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+
+/* Meh. */
+#ifdef __linux__
+# include <getopt.h>
+#endif
+
+#include "perfcomp.h"
+
+#ifdef HAVE_TIE
+# include "adrt/adrt.h"
+#endif
+
+#ifdef HAVE_RAYFORCE
+# include "rayforce/rayforce.h"
+#endif
+
+#include "dry/dry.h"
+#include "rt/rt.h"
+
+#undef PARALLEL		/* brlcad defines this, but I want my own */
+
+/* mode bitfield ... hurrrrr, I'm special. :D */
+#define PARALLEL	0x01
+#define DISTRIBUTED	0x02
+#define ADRT		0x04
+#define BRLCAD		0x08
+#define RAYFORCE	0x10
+#define DRY		0x20	/* oh the horror */
+
+void
+doversion(char *name)
+{
+	printf("%s (%s) - %s (C) 2007 US Army Research Lab - Erik Greenwald <erikg@@arl.army.mil>\n", PACKAGE, name, VERSION);
+	return;
+}
+void
+dohelp(char *name)
+{
+	doversion(name);
+	printf("Usage:\n\
+\t%s [options] <geom.g> <component 1> [component 2] ...\n\
+\n\
+\t-s		Serial mode (not threaded)\n\
+\t-p<threads>	Parallel mode (threaded)\n\
+\t-d<procs>	Distributed mode (not implemented)\n\
+\n\
+\t-a		Use ADRT\n\
+\t-b		Use BRL-CAD librt\n\
+\t-r		Use Ray-Force\n\
+\n\
+\t-h		Help\n\
+\t-v		Version\n\
+\n", name);
+}
+
+int 
+main(int argc, char **argv)
+{
+	int c, mode = DRY, nthreads = 0, nproc = 0;
+	char *pname = *argv;
+	struct retpack_s *dry_retpack = NULL, *rt_retpack = NULL, *adrt_retpack = NULL, *rayforce_retpack = NULL;
+
+	while( (c = getopt( argc, argv, "abd:hp:rsv")) != -1 ){ 
+		switch(c) 
+		{
+			/* serial/parallel share a bit, distributed is seperate.
+			 * This lets us do things like declare serial but
+			 * distributed (if that makes sense... serial/parallel
+			 * talks about threads, not seperate processes) 
+			 */ 
+			case 's': mode &= ~PARALLEL; break;	/* serial (not parallel) */
+			case 'p': mode |= PARALLEL; if(optarg)nthreads=atoi(optarg); break;	/* parallel */
+			case 'd': mode |= DISTRIBUTED; if(optarg)nproc=atoi(optarg); break;
+			case 'a': mode |= ADRT; break;
+			case 'b': mode |= BRLCAD; break;
+			case 'r': mode |= RAYFORCE; break;
+			case 'h': dohelp(pname); return EXIT_SUCCESS;
+			case 'v': doversion(pname); return EXIT_SUCCESS;
+			case '?':
+			default: dohelp(*argv); return EXIT_FAILURE;
+		}
+	}
+	argc -= optind;
+	argv += optind;
+
+	if(argc <= 0) return dohelp(pname), EXIT_FAILURE;
+
+	if(mode&PARALLEL && nthreads == 0) {
+		nthreads = bu_avail_cpus() * 2 - 1;
+		if(nthreads <= 1) nthreads = 2;
+	}
+
+	if(mode&DISTRIBUTED) { printf("Uh, no distributed yet\n"); return EXIT_FAILURE; }
+
+	if(!(mode&(BRLCAD|ADRT|RAYFORCE))) {
+		printf("Must select at least one raytracing engine to use\n");
+		dohelp(pname);
+		return EXIT_FAILURE;
+	}
+
+#define TRY(flag,prefix) if(mode&flag) prefix##_retpack = perfcomp(#prefix, argc, argv, nthreads, nproc, prefix##_constructor, prefix##_getbox, prefix##_getsize, prefix##_shoot, prefix##_destructor)
+
+	TRY(DRY,dry);	/* prime it */
+	TRY(BRLCAD,rt);	/* librt is not optional. */
+
+#ifdef HAVE_TIE
+	TRY(ADRT,adrt);
+#else
+	if(mode&ADRT) printf("ADRT support not compiled in\n");
+#endif
+
+#ifdef HAVE_RAYFORCE
+	TRY(RAYFORCE,rayforce);
+#else
+	if(mode&RAYFORCE) printf("RAYFORCE support not compiled in\n");
+#endif
+#undef TRY
+
+	for(c=0;c<NUMVIEWS;++c) { 
+		double rms;
+		printf("Shot %d ", c+1);
+		rms = cmppartl(rt_retpack->p[c], adrt_retpack->p[c]);
+		if(rms < 0.0) {
+			printf("- region list differs!!!\n");
+			printf("LRT:  "); showpart(rt_retpack->p[c]); printf("\n");
+			printf("ADRT: "); showpart(adrt_retpack->p[c]); printf("\n");
+		} else
+			printf("deviation: %f mm RMS\n", c, rms);
+	}
+	
+#define SHOW(prefix) if(prefix##_retpack) printf(#prefix"\t: %f seconds (%f cpu) %f wrps  %f crps\n", prefix##_retpack->t, prefix##_retpack->c, (double)NUMTRAYS/prefix##_retpack->t, (double)NUMTRAYS/prefix##_retpack->c)
+	SHOW(dry);
+	SHOW(rt);
+	SHOW(adrt);
+	SHOW(rayforce);
+#undef SHOW
+
+	printf("\n");
+#define SPEEDUP(a,b) if(a##_retpack && b##_retpack) printf(#b" shows %.3f times speedup over "#a"\n", (a##_retpack->c-dry_retpack->c) / (b##_retpack->c-dry_retpack->c) - 1);
+	SPEEDUP(rt,adrt);
+	SPEEDUP(rt,rayforce);
+	SPEEDUP(adrt,rayforce);
+#undef SPEEDUP
+
+	return EXIT_SUCCESS;
+}
+@
+
+
+1.6
+log
+@subtract the "dry" run from cpu times for the "speedup" measure
+@
+text
+@d6 1
+a6 1
+ * $Id: rtcmp.c,v 1.5 2007/03/29 17:55:26 erikgreenwald Exp $
+d135 10
+a144 6
+	{
+		int i;
+		for(i=0;i<NUMVIEWS;++i) { 
+			printf("LRT:  "); showpart(rt_retpack->p[i]); printf("\n");
+			printf("ADRT: "); showpart(adrt_retpack->p[i]); printf("\n\n");
+		}
+@
+
+
+1.5
+log
+@show ray packets for visual inspection... will be automated later
+@
+text
+@d6 1
+a6 1
+ * $Id: rtcmp.c,v 1.4 2007/03/15 16:54:06 erikgreenwald Exp $
+d151 1
+a151 1
+#define SPEEDUP(a,b) if(a##_retpack && b##_retpack) printf(#b" shows %.3f times speedup over "#a"\n", a##_retpack->c / b##_retpack->c - 1);
+@
+
+
+1.4
+log
+@Add a 'dry run' engine to measure overhead and "warm up" the partition manager. Should abate worries about function call overhead.
+@
+text
+@d6 1
+a6 1
+ * $Id: rtcmp.c,v 1.3 2007/02/23 21:56:09 erikgreenwald Exp $
+d119 2
+a120 2
+	TRY(DRY,dry);
+	TRY(BRLCAD,rt);
+d134 8
+d143 1
+a143 1
+#define SHOW(prefix) if(prefix##_retpack) printf(#prefix"\t: %f seconds (%f cpu) %f wrps  %f crps\n", prefix##_retpack->t, prefix##_retpack->c, (double)NUMRAYS/prefix##_retpack->t, (double)NUMRAYS/prefix##_retpack->c)
+@
+
+
+1.3
+log
+@compute and display speedup
+@
+text
+@d6 1
+a6 1
+ * $Id: rtcmp.c,v 1.2 2007/02/20 18:11:46 erikgreenwald Exp $
+d33 1
+d44 1
+d75 1
+a75 1
+	int c, mode = 0, nthreads = 0, nproc = 0;
+d77 1
+a77 1
+	struct retpack_s *rt_retpack = NULL, *adrt_retpack = NULL, *rayforce_retpack = NULL;
+d119 1
+d136 1
+@
+
+
+1.2
+log
+@move the display back to the end, so the nmg_triangulate spew doesn't obfuscate the results
+@
+text
+@d6 1
+a6 1
+ * $Id: rtcmp.c,v 1.1 2007/02/15 15:19:22 erikgreenwald Exp $
+a115 1
+#define SHOW(prefix) if(prefix##_retpack) printf(#prefix"\t: %f seconds (%f cpu) %f wrps  %f crps\n", prefix##_retpack->t, prefix##_retpack->c, (double)NUMRAYS/prefix##_retpack->t, (double)NUMRAYS/prefix##_retpack->c);
+d130 1
+d132 1
+d134 1
+d136 8
+a143 1
+	SHOW(adrt);
+@
+
+
+1.1
+log
+@initial import
+@
+text
+@d6 1
+a6 1
+ * $Id: rtcmp.c,v 1.11 2007/02/13 22:06:45 erikg Exp $
+a118 1
+	SHOW(rt);
+a121 1
+	SHOW(adrt);
+a127 1
+	SHOW(rayforce);
+d132 4
+@
+

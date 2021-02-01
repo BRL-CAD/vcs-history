@@ -1,0 +1,823 @@
+head	1.13;
+access;
+symbols
+	ansi-20040405-merged:1.12
+	postmerge-20040405-ansi:1.12
+	premerge-20040404-ansi:1.12
+	postmerge-autoconf:1.12
+	autoconf-freeze:1.12
+	premerge-autoconf:1.12
+	postmerge-20040315-windows:1.12
+	premerge-20040315-windows:1.12
+	windows-20040315-freeze:1.12
+	autoconf-20031203:1.12
+	autoconf-20031202:1.12
+	autoconf-branch:1.12.0.12
+	phong-branch:1.12.0.10
+	photonmap-branch:1.12.0.8
+	rel-6-1-DP:1.12
+	windows-branch:1.12.0.6
+	rel-6-0-2:1.12
+	ansi-branch:1.12.0.4
+	rel-6-0-1-branch:1.12.0.2
+	hartley-6-0-post:1.12
+	hartley-6-0-pre:1.12
+	rel-6-0-1:1.12
+	rel-6-0:1.12;
+locks; strict;
+comment	@# @;
+
+
+1.13
+date	2004.05.19.19.16.08;	author morrison;	state dead;
+branches;
+next	1.12;
+
+1.12
+date	2001.09.19.08.56.49;	author morrison;	state Exp;
+branches;
+next	1.11;
+
+1.11
+date	2001.09.19.08.41.00;	author morrison;	state Exp;
+branches;
+next	1.10;
+
+1.10
+date	2001.09.07.00.50.52;	author morrison;	state Exp;
+branches;
+next	1.9;
+
+1.9
+date	2001.09.06.21.46.28;	author morrison;	state Exp;
+branches;
+next	1.8;
+
+1.8
+date	2001.09.06.01.44.15;	author morrison;	state Exp;
+branches;
+next	1.7;
+
+1.7
+date	2001.09.06.01.34.23;	author morrison;	state Exp;
+branches;
+next	1.6;
+
+1.6
+date	2001.09.05.23.08.27;	author morrison;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	2001.08.28.21.21.34;	author morrison;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	2001.07.31.17.01.32;	author morrison;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2001.07.23.19.43.39;	author morrison;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2001.06.29.16.45.32;	author butler;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2001.06.28.21.30.58;	author butler;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.13
+log
+@The old regression test scripts are being replaced by something else.  Likely it'll be Corredor with some unit test framework.  The old scripts are so far out of sync and so inadequate that it's simply not worth it any more.
+@
+text
+@#!/bin/sh
+#
+#  m a s t e r . s h
+#
+###
+#
+#  This is the master script for the BRL-CAD regression tests.  This script
+#  is run first, from a machine that has access to a BRL-CAD source tree either
+#  via cvs (default), source tree, tar, or tar.* (tar.gz, tar.bz, tar.Z, etc).
+#  That source may then be optionally merged with another source tree, tar, or
+#  tar.* of "update" patches to apply.
+#
+#  Then the resulting "package" may be optionally run on all (default) or some
+#  of the systems available in the systems.d directory.  Each system defines
+#  its architecture and whether the test should run locally (implying local
+#  run), remote-automated, over RSH, or over SSH to invoke the regression
+#  testing of the source (via the client.sh script).  Each system also defines
+#  how to get the package to the system either via local filesystem (NFS
+#  or manual move implied), remote-pulled, FTP, or SSH (scp).
+#
+#  Filesystem changes should all only occur within the REGRESS_DIR directory.
+#  e.g. the REGRESS_DIR directory is the working directory.
+#
+###
+#
+#  GETTING STARTED
+#
+#  Run:
+#  ./master.sh -h
+#  to get help with command line options for modifying run-time behaviour.
+#
+#  The default behavior of the master.sh script is to regression test the
+#  brlcad package that this master.sh script lives with and run on all of the
+#  systems in the systems.d directory.  By default, the only defined system
+#  should be "localhost" and most likely includes running all of the tests
+#  found in the tests.d directory.  See the systems.d/localhost script and/or
+#  the systems.d/README for an example on how to set up your own systems to
+#  automatically regression test the brlcad package.
+#
+###############################################################################
+
+# include standard utility functions
+. `dirname $0`/library
+
+###
+# DEFAULT PUBLIC VARIABLE INITIALIZATION
+########################################
+
+# default name of the regression source
+initializeVariable PACKAGE_NAME brlcad
+
+# default working directory for checkouts and (un)packing
+initializeVariable REGRESS_DIR /tmp/`whoami`
+
+# number of minutes (greater than zero) to wait on the master lock
+initializeVariable WAIT_FOR_LOCK_TIMEOUT 3
+
+# fail on warnings (0==do not fail, 1==fail)
+initializeVariable NO_WARNINGS 0
+
+# clean out the regressio directory before starting
+initializeVariable CLOBBER_FIRST 0
+
+# name of log file for output
+initializeVariable LOGFILE .master-${HOSTNAME}.log
+
+# default system to regression test
+# all is a special keyword to regression test all of the systems
+# otherwise the tests must manually be run one at a time through the shell
+initializeVariable REGRESS_SYSTEM all
+
+# default test to run
+# all is a special keyword to perform all tests
+# otherwise the tests must manually be run one at a time through the shell (!)
+initializeVariable REGRESS_TEST all
+
+# CVS
+###
+
+# cvs binary to run
+initializeVariable CVS cvs
+
+# location of the cvs repository
+initializeVariable REPOSITORY /c/CVS
+
+# name of package to pull from cvs repository
+initializeVariable CVS_TAG brlcad
+
+###
+# END PUBLIC VARIABLE INITIALIZATION
+####################################
+
+# private vars
+
+# name of systems directory
+initializeVariable SYSTEMS_D systems.d
+
+# name of tests directory
+initializeVariable TESTS_D tests.d
+
+# current working directory
+initializeVariable START_PWD $LPWD
+
+# cvs log file (do not change unless modify status.sh as well)
+initializeVariable CVS_LOGFILE .cvs-${HOSTNAME}.log
+
+# build up the usage and help incrementally just so it is easier to modify later
+USAGE="Usage: $0 [-?] [-w] [-C]"
+USAGE="${USAGE} [-S regression_system]"
+USAGE="${USAGE} [-T regression_test]"
+USAGE="${USAGE} [-d regression_dir]"
+USAGE="${USAGE} [-c cvs_binary]"
+USAGE="${USAGE} [-r cvs_repository]"
+USAGE="${USAGE} [-m cvs_module]"
+USAGE="${USAGE} [-t timeout]"
+USAGE="${USAGE} [-l logfile]"
+
+HELP="\t-?\tHelp\n"
+HELP="${HELP}\t-w\tFail on warnings\n"
+HELP="${HELP}\t-C\tClean out the regression directory\n"
+HELP="${HELP}\t-S\tName of system to regression test (default is [$REGRESS_SYSTEM])\n"
+HELP="${HELP}\t-T\tName of which test to run (default is [$REGRESS_TEST])\n"
+HELP="${HELP}\t-d\tLocation to run regression test (default is [$REGRESS_DIR])\n"
+HELP="${HELP}\t-c\tcvs command to run optionally including arguments (default is [$CVS])\n"
+HELP="${HELP}\t-r\tLocation of cvs repository root (default is [$REPOSITORY])\n"
+HELP="${HELP}\t-m\tName of cvs module to check out (default is [$CVS_TAG])\n"
+HELP="${HELP}\t-t\tNumber of minutes to wait for master lock (default is [$WAIT_FOR_LOCK_TIMEOUT])\n"
+HELP="${HELP}\t-l\tName of log file for script output (default is [$LOGFILE])"
+
+
+if [ ! "x$DEBUG" = "x" ] ; then echo "1=[$1] 2=[$2]" ; fi
+
+if [ x$1 = "x-?" ] ; then
+    log "$USAGE"
+    log "$HELP"
+    exit
+fi
+
+args=`getopt S:T:d:c:r:m:t:l:wChH? $*`
+
+if [ $? != 0 ] ; then
+    log "$USAGE"
+    log "$HELP"
+    exit
+fi
+
+set -- $args
+
+for i in $* ; do
+    case "$i" in
+	-S)
+	    REGRESS_SYSTEM=$2; shift 2;;
+	-T)
+	    REGRESS_TEST=$2; shift 2;;
+	-d)
+	    REGRESS_DIR=$2; shift 2;;
+	-c)
+	    CVS=$2; shift 2;;
+	-r) 
+	    REPOSITORY=$2; shift 2;;
+	-m)
+	    CVS_TAG=$2; shift 2;;
+	-t)
+	    WAIT_FOR_LOCK_TIMEOUT=$2; shift 2;;
+	-w)
+	    NO_WARNINGS=1; shift 1;;
+	-C)
+	    CLOBBER_FIRST=1; shift 1;;
+	-l)
+	    LOGFILE=$2; shift 2;;
+	-h | -H)
+	    log "$USAGE"; exit;;
+	# dash question should never be reached
+	-\?)
+	    echo "Odd getopt..."; log "$USAGE"; log "$HELP"; exit;;
+	--)
+	    shift; break;;
+    esac
+done
+
+# export for debugging purposes
+export REGRESS_DIR CVS REPOSITORY CVS_TAG WAIT_FOR_LOCK_TIMEOUT NO_WARNINGS LOGFILE
+
+
+# check our regression directory settings for useability
+
+# sanity check -- make sure someone didn't request ""
+# not a good idea to use "." either, but we do not check
+if [ "x$REGRESS_DIR" = "x" ] ; then
+	bomb "Must specify regression directory [REGRESS_DIR]"
+fi
+#
+#  Make sure the regression directory exists and is writeable
+#
+if [ ! -d "$REGRESS_DIR" ] ; then
+    warn "regression directory [$REGRESS_DIR] does not exist"
+    log "Creating [$REGRESS_DIR]"
+    mkdir -m 700 -p $REGRESS_DIR
+    if [ ! -d "$REGRESS_DIR" ] ; then
+	bomb "Unable to create [$REGRESS_DIR]"
+    fi
+fi
+if [ ! -w "${REGRESS_DIR}/." ] ; then
+    bomb "unable to write to [$REGRESS_DIR]"
+fi
+
+# done checking state
+
+
+# until we actually hold a lock, we do not write to a log file that may be in use
+# by another master script that we won't be able to capture.
+# in the meantime, we write to a tempfile based on our pid and hostname
+#
+# we do not use the LOG variable just so the user still manually override
+TLOG="${REGRESS_DIR}/.temp-master-$$-${HOSTNAME}.log"
+
+if [ -f TLOG ] ; then
+    bomb "name collision with existing temp master log [$TLOG]"
+fi
+touch "$TLOG"
+export LOG=$TLOG
+
+log "R E G R E S S I O N   M A S T E R" $TLOG
+log "=================================" $TLOG
+log "Running [$0] with PID [$$] from [$LPWD] on [$HOSTNAME]" $TLOG
+log "Date is [`date`]" $TLOG
+log "Public Settings:" $TLOG
+log "\tREGRESS_DIR=$REGRESS_DIR" $TLOG
+log "\tCVS=$CVS" $TLOG
+log "\tREPOSITORY=$REPOSITORY" $TLOG
+log "\tCVS_TAG=$CVS_TAG" $TLOG
+log "\tWAIT_FOR_LOCK_TIMEOUT=$WAIT_FOR_LOCK_TIMEOUT" $TLOG
+log "\tNO_WARNINGS=$NO_WARNINGS" $TLOG
+log "\tCLOBBER_FIRST=$CLOBBER_FIRST" $TLOG
+log "\tLOGFILE=$LOGFILE" $TLOG
+#log "Private Settings:" $TLOG
+#log "\tLPWD=$LPWD" $TLOG
+log "\tHOSTNAME=$HOSTNAME" $TLOG
+#log "\tLOG=$LOG" $TLOG
+
+
+# from here on we need a lock to avoid nfs and multiple run clobbering
+if ! eval "acquireLock master $WAIT_FOR_LOCK_TIMEOUT 60 $REGRESS_DIR" ; then
+    bomb "Unable to obtain master.lock" $TLOG
+fi
+
+
+# WE ARE NOW LOCKED AND LOADED
+# now that we have the lock, from here on out we need to release the lock and exit
+# politely.  cleanup/unlock should be called prior to any exit
+
+# safely dump our temp log file to the single master log file
+if [ -f ${REGRESS_DIR}/$LOGFILE ] ; then
+    if [ ! "x$CLOBBER_FIRST" = x1 ] ; then
+	mv ${REGRESS_DIR}/$LOGFILE ${REGRESS_DIR}/${LOGFILE}.$$
+	warn "Moving previous master log file [${REGRESS_DIR}/$LOGFILE] to [${REGRESS_DIR}/${LOGFILE}.$$]" $TLOG
+    else
+	rm -f ${REGRESS_DIR}/$LOGFILE
+	log "Clobbered previous master log file" $TLOG
+    fi
+fi
+# now we need to move the existing log file to the "real" file and delete the working temp 
+
+touch ${REGRESS_DIR}/${LOGFILE}
+if [ -w ${REGRESS_DIR}/${LOGFILE} ] ; then
+    cat $TLOG >> ${REGRESS_DIR}/${LOGFILE}
+else
+    bomb "unable to write log file [${REGRESS_DIR}/${LOGFILE}]"
+fi
+rm -f $TLOG
+LOG=${REGRESS_DIR}/$LOGFILE ; export LOG
+
+#
+# clean out the contents of the directory
+# delete everything except the current log file
+#
+if [ x$CLOBBER_FIRST = x1 ] ; then
+    log "Cleaning out $REGRESS_DIR"
+    for ENTRY in `ls -A $REGRESS_DIR` ; do
+	if [ ! "x$ENTRY" = "x$LOGFILE" ] && [ ! "x$ENTRY" = "xmaster.lock" ] ; then
+	    if [ ! "x$DEBUG" = "x" ] ; then log "Deleting [${REGRESS_DIR}/${ENTRY}]" ; fi
+	    rm -rf "${REGRESS_DIR}/${ENTRY}"
+	    if [ $? != 0 ] ; then
+		bomb "Failure cleaning out regression directroy $REGRESS_DIR"
+	    fi
+	fi
+    done
+fi
+
+# safely dump our temp log file to the single master log file
+if [ -f ${REGRESS_DIR}/$CVS_LOGFILE ] ; then
+    warn "Moving previous cvs log file [${REGRESS_DIR}/$CVS_LOGFILE] to [${REGRESS_DIR}/${CVS_LOGFILE}.$$]"
+    mv ${REGRESS_DIR}/$CVS_LOGFILE ${REGRESS_DIR}/${CVS_LOGFILE}.$$
+    touch ${REGRESS_DIR}/$CVS_LOGFILE
+fi
+
+#
+# Get a copy of the cad package
+#
+log "Starting cvs export..."
+log "Running [$CVS -q -d $REPOSITORY export -D today -d $REGRESS_DIR -N $CVS_TAG >> ${REGRESS_DIR}/${CVS_LOGFILE} 2>&1]"
+$CVS -q -d $REPOSITORY export -D today -d $REGRESS_DIR -N $CVS_TAG >> ${REGRESS_DIR}/$CVS_LOGFILE 2>&1
+# make sure cvs export exited nicely
+if [ $? != 0 ] ; then 
+    bomb "cvs export failed" "${REGRESS_DIR}/${CVS_LOGFILE}"
+else
+    log "OK: cvs export completed" "${REGRESS_DIR}/${CVS_LOGFILE}"
+fi
+
+#
+# Touch a file for each architecture that we support.  The clients wait for
+# this file to be created before starting their build.
+#
+for ARCH in m4i64 m4i65 7d fbsd li sun5; do
+    releaseSemaphore start_${ARCH} $REGRESS_DIR
+done
+
+# done with the critical part, return the lock
+releaseLock master $REGRESS_DIR
+
+log "Done $0"
+@
+
+
+1.12
+log
+@*** empty log message ***
+@
+text
+@@
+
+
+1.11
+log
+@added -f to quitely remove old log files when clobbering
+@
+text
+@d236 2
+a237 2
+log "Private Settings:" $TLOG
+log "\tLPWD=$LPWD" $TLOG
+d239 1
+a239 1
+log "\tLOG=$LOG" $TLOG
+@
+
+
+1.10
+log
+@*** empty log message ***
+@
+text
+@d258 1
+a258 1
+	rm ${REGRESS_DIR}/$LOGFILE
+d270 1
+a270 1
+rm $TLOG
+@
+
+
+1.9
+log
+@changed cvs output to go include stderr
+@
+text
+@d301 2
+a302 2
+log "Running [$CVS -q -d $REPOSITORY export -D today -d $REGRESS_DIR -N $CVS_TAG >& $REGRESS_DIR/$CVS_LOGFILE]"
+$CVS -q -d $REPOSITORY export -D today -d $REGRESS_DIR -N $CVS_TAG >& ${REGRESS_DIR}/$CVS_LOGFILE
+d305 1
+a305 1
+    bomb "cvs export failed" "${REGRSS_DIR}/${CVS_LOGFILE}"
+@
+
+
+1.8
+log
+@stopped clobbering of master lock file with -C clobber option
+@
+text
+@d301 2
+a302 2
+log "Running [$CVS -q -d $REPOSITORY export -D today -d $REGRESS_DIR -N $CVS_TAG >> $REGRESS_DIR/$CVS_LOGFILE]"
+$CVS -q -d $REPOSITORY export -D today -d $REGRESS_DIR -N $CVS_TAG >> ${REGRESS_DIR}/$CVS_LOGFILE
+d305 1
+a305 1
+    bomb "cvs export failed" "$REGRSS_DIR/$CVS_LOGFILE"
+d307 1
+a307 1
+    log "OK: cvs export completed"
+@
+
+
+1.7
+log
+@readded proper cvs export marking so status may be obtained from the log file
+@
+text
+@d280 1
+a280 1
+	if [ ! "x$ENTRY" = "x$LOGFILE" ] ; then
+a285 2
+	else
+	    log "Skipping deletion of $LOGFILE in $REGRESS_DIR"
+@
+
+
+1.6
+log
+@finished merging the "new" library (with proper file locks and semaphores, stdout/stderr logging facilities, etc)
+updated master.sh to use the new lib
+@
+text
+@d307 1
+a307 1
+    bomb "cvs export failed"
+d309 1
+a309 1
+    log "...done with cvs export"
+@
+
+
+1.5
+log
+@"fixed" the inclusion of the library resource file (that contains all the function definitions) so that the scripts could be called remotely (without needing to be in the same dir as the library file (. ./library))
+
+changed it to:
+. `dirname $0`/libaray
+@
+text
+@d3 4
+d8 31
+a38 4
+#  is run first, to check out the source code and set up the semaphore files
+#  for each of the client architectures.
+#
+#  Filesystem changes should all only occur within the REGRESS_DIR directory
+d40 1
+d45 3
+d49 2
+a50 1
+# DEFAULT PUBLIC VARIABLE INITIALIZATION
+a54 9
+# cvs binary to run
+initializeVariable CVS cvs
+
+# location of the cvs repository
+initializeVariable REPOSITORY /c/CVS
+
+# name of package to pull from cvs repository
+initializeVariable CVS_TAG brlcad
+
+d61 3
+d77 13
+d91 1
+a91 1
+
+d108 1
+a108 1
+USAGE="Usage: $0 [-?] [-w]"
+d120 1
+d122 1
+a122 1
+HELP="${HELP}\t-S\tName of which test to run (default is [$REGRESS_TEST])\n"
+d131 1
+a132 1
+# handle dash question special since some getopts don't play nice
+d134 2
+a135 2
+    log $USAGE
+    log $HELP
+d139 1
+a139 1
+args=`getopt S:T:d:c:r:m:t:l:whH? $*`
+d142 2
+a143 2
+    log $USAGE
+    log $HELP
+d166 3
+a168 1
+	    NO_WARNINGS=1;;
+d172 1
+a172 1
+	    echo $USAGE; exit;;
+d175 1
+a175 1
+	    echo "Odd getopt..."; echo $USAGE; echo -e $HELP; exit;;
+d190 1
+a190 2
+	echo "ERROR: Must specify regression directory [REGRESS_DIR=$REGRESS_DIR]"
+	exit
+d196 2
+a197 3
+    echo "WARNING: regression directory [$REGRESS_DIR] does not exist"
+    if [ X$NO_WARNINGS = X1 ] ; then exit ; fi
+    echo "Creating [$REGRESS_DIR]"
+d200 1
+a200 2
+	echo "ERROR: Unable to create [$REGRESS_DIR]"
+	exit
+d204 1
+a204 2
+    echo "ERROR: unable to write to [$REGRESS_DIR]"
+    exit
+d218 1
+a218 2
+    echo "ERROR: Name collision with existing temp master log [$TLOG]"
+    exit
+d234 1
+d243 2
+a244 4
+if ! eval "acquireLock master.lock $WAIT_FOR_LOCK_TIMEOUT 60" ; then
+    log "ERROR: Unable to obtain master.lock" $TLOG
+    log "ERROR: Unable to obatin master.lock" /dev/tty
+    exit
+d254 7
+a260 2
+    log "WARNING: Moving previous master log file [${REGRESS_DIR}/$LOGFILE] to [${REGRESS_DIR}/${LOGFILE}.$$]" $TLOG
+    mv ${REGRESS_DIR}/$LOGFILE ${REGRESS_DIR}/${LOGFILE}.$$
+d264 6
+a269 1
+cat $TLOG >> ${REGRESS_DIR}/$LOGFILE
+d271 1
+a271 2
+export LOG=${REGRESS_DIR}/$LOGFILE
+
+d275 1
+d277 13
+a289 8
+log "Cleaning out $REGRESS_DIR"
+rm -rf $REGRESS_DIR/*
+# wipe out logfiles?
+#rm -rf $REGRESS_DIR/.??*
+if [ $? != 0 ] ; then
+	log "Error cleaning out regression directroy $REGRESS_DIR"
+	releaseLock master.lock
+	exit 2
+a291 3
+# we should not change our cwd
+#cd $REGRESS_DIR
+
+d294 1
+a294 1
+    log "WARNING: Moving previous cvs log file [${REGRESS_DIR}/$CVS_LOGFILE] to [${REGRESS_DIR}/${CVS_LOGFILE}.$$]"
+d305 1
+a305 2
+log "...done with cvs checkout"
+
+d307 1
+a307 1
+    log "ERROR: CVS EXPORT RETURNED NON-ZERO" $REGRESS_DIR/$CVS_LOGFILE
+d309 1
+a309 1
+    log "OK: CVS CHECKOUT SUCCEEDED" $REGRESS_DIR/$CVS_LOGFILE
+d317 1
+a317 1
+    releaseLock ${REGRESS_DIR}/start_${ARCH}.semaphore
+d321 1
+a321 1
+releaseLock master.lock
+d323 1
+a323 1
+log "Done master.sh"
+@
+
+
+1.4
+log
+@updates to client scripts so sun5 will work properly
+added status.sh to verify builds and e-mail results of tests available
+@
+text
+@d11 1
+a11 1
+. ./library
+d59 1
+a59 1
+initializeVariable START_PWD $PWD
+d184 1
+a184 1
+log "Running [$0] with PID [$$] from [$PWD] on [$HOSTNAME]" $TLOG
+d195 1
+a195 1
+log "\tPWD=$PWD" $TLOG
+@
+
+
+1.3
+log
+@rebuild of the regression test suite
+
+master.sh now uses a new utility library
+client.sh was broken into different stage files with inidividual post-build tests in the tests.d directory
+client scripts will be updated again later to conform more robustly with new testing architecture
+@
+text
+@d61 1
+a61 1
+# cvs log file
+d90 2
+a91 2
+    echo $USAGE
+    echo -e $HELP
+d98 2
+a99 2
+    echo $USAGE
+    echo -e $HELP
+d144 1
+a144 1
+	echo "ERROR: Must specify regression directory [REGRESS_DIR]"
+d251 1
+a251 1
+log "Running [$CVS -q -d $REPOSITORY export -D today -d $REGRESS_DIR -N $CVS_TAG >> $CVS_LOGFILE/$CVS_LOGFILE]"
+d255 6
+d265 1
+a265 1
+for ARCH in m4i64 m4i65 7d fbsd li; do
+@
+
+
+1.2
+log
+@Make directory specification mandatory
+@
+text
+@d6 35
+d42 4
+a45 1
+USAGE="echo Usage: $0 -d regress_dir [-c cvs_binary] [-R cvs_repository]"
+d47 1
+d49 47
+a95 1
+args=`getopt d:c:R: $*`
+d98 3
+a100 2
+	eval $USAGE
+	exit 2
+a104 3
+CVS=cvs
+REPOSITORY=/c/CVS
+
+d106 27
+a132 14
+	case "$i" in
+		-R)	
+			REPOSITORY=$2;
+			shift 2;;
+		-d)
+			REGRESS_DIR=$2;
+			export REGRESS_DIR
+			shift 2;;
+		-c)
+			CVS=$2;
+			shift 2;;
+		--)
+			shift; break;;
+	esac
+d135 3
+a137 2
+export CVS
+export REPOSITORY
+d139 7
+a145 4
+if [ X$REGRESS_DIR = X ] ; then
+	echo "Must specify regression directory"
+	eval $USAGE
+	exit 2
+a146 1
+
+d148 1
+a148 1
+#  Make sure the regression director exists
+d150 7
+a156 2
+if [ ! -d $REGRESS_DIR ] ; then
+	echo directory $REGRESS_DIR not present
+d158 5
+d165 59
+d227 1
+d229 2
+d232 3
+a234 2
+	echo "Error cleaning out regression directroy $REGRESS_DIR"
+	exit
+d237 2
+a238 1
+cd $REGRESS_DIR
+d240 6
+d250 4
+a253 2
+$CVS -Q -d $REPOSITORY get brlcad
+$CVS -Q -d $REPOSITORY release brlcad
+d260 1
+a260 1
+	touch start_$ARCH
+d262 5
+@
+
+
+1.1
+log
+@The regression tests into the distribution.
+@
+text
+@d7 3
+d13 1
+a13 1
+	echo "Usage: $0 [-d regress_dir] [-c cvs_binary] [-R cvs_repository]"
+a19 1
+REGRESS_DIR=/c/regress
+d29 1
+a38 2
+
+export REGRESS_DIR
+d41 6
+@
+

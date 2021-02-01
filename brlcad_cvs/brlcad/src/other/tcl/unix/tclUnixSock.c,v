@@ -1,0 +1,261 @@
+head	1.3;
+access;
+symbols
+	rel-7-10-4:1.2
+	STABLE:1.2.0.2
+	rel-7-10-2:1.2
+	rel-7-10-0:1.1;
+locks; strict;
+comment	@ * @;
+
+
+1.3
+date	2007.11.06.21.35.32;	author erikgreenwald;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2007.05.07.04.17.35;	author brlcad;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2007.03.02.21.49.29;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.3
+log
+@tcl 8.5a6->8.5b1
+@
+text
+@/*
+ * tclUnixSock.c --
+ *
+ *	This file contains Unix-specific socket related code.
+ *
+ * Copyright (c) 1995 Sun Microsystems, Inc.
+ *
+ * See the file "license.terms" for information on usage and redistribution of
+ * this file, and for a DISCLAIMER OF ALL WARRANTIES.
+ *
+ * RCS: @@(#) $Id: tclUnixSock.c,v 1.19 2007/07/31 13:57:16 dkf Exp $
+ */
+
+#include "tclInt.h"
+
+/*
+ * The following variable holds the network name of this host.
+ */
+
+static TclInitProcessGlobalValueProc InitializeHostName;
+static ProcessGlobalValue hostName =
+	{0, 0, NULL, NULL, InitializeHostName, NULL, NULL};
+
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * InitializeHostName --
+ *
+ * 	This routine sets the process global value of the name of the local
+ * 	host on which the process is running.
+ *
+ * Results:
+ *	None.
+ *
+ *----------------------------------------------------------------------
+ */
+
+static void
+InitializeHostName(
+    char **valuePtr,
+    int *lengthPtr,
+    Tcl_Encoding *encodingPtr)
+{
+    CONST char *native = NULL;
+
+#ifndef NO_UNAME
+    struct utsname u;
+    struct hostent *hp;
+
+    memset(&u, (int) 0, sizeof(struct utsname));
+    if (uname(&u) > -1) {				/* INTL: Native. */
+        hp = TclpGetHostByName(u.nodename);		/* INTL: Native. */
+	if (hp == NULL) {
+	    /*
+	     * Sometimes the nodename is fully qualified, but gets truncated
+	     * as it exceeds SYS_NMLN. See if we can just get the immediate
+	     * nodename and get a proper answer that way.
+	     */
+
+	    char *dot = strchr(u.nodename, '.');
+
+	    if (dot != NULL) {
+		char *node = ckalloc((unsigned) (dot - u.nodename + 1));
+
+		memcpy(node, u.nodename, (size_t) (dot - u.nodename));
+		node[dot - u.nodename] = '\0';
+		hp = TclpGetHostByName(node);
+		ckfree(node);
+	    }
+	}
+        if (hp != NULL) {
+	    native = hp->h_name;
+        } else {
+	    native = u.nodename;
+        }
+    }
+    if (native == NULL) {
+	native = tclEmptyStringRep;
+    }
+#else
+    /*
+     * Uname doesn't exist; try gethostname instead.
+     *
+     * There is no portable macro for the maximum length of host names
+     * returned by gethostbyname(). We should only trust SYS_NMLN if it is at
+     * least 255 + 1 bytes to comply with DNS host name limits.
+     *
+     * Note: SYS_NMLN is a restriction on "uname" not on gethostbyname!
+     *
+     * For example HP-UX 10.20 has SYS_NMLN == 9, while gethostbyname() can
+     * return a fully qualified name from DNS of up to 255 bytes.
+     *
+     * Fix suggested by Viktor Dukhovni (viktor@@esm.com)
+     */
+
+#    if defined(SYS_NMLN) && SYS_NMLEN >= 256
+    char buffer[SYS_NMLEN];
+#    else
+    char buffer[256];
+#    endif
+
+    if (gethostname(buffer, sizeof(buffer)) > -1) {	/* INTL: Native. */
+	native = buffer;
+    }
+#endif
+
+    *encodingPtr = Tcl_GetEncoding(NULL, NULL);
+    *lengthPtr = strlen(native);
+    *valuePtr = ckalloc((unsigned int) (*lengthPtr)+1);
+    memcpy(*valuePtr, (void *) native, (size_t)(*lengthPtr)+1);
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * Tcl_GetHostName --
+ *
+ *	Returns the name of the local host.
+ *
+ * Results:
+ *	A string containing the network name for this machine, or an empty
+ *	string if we can't figure out the name. The caller must not modify or
+ *	free this string.
+ *
+ * Side effects:
+ *	Caches the name to return for future calls.
+ *
+ *----------------------------------------------------------------------
+ */
+
+CONST char *
+Tcl_GetHostName(void)
+{
+    return Tcl_GetString(TclGetProcessGlobalValue(&hostName));
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * TclpHasSockets --
+ *
+ *	Detect if sockets are available on this platform.
+ *
+ * Results:
+ *	Returns TCL_OK.
+ *
+ * Side effects:
+ *	None.
+ *
+ *----------------------------------------------------------------------
+ */
+
+int
+TclpHasSockets(
+    Tcl_Interp *interp)		/* Not used. */
+{
+    return TCL_OK;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * TclpFinalizeSockets --
+ *
+ *	Performs per-thread socket subsystem finalization.
+ *
+ * Results:
+ *	None.
+ *
+ * Side effects:
+ *	None.
+ *
+ *----------------------------------------------------------------------
+ */
+
+void
+TclpFinalizeSockets(void)
+{
+    return;
+}
+
+/*
+ * Local Variables:
+ * mode: c
+ * c-basic-offset: 4
+ * fill-column: 78
+ * End:
+ */
+@
+
+
+1.2
+log
+@upgrade to tcl/tk 8.5a6 (from 8.5a5) .. includes even more (extensive) aquatk fixes/enhancements
+@
+text
+@d11 1
+a11 1
+ * RCS: @@(#) $Id: tclUnixSock.c,v 1.18 2007/04/16 13:36:36 dkf Exp $
+d51 1
+a51 1
+    (void *) memset((void *) &u, (int) 0, sizeof(struct utsname));
+d53 1
+a53 1
+        hp = TclpGetHostByName(u.nodename);			/* INTL: Native. */
+d111 1
+a111 1
+    memcpy((void *) *valuePtr, (void *) native, (size_t)(*lengthPtr)+1);
+@
+
+
+1.1
+log
+@upgrade tcl/tk from 8.4.6 to 8.5a5; also move to a recursive configure, using AC_CONFIG_SUBDIRS to call upon tcl, tk, and enigma's configure scripts as needed instead of redoing their build systems for our purpose.  this has a rather drastic impact on the way the libraries are linked together, including the need to compile tcl/tk static so as to avoid libtool portability issues as well as letting us take advantage of their build system for reduced maintenance and easing future upgrades.  undoubtedly more build issues to be worked out with other platforms given the extent of this change.  this does move us one step closer towards correctly linking against system tcl/tk installations too.
+@
+text
+@d11 1
+a11 1
+ * RCS: @@(#) $Id: tclUnixSock.c,v 1.17 2006/09/07 09:17:33 vasiljevic Exp $
+d178 1
+a178 1
+TclpFinalizeSockets()
+@
+

@@ -1,0 +1,385 @@
+head	14.2;
+access;
+symbols
+	rel-7-10-4:14.1
+	STABLE:14.1.0.10
+	stable-branch:14.1
+	rel-7-10-2:14.1
+	rel-7-10-0:14.1
+	rel-7-8-4:14.1
+	rel-7-8-2:14.1
+	rel-7-8-0:14.1
+	trimnurbs-branch:14.1.0.8
+	help:14.1
+	temp_tag:14.1
+	bobWinPort-20051223-freeze:14.1
+	postmerge-20051223-bobWinPort:14.1
+	premerge-20051223-bobWinPort:14.1
+	rel-7-6-6:14.1
+	rel-7-6-4:14.1
+	rel-7-6-2:14.1
+	rel-7-6-branch:14.1.0.6
+	rel-7-6-0:14.1
+	rel-7-4-2:14.1
+	rel-7-4-branch:14.1.0.4
+	bobWinPort:14.1.0.2
+	rel-7-4-0:14.1
+	rel-7-2-6:14.1
+	rel-7-2-4:14.1
+	rel-7-2-2:14.1
+	rel-7-2-0:14.1
+	rel-7-0-4:14.1
+	rel-7-0-2:14.1
+	rel-7-0-1:14.1
+	opensource-post:14.1
+	opensource-pre:1.1
+	rel-7-0-branch:1.1.0.2
+	rel-7-0:1.1;
+locks; strict;
+comment	@# @;
+
+
+14.2
+date	2007.09.14.15.21.36;	author erikgreenwald;	state Exp;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.19;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.14.49.53;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.2
+log
+@removed trailing whitespace
+@
+text
+@# This file is a Tcl script to test out [incr Widgets] Dialogshell class.
+# It is organized in the standard fashion for Tcl tests with the following
+# notation for test case labels:
+#
+#   1.x - Construction/Destruction tests
+#   2.x - Configuration option tests
+#   3.x - Method tests
+#   4.x - Other tests
+#
+# Copyright (c) 1995 DSC Technologies Corporation
+#
+# See the file "license.terms" for information on usage and redistribution
+# of this file, and for a DISCLAIMER OF ALL WARRANTIES.
+#
+# @@(#) $Id: dialogshell.test,v 14.1 2004/11/16 19:42:19 morrison Exp $
+
+package require tcltest
+namespace import -force ::tcltest::*
+
+if [catch {package require Iwidgets 4.0}] {
+  # Let's try modifying the auto_path.  Note that the IWIDGETS_LIBRARY
+  # env var is initialized in the Makefile when doing a 'make test'.
+  # If sourcing this file independently, this variable must be set manually.
+  if ![info exists env(IWIDGETS_LIBRARY)] {
+    error "Unable to locate Iwidgets package.  Set your IWIDGETS_LIBRARY\
+      environment\nvariable to the directory that contains iwidgets.tcl"
+  }
+  lappend auto_path $env(IWIDGETS_LIBRARY)
+  package require Iwidgets 4.0
+}
+
+if {[string compare test [info procs test]] == 1} {
+    source defs
+}
+
+wm geometry . {}
+raise .
+
+set c 1
+set o 1
+set m 1
+
+#
+# Initial construction test
+#
+test Dialogshell-1.$c {Dialogshell construction} {
+    iwidgets::Dialogshell .ds
+    .ds add OK -text "OK"
+    .ds add Cancel -text "Cancel"
+    .ds default OK
+
+    listbox [.ds childsite].lb -relief sunken
+    pack [.ds childsite].lb -fill both -expand yes
+
+    .ds activate
+} {}
+
+incr c
+
+#
+# Option tests which are successful.
+#
+test Dialogshell-2.$o {configuration option} {
+    llength [.ds configure]
+} {17}
+
+incr o
+
+foreach test {
+    {-background #d9d9d9 #d9d9d9}
+    {-width 300 300}
+    {-height 300 300}
+    {-buttonboxpadx 10 10}
+    {-buttonboxpady 10 10}
+    {-buttonboxpos n n}
+    {-buttonboxpos e e}
+    {-buttonboxpos w w}
+    {-buttonboxpos s s}
+    {-cursor gumby gumby}
+    {-modality global global}
+    {-modality application application}
+    {-modality none none}
+    {-separator off off}
+    {-padx 15 15}
+    {-pady 15 15}
+    {-thickness 5 5}
+    {-width 0 0}
+    {-height 0 0}
+    {-separator on on}
+    {-title "Dialog Shell" "Dialog Shell"}} {
+	set option [lindex $test 0]
+	test Dialogshell-2.$o "configuration options, $option" {
+	    .ds configure $option [lindex $test 1]
+	    lindex [.ds configure $option] 4
+	} [lindex $test 2]
+	update
+	incr o
+}
+
+#
+# Option tests which fail and produce errors.
+#
+foreach test {
+  {-buttonboxpos bogus {bad buttonboxpos option "bogus": should be n, s, e, or w}}
+  {-modality bogus {bad modality option "bogus": should be none, application, or global}}} {
+	set option [lindex $test 0]
+        test Dialogshell-2.$o "configuration options, $option" {
+	    list [catch {.ds configure $option [lindex $test 1]} msg] $msg
+	} [list 1 [lindex $test 2]]
+	incr o
+}
+
+#
+# Method tests which are successful.
+#
+foreach test {
+    {{.ds childsite} {.ds.shellchildsite.dschildsite}}
+    {{.ds add Help -text Help} {}}
+    {{.ds insert 1 Apply -text Apply} {}}
+    {{.ds center .} {}}
+    {{.ds delete Help} {}}
+    {{.ds hide Apply} {}}
+    {{.ds default Cancel} {}}
+    {{.ds center} {}}
+    {{.ds show Apply} {}}
+    {{.ds invoke OK} {}}
+    {{.ds buttonconfigure OK -text Ok} {}}} {
+	set method [lindex [lindex $test 0] 1]
+	test Dialogshell-3.$m "object methods, $method" {
+	    list [catch {eval [lindex $test 0]} msg] $msg
+	} [list 0 [lindex $test 1]]
+	update
+	incr m
+}
+
+#
+# Method tests which fail and produce errors
+#
+test Dialogshell-3.$m "object methods, activate already active" {
+    list [catch {.ds activate} msg] $msg
+} [list 0 {}]
+update
+incr m
+
+test Dialogshell-3.$m "object methods, deactivate" {
+    list [catch {.ds deactivate} msg] $msg
+} [list 0 {}]
+update
+incr m
+
+#
+# Destruction test
+#
+test Dialogshell-1.$c {Dialogshell destruction} {
+    destroy .ds
+    update
+} {}
+incr c
+
+#
+# Global modality test.
+#
+test Dialogshell-4.2 "global modality, activation, and deactivation" {
+    iwidgets::dialogshell .ds -modality global
+    .ds add OK -text "OK"
+    .ds add Cancel -text "Cancel"
+    .ds default OK
+    pack [label [.ds childsite].l -text "Global Modal Dialogshell"]
+    after 2000 {.ds deactivate Test}
+    list [catch {.ds activate} msg] $msg
+} [list 0 Test]
+update
+
+#
+# Destruction test
+#
+test Dialogshell-1.$c {Dialogshell destruction} {
+    destroy .ds
+    update
+} {}
+incr c
+
+#
+# None modality test.
+#
+test Dialogshell-4.3 "no modality, activation, and deactivation" {
+    iwidgets::dialogshell .ds -modality none
+    .ds add OK -text "OK"
+    .ds add Cancel -text "Cancel"
+    .ds default OK
+    pack [label [.ds childsite].l -text "Non-Modal Dialogshell"]
+    .ds activate
+    update
+    after 2000
+    .ds deactivate
+} {}
+update
+
+#
+# Destruction test
+#
+test Dialogshell-1.$c {Dialogshell destruction} {
+    destroy .ds
+    update
+} {}
+
+incr c
+
+#
+# Application modality test.
+#
+test Dialogshell-4.4 "application modality, activation, and deactivation" {
+    iwidgets::dialogshell .ds -modality application
+    .ds add OK -text "OK"
+    .ds add Cancel -text "Cancel"
+    .ds default OK
+    pack [label [.ds childsite].l -text "Application Modal Dialogshell"]
+    after 2000 {.ds deactivate Test}
+    list [catch {.ds activate} msg] $msg
+} [list 0 Test]
+update
+
+#
+# Destruction test
+#
+test Dialogshell-1.$c {Dialogshell destruction} {
+    destroy .ds
+    update
+} {}
+
+incr c
+
+test Dialogshell-1.$c {Dialogshell destruction} {
+    iwidgets::dialogshell .ds
+    destroy .ds
+    update
+} {}
+
+::tcltest::cleanupTests
+exit
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@d15 1
+a15 1
+# @@(#) $Id: dialogshell.test,v 1.1 2004/05/20 14:49:53 morrison Exp $
+d49 1
+a49 1
+    .ds add Cancel -text "Cancel" 
+d70 1
+a70 1
+    {-background #d9d9d9 #d9d9d9} 
+d73 14
+a86 14
+    {-buttonboxpadx 10 10} 
+    {-buttonboxpady 10 10} 
+    {-buttonboxpos n n} 
+    {-buttonboxpos e e} 
+    {-buttonboxpos w w} 
+    {-buttonboxpos s s} 
+    {-cursor gumby gumby} 
+    {-modality global global} 
+    {-modality application application} 
+    {-modality none none} 
+    {-separator off off} 
+    {-padx 15 15} 
+    {-pady 15 15} 
+    {-thickness 5 5} 
+d89 1
+a89 1
+    {-separator on on} 
+d96 1
+a96 1
+	update 
+d132 1
+a132 1
+	update 
+d156 1
+a156 1
+    update 
+d166 1
+a166 1
+    .ds add Cancel -text "Cancel" 
+d179 1
+a179 1
+    update 
+d189 1
+a189 1
+    .ds add Cancel -text "Cancel" 
+d204 1
+a204 1
+    update 
+d215 1
+a215 1
+    .ds add Cancel -text "Cancel" 
+d228 1
+a228 1
+    update 
+d236 1
+a236 1
+    update 
+@
+
+
+1.1
+log
+@Sources that are external to BRL-CAD are moved from the top level to src/other/.
+@
+text
+@d15 1
+a15 1
+# @@(#) $Id: dialogshell.test,v 1.1 2003/03/13 13:20:40 jra Exp $
+@
+

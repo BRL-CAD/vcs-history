@@ -1,0 +1,998 @@
+head	11.12;
+access;
+symbols
+	ansi-20040405-merged:11.9.2.2
+	postmerge-20040405-ansi:11.11
+	premerge-20040404-ansi:11.10
+	postmerge-autoconf:11.10
+	autoconf-freeze:11.9.10.1
+	premerge-autoconf:11.10
+	postmerge-20040315-windows:11.10
+	premerge-20040315-windows:11.10
+	windows-20040315-freeze:11.9.4.1
+	autoconf-20031203:11.9
+	autoconf-20031202:11.9
+	autoconf-branch:11.9.0.10
+	phong-branch:11.9.0.8
+	photonmap-branch:11.9.0.6
+	rel-6-1-DP:11.9
+	windows-branch:11.9.0.4
+	rel-6-0-2:11.7
+	ansi-branch:11.9.0.2
+	rel-6-0-1-branch:11.7.0.2
+	hartley-6-0-post:11.8
+	hartley-6-0-pre:11.7
+	rel-6-0-1:11.7
+	rel-6-0:11.7
+	rel-5-4:11.5
+	offsite-5-3-pre:11.5
+	rel-5-3:11.5
+	rel-5-2:11.5
+	rel-5-1-branch:11.5.0.2
+	rel-5-1:11.5
+	rel-5-0:11.5
+	rel-5-0-beta:11.5;
+locks; strict;
+comment	@ * @;
+
+
+11.12
+date	2004.05.21.14.58.05;	author morrison;	state dead;
+branches;
+next	11.11;
+
+11.11
+date	2004.04.05.05.46.03;	author morrison;	state Exp;
+branches;
+next	11.10;
+
+11.10
+date	2004.03.05.22.28.05;	author morrison;	state Exp;
+branches;
+next	11.9;
+
+11.9
+date	2002.08.20.17.09.07;	author jra;	state Exp;
+branches
+	11.9.2.1
+	11.9.4.1
+	11.9.10.1;
+next	11.8;
+
+11.8
+date	2002.08.15.20.56.18;	author hartley;	state Exp;
+branches;
+next	11.7;
+
+11.7
+date	2001.08.21.17.55.23;	author jra;	state Exp;
+branches;
+next	11.6;
+
+11.6
+date	2001.08.10.20.57.08;	author butler;	state Exp;
+branches;
+next	11.5;
+
+11.5
+date	99.01.15.19.22.36;	author morrison;	state Exp;
+branches;
+next	11.4;
+
+11.4
+date	99.01.15.16.38.07;	author morrison;	state Exp;
+branches;
+next	11.3;
+
+11.3
+date	99.01.15.05.58.00;	author butler;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	99.01.13.07.59.45;	author butler;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	99.01.13.07.33.35;	author butler;	state Exp;
+branches;
+next	;
+
+11.9.2.1
+date	2002.09.19.18.02.46;	author morrison;	state Exp;
+branches;
+next	11.9.2.2;
+
+11.9.2.2
+date	2004.03.17.21.23.37;	author morrison;	state Exp;
+branches;
+next	;
+
+11.9.4.1
+date	2004.03.11.23.52.37;	author morrison;	state Exp;
+branches;
+next	;
+
+11.9.10.1
+date	2004.03.10.14.01.14;	author erikg;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+11.12
+log
+@moved to src/util/
+@
+text
+@/*
+ *                 W A V E L E T . C
+ *
+ *      This program performs a wavelet transformation on data.
+ *      Transformations possible are decompositions and reconstructions.
+ *      Currently, only the Haar wavelet is supported.
+ *
+ *	Options
+ *	-D		decompose
+ *	-R		reconstruct
+ *	-1		one-dimensional transform
+ *	-2		two-dimensional transform
+ *	-# n		n-elements/channels per sample (eg 3 for a pix file)
+ *	-t[cdfils]	data type
+ *	-D level	debug
+ *	-s		squaresize of original image/dataset (power of 2)
+ *	-R n		Restart with average image size n
+ *	-n		number of scanlines
+ *	-w		width of dataset
+ *	-S		level/limit of transform ...
+ *	-W			(size of avg img in transformed data output)
+ *
+ *
+ *  Author -
+ *      Lee Butler
+ *      Christopher Sean Morrison
+ *  
+ *  Source -
+ *      The U. S. Army Research Laboratory
+ *      Aberdeen Proving Ground, Maryland  21005-5068  USA
+ *  
+ *  Distribution Notice -
+ *      Re-distribution of this software is restricted, as described in
+ *      your "Statement of Terms and Conditions for the Release of
+ *      The BRL-CAD Package" agreement.
+ *
+ *  Copyright Notice -
+ *      This software is Copyright (C) 1998-2004 by the United States Army
+ *      in all countries except the USA.  All rights reserved.
+ *
+ ***********************************************************************/
+
+
+#include <stdio.h>
+#include <unistd.h>
+#include "machine.h"
+#include "bu.h"
+#include "vmath.h"
+#include "bn.h"
+#include "fb.h"
+
+#define CHAR	1
+#define SHORT	2
+#define INT	3
+#define LONG	4
+#define FLOAT	5
+#define DOUBLE	6
+
+#define DECOMPOSE 1
+#define RECONSTRUCT -1
+
+/* declarations to support use of getopt() system call */
+char *options = "W:S:s:w:n:t:#:D:12drR:";
+extern char *optarg;
+extern int optind, opterr, getopt(int, char *const *, const char *);
+
+char *progname = "(noname)";
+int img_space=1;
+int debug;
+unsigned long width = 512;
+unsigned long height = 512;
+unsigned long channels = 3;
+int value_type = CHAR;
+int value_size = sizeof(char);
+int avg_size = 0;
+unsigned long limit = 0;
+int	decomp_recon;
+
+
+/*
+ *	U S A G E --- tell user how to invoke this program, then exit
+ */
+void
+usage(char *s)
+{
+	if (s) (void)fputs(s, stderr);
+
+	(void) fprintf(stderr, 
+"Usage:\n\
+	%s {-d | -r} [-2] [-t datatype] [-# channels]\n\
+	[-w width] [-n scanlines] [-s number_of_samples]\n\
+	< datastream > wavelets\n",
+			progname);
+	exit(1);
+}
+
+/*
+ *	P A R S E _ A R G S --- Parse through command line flags
+ */
+int
+parse_args(int ac, char **av)
+{
+	int  c;
+	char *strrchr(const char *, int);
+
+	if ( (progname=strrchr(*av, '/')) )
+		progname++;
+	else
+		progname = *av;
+
+	
+	/* Turn off getopt's error messages */
+	opterr = 0;
+
+	/* get all the option flags from the command line */
+	while ((c=getopt(ac,av,options)) != EOF)
+		switch (c) {
+		case '1': img_space=1; break;
+		case '2': img_space=2; break;
+		case 'd': decomp_recon = DECOMPOSE;
+			break;
+		case 'r': decomp_recon = RECONSTRUCT;
+			break;
+		case 'D': debug=atoi(optarg); break;
+		case 'R': avg_size = atoi(optarg); break;
+		case '#': channels = atoi(optarg);
+			break;
+		case 't': {
+			switch (*optarg) {
+			case 'c': value_type = CHAR;
+				value_size = sizeof(char);
+				break;
+			case 'd': value_type = DOUBLE;
+				value_size = sizeof(double);
+				break;
+			case 'f': value_type = FLOAT;
+				value_size = sizeof(float);
+				break;
+			case 'i': value_type = INT;
+				value_size = sizeof(int);
+				break;
+			case 'l': value_type = LONG;
+				value_size = sizeof(long);
+				break;
+			case 's': value_type = SHORT;
+				value_size = sizeof(short);
+				break;
+			}
+			break;
+		}
+		case 'n': height = atoi(optarg); break;
+		case 'w': width = atoi(optarg); break;
+		case 's': width = height = atoi(optarg); break;
+		case 'W': limit = atoi(optarg); break;
+		case 'S': limit = atoi(optarg); break;
+		case '?':
+		case 'h':
+		default	: fprintf(stderr, "Bad or help flag specified %c\n", c);
+			usage("");
+			 break;
+		}
+
+	return(optind);
+}
+
+
+
+
+void
+wlt_decompose_1d(void)
+{
+	genptr_t buf, tbuf;
+	unsigned long int i, n;
+	unsigned long int sample_size;	/* size of data type x #values/sample */
+	unsigned long int scanline_size;	/* # bytes in a scanline */
+	
+	sample_size = value_size * channels;
+	scanline_size = sample_size * width;
+
+	buf = bu_malloc( scanline_size, "wavelet buf");
+	tbuf = bu_malloc( scanline_size >> 1, "wavelet buf");
+
+	if (debug)
+		fprintf(stderr, "1D decompose:\n\tdatatype_size:%d channels:%lu width:%lu height:%lu limit:%lu\n",
+			value_size, channels, width, height, limit);
+
+	
+	for (i=0 ; i < height ; i++) {
+
+		n = fread(buf, sample_size, width, stdin);
+		if (n  != width ) {
+			fprintf(stderr, 
+				"read failed line %lu got %lu not %lu\n",
+				 i, n, width);
+			exit(-1);
+		}
+
+		switch (value_type) {
+		case DOUBLE:
+			bn_wlt_haar_1d_double_decompose(tbuf, buf, width,
+				channels, limit);
+			break;
+		case FLOAT:
+			bn_wlt_haar_1d_float_decompose(tbuf, buf, width,
+				channels, limit);
+			break;
+		case CHAR:
+			bn_wlt_haar_1d_char_decompose(tbuf, buf, width,
+				channels, limit);
+			break;
+		case SHORT:
+			bn_wlt_haar_1d_short_decompose(tbuf, buf, width,
+				channels, limit);
+			break;
+		case INT:
+			bn_wlt_haar_1d_int_decompose(tbuf, buf, width,
+				channels, limit);
+			break;
+		case LONG:
+			bn_wlt_haar_1d_long_decompose(tbuf, buf, width,
+				channels, limit);
+			break;
+		}
+
+		fwrite(buf, sample_size, width, stdout);
+	}
+}
+
+void
+wlt_decompose_2d(void)
+{
+	genptr_t buf, tbuf;
+	unsigned long int sample_size;
+	unsigned long int scanline_size;
+
+	sample_size = value_size * channels;
+	scanline_size = sample_size * width;
+
+	buf = bu_malloc( scanline_size * height, "wavelet buf");
+	tbuf = bu_malloc( scanline_size, "wavelet buf");
+
+	if (debug)
+		fprintf(stderr, "2D decompose:\n\tdatatype_size:%d channels:%lu width:%lu height:%lu limit:%lu\n",
+			value_size, channels, width, height, limit);
+
+
+	if (width != height) {
+		fprintf(stderr, "Two dimensional decomposition requires square image\n");
+		fprintf(stderr, "%lu x %lu image specified\n", width, height);
+		exit(-1);
+	}
+
+	if (fread(buf, scanline_size, height, stdin) != height) {
+		fprintf(stderr, "read error getting %lux%lu bytes\n", scanline_size, height);
+		exit(-1);
+	}
+
+	switch (value_type) {
+	case DOUBLE:
+		bn_wlt_haar_2d_double_decompose(tbuf, buf, width,
+			channels, limit);
+		break;
+	case FLOAT:
+		bn_wlt_haar_2d_float_decompose(tbuf, buf, width,
+			channels, limit);
+		break;
+	case CHAR:
+		bn_wlt_haar_2d_char_decompose(tbuf, buf, width,
+			channels, limit);
+		break;
+	case SHORT:
+		bn_wlt_haar_2d_short_decompose(tbuf, buf, width,
+			channels, limit);
+		break;
+	case INT:
+		bn_wlt_haar_2d_int_decompose(tbuf, buf, width,
+			channels, limit);
+		break;
+	case LONG:
+		bn_wlt_haar_2d_long_decompose(tbuf, buf, width,
+			channels, limit);
+		break;
+	}
+	fwrite(buf, scanline_size, width, stdout);
+}
+
+
+
+
+
+
+
+
+void
+wlt_reconstruct_1d(void)
+{
+	genptr_t buf, tbuf;
+	unsigned long int i, n;
+	unsigned long int sample_size;	/* size of data type x #values/sample */
+	unsigned long int scanline_size;	/* # bytes in a scanline */
+	
+	sample_size = value_size * channels;
+	scanline_size = sample_size * width;
+
+	buf = bu_malloc( scanline_size, "wavelet buf");
+	tbuf = bu_malloc( scanline_size >> 1, "wavelet buf");
+
+	if (debug)
+		fprintf(stderr, "1D reconstruct:\n\tdatatype_size:%d channels:%lu width:%lu height:%lu limit:%lu\n",
+			value_size, channels, width, height, limit);
+
+
+	for (i=0 ; i < height ; i++) {
+
+
+		n = fread(buf, sample_size, width, stdin);
+		if (n  != width ) {
+			fprintf(stderr, 
+				"read failed line %lu got %lu not %lu\n",
+				 i, n, width);
+			exit(-1);
+		}
+
+		switch (value_type) {
+		case DOUBLE:
+			bn_wlt_haar_1d_double_reconstruct(tbuf, buf, width,
+				channels, avg_size, limit);
+			break;
+		case FLOAT:
+			bn_wlt_haar_1d_float_reconstruct(tbuf, buf, width,
+				channels, avg_size, limit);
+			break;
+		case CHAR:
+			bn_wlt_haar_1d_char_reconstruct(tbuf, buf, width,
+				channels, avg_size, limit);
+			break;
+		case SHORT:
+			bn_wlt_haar_1d_short_reconstruct(tbuf, buf, width,
+				channels, avg_size, limit);
+			break;
+		case INT:
+			bn_wlt_haar_1d_int_reconstruct(tbuf, buf, width,
+				channels, avg_size, limit);
+			break;
+		case LONG:
+			bn_wlt_haar_1d_long_reconstruct(tbuf, buf, width,
+				channels, avg_size, limit);
+			break;
+		}
+
+		fwrite(buf, sample_size, width, stdout);
+	}
+}
+
+
+
+
+
+void
+wlt_reconstruct_2d(void)
+{
+	genptr_t buf, tbuf;
+	unsigned long int sample_size;
+	unsigned long int scanline_size;
+
+	sample_size = value_size * channels;
+	scanline_size = sample_size * width;
+
+	buf = bu_malloc( scanline_size * height, "wavelet buf");
+	tbuf = bu_malloc( scanline_size, "wavelet buf");
+
+	if (debug)
+		fprintf(stderr, "2D reconstruct:\n\tdatatype_size:%d channels:%lu width:%lu height:%lu limit:%lu\n",
+			value_size, channels, width, height, limit);
+
+	if (width != height) {
+		fprintf(stderr, "Two dimensional decomposition requires square image\n");
+		fprintf(stderr, "%lu x %lu image specified\n", width, height);
+		exit(-1);
+	}
+
+	if (fread(buf, scanline_size, height, stdin) != height) {
+		fprintf(stderr, "read error getting %lux%lu bytes\n", scanline_size, height);
+		exit(-1);
+	}
+
+	switch (value_type) {
+	case DOUBLE:
+		bn_wlt_haar_2d_double_reconstruct((double *)tbuf, (double *)buf, width,
+			channels, avg_size, limit);
+		break;
+	case FLOAT:
+		bn_wlt_haar_2d_float_reconstruct(tbuf, buf, width,
+			channels, avg_size, limit);
+		break;
+	case CHAR:
+		bn_wlt_haar_2d_char_reconstruct(tbuf, buf, width,
+			channels, avg_size, limit);
+		break;
+	case SHORT:
+		bn_wlt_haar_2d_short_reconstruct(tbuf, buf, width,
+			channels, avg_size, limit);
+		break;
+	case INT:
+		bn_wlt_haar_2d_int_reconstruct(tbuf, buf, width,
+			channels, avg_size, limit);
+		break;
+	case LONG:
+		bn_wlt_haar_2d_long_reconstruct(tbuf, buf, width,
+			channels, avg_size, limit);
+		break;
+	}
+	fwrite(buf, scanline_size, width, stdout);
+}
+
+
+/*
+ *	M A I N
+ *
+ *	Call parse_args to handle command line arguments first, then
+ *	process input.
+ */
+int
+main(int ac, char **av)
+{
+
+	/* parse command flags, and make sure there are arguments
+	 * left over for processing.
+	 */
+	if ( parse_args(ac, av) < ac) usage("Excess arguments ignored.\n");
+
+	if (isatty(fileno(stdout))) usage("Redirect input/output\n");
+
+	if ( !value_type)
+		usage("Must specify data type\n");
+
+	if (decomp_recon == DECOMPOSE) {
+		/* set some defaults */
+		if (avg_size == 0) avg_size = width;
+		if (limit == 0) limit = 1;
+
+		if (img_space == 1) wlt_decompose_1d();
+		else wlt_decompose_2d();
+		return 0;
+	} else if (decomp_recon == RECONSTRUCT) {
+		/* set some defaults */
+		if (avg_size == 0) avg_size = 1;
+		if (limit == 0) limit = width;
+
+		if (img_space == 1) wlt_reconstruct_1d();
+		else wlt_reconstruct_2d();
+		return 0;
+	}
+	usage("must specify either decompose (-d) or reconstruct (-r)\n");
+	return -1;
+}
+
+
+
+@
+
+
+11.11
+log
+@merge of ansi-6-0-branch into head
+@
+text
+@@
+
+
+11.10
+log
+@copyright
+@
+text
+@d65 1
+a65 1
+extern int optind, opterr, getopt();
+d84 1
+a84 2
+usage(s)
+char *s;
+d101 1
+a101 3
+parse_args(ac, av)
+int ac;
+char *av[];
+d104 1
+a104 1
+	char *strrchr();
+d170 1
+a170 1
+wlt_decompose_1d()
+d230 1
+a230 1
+wlt_decompose_2d()
+d295 1
+a295 1
+wlt_reconstruct_1d()
+d360 1
+a360 1
+wlt_reconstruct_2d()
+d424 1
+a424 3
+main(ac,av)
+int ac;
+char *av[];
+@
+
+
+11.9
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d38 2
+a39 2
+ *      This software is Copyright (C) 1998 & 1999 by the United States
+ *      Army in all countries except the USA.  All rights reserved.
+@
+
+
+11.9.4.1
+log
+@sync to HEAD...
+@
+text
+@d38 2
+a39 2
+ *      This software is Copyright (C) 1998-2004 by the United States Army
+ *      in all countries except the USA.  All rights reserved.
+@
+
+
+11.9.10.1
+log
+@merge from head
+@
+text
+@d38 2
+a39 2
+ *      This software is Copyright (C) 1998-2004 by the United States Army
+ *      in all countries except the USA.  All rights reserved.
+@
+
+
+11.9.2.1
+log
+@Initial ANSIfication
+@
+text
+@d65 1
+a65 1
+extern int optind, opterr, getopt(int, char *const *, const char *);
+d84 2
+a85 1
+usage(char *s)
+d102 3
+a104 1
+parse_args(int ac, char **av)
+d107 1
+a107 1
+	char *strrchr(const char *, int);
+d173 1
+a173 1
+wlt_decompose_1d(void)
+d233 1
+a233 1
+wlt_decompose_2d(void)
+d298 1
+a298 1
+wlt_reconstruct_1d(void)
+d363 1
+a363 1
+wlt_reconstruct_2d(void)
+d427 3
+a429 1
+main(int ac, char **av)
+@
+
+
+11.9.2.2
+log
+@sync branch with HEAD
+@
+text
+@d38 2
+a39 2
+ *      This software is Copyright (C) 1998-2004 by the United States Army
+ *      in all countries except the USA.  All rights reserved.
+@
+
+
+11.8
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d65 1
+a65 1
+extern int optind, opterr, getopt(int, char *const *, const char *);
+d84 2
+a85 1
+usage(char *s)
+d102 3
+a104 1
+parse_args(int ac, char **av)
+d107 1
+a107 1
+	char *strrchr(const char *, int);
+d173 1
+a173 1
+wlt_decompose_1d(void)
+d233 1
+a233 1
+wlt_decompose_2d(void)
+d298 1
+a298 1
+wlt_reconstruct_1d(void)
+d363 1
+a363 1
+wlt_reconstruct_2d(void)
+d427 3
+a429 1
+main(int ac, char **av)
+@
+
+
+11.7
+log
+@Added parens around "=" exporession in an "if"
+@
+text
+@d65 1
+a65 1
+extern int optind, opterr, getopt();
+d84 1
+a84 2
+usage(s)
+char *s;
+d101 1
+a101 3
+parse_args(ac, av)
+int ac;
+char *av[];
+d104 1
+a104 1
+	char *strrchr();
+d170 1
+a170 1
+wlt_decompose_1d()
+d230 1
+a230 1
+wlt_decompose_2d()
+d295 1
+a295 1
+wlt_reconstruct_1d()
+d360 1
+a360 1
+wlt_reconstruct_2d()
+d424 1
+a424 3
+main(ac,av)
+int ac;
+char *av[];
+@
+
+
+11.6
+log
+@Misc compiler warnings eliminated
+@
+text
+@d109 1
+a109 1
+	if ( progname=strrchr(*av, '/') )
+@
+
+
+11.5
+log
+@missing reference to wavelet(1) in brlcad.1
+wavelet.1 was called decompose
+wavelet.c added header
+@
+text
+@d45 1
+@
+
+
+11.4
+log
+@some overlap of lee's work.  printfs were printing ulongints as ints fixed
+fixed setting some ints to the results of multiplying a ulongint also fixed.
+@
+text
+@d1 2
+a2 1
+/*	D E C O M P O S E --- perform Haar wavelet transform
+d4 4
+d9 2
+a10 2
+ *	-d		decompose
+ *	-r		reconstruct
+d22 22
+a43 1
+ */
+@
+
+
+11.3
+log
+@Fixed bad fprintf statements
+@
+text
+@d149 3
+a151 3
+	int i, n;
+	int sample_size;	/* size of data type x #values/sample */
+	int scanline_size;	/* # bytes in a scanline */
+d169 1
+a169 1
+				"read failed line %d got %d not %lu\n",
+d209 2
+a210 2
+	int sample_size;
+	int scanline_size;
+d230 1
+a230 2
+		fprintf(stderr, "read error getting %dx%lu bytes\n",
+			scanline_size, height);
+d274 3
+a276 3
+	int i, n;
+	int sample_size;	/* size of data type x #values/sample */
+	int scanline_size;	/* # bytes in a scanline */
+d295 1
+a295 1
+				"read failed line %d got %d not %lu\n",
+d339 2
+a340 2
+	int sample_size;
+	int scanline_size;
+d359 1
+a359 1
+		fprintf(stderr, "read error getting %dx%lu bytes\n", scanline_size, height);
+d435 2
+@
+
+
+11.2
+log
+@Brought wavelet.c up to Chris Morrison's new naming convention for the
+wavelet support in libbn.
+@
+text
+@d160 1
+a160 1
+		fprintf(stderr, "1D decompose:\n\tdatatype_size:%d channels:%d width:%d height:%d limit:%d\n",
+d169 1
+a169 1
+				"read failed line %d got %d not %d\n",
+d219 1
+a219 1
+		fprintf(stderr, "2D decompose:\n\tdatatype_size:%d channels:%d width:%d height:%d limit:%d\n",
+d225 1
+a225 1
+		fprintf(stderr, "%d x %d image specified\n", width, height);
+d230 2
+a231 1
+		fprintf(stderr, "read error getting %dx%d bytes\n", scanline_size, height);
+d286 1
+a286 1
+		fprintf(stderr, "1D reconstruct:\n\tdatatype_size:%d channels:%d width:%d height:%d limit:%d\n",
+d296 1
+a296 1
+				"read failed line %d got %d not %d\n",
+d350 1
+a350 1
+		fprintf(stderr, "2D reconstruct:\n\tdatatype_size:%d channels:%d width:%d height:%d limit:%d\n",
+d355 1
+a355 1
+		fprintf(stderr, "%d x %d image specified\n", width, height);
+d360 1
+a360 1
+		fprintf(stderr, "read error getting %dx%d bytes\n", scanline_size, height);
+@
+
+
+11.1
+log
+@Added wavelet program for doing Haar wavelet transforms
+@
+text
+@d176 1
+a176 1
+			bn_wlt_1d_double_decompose(tbuf, buf, width,
+d180 1
+a180 1
+			bn_wlt_1d_float_decompose(tbuf, buf, width,
+d184 1
+a184 1
+			bn_wlt_1d_char_decompose(tbuf, buf, width,
+d188 1
+a188 1
+			bn_wlt_1d_short_decompose(tbuf, buf, width,
+d192 1
+a192 1
+			bn_wlt_1d_int_decompose(tbuf, buf, width,
+d196 1
+a196 1
+			bn_wlt_1d_long_decompose(tbuf, buf, width,
+d236 1
+a236 1
+		bn_wlt_2d_double_decompose(tbuf, buf, width,
+d240 1
+a240 1
+		bn_wlt_2d_float_decompose(tbuf, buf, width,
+d244 1
+a244 1
+		bn_wlt_2d_char_decompose(tbuf, buf, width,
+d248 1
+a248 1
+		bn_wlt_2d_short_decompose(tbuf, buf, width,
+d252 1
+a252 1
+		bn_wlt_2d_int_decompose(tbuf, buf, width,
+d256 1
+a256 1
+		bn_wlt_2d_long_decompose(tbuf, buf, width,
+d302 1
+a302 1
+			bn_wlt_1d_double_reconstruct(tbuf, buf, width,
+d306 1
+a306 1
+			bn_wlt_1d_float_reconstruct(tbuf, buf, width,
+d310 1
+a310 1
+			bn_wlt_1d_char_reconstruct(tbuf, buf, width,
+d314 1
+a314 1
+			bn_wlt_1d_short_reconstruct(tbuf, buf, width,
+d318 1
+a318 1
+			bn_wlt_1d_int_reconstruct(tbuf, buf, width,
+d322 1
+a322 1
+			bn_wlt_1d_long_reconstruct(tbuf, buf, width,
+d365 1
+a365 1
+		bn_wlt_2d_double_reconstruct((double *)tbuf, (double *)buf, width,
+d369 1
+a369 1
+		bn_wlt_2d_float_reconstruct(tbuf, buf, width,
+d373 1
+a373 1
+		bn_wlt_2d_char_reconstruct(tbuf, buf, width,
+d377 1
+a377 1
+		bn_wlt_2d_short_reconstruct(tbuf, buf, width,
+d381 1
+a381 1
+		bn_wlt_2d_int_reconstruct(tbuf, buf, width,
+d385 1
+a385 1
+		bn_wlt_2d_long_reconstruct(tbuf, buf, width,
+@

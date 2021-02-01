@@ -1,0 +1,432 @@
+head	1.8;
+access;
+symbols
+	ansi-20040405-merged:1.5.4.1
+	postmerge-20040405-ansi:1.6
+	premerge-20040404-ansi:1.6
+	postmerge-autoconf:1.6
+	autoconf-freeze:1.5.12.1
+	premerge-autoconf:1.6
+	ansi-20040316-freeze:1.5
+	postmerge-20040315-windows:1.6
+	premerge-20040315-windows:1.6
+	windows-20040315-freeze:1.5.6.1
+	autoconf-20031203:1.5
+	autoconf-20031202:1.5
+	autoconf-branch:1.5.0.12
+	phong-branch:1.5.0.10
+	photonmap-branch:1.5.0.8
+	rel-6-1-DP:1.5
+	windows-branch:1.5.0.6
+	rel-6-0-2:1.5
+	ansi-branch:1.5.0.4
+	rel-6-0-1-branch:1.5.0.2
+	hartley-6-0-post:1.5
+	hartley-6-0-pre:1.5
+	rel-6-0-1:1.5
+	rel-6-0:1.5
+	rel-5-4:1.1
+	offsite-5-3-pre:1.2
+	rel-5-3:1.1
+	rel-5-2:1.1
+	rel-5-1-branch:1.1.0.2
+	rel-5-1:1.1;
+locks; strict;
+comment	@ * @;
+
+
+1.8
+date	2004.05.21.18.06.23;	author morrison;	state dead;
+branches;
+next	1.7;
+
+1.7
+date	2004.05.10.15.30.44;	author erikg;	state Exp;
+branches;
+next	1.6;
+
+1.6
+date	2004.02.02.17.39.07;	author morrison;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	2001.04.11.17.48.04;	author bparker;	state Exp;
+branches
+	1.5.4.1
+	1.5.6.1
+	1.5.12.1;
+next	1.4;
+
+1.4
+date	2001.03.21.21.55.39;	author bparker;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2001.03.21.20.22.18;	author bparker;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2000.10.18.18.10.33;	author butler;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	99.12.20.20.38.26;	author bparker;	state Exp;
+branches;
+next	;
+
+1.5.4.1
+date	2004.03.17.21.16.49;	author morrison;	state Exp;
+branches;
+next	;
+
+1.5.6.1
+date	2004.03.11.23.41.48;	author morrison;	state Exp;
+branches;
+next	;
+
+1.5.12.1
+date	2004.02.12.18.39.18;	author erikg;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.8
+log
+@moved to src/
+@
+text
+@/*****h* libbu/cmd.c
+ *
+ * NAME
+ *	C M D . C
+ *
+ * SYNOPSIS
+ *	Utility routines for handling commands.
+ *
+ * Author -
+ *	Robert G. Parker
+ * 
+ * Source -
+ *	SLAD CAD Team
+ *	The U. S. Army Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005
+ *
+ * Distribution Notice -
+ *	Re-distribution of this software is restricted, as described in
+ *	your "Statement of Terms and Conditions for the Release of
+ *	The BRL-CAD Package" agreement.
+ *
+ * Copyright Notice -
+ *	This software is Copyright (C) 1998-2004 by the United States Army
+ *	in all countries except the USA.  All rights reserved.
+ *
+ */
+#ifndef lint
+static const char RCSid[] = "";
+#endif
+
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+#ifdef HAVE_STRING_H
+#include <string.h>
+#else
+#include <strings.h>
+#endif
+
+#include "tcl.h"
+#include "machine.h"
+#include "externs.h"
+#include "cmd.h"			/* includes bu.h */
+
+/*****f* libbu/cmd.c
+ *
+ * NAME
+ *	bu_cmd
+ *
+ * SYNOPSIS
+ *	This function is intended to be used for parsing subcommands.
+ *	If the command is found in the array of commands, the associated
+ *	function is called. Otherwise, an error message is created and
+ *	added to interp.
+ *
+ * PARAMETERS
+ *	clientData	- data/state associated with the command
+ *	interp		- tcl interpreter wherein this command is registered
+ *			  (Note - the result of the command is also stored here)
+ *	argc		- number of arguments in argv
+ *	argv		- command to execute and its arguments
+ *	cmds		- commands and related function pointers
+ *	cmd_index	- indicates which argv element holds the subcommand
+ *
+ * RETURN
+ *	Returns TCL_OK if successful, otherwise, TCL_ERROR.
+ */
+int
+bu_cmd(ClientData	clientData,
+       Tcl_Interp	*interp,
+       int		argc,
+       char		**argv,
+       struct bu_cmdtab	*cmds,
+       int		cmd_index)
+{
+	register struct bu_cmdtab *ctp;
+
+	/* sanity */
+	if (cmd_index >= argc) {
+		Tcl_AppendResult(interp,
+				 "missing command; must be one of:",
+				 (char *)NULL);
+		goto missing_cmd;
+	}
+
+	for (ctp = cmds; ctp->ct_name != (char *)NULL; ctp++) {
+		if (ctp->ct_name[0] == argv[cmd_index][0] &&
+		    strcmp(ctp->ct_name, argv[cmd_index]) == 0) {
+			return (*ctp->ct_func)(clientData, interp, argc, argv);
+		}
+	}
+
+	Tcl_AppendResult(interp,
+			 "unknown command; must be one of:",
+			 (char *)NULL);
+missing_cmd:
+	for (ctp = cmds; ctp->ct_name != (char *)NULL; ctp++) {
+		Tcl_AppendResult(interp, " ", ctp->ct_name, (char *)NULL);
+	}
+	Tcl_AppendResult(interp, "\n", (char *)NULL);
+
+	return TCL_ERROR;
+}
+
+/*****f* libbu/cmd.c
+ *
+ * NAME
+ *	bu_register_cmds
+ *
+ * SYNOPSIS
+ *	This is a convenience routine for registering an array of commands
+ *	with a Tcl interpreter. Note - this is not intended for use by
+ *	commands with associated state (i.e. ClientData).
+ *
+ * PARAMETERS
+ *	interp		- Tcl interpreter wherein to register the commands
+ *	cmds		- commands and related function pointers
+ *
+ * RETURN
+ *	void
+ */
+void
+bu_register_cmds(Tcl_Interp		*interp,
+		 struct bu_cmdtab	*cmds)
+{
+	register struct bu_cmdtab *ctp;
+
+	for (ctp = cmds; ctp->ct_name != (char *)NULL; ctp++)
+		(void)Tcl_CreateCommand(interp, ctp->ct_name, ctp->ct_func,
+					(ClientData)ctp, (Tcl_CmdDeleteProc *)NULL);
+}
+@
+
+
+1.7
+log
+@change conf.h to a wrapped config.h
+@
+text
+@@
+
+
+1.6
+log
+@update copyright to include span through 2003
+@
+text
+@d31 5
+a35 1
+#include "conf.h"
+@
+
+
+1.5
+log
+@*- add comments in the proposed form
+*- check first char for a match before
+   callgin strcmp.
+@
+text
+@d23 1
+a23 1
+ *	This software is Copyright (C) 1998 by the United States Army
+@
+
+
+1.5.4.1
+log
+@sync branch with HEAD
+@
+text
+@d23 1
+a23 1
+ *	This software is Copyright (C) 1998-2004 by the United States Army
+@
+
+
+1.5.6.1
+log
+@sync to HEAD...
+@
+text
+@d23 1
+a23 1
+ *	This software is Copyright (C) 1998-2004 by the United States Army
+@
+
+
+1.5.12.1
+log
+@merge from HEAD
+@
+text
+@d23 1
+a23 1
+ *	This software is Copyright (C) 1998-2004 by the United States Army
+@
+
+
+1.4
+log
+@*- removed bu_build_cmd_vls
+@
+text
+@d1 1
+a1 2
+/*
+ *				C M D . C
+d3 8
+a10 2
+ * Utility routines for handling commands.
+ * 
+d17 9
+a25 2
+ * Authors -
+ *	Robert G. Parker
+d27 4
+d43 22
+a64 2
+/*
+ * Generic command parser.
+d67 6
+a72 7
+bu_cmd(clientData, interp, argc, argv, cmds, cmd_index)
+     ClientData clientData;
+     Tcl_Interp *interp;
+     int argc;
+     char **argv;
+     struct bu_cmdtab *cmds;
+     int cmd_index;
+d74 1
+a74 1
+  register struct bu_cmdtab *ctp;
+d76 18
+a93 17
+  /* sanity */
+  if (cmd_index >= argc) {
+    Tcl_AppendResult(interp,
+		     "missing command; must be one of:",
+		     (char *)NULL);
+    goto missing_cmd;
+  }
+
+  for (ctp = cmds; ctp->ct_name != (char *)NULL; ctp++) {
+    if (strcmp(ctp->ct_name, argv[cmd_index]) == 0) {
+      return (*ctp->ct_func)(clientData, interp, argc, argv);
+    }
+  }
+
+  Tcl_AppendResult(interp,
+		   "unknown command; must be one of:",
+		   (char *)NULL);
+d95 4
+a98 4
+  for (ctp = cmds; ctp->ct_name != (char *)NULL; ctp++) {
+    Tcl_AppendResult(interp, " ", ctp->ct_name, (char *)NULL);
+  }
+  Tcl_AppendResult(interp, "\n", (char *)NULL);
+d100 1
+a100 1
+  return TCL_ERROR;
+d103 16
+a118 2
+/*
+ * Generic routine to register commands with a Tcl interpreter.
+d121 2
+a122 3
+bu_register_cmds(interp, cmds)
+     Tcl_Interp *interp;
+     struct bu_cmdtab *cmds;
+d124 1
+a124 1
+  register struct bu_cmdtab *ctp;
+d126 3
+a128 3
+  for (ctp = cmds; ctp->ct_name != (char *)NULL; ctp++)
+    (void)Tcl_CreateCommand(interp, ctp->ct_name, ctp->ct_func,
+			    (ClientData)ctp, (Tcl_CmdDeleteProc *)NULL);
+@
+
+
+1.3
+log
+@*- add bu_build_cmd_vls
+@
+text
+@a80 17
+
+/*
+ * Builds a command string in the provided vls.
+ */
+void
+bu_build_cmd_vls(vls, cmd, argc, argv)
+     struct bu_vls	*vls;
+     CONST char		*cmd;
+     int		argc;
+     char		**argv;
+{
+	register int i;
+
+	bu_vls_strcpy(vls, cmd);
+	for (i = 0; i < argc; ++i)
+		bu_vls_printf(vls, " %s", argv[i]);
+}
+@
+
+
+1.2
+log
+@Patches for compiling under RedHat 7.0
+@
+text
+@d18 2
+d80 17
+@
+
+
+1.1
+log
+@*- utility routines for handling commands
+@
+text
+@d16 4
+@
+

@@ -1,0 +1,820 @@
+head	14.16;
+access;
+symbols
+	rel-7-10-4:14.13
+	STABLE:14.13.0.2
+	rel-7-10-2:14.13
+	rel-7-10-0:14.12
+	rel-7-8-4:14.9
+	rel-7-8-2:14.9
+	rel-7-8-0:14.9
+	trimnurbs-branch:14.9.0.2
+	help:14.9
+	temp_tag:14.7
+	bobWinPort-20051223-freeze:14.4
+	postmerge-20051223-bobWinPort:14.7
+	premerge-20051223-bobWinPort:14.7
+	rel-7-6-6:14.7
+	rel-7-6-4:14.7
+	rel-7-6-2:14.4
+	rel-7-6-branch:14.4.0.6
+	rel-7-6-0:14.4
+	rel-7-4-2:14.4
+	rel-7-4-branch:14.4.0.4
+	bobWinPort:14.4.0.2
+	rel-7-4-0:14.4
+	rel-7-2-6:14.4
+	rel-7-2-4:14.4
+	rel-7-2-2:14.4
+	rel-7-2-0:14.3
+	rel-7-0-4:14.2
+	rel-7-0-2:14.2
+	rel-7-0-1:14.2
+	opensource-post:14.2
+	opensource-pre:1.4
+	rel-7-0-branch:1.4.0.2
+	rel-7-0:1.4;
+locks; strict;
+comment	@ * @;
+
+
+14.16
+date	2007.11.21.20.49.13;	author erikgreenwald;	state Exp;
+branches;
+next	14.15;
+
+14.15
+date	2007.11.21.18.55.37;	author erikgreenwald;	state Exp;
+branches;
+next	14.14;
+
+14.14
+date	2007.09.15.16.23.23;	author brlcad;	state Exp;
+branches;
+next	14.13;
+
+14.13
+date	2007.07.26.01.14.00;	author brlcad;	state Exp;
+branches;
+next	14.12;
+
+14.12
+date	2007.01.27.01.41.54;	author brlcad;	state Exp;
+branches;
+next	14.11;
+
+14.11
+date	2007.01.23.01.13.56;	author brlcad;	state Exp;
+branches;
+next	14.10;
+
+14.10
+date	2007.01.20.14.37.06;	author brlcad;	state Exp;
+branches;
+next	14.9;
+
+14.9
+date	2006.01.28.00.36.30;	author brlcad;	state Exp;
+branches;
+next	14.8;
+
+14.8
+date	2006.01.18.06.46.27;	author brlcad;	state Exp;
+branches;
+next	14.7;
+
+14.7
+date	2005.10.23.04.44.39;	author brlcad;	state Exp;
+branches;
+next	14.6;
+
+14.6
+date	2005.09.22.00.21.51;	author brlcad;	state Exp;
+branches;
+next	14.5;
+
+14.5
+date	2005.09.21.19.05.37;	author brlcad;	state Exp;
+branches;
+next	14.4;
+
+14.4
+date	2005.03.28.23.39.57;	author brlcad;	state Exp;
+branches
+	14.4.6.1;
+next	14.3;
+
+14.3
+date	2005.01.30.20.31.33;	author brlcad;	state Exp;
+branches;
+next	14.2;
+
+14.2
+date	2004.12.21.03.45.41;	author butler;	state Exp;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.32;	author morrison;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	2004.08.02.23.01.53;	author morrison;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2004.06.09.18.21.39;	author erikg;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2004.06.08.22.04.45;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.15.21.50;	author morrison;	state Exp;
+branches;
+next	;
+
+14.4.6.1
+date	2005.11.13.13.46.20;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.16
+log
+@pass bu_exit a NULL instead of an empty string
+@
+text
+@/*                      P I X B L E N D . C
+ * BRL-CAD
+ *
+ * Copyright (c) 1995-2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@file pixblend.c
+ *
+ *  Given two streams of data, typically pix(5) or bw(5) images,
+ *  generate an output stream of the same size, where the value of
+ *  each pixel in the output is determined by either:
+ *    1) a linear interpolation between the two corresponding pixels in the
+ *       input streams; or,
+ *    2) the pixel of either the first stream or the second stream, chosen
+ *       randomly.
+ *
+ *  This routine operates on a pixel-by-pixel basis, and thus
+ *  is independent of the resolution of the image.
+ *
+ *  Authors -
+ *	Paul Randal Stay
+ *      Glenn Durfee
+ *
+ */
+
+#include "common.h"
+
+#include <stdlib.h>
+#include <stdio.h>
+#include <sys/time.h>
+#include <string.h>
+
+#ifdef HAVE_UNISTD_H
+#  include <unistd.h>
+#endif
+
+#include "machine.h"
+#include "bu.h"
+
+
+static char	*f1_name;
+static char	*f2_name;
+static FILE	*f1;
+static FILE	*f2;
+
+/* CHUNK should be a multiple of 3 (the pixel size) */
+#define CHUNK	3*1024
+static char	*b1;			/* fg input buffer */
+static char	*b2;			/* bg input buffer */
+static char	*b3;			/* output buffer */
+
+double		value, gvalue;
+int             iflg, rflg, gflg;
+int             seed;
+
+static char usage[] = "\
+Usage: pixblend [-{r|i} value] [-s [seed]] file1.pix file2.pix > out.pix\n";
+
+int
+timeseed(void)
+{
+    struct timeval tv;
+    gettimeofday(&tv, (struct timezone *)NULL);
+    return (int)tv.tv_usec;
+}
+
+int
+get_args(int argc, register char **argv)
+{
+	register int c;
+
+	while ( (c = bu_getopt( argc, argv, "r:i:Ss:g:" )) != EOF )  {
+		switch( c )  {
+		case 'r':
+		    if (iflg)
+			return 0;
+		    else {
+			value = atof( bu_optarg );
+			++rflg;
+		    }
+		    break;
+		case 'i':
+		    if (rflg)
+			return 0;
+		    else {
+			if (gflg) {
+			    fprintf(stderr, "The -g and -i options do not make sense together.\n");
+			    return 0;
+			}
+			value = atof( bu_optarg );
+			++iflg;
+		    }
+		    break;
+		case 'S':
+		    seed = timeseed();
+		    break;
+		case 's':
+		    seed = atoi( bu_optarg );
+		    break;
+		case 'g':
+		    if (iflg) {
+			fprintf(stderr, "The -g and -i options do not make sense together.\n");
+			return 0;
+		    }
+		    ++gflg;
+		    gvalue = atof( bu_optarg );
+		    break;
+		default:		/* '?' */
+		    return(0);
+		}
+	}
+
+	if( bu_optind+2 > argc )
+		return(0);
+
+	f1_name = argv[bu_optind++];
+	if( strcmp( f1_name, "-" ) == 0 )
+		f1 = stdin;
+	else if( (f1 = fopen(f1_name, "r")) == NULL )  {
+		perror(f1_name);
+		(void)fprintf( stderr,
+			"pixblend: cannot open \"%s\" for reading\n",
+			f1_name );
+		return(0);
+	}
+
+	f2_name = argv[bu_optind++];
+	if( strcmp( f2_name, "-" ) == 0 )
+		f2 = stdin;
+	else if( (f2 = fopen(f2_name, "r")) == NULL )  {
+		perror(f2_name);
+		(void)fprintf( stderr,
+			"pixblend: cannot open \"%s\" for reading\n",
+			f2_name );
+		return(0);
+	}
+
+	if ( argc > bu_optind )
+		(void)fprintf( stderr, "pixblend: excess argument(s) ignored\n" );
+
+	/* Adjust value upwards if glitterize option is used */
+	value += gvalue * (1 - value);
+
+	return(1);		/* OK */
+}
+
+int
+main(int argc, char **argv)
+{
+#ifndef HAVE_DRAND48
+	int threshold = 0;
+	int gthreshold = 0;
+#endif
+	int c = 0;
+
+	if ( !get_args( argc, argv ) || isatty(fileno(stdout)) )  {
+		(void)fputs(usage, stderr);
+		bu_exit ( 1, NULL );
+	}
+
+	gvalue = 0.0;
+	if (!iflg && !rflg) {   /* Default action: interpolate by 50% */
+	    iflg = 1;
+	    value = 0.5;
+	}
+
+	if( value < 0.0 || value > 1.0)
+	{
+		fprintf(stderr,"pixblend: Blend value must be between 0.0 and 1.0\n");
+		bu_exit (0, NULL);
+
+	}
+
+	if (rflg) {
+#ifdef HAVE_SRAND48
+	    srand48((long)seed);
+#else
+	    threshold = (int) (value * 65536.0);
+	    gthreshold = (int) (gvalue * 65536.0);
+	    srandom(seed);
+#endif
+	}
+
+	if( (b1 = (char *)malloc( CHUNK )) == (char *)0 ||
+	    (b2 = (char *)malloc( CHUNK )) == (char *)0 ||
+	    (b3 = (char *)malloc( CHUNK )) == (char *)0 ) {
+		fprintf(stderr, "pixblend:  malloc failure\n");
+		bu_exit (3, NULL);
+	}
+
+	while(1)  {
+		unsigned char	*cb1, *cb2;	/* current input buf ptrs */
+		register unsigned char	*cb3; 	/* current output buf ptr */
+		int r1, r2, len, todo;
+
+		++c;
+		r1 = fread( b1, 1, CHUNK, f1 );
+		r2 = fread( b2, 1, CHUNK, f2 );
+		len = r1;
+		if( r2 < len )
+			len = r2;
+		if( len <= 0 )
+			break;
+
+		cb1 = (unsigned char *)b1;
+		cb2 = (unsigned char *)b2;
+		cb3 = (unsigned char *)b3;
+		todo = len;
+		if (iflg) {
+		    while( todo-- ) {
+			*cb3++ = (char) ((1.0 - value) * (*cb1++) +
+					 value * (*cb2++));
+		    }
+		} else {
+		    while( todo > 0 ) {
+			if (cb1[0] == cb2[0] &&
+			    cb1[1] == cb2[1] &&
+			    cb1[2] == cb2[2]) {
+			    cb3[0] = cb1[0];
+			    cb3[1] = cb1[1];
+			    cb3[2] = cb1[2];
+			    cb1 += 3;
+			    cb2 += 3;
+			    cb3 += 3;
+			    todo -= 3;
+			} else {
+#ifdef HAVE_DRAND48
+			    double d;
+			    extern double drand48(void);
+			    d = drand48();
+			    if (d >= value) {
+#else
+			    int r;
+			    r = random() & 0xffff;
+			    if (r >= threshold) {
+#endif
+				cb3[0] = cb1[0];
+				cb3[1] = cb1[1];
+				cb3[2] = cb1[2];
+			    } else {
+#ifdef HAVE_DRAND48
+				if (d >= gvalue) {
+#else
+				if (r >= gthreshold) {
+#endif
+				    cb3[0] = cb2[0];
+				    cb3[1] = cb2[1];
+				    cb3[2] = cb2[2];
+				} else {
+				    cb3[0] = cb3[1] = cb3[2] = 255;
+				}
+			    }
+			    cb1 += 3;
+			    cb2 += 3;
+			    cb3 += 3;
+			    todo -= 3;
+			}
+		    }
+		}
+		fwrite( b3, 1, len, stdout );
+	}
+	bu_exit (0, NULL);
+}
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+14.15
+log
+@exit->bu_exit where applicable
+@
+text
+@d171 1
+a171 1
+		bu_exit ( 1, "" );
+d183 1
+a183 1
+		bu_exit (0, "");
+d201 1
+a201 1
+		bu_exit (3, "");
+d275 1
+a275 1
+	bu_exit (0, "");
+@
+
+
+14.14
+log
+@more c89 embracing.  c89 provides string.h for all of the various str*() and mem*() functions, so remove the check for its presence.  there is still likely to be work required for strict c89 conformance for the various bsd strings.h functions that may be in use.
+@
+text
+@d171 1
+a171 1
+		exit( 1 );
+d183 1
+a183 1
+		exit(0);
+d201 1
+a201 1
+		exit(3);
+d275 1
+a275 1
+	exit(0);
+@
+
+
+14.13
+log
+@remove ephemeral data like phone numbers and addresses, including the misleading 'source' statements on code that is continually evolving and receiving contributions from many many sources
+@
+text
+@d44 2
+a48 5
+#ifdef HAVE_STRING_H
+#  include <string.h>
+#else
+#  include <strings.h>
+#endif
+@
+
+
+14.12
+log
+@ws. lots and lots of ws.  see sh/ws.sh for details (cases 'abcdeg').
+@
+text
+@a36 4
+ *  Source -
+ *	SECAD/VLD Computing Consortium, Bldg 394
+ *	The U. S. Army Ballistic Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005-5066
+@
+
+
+14.11
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@d174 1
+a174 1
+        int c = 0;
+d207 2
+a208 2
+	    	fprintf(stderr, "pixblend:  malloc failure\n");
+	    	exit(3);
+d216 1
+a216 1
+	        ++c;
+d255 1
+a255 1
+ 			    if (r >= threshold) {
+@
+
+
+14.10
+log
+@update copyright to 2007
+@
+text
+@d8 2
+a9 3
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+d14 1
+a14 1
+ * General Public License for more details.
+d16 2
+a17 2
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+@
+
+
+14.9
+log
+@header cleanup, atof() requires stdlib.h on altix/posix, fix 64-bitness
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 1995-2006 United States Government as represented by
+@
+
+
+14.8
+log
+@update copyright to 2006
+@
+text
+@d46 3
+a51 2
+#include <sys/time.h>
+#include <stdio.h>
+a56 1
+#include <stdlib.h>
+@
+
+
+14.7
+log
+@trailing ws
+@
+text
+@d4 1
+a4 1
+ * Copyright (C) 1995-2005 United States Government as represented by
+@
+
+
+14.6
+log
+@add bu.h for bu_getopt stuff
+@
+text
+@d22 1
+a22 1
+ *  
+d29 1
+a29 1
+ *       randomly.  
+d33 1
+a33 1
+ *  
+d37 1
+a37 1
+ *  
+d176 1
+a176 1
+	
+d266 1
+a266 1
+#endif				    
+@
+
+
+14.5
+log
+@needs bu.h for bu_getopt
+@
+text
+@d47 1
+a47 1
+# include <unistd.h>
+a48 2
+                                                                                                                                                                            
+
+d52 1
+a52 1
+#include <string.h>
+d54 1
+a54 1
+#include <strings.h>
+d59 2
+@
+
+
+14.4
+log
+@use HAVE_SRAND48 symbol check
+@
+text
+@d93 1
+a93 1
+	while ( (c = getopt( argc, argv, "r:i:Ss:g:" )) != EOF )  {
+d99 1
+a99 1
+			value = atof( optarg );
+d111 1
+a111 1
+			value = atof( optarg );
+d119 1
+a119 1
+		    seed = atoi( optarg );
+d127 1
+a127 1
+		    gvalue = atof( optarg );
+d134 1
+a134 1
+	if( optind+2 > argc )
+d137 1
+a137 1
+	f1_name = argv[optind++];
+d148 1
+a148 1
+	f2_name = argv[optind++];
+d159 1
+a159 1
+	if ( argc > optind )
+@
+
+
+14.4.6.1
+log
+@merge changes from HEAD aka rel-7-6-4 to the rel-7-6-branch just in case someone peeks a gander or tries to continue/build the branch
+@
+text
+@d22 1
+a22 1
+ *
+d29 1
+a29 1
+ *       randomly.
+d33 1
+a33 1
+ *
+d37 1
+a37 1
+ *
+d47 1
+a47 1
+#  include <unistd.h>
+d49 2
+d54 1
+a54 1
+#  include <string.h>
+d56 1
+a56 1
+#  include <strings.h>
+a60 2
+#include "bu.h"
+
+d93 1
+a93 1
+	while ( (c = bu_getopt( argc, argv, "r:i:Ss:g:" )) != EOF )  {
+d99 1
+a99 1
+			value = atof( bu_optarg );
+d111 1
+a111 1
+			value = atof( bu_optarg );
+d119 1
+a119 1
+		    seed = atoi( bu_optarg );
+d127 1
+a127 1
+		    gvalue = atof( bu_optarg );
+d134 1
+a134 1
+	if( bu_optind+2 > argc )
+d137 1
+a137 1
+	f1_name = argv[bu_optind++];
+d148 1
+a148 1
+	f2_name = argv[bu_optind++];
+d159 1
+a159 1
+	if ( argc > bu_optind )
+d176 1
+a176 1
+
+d266 1
+a266 1
+#endif
+@
+
+
+14.3
+log
+@update copyright to 2005
+@
+text
+@d196 1
+a196 1
+#ifdef HAVE_DRAND48
+@
+
+
+14.2
+log
+@GPL license changes
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 1995-2004 United States Government as represented by
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@d1 21
+a21 2
+/*
+ *  			P I X B L E N D . C
+a41 4
+ *  
+ *  Copyright Notice -
+ *	This software is Copyright (C) 1995-2004 by the United States Army.
+ *      All rights reserved.
+@
+
+
+1.4
+log
+@replace the wrapped config.h block with common.h
+@
+text
+@d270 10
+@
+
+
+1.3
+log
+@include unistd.h for getopt stuff
+@
+text
+@d29 1
+a29 3
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+@
+
+
+1.2
+log
+@obliterate externs.h
+@
+text
+@d33 5
+@
+
+
+1.1
+log
+@Vast reorganization begins.  Sources moved from top-level directories into src/.
+@
+text
+@a32 2
+
+
+a42 1
+#include "externs.h"			/* For malloc and getopt */
+@
+

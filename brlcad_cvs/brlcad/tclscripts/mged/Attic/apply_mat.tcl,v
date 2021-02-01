@@ -1,0 +1,331 @@
+head	1.3;
+access;
+symbols
+	ansi-20040405-merged:1.2
+	postmerge-20040405-ansi:1.2
+	premerge-20040404-ansi:1.2
+	postmerge-autoconf:1.2
+	autoconf-freeze:1.2
+	premerge-autoconf:1.2
+	postmerge-20040315-windows:1.2
+	premerge-20040315-windows:1.2
+	windows-20040315-freeze:1.2
+	autoconf-20031203:1.2
+	autoconf-20031202:1.2
+	autoconf-branch:1.2.0.12
+	phong-branch:1.2.0.10
+	photonmap-branch:1.2.0.8
+	rel-6-1-DP:1.2
+	windows-branch:1.2.0.6
+	rel-6-0-2:1.2
+	ansi-branch:1.2.0.4
+	rel-6-0-1-branch:1.2.0.2
+	hartley-6-0-post:1.2
+	hartley-6-0-pre:1.2
+	rel-6-0-1:1.2
+	rel-6-0:1.2
+	rel-5-4:1.1.2.1
+	offsite-5-3-pre:1.1
+	rel-5-3:1.1.2.1
+	rel-5-1-branch:1.1.0.2;
+locks; strict;
+comment	@# @;
+
+
+1.3
+date	2004.05.21.16.41.21;	author morrison;	state dead;
+branches;
+next	1.2;
+
+1.2
+date	2002.01.08.17.48.27;	author jra;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2000.11.13.21.37.06;	author jra;	state Exp;
+branches
+	1.1.2.1;
+next	;
+
+1.1.2.1
+date	2000.11.13.21.37.40;	author jra;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.3
+log
+@moved to src/tclscripts/
+@
+text
+@#
+#		A P P L Y _ M A T . T C L
+#
+# Procedures to apply matrices to objects in MGED
+#
+# Author - John R. Anderson
+#
+
+#
+#	A P P L Y _ M A T _ T O _ R E G I O N S
+#
+# procedure to apply the provided matrix to the provided tree
+# recurses until a region is encountered, where the matrix is applied at each leaf arc of the region.
+# The matrix is not applied to any primitive encountered above the region level.
+# 
+# Returns a new tree with the matrix applied
+
+proc apply_mat_to_regions { tree mat } {
+	set op [lindex $tree 0]
+	switch -- $op {
+		l
+		{
+			set leaf [lindex $tree 1]
+			set new_leaf [db get $leaf]
+			set type [lindex $new_leaf 0]
+			if { $type != "comb" } {
+				puts "WARNING: encountered primitive ($leaf) above region level!!!, ignoring"
+				return $tree
+			}
+			if { [llength $tree] == 3 } {
+				set old_mat [lindex $tree 2]
+				set new_mat [mat_mul $mat $old_mat]
+			} else {
+				set new_mat $mat
+			}
+			set index [lsearch -exact $new_leaf "region"]
+			if { $index < 0 } {
+				error "ERROR: 'region' attribute missing from combination $leaf"
+			}
+			incr index
+			set region [lindex $new_leaf $index]
+			set index [lsearch -exact $new_leaf "tree"]
+			if { $index < 0 } {
+				error "ERROR: no tree for combination $leaf"
+			}
+			incr index
+			set sub_tree [lindex $new_leaf $index]
+			if { $region == "yes" } {
+				set new_tree [apply_mat_comb $sub_tree $new_mat]
+			} else {
+				set new_tree [apply_mat_to_regions $sub_tree $new_mat]
+			}
+			set new_leaf [lreplace $new_leaf $index $index $new_tree]
+			set command [concat db adjust $leaf [lrange $new_leaf 1 end]]
+			if { [catch $command ret] } {
+				error "ERROR: 'db adjust' failed for combination $leaf\n\t$ret"
+			}
+			return [list l $leaf]
+		}
+		- -
+		+ -
+		u -
+		n
+		{
+			set left [lindex $tree 1]
+			set right [lindex $tree 2]
+			set new_left [apply_mat_to_regions $left $mat]
+			set new_right [apply_mat_to_regions $right $mat]
+			return [list $op $new_left $new_right]
+		}
+	}
+}
+
+#
+#	A P P L Y _ M A T _ T O _ C O M B
+#
+# Apply provided matrix to the provided tree. This routine does not descend beyond the specified tree.
+# The matrix is applied at each leaf arc in the tree.
+#
+# Returns the modified tree
+
+proc apply_mat_comb { tree mat } {
+	set op [lindex $tree 0]
+	switch -- $op {
+		l
+		{
+			set leaf [lindex $tree 1]
+			if { [llength $tree] == 3 } {
+				set old_mat [lindex $tree 2]
+				set new_mat [mat_mul $mat $old_mat]
+			} else {
+				set new_mat $mat
+			}
+			return [list "l" $leaf $new_mat]
+		}
+		- -
+		+ -
+		u -
+		n
+		{
+			set left [lindex $tree 1]
+			set right [lindex $tree 2]
+			set new_left [apply_mat_comb $left $mat]
+			set new_right [apply_mat_comb $right $mat]
+			return [list $op $new_left $new_right]
+		}
+	}
+}
+
+#
+#	A P P L Y _ M A T
+#
+# This procedure applies the provided matrix to the list of objects specified.
+# One of the "-primitives", "-regions", or "-top" options may be provided to specify
+# where the matrix is to be applied (the default is "-top").
+#
+# If an object specified is a primitive, the matrix is pushed into the primitive.
+#
+# If "-primitives" is specified, then the matrix is applied at the top level object
+# and "xpush" is used to push the changes to the primitive level.
+#
+# If "-regions" is specified, then the matrix is applied to each leaf in the first regions
+# encountered as the tree is descended (matrices along the way are incorporated).
+#
+# If "-top" is specified (or no options are specified), then the matrix is applied to each
+# leaf arc of the spcified objects.
+#
+# Returns TCL_ERROR or TCL_OK
+
+proc apply_mat { args } {
+	set usage "Usage:\n\tapply_mat \[-primitives | -regions | -top\] matrix object1 \[object2 object3 ...\]"
+	set argc [llength $args]
+	if { $argc < 1 } {
+		error $usage
+	}
+	set mat {}
+	set objs {}
+	set depth "top"
+	set index 0
+	while { $index < $argc } {
+		set opt [lindex $args $index]
+		switch -- $opt {
+			"-primitives" {
+				set depth "primitives"
+				incr index
+			}
+			"-regions" {
+				set depth "regions"
+				incr index
+			}
+			"-top" {
+				set depth "top"
+				incr index
+			}
+			default {
+				break
+			}
+		}
+	}
+	if { $index >= $argc } {
+		error "No matrix or objects specified!!!\n$usage"
+	}
+	set mat [lindex $args $index]
+	incr index
+	if { $index >= $argc } {
+		error "No objects specified!!!!\n$usage"
+	}
+
+	foreach obj [lrange $args $index end] {
+		if { [catch "db get $obj" obj_db] } {
+			puts $obj_db
+			puts "WARNING: $obj does not exist, ignoring!!"
+			continue
+		}
+
+		set type [lindex $obj_db 0]
+		if { $type != "comb" } {
+			# this is a primitive, so just apply the matrix
+			# using a temporary combination and a "push"
+			set tmp [make_name ____]
+			db put $tmp comb region no tree [list l $obj $mat]
+			push $tmp
+			kill $tmp
+			continue
+		}
+
+		# The object is a combination
+		set indx [lsearch -exact $obj_db tree]
+		if { $indx < 0 } {
+			error "$obj does not have a Boolean tree!!!!"
+		}
+		incr indx
+		set obj_tree [lindex $obj_db $indx]
+
+		switch $depth {
+			"primitives" {
+				set new_tree [apply_mat_comb $obj_tree $mat]
+				db adjust $obj tree $new_tree
+				xpush $obj
+			}
+			"regions" {
+				set new_tree [apply_mat_to_regions $obj_tree $mat]
+				db adjust $obj tree $new_tree
+			}
+			"top" {
+				set new_tree [apply_mat_comb $obj_tree $mat]
+				db adjust $obj tree $new_tree
+			}
+		}
+	}
+}
+@
+
+
+1.2
+log
+@Eliminated the "S" word (solid) in favor of "primitive"
+@
+text
+@@
+
+
+1.1
+log
+@Procedures for applying matrices to MGED objects
+@
+text
+@d14 1
+a14 1
+# The matrix is not applied to any solid encountered above the region level.
+d27 1
+a27 1
+				puts "WARNING: encountered solid ($leaf) above region level!!!, ignoring"
+d114 1
+a114 1
+# One of the "-solids", "-regions", or "-top" options may be provided to specify
+d117 1
+a117 1
+# If an object specified is a primitive solid, the matrix is pushed into the solid.
+d119 2
+a120 2
+# If "-solids" is specified, then the matrix is applied at the top level object
+# and "xpush" is used to push the changes to the solid level.
+d131 1
+a131 1
+	set usage "Usage:\n\tapply_mat \[-solids | -regions | -top\] matrix object1 \[object2 object3 ...\]"
+d143 2
+a144 2
+			"-solids" {
+				set depth "solids"
+d178 1
+a178 1
+			# this is a primitive solid, so just apply the matrix
+d196 1
+a196 1
+			"solids" {
+@
+
+
+1.1.2.1
+log
+@Procedures for applying matrices to MGED objects
+@
+text
+@@
+

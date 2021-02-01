@@ -1,0 +1,575 @@
+head	14.11;
+access;
+symbols
+	rel-7-10-4:14.10
+	STABLE:14.10.0.2
+	stable-branch:14.4
+	rel-7-10-2:14.10
+	rel-7-10-0:14.8
+	rel-7-8-4:14.6
+	rel-7-8-2:14.6
+	rel-7-8-0:14.6
+	trimnurbs-branch:14.6.0.2
+	help:14.6
+	temp_tag:14.5
+	bobWinPort-20051223-freeze:14.4
+	postmerge-20051223-bobWinPort:14.5
+	premerge-20051223-bobWinPort:14.5
+	rel-7-6-6:14.5
+	rel-7-6-4:14.5
+	rel-7-6-2:14.4
+	rel-7-6-branch:14.4.0.6
+	rel-7-6-0:14.4
+	rel-7-4-2:14.4
+	rel-7-4-branch:14.4.0.4
+	bobWinPort:14.4.0.2
+	rel-7-4-0:14.4
+	rel-7-2-6:14.4
+	rel-7-2-4:14.4
+	rel-7-2-2:14.4
+	rel-7-2-0:14.4
+	rel-7-0-4:14.3
+	rel-7-0-2:14.3
+	rel-7-0-1:14.2
+	opensource-post:14.2
+	opensource-pre:1.2
+	rel-7-0-branch:1.2.0.2
+	rel-7-0:1.2;
+locks; strict;
+comment	@ * @;
+
+
+14.11
+date	2007.11.21.16.18.53;	author erikgreenwald;	state Exp;
+branches;
+next	14.10;
+
+14.10
+date	2007.05.18.04.13.51;	author brlcad;	state Exp;
+branches;
+next	14.9;
+
+14.9
+date	2007.04.17.03.23.57;	author brlcad;	state Exp;
+branches;
+next	14.8;
+
+14.8
+date	2007.01.23.01.13.46;	author brlcad;	state Exp;
+branches;
+next	14.7;
+
+14.7
+date	2007.01.20.14.37.00;	author brlcad;	state Exp;
+branches;
+next	14.6;
+
+14.6
+date	2006.01.18.06.46.24;	author brlcad;	state Exp;
+branches;
+next	14.5;
+
+14.5
+date	2005.10.23.04.44.38;	author brlcad;	state Exp;
+branches;
+next	14.4;
+
+14.4
+date	2005.01.30.20.31.11;	author brlcad;	state Exp;
+branches
+	14.4.6.1;
+next	14.3;
+
+14.3
+date	2004.12.24.01.40.01;	author brlcad;	state Exp;
+branches;
+next	14.2;
+
+14.2
+date	2004.12.21.06.38.23;	author morrison;	state Exp;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.31;	author morrison;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2004.08.02.23.01.52;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.15.20.48;	author morrison;	state Exp;
+branches;
+next	;
+
+14.4.6.1
+date	2005.11.13.13.46.19;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.11
+log
+@change bu_bomb to bu_exit when the sky isn't really falling
+@
+text
+@/*                       V I E W R A Y . C
+ * BRL-CAD
+ *
+ * Copyright (c) 1985-2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@file viewray.c
+ *
+ *  Ray Tracing program RTRAY bottom half.
+ *
+ *  This module turns RT library partition lists into VLD Standard Format
+ *  ray files, as defined by /vld/include/ray.h.  A variety of VLD programs
+ *  exist to manipulate these files, including rayvect.
+ *
+ *  To obtain a UNIX-plot of a ray file, the procedure is:
+ *	/vld/bin/rayvect -mMM < file.ray > file.vect
+ *	/vld/bin/vectplot -mMM < file.vect > file.plot
+ *	tplot -Tmeg file.plot		# or equivalent
+ *
+ *  Author -
+ *	Michael John Muuss
+ *
+ *  Source -
+ *	SECAD/VLD Computing Consortium, Bldg 394
+ *	The U. S. Army Ballistic Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005
+ *
+ */
+#ifndef lint
+static const char RCSrayview[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/rt/viewray.c,v 14.10 2007/05/18 04:13:51 brlcad Exp $ (BRL)";
+#endif
+
+#include "common.h"
+
+#include <stdio.h>
+#include <stdlib.h>
+
+#include "machine.h"
+#include "vmath.h"
+#include "raytrace.h"
+
+/* private */
+#include "rtprivate.h"
+
+int		use_air = 1;		/* Handling of air in librt */
+
+int		using_mlib = 0;		/* Material routines NOT used */
+
+/* Viewing module specific "set" variables */
+struct bu_structparse view_parse[] = {
+	{"",	0, (char *)0,	0,	BU_STRUCTPARSE_FUNC_NULL }
+};
+
+extern FILE	*outfp;			/* optional output file */
+
+const char title[] = "RT Ray";
+const char usage[] = "\
+Usage:  rtray [options] model.g objects... >file.ray\n\
+Options:\n\
+ -s #		Grid size in pixels, default 512\n\
+ -a Az		Azimuth in degrees	(conflicts with -M)\n\
+ -e Elev	Elevation in degrees	(conflicts with -M)\n\
+ -M		Read model2view matrix on stdin (conflicts with -a, -e)\n\
+ -o model.ray	Specify output file, ray(5V) format (default=stdout)\n\
+ -U #		Set use_air boolean to #\n\
+ -x #		Set librt debug flags\n\
+";
+
+
+void	view_pixel(void) {}
+void	view_setup(void) {}
+void	view_cleanup(void) {}
+
+
+/* "paint" types are negative ==> interpret as "special" air codes */
+#define PAINT_FIRST_ENTRY	(-999)
+#define PAINT_INTERN_EXIT	(-998)
+#define PAINT_INTERN_ENTRY	(-997)
+#define PAINT_FINAL_EXIT	(-996)
+#define PAINT_AIR		(-1)
+
+/* Handle a miss */
+int
+raymiss(struct application *ap)
+{
+	return(0);
+}
+
+/*
+ *			R A Y H I T
+ *
+ *  Write a hit to the ray file.
+ *  Also generate various forms of "paint".
+ */
+int
+rayhit(struct application *ap, register struct partition *PartHeadp, struct seg *segHeadp)
+{
+	register struct partition *pp = PartHeadp->pt_forw;
+	struct partition	*np;	/* next partition */
+	vect_t		inormal;
+	vect_t		onormal;
+	vect_t		inormal2;
+
+	if( pp == PartHeadp )
+		return(0);		/* nothing was actually hit?? */
+
+	/* "1st entry" paint */
+	RT_HIT_NORMAL( inormal, pp->pt_inhit, pp->pt_inseg->seg_stp, &(ap->a_ray), pp->pt_inflip );
+	wraypaint( pp->pt_inhit->hit_point, inormal,
+		PAINT_FIRST_ENTRY, ap, outfp );
+
+	for( ; pp != PartHeadp; pp = pp->pt_forw )  {
+		/* Write the ray for this partition */
+		RT_HIT_NORMAL( inormal, pp->pt_inhit, pp->pt_inseg->seg_stp, &(ap->a_ray), pp->pt_inflip );
+
+		if( pp->pt_outhit->hit_dist < INFINITY )  {
+			/* next macro must be on one line for 3d compiler */
+			RT_HIT_NORMAL( onormal, pp->pt_outhit, pp->pt_outseg->seg_stp, &(ap->a_ray), pp->pt_outflip );
+		}
+		wray( pp, ap, outfp, inormal );
+
+		/*
+		 * If there is a subsequent partition that does not
+		 * directly join this one, output an invented
+		 * "air" partition between them.
+		 */
+		if( (np = pp->pt_forw) == PartHeadp )
+			break;		/* end of list */
+
+		/* Obtain next inhit normals & hit point, for code below */
+		RT_HIT_NORMAL( inormal2, np->pt_inhit, np->pt_inseg->seg_stp, &(ap->a_ray), np->pt_inflip );
+
+		if( rt_fdiff( pp->pt_outhit->hit_dist,
+			      np->pt_inhit->hit_dist) >= 0 )  {
+			/*
+			 *  The two partitions touch (or overlap!).
+			 *  If both are air, or both are solid, then don't
+			 *  output any paint.
+			 */
+			if( pp->pt_regionp->reg_regionid > 0 )  {
+				/* Exiting a solid */
+				if( np->pt_regionp->reg_regionid > 0 )
+					continue;	/* both are solid */
+				/* output "internal exit" paint */
+				wraypaint( pp->pt_outhit->hit_point,
+					onormal,
+					PAINT_INTERN_EXIT, ap, outfp );
+			} else {
+				/* Exiting air */
+				if( np->pt_regionp->reg_regionid <= 0 )
+					continue;	/* both are air */
+				/* output "internal entry" paint */
+				wraypaint( np->pt_inhit->hit_point,
+					inormal2,
+					PAINT_INTERN_ENTRY, ap, outfp );
+			}
+			continue;
+		}
+
+		/*
+		 *  The two partitions do not touch.
+		 *  Put "internal exit" paint on out point,
+		 *  Install "general air" in between,
+		 *  and put "internal entry" paint on in point.
+		 */
+		wraypaint( pp->pt_outhit->hit_point,
+			onormal,
+			PAINT_INTERN_EXIT, ap, outfp );
+
+		wraypts( pp->pt_outhit->hit_point,
+			onormal,
+			np->pt_inhit->hit_point,
+			PAINT_AIR, ap, outfp );
+
+		wraypaint( np->pt_inhit->hit_point,
+			inormal2,
+			PAINT_INTERN_ENTRY, ap, outfp );
+	}
+
+	/* "final exit" paint -- ray va(r)nishes off into the sunset */
+	pp = PartHeadp->pt_back;
+	if( pp->pt_outhit->hit_dist < INFINITY )  {
+		RT_HIT_NORMAL( inormal, pp->pt_inhit, pp->pt_inseg->seg_stp, &(ap->a_ray), pp->pt_inflip );
+		wraypaint( pp->pt_outhit->hit_point,
+			inormal,
+			PAINT_FINAL_EXIT, ap, outfp );
+	}
+	return(0);
+}
+
+/*
+ *  			V I E W _ I N I T
+ */
+int
+view_init(register struct application *ap, char *file, char *obj, int minus_o)
+{
+	ap->a_hit = rayhit;
+	ap->a_miss = raymiss;
+	ap->a_onehit = 0;
+
+	return(0);		/* No framebuffer needed */
+}
+
+void	view_eol(void) {;}
+
+void
+view_end(void)
+{
+	fflush(outfp);
+}
+
+void
+view_2init(struct application *ap)
+{
+
+	if( outfp == NULL )
+		bu_exit(EXIT_FAILURE, "outfp is NULL\n");
+}
+
+void application_init (void) {}
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+14.10
+log
+@rt_bomb() has been deprecated since before 7.0, but even our sources weren't properly updated to reflect this change.  update all of our sources to use bu_bomb() now.
+@
+text
+@d43 1
+a43 1
+static const char RCSrayview[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/rt/viewray.c,v 14.9 2007/04/17 03:23:57 brlcad Exp $ (BRL)";
+d49 1
+d230 1
+a230 1
+		bu_bomb("outfp is NULL\n");
+@
+
+
+14.9
+log
+@redo the client-side version reporting to use the new brlcad_version() interface, utilizing a per-binary title as needed, instead of the former vers.sh setup.
+@
+text
+@d43 1
+a43 1
+static const char RCSrayview[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/rt/viewray.c,v 14.8 2007/01/23 01:13:46 brlcad Exp $ (BRL)";
+d229 1
+a229 1
+		rt_bomb("outfp is NULL\n");
+@
+
+
+14.8
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@d43 1
+a43 1
+static const char RCSrayview[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/rt/viewray.c,v 14.7 2007/01/20 14:37:00 brlcad Exp $ (BRL)";
+d54 1
+d68 2
+a69 1
+char usage[] = "\
+d81 1
+a82 1
+
+d86 1
+@
+
+
+14.7
+log
+@update copyright to 2007
+@
+text
+@d8 2
+a9 3
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+d14 1
+a14 1
+ * General Public License for more details.
+d16 2
+a17 2
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+d43 1
+a43 1
+static const char RCSrayview[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/rt/viewray.c,v 14.6 2006/01/18 06:46:24 brlcad Exp $ (BRL)";
+@
+
+
+14.6
+log
+@update copyright to 2006
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 1985-2006 United States Government as represented by
+d44 1
+a44 1
+static const char RCSrayview[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/rt/viewray.c,v 14.5 2005/10/23 04:44:38 brlcad Exp $ (BRL)";
+@
+
+
+14.5
+log
+@trailing ws
+@
+text
+@d4 1
+a4 1
+ * Copyright (C) 1985-2005 United States Government as represented by
+d44 1
+a44 1
+static const char RCSrayview[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/rt/viewray.c,v 14.4 2005/01/30 20:31:11 brlcad Exp $ (BRL)";
+@
+
+
+14.4
+log
+@update copyright to 2005
+@
+text
+@d36 1
+a36 1
+ *  
+d41 1
+a41 1
+ *  
+d44 1
+a44 1
+static const char RCSrayview[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/rt/viewray.c,v 14.3 2004/12/24 01:40:01 brlcad Exp $ (BRL)";
+@
+
+
+14.4.6.1
+log
+@merge changes from HEAD aka rel-7-6-4 to the rel-7-6-branch just in case someone peeks a gander or tries to continue/build the branch
+@
+text
+@d36 1
+a36 1
+ *
+d41 1
+a41 1
+ *
+d44 1
+a44 1
+static const char RCSrayview[] = "@@(#)$Header$ (BRL)";
+@
+
+
+14.3
+log
+@add the mysteriously missing gpl header..
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 1985-2004 United States Government as represented by
+d44 1
+a44 1
+static const char RCSrayview[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/rt/viewray.c,v 14.2 2004/12/21 06:38:23 morrison Exp $ (BRL)";
+@
+
+
+14.2
+log
+@remove the old copyright notice section
+@
+text
+@d1 21
+a21 2
+/*
+ *			V I E W R A Y
+d44 1
+a44 1
+static const char RCSrayview[] = "@@(#)$Header: /cvs/brlcad/src/rt/viewray.c,v 14.1 2004/11/16 19:42:31 morrison Exp $ (BRL)";
+a48 2
+
+
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@a22 3
+ *  Copyright Notice -
+ *	This software is Copyright (C) 1985-2004 by the United States Army.
+ *	All rights reserved.
+d25 1
+a25 1
+static const char RCSrayview[] = "@@(#)$Header: /cvs/brlcad/src/rt/viewray.c,v 1.2 2004/08/02 23:01:52 morrison Exp $ (BRL)";
+@
+
+
+1.2
+log
+@replace the wrapped config.h block with common.h
+@
+text
+@d28 1
+a28 1
+static const char RCSrayview[] = "@@(#)$Header: /cvs/brlcad/src/rt/viewray.c,v 1.1 2004/05/20 15:20:48 morrison Exp $ (BRL)";
+d217 10
+@
+
+
+1.1
+log
+@Vast reorganization begins.  Sources moved from top-level directories into src/.
+@
+text
+@d28 1
+a28 1
+static const char RCSrayview[] = "@@(#)$Header: /cvs/brlcad/rt/viewray.c,v 11.14 2004/05/10 15:30:49 erikg Exp $ (BRL)";
+d31 1
+a31 3
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+@
+

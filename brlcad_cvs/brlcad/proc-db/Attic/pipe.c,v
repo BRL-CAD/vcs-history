@@ -1,0 +1,1862 @@
+head	11.17;
+access;
+symbols
+	ansi-20040405-merged:11.14.2.1
+	postmerge-20040405-ansi:11.15
+	premerge-20040404-ansi:11.14
+	postmerge-autoconf:11.14
+	autoconf-freeze:11.14
+	premerge-autoconf:11.14
+	postmerge-20040315-windows:11.14
+	premerge-20040315-windows:11.14
+	windows-20040315-freeze:11.14
+	autoconf-20031203:11.14
+	autoconf-20031202:11.14
+	autoconf-branch:11.14.0.10
+	phong-branch:11.14.0.8
+	photonmap-branch:11.14.0.6
+	rel-6-1-DP:11.14
+	windows-branch:11.14.0.4
+	rel-6-0-2:11.12
+	ansi-branch:11.14.0.2
+	rel-6-0-1-branch:11.12.0.2
+	hartley-6-0-post:11.13
+	hartley-6-0-pre:11.12
+	rel-6-0-1:11.12
+	rel-6-0:11.11
+	rel-5-4:11.4
+	offsite-5-3-pre:11.10
+	rel-5-3:11.4
+	rel-5-2:11.4
+	rel-5-1-branch:11.4.0.2
+	rel-5-1:11.4
+	rel-5-0:11.3
+	rel-5-0-beta:11.3
+	rel-4-5:11.2
+	ctj-4-5-post:11.2
+	ctj-4-5-pre:11.2
+	rel-4-4:11.1;
+locks; strict;
+comment	@ * @;
+
+
+11.17
+date	2004.05.21.17.33.45;	author morrison;	state dead;
+branches;
+next	11.16;
+
+11.16
+date	2004.05.10.15.30.49;	author erikg;	state Exp;
+branches;
+next	11.15;
+
+11.15
+date	2004.04.05.05.45.58;	author morrison;	state Exp;
+branches;
+next	11.14;
+
+11.14
+date	2002.08.20.17.08.34;	author jra;	state Exp;
+branches
+	11.14.2.1;
+next	11.13;
+
+11.13
+date	2002.08.15.20.55.46;	author hartley;	state Exp;
+branches;
+next	11.12;
+
+11.12
+date	2002.05.17.12.42.24;	author morrison;	state Exp;
+branches;
+next	11.11;
+
+11.11
+date	2001.03.31.01.57.28;	author morrison;	state Exp;
+branches;
+next	11.10;
+
+11.10
+date	2000.08.24.22.31.33;	author mike;	state Exp;
+branches;
+next	11.9;
+
+11.9
+date	2000.08.24.04.48.36;	author mike;	state Exp;
+branches;
+next	11.8;
+
+11.8
+date	2000.07.12.21.59.07;	author mike;	state Exp;
+branches;
+next	11.7;
+
+11.7
+date	2000.07.12.03.44.53;	author mike;	state Exp;
+branches;
+next	11.6;
+
+11.6
+date	2000.07.10.23.38.21;	author mike;	state Exp;
+branches;
+next	11.5;
+
+11.5
+date	2000.07.10.23.35.39;	author mike;	state Exp;
+branches;
+next	11.4;
+
+11.4
+date	2000.03.31.03.07.31;	author mike;	state Exp;
+branches;
+next	11.3;
+
+11.3
+date	98.12.29.03.29.51;	author mike;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	96.07.15.18.16.22;	author jra;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	95.01.04.10.06.16;	author mike;	state Rel4_4;
+branches;
+next	1.4;
+
+1.4
+date	94.11.14.22.19.09;	author mike;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	94.10.20.00.09.34;	author mike;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	94.08.09.19.22.06;	author gdurf;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	94.05.18.17.17.06;	author jra;	state Exp;
+branches;
+next	;
+
+11.14.2.1
+date	2002.09.19.18.02.12;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@Code for creating fluid filled piping runs or solid cable runs.
+@
+
+
+11.17
+log
+@moved to src/proc-db/
+@
+text
+@
+/* 
+ *			P I P E
+ *
+ * Generate piping (fuel, hydraulic lines, etc) in MGED
+ * format from input (points in space defining the routing).
+ * Makes both tubing regions and fluid regions or solid cable.
+ * Automatically generates elbow regions (and fluid in the
+ * elbows) when the piping changes direction.
+ * 
+ * Version 1.0
+ * Author:	Earl P. Weaver
+ * 		Ballistic Research Labratory
+ * 		Aberdeen Proving Ground, Md.
+ * Date:	Mon March 13 1989
+ * Version 2.0
+ * Changes by:	John R. Anderson
+ * Date:	Wed December 6 1989
+ *
+ * Version 3.0
+ * Changes by:	John R. Anderson
+ * Date: 	Tuesday January 18, 1994
+ *	combined code into a single file
+ *
+ * Version 3.1
+ * Changes by:	John R. Anderson
+ * Date:	Wednesday May 18,1994
+ *	included in BRLCAD distribution
+ */
+
+#ifndef lint
+static const char RCSid[] = "$Header: /n/xoff/cvs/brlcad/proc-db/pipe.c,v 11.16 2004/05/10 15:30:49 erikg Exp $";
+#endif
+
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+
+#include <stdio.h>
+#include <math.h>
+#ifdef USE_STRING_H
+#include <string.h>
+#else
+#include <strings.h>
+#endif
+
+#include "machine.h"
+#include "externs.h"
+#include "vmath.h"
+#include "raytrace.h"
+#include "wdb.h"
+
+#define NAMESIZE 80		/* in v5, they can be longer than 16 */
+
+#define	VERSION	3
+#define	RELEASE	1
+
+
+#define REGION	1
+
+#define MINR	2.		/* minimum bending radius is MINR*tubingradius	*/
+				/* note, the bending radius is measured to the	*/
+				/* edge of the tube, NOT the centerline of tube	*/
+
+struct points
+{
+	point_t p;	/* data point */
+	point_t p1;	/* adjusted point torward previous point */
+	point_t p2;	/* adjusted point torward next point */
+	point_t center;	/* center point for tori elbows */
+	vect_t nprev;	/* unit vector towards previous point */
+	vect_t nnext;	/* unit vector towards next point */
+	fastf_t alpha; /* angle between "nprev" and "nnext" */
+	vect_t norm;	/* unit vector normal to "nprev" and "nnext" */
+	vect_t nmitre;	/* unit vector along mitre joint */
+	vect_t mnorm;	/* unit vector normal to mitre joint and "norm" */
+	char tube[NAMESIZE],tubflu[NAMESIZE];			/* solid names */
+	char elbow[NAMESIZE],elbflu[NAMESIZE],cut[NAMESIZE];	/* solid names */
+	char tube_r[NAMESIZE],tubflu_r[NAMESIZE];		/* region names */
+	char elbow_r[NAMESIZE],elbflu_r[NAMESIZE];		/* region names */
+	struct points *next,*prev;
+};
+
+
+double radius,wall,pi,k;
+struct points *root;
+char	name[16];
+float	delta=10.0;		/* 10mm excess in ARB sizing for cutting tubes */
+mat_t	identity;
+
+int torus=0,sphere=0,mitre=0,nothing=0,cable=0;
+
+/*	formats for solid and region names	*/
+char *tor_out="%02d-out.tor",*tor_in="%02d-in.tor";
+char *haf="%02d.haf";
+char *sph_out="%02d-out.sph",*sph_in="%02d-in.sph";
+char *rcc_out="%02d-out.rcc",*rcc_in="%02d-in.rcc";
+char *tub_reg="%02d.tube",*tub_flu="%02d.tubflu";
+char *elb_reg="%02d.elbow",*elb_flu="%02d.elbflu";
+char *arb="%02d.arb";
+
+void Usage(void);
+
+struct rt_wdb *fdout;	/* file for libwdb writes */
+
+void
+Make_name(char *ptr, char *form, char *base, int number)
+{
+
+	char scrat[NAMESIZE];
+	int len;
+
+	strcpy( ptr , base );
+	sprintf( scrat , form , number );
+	len = strlen( ptr ) + strlen( scrat );
+	if( len > (NAMESIZE-1) )
+		ptr[ (NAMESIZE-1) - strlen( scrat ) ] = '\0';
+	strcat( ptr , scrat );
+}
+
+void
+Readpoints(void)
+{
+	struct points *ptr,*prev;
+	fastf_t x,y,z;
+	
+	ptr = root;
+	prev = NULL;
+
+
+	printf( "X Y Z (^D for end): ");
+	while(scanf("%lf%lf%lf",&x, &y, &z) ==  3 )
+	{
+		if( ptr == NULL )
+		{
+			ptr = (struct points *)malloc( sizeof( struct points ) );
+			root = ptr;
+		}
+		else
+		{
+			ptr->next = (struct points *)malloc( sizeof( struct points ) );
+			ptr = ptr->next;
+		}
+		ptr->next = NULL;
+		ptr->prev = prev;
+		prev = ptr;
+		VSET(ptr->p,k*x,k*y,k*z);
+		ptr->tube[0] = '\0';
+		ptr->tubflu[0] = '\0';
+		ptr->elbow[0] = '\0';
+		ptr->elbflu[0] = '\0';
+		ptr->cut[0] = '\0';
+		printf( "X Y Z (^D for end): ");
+	}
+}
+
+void
+Names(void)
+{
+	struct points *ptr;
+	char *inform=NULL,*outform=NULL,*cutform=NULL;
+	int nummer=0;
+
+
+	if( torus )
+	{
+		outform = tor_out;
+		inform = tor_in;
+		cutform = arb;
+	}
+	else if( sphere )
+	{
+		outform = sph_out;
+		inform = sph_in;
+	}
+	else if( mitre )
+		cutform = haf;
+
+	ptr = root;
+	while( ptr->next != NULL )
+	{
+		nummer++;
+
+		/* Outer RCC */
+		Make_name( ptr->tube , rcc_out , name , nummer );
+
+		if( !cable ) /* Inner RCC */
+			Make_name( ptr->tubflu , rcc_in , name , nummer );
+
+		if( (sphere || torus) && ptr != root )
+		{
+			/* Outer elbow */
+			Make_name( ptr->elbow , outform , name , nummer );
+
+			if( !cable ) /* Inner elbow */
+				Make_name( ptr->elbflu , inform , name , nummer );
+		}
+		if( torus || mitre )	/* Make cutting solid name */
+			Make_name( ptr->cut , cutform , name , nummer );
+
+		/* Make region names */
+		Make_name( ptr->tube_r , tub_reg , name , nummer ); /* tube region */
+
+		if( (torus || sphere) && ptr != root )	/* Make elbow region name */
+			Make_name( ptr->elbow_r , elb_reg , name , nummer );
+
+		if( !cable )	/* Make fluid region names */
+		{
+			Make_name( ptr->tubflu_r , tub_flu , name , nummer );
+
+			if( (torus || sphere) && ptr != root )	/* Make elbow fluid region names */
+				Make_name( ptr->elbflu_r , elb_flu , name , nummer );
+		}
+
+		ptr = ptr->next;
+	}
+	ptr->tube[0] = '\0';
+	ptr->tubflu[0] = '\0';
+	ptr->elbow[0] = '\0';
+	ptr->elbflu[0] = '\0';
+	ptr->cut[0] = '\0';
+	ptr->tube_r[0] = '\0';
+	ptr->tubflu_r[0] = '\0';
+	ptr->elbow_r[0] = '\0';
+	ptr->elbflu_r[0] = '\0';
+}
+
+void
+Normals(void)
+{
+	struct points *ptr;
+
+
+	if( root == NULL )
+		return;
+
+	ptr = root->next;
+	if( ptr == NULL )
+		return;
+
+	VSUB2( root->nnext , ptr->p , root->p );
+	VUNITIZE( root->nnext );
+
+	while( ptr->next != NULL )
+	{
+		VREVERSE( ptr->nprev , ptr->prev->nnext );
+		VSUB2( ptr->nnext , ptr->next->p , ptr->p );
+		VUNITIZE( ptr->nnext );
+		VCROSS( ptr->norm , ptr->nprev , ptr->nnext );
+		VUNITIZE( ptr->norm );
+		VADD2( ptr->nmitre , ptr->nprev , ptr->nnext );
+		VUNITIZE( ptr->nmitre );
+		VCROSS( ptr->mnorm , ptr->norm , ptr->nmitre );
+		VUNITIZE( ptr->mnorm );
+		if( VDOT( ptr->mnorm , ptr->nnext ) > 0.0 )
+			VREVERSE( ptr->mnorm , ptr->mnorm );
+		ptr->alpha = acos( VDOT( ptr->nnext , ptr->nprev ) );
+		ptr = ptr->next;
+	}
+}
+
+void
+Adjust(void)
+{
+	fastf_t beta,d,len;
+	struct points *ptr;
+
+	if( root == NULL )
+		return;
+
+	VMOVE( root->p1 , root->p );
+	VMOVE( root->p2 , root->p );
+	
+	ptr = root->next;
+	if( ptr == NULL )
+		return;
+
+	if( ptr->next == NULL )
+	{
+		VMOVE( ptr->p1 , ptr->p );
+		VMOVE( ptr->p2 , ptr->p );
+		return;
+	}
+
+
+	while( ptr->next != NULL )
+	{	
+		if( !torus && !mitre )
+		{
+			VMOVE( ptr->p1 , ptr->p );
+			VMOVE( ptr->p2 , ptr->p );
+		}
+		else if( torus )
+		{
+/*			beta=.5*( pi-ptr->alpha );	
+			d=( MINR+1.0 )*radius*tan( beta ); */ /* dist from new endpts to p2 */
+
+			beta = 0.5 * ptr->alpha;
+			d = (MINR + 1.0) * radius / tan( beta );
+			VJOIN1( ptr->p1 , ptr->p , d , ptr->nprev );
+			VJOIN1( ptr->p2 , ptr->p , d , ptr->nnext );
+			d = sqrt( d*d + (MINR+1.0)*(MINR+1.)*radius*radius );
+			VJOIN1( ptr->center , ptr->p , d , ptr->nmitre );
+		}
+		else if( mitre )
+		{
+			len = radius/tan(ptr->alpha/2.0);
+			VJOIN1( ptr->p1 , ptr->p , -len , ptr->nprev );
+			VJOIN1( ptr->p2 , ptr->p , -len , ptr->nnext );
+		}
+		ptr = ptr->next;
+	}
+	VMOVE( ptr->p1 , ptr->p );
+	VMOVE( ptr->p2 , ptr->p );
+}
+
+void
+Pipes(void)
+{
+	vect_t ht;
+	struct points *ptr;
+	fastf_t len;
+	int comblen;
+	struct wmember head;
+
+	BU_LIST_INIT(&head.l);
+
+	ptr = root;
+	if( ptr == NULL )
+		return;
+
+	while( ptr->next != NULL )
+	{
+
+		/* Make the basic pipe solids */
+
+		VSUB2( ht , ptr->next->p1 , ptr->p2);
+
+		mk_rcc( fdout , ptr->tube , ptr->p2 , ht , radius );	/* make a solid record	     */
+
+		if( !cable ) /* make inside solid */
+			mk_rcc( fdout , ptr->tubflu , ptr->p2 , ht , radius-wall );
+
+		if( torus )
+		{
+			/* Make tubing region */
+			mk_addmember( ptr->tube , &head.l , NULL, WMOP_UNION );	/* make 'u' member record	   */
+			if( !cable )
+			{
+				/* Subtract inside solid */
+				mk_addmember( ptr->tubflu , &head.l , NULL, WMOP_SUBTRACT );	/* make '-' member record	   */
+
+				/* Make fluid region */
+				mk_comb1( fdout, ptr->tubflu_r, ptr->tubflu, 1 );
+			}
+			mk_lfcomb( fdout , ptr->tube_r , &head , 1 );
+		}
+		else if( mitre )
+		{
+			if( ptr->prev != NULL )
+			{
+				len = VDOT( ptr->p , ptr->mnorm );
+				mk_half( fdout , ptr->cut , ptr->mnorm , len );
+			}
+
+			comblen = 4 - cable;
+			if( ptr->next->next == NULL )
+				comblen--;
+			if( ptr->prev == NULL )
+				comblen--;
+
+			mk_addmember( ptr->tube , &head.l , NULL, WMOP_UNION );	/* make 'u' member record	   */
+
+			if( !cable )
+				mk_addmember( ptr->tubflu , &head.l , NULL, WMOP_SUBTRACT );	/* make '-' member record	   */
+
+			if( ptr->next->next != NULL )
+				mk_addmember( ptr->next->cut , &head.l , NULL, WMOP_SUBTRACT );	/* make '+' member record	   */
+
+			if( ptr->prev != NULL )
+				mk_addmember( ptr->cut , &head.l , NULL, WMOP_INTERSECT );	/* subtract HAF */
+
+			mk_lfcomb( fdout, ptr->tube_r, &head, 1 );
+
+			if( !cable )
+			{
+				/* Make fluid region */
+
+				comblen = 3;
+				if( ptr->next->next == NULL )
+					comblen--;
+				if( ptr->prev == NULL )
+					comblen--;
+
+				mk_addmember( ptr->tubflu , &head.l , NULL, WMOP_UNION );	/* make 'u' member record	*/
+
+				if( ptr->next->next != NULL )
+					mk_addmember( ptr->next->cut , &head.l , NULL, WMOP_SUBTRACT );	/* make '+' member record	   */
+
+				if( ptr->prev != NULL )
+					mk_addmember( ptr->cut , &head.l , NULL, WMOP_INTERSECT );	/* subtract */
+
+				mk_lfcomb( fdout , ptr->tubflu_r , &head , 1 );	/* make REGION comb record	*/
+			}
+		}
+		else if( sphere )
+		{
+
+			/* make REGION  comb record for tube */
+			comblen = 2;
+			if( cable )
+				comblen--;
+			if( ptr->next->tube[0] != '\0' )
+				comblen++;
+			if( !cable && ptr->prev != NULL )
+				comblen++;
+			
+			/* make 'u' member record	   */
+
+			mk_addmember( ptr->tube , &head.l , NULL, WMOP_UNION );
+
+			/* make '-' member record	   */
+			if( !cable )
+				mk_addmember( ptr->tubflu , &head.l , NULL, WMOP_SUBTRACT );
+
+			if( ptr->next->tube[0] != '\0' )	/* subtract outside of next tube */
+				mk_addmember( ptr->next->tube , &head.l , NULL, WMOP_SUBTRACT );
+			if( !cable && ptr->prev != NULL ) /* subtract inside of previous tube */
+				mk_addmember( ptr->prev->tubflu , &head.l , NULL, WMOP_SUBTRACT );
+
+			mk_lfcomb( fdout , ptr->tube_r , &head , REGION );
+
+			if( !cable )
+			{
+				/* make REGION for fluid */
+			
+				/* make 'u' member record	*/
+
+				mk_addmember( ptr->tubflu , &head.l , NULL, WMOP_UNION );
+
+				if( ptr->next->tubflu[0] != '\0'  )	/* subtract inside of next tube */
+					mk_addmember( ptr->next->tubflu , &head.l , NULL, WMOP_SUBTRACT );
+
+				mk_lfcomb( fdout , ptr->tubflu_r , &head , REGION );
+			}
+		}
+		else if( nothing )
+		{
+
+			/* make REGION  comb record for tube */
+			comblen = 2;
+			if( cable )
+				comblen--;
+			if( ptr->next->tube[0] != '\0' )
+				comblen++;
+			if( !cable && ptr->prev != NULL )
+				comblen++;
+
+			/* make 'u' member record	   */
+
+			mk_addmember( ptr->tube , &head.l , NULL, WMOP_UNION );
+
+			/* make '-' member record	   */
+			if( !cable )
+				mk_addmember( ptr->tubflu , &head.l , NULL, WMOP_SUBTRACT );
+
+			if( ptr->next->tube[0] != '\0' )	/* subtract outside of next tube */
+				mk_addmember( ptr->next->tube , &head.l , NULL, WMOP_SUBTRACT );
+			if( !cable && ptr->prev != NULL ) /* subtract inside of previous tube */
+				mk_addmember( ptr->prev->tubflu , &head.l , NULL, WMOP_SUBTRACT );
+
+			mk_lfcomb( fdout , ptr->tube_r , &head , REGION );
+
+			if( !cable )
+			{
+				/* make REGION for fluid */
+			
+				/* make 'u' member record	*/
+
+				mk_addmember( ptr->tubflu , &head.l , NULL, WMOP_UNION );
+
+				if( ptr->next->tubflu[0] != '\0'  )	/* subtract inside of next tube */
+					mk_addmember( ptr->next->tubflu , &head.l , NULL, WMOP_SUBTRACT );
+
+				mk_lfcomb( fdout , ptr->tubflu_r , &head , REGION );
+			}
+		}
+		ptr = ptr->next;
+	}
+}
+
+void
+Elbows(void)	/* make a tubing elbow and fluid elbow */
+{
+	vect_t RN1,RN2;
+	point_t pts[8];
+	fastf_t len;
+	struct points *ptr;
+	struct wmember head;
+
+	if( nothing || mitre )
+		return;
+
+	if( root == NULL )
+		return;
+
+	BU_LIST_INIT(&head.l);
+
+	ptr = root->next;
+	while( ptr->next != NULL )
+	{
+		
+		/* Make outside elbow solid */
+		if( torus )
+			mk_tor( fdout , ptr->elbow , ptr->center , ptr->norm , ( MINR+1 )*radius , radius );
+		else if( sphere )
+			mk_sph( fdout , ptr->elbow , ptr->p , radius );
+
+		if( !cable ) /* Make inside elbow solid */
+		{
+			if( torus )
+				mk_tor( fdout , ptr->elbflu , ptr->center , ptr->norm , ( MINR+1 )*radius , radius-wall );
+			else if( sphere )
+				mk_sph( fdout , ptr->elbflu , ptr->p , radius-wall );
+		}
+
+		if( torus )	/* Make ARB8 solid */
+		{
+			len = ((MINR+2)*radius + delta) / cos( (pi-ptr->alpha)/4.0 );
+				/* vector from center of torus to rcc end */
+			VSUB2( RN1 , ptr->p1 , ptr->center );
+			VUNITIZE( RN1 );		/* unit vector */
+				/* beginning of next rcc */
+			VSUB2( RN2 , ptr->p2 , ptr->center );
+			VUNITIZE( RN2 );		/* and unitize again */
+
+			/* build the eight points for the ARB8 */
+
+			VJOIN1( pts[0] , ptr->center , radius+delta , ptr->norm );
+			VJOIN1( pts[1] , pts[0] , len , RN1 );
+			VJOIN1( pts[2] , pts[0] , -len , ptr->nmitre );
+			VJOIN1( pts[3] , pts[0] , len , RN2 );
+			VJOIN1( pts[4] , ptr->center , -radius-delta , ptr->norm );
+			VJOIN1( pts[5] , pts[4] , len , RN1 );
+			VJOIN1( pts[6] , pts[4] , -len , ptr->nmitre );
+			VJOIN1( pts[7] , pts[4] , len , RN2 );
+		
+			mk_arb8( fdout , ptr->cut , &pts[0][X] );
+		}
+
+		if( torus )
+		{
+			mk_addmember( ptr->elbow , &head.l , NULL, WMOP_UNION );	/* make 'u' member record	   */
+			if( !cable )
+				mk_addmember(  ptr->elbflu , &head.l , NULL, WMOP_SUBTRACT );	/* make '-' member record	   */
+			mk_addmember( ptr->cut , &head.l , NULL, WMOP_INTERSECT );
+			mk_lfcomb( fdout , ptr->elbow_r , &head , REGION );	/* make REGION  comb record	   */
+
+			if( !cable )
+			{
+				mk_addmember( ptr->elbflu , &head.l , NULL, WMOP_UNION );	/* make 'u' member record	*/
+				mk_addmember( ptr->cut , &head.l , NULL, WMOP_INTERSECT );
+				mk_lfcomb( fdout , ptr->elbflu_r , &head , REGION );		/* make REGION comb record	*/
+			}
+		}
+		else if( sphere )
+		{
+			mk_addmember( ptr->elbow , &head.l , NULL, WMOP_UNION );	/* make 'u' member record	   */
+			if( !cable )
+				mk_addmember( ptr->elbflu , &head.l , NULL, WMOP_SUBTRACT );	/* make '-' member record	   */
+			mk_addmember( ptr->tube , &head.l , NULL, WMOP_SUBTRACT );
+			mk_addmember( ptr->prev->tube , &head.l , NULL, WMOP_SUBTRACT );	
+
+			mk_lfcomb( fdout , ptr->elbow_r , &head , REGION );	/* make REGION  comb record	   */
+
+			if( !cable )
+			{
+				mk_addmember( ptr->elbflu , &head.l , NULL, WMOP_UNION );	/* make 'u' member record	*/
+				mk_addmember( ptr->tube , &head.l , NULL, WMOP_SUBTRACT );
+				mk_addmember( ptr->prev->tube , &head.l , NULL, WMOP_SUBTRACT );	
+				mk_lfcomb( fdout , ptr->elbflu_r , &head , REGION );		/* make REGION comb record	*/
+			}
+		}
+		ptr = ptr->next;
+	}
+}
+
+void
+Groups(void)
+{
+	struct points *ptr;
+	char tag[NAMESIZE];
+	char *pipe_group=".pipe";
+	char *fluid_group=".fluid";
+	int comblen=0;
+	struct wmember	head;
+
+	BU_LIST_INIT(&head.l);
+
+	ptr = root;
+	if( ptr == NULL )
+		return;
+
+	while( ptr->next != NULL )
+	{
+		if( !nothing && !mitre && comblen)	/* count elbow sections (except first point) */
+			comblen++;
+		comblen++;	/* count pipe sections */
+
+		ptr = ptr->next;
+	}
+
+	if( comblen )
+	{
+
+		/* Make name for pipe group = "name".pipe */
+		Make_name( tag , pipe_group , name , 0 );
+
+		/* Make group */
+		ptr = root;
+		while( ptr->next != NULL )
+		{
+			mk_addmember( ptr->tube_r , &head.l , NULL, WMOP_UNION );	/* tube regions */
+
+			if( !nothing && !mitre && ptr != root )
+				mk_addmember( ptr->elbow_r , &head.l , NULL, WMOP_UNION );	/* elbows */
+
+			ptr = ptr->next;
+		}
+		mk_lfcomb( fdout , tag , &head , 0 );
+
+		if( !cable )
+		{
+			/* Make name for fluid group = "name".fluid */
+			Make_name( tag , fluid_group , name , 0 );
+
+			/* Make group */
+			ptr = root;
+			while( ptr->next != NULL )
+			{
+				mk_addmember( ptr->tubflu_r , &head.l , NULL, WMOP_UNION );	/* fluid in tubes */
+				
+				if( !nothing && !mitre && ptr != root )
+					mk_addmember( ptr->elbflu_r , &head.l , NULL, WMOP_UNION ); /* fluid in elbows */
+				
+				ptr = ptr->next;
+			}
+			mk_lfcomb( fdout , tag , &head , 0 );
+		}
+	}
+}
+
+int
+main(int argc, char **argv)
+{
+	int done;
+	char units[16],fname[80];
+	extern int optind;
+	int optc;
+
+	while( (optc = getopt( argc,argv,"tsmnc" )) != -1)
+	{
+		switch( optc )	/* Set joint type and cable option */
+		{
+			case 't':
+				torus = 1;
+				break;
+			case 's':
+				sphere = 1;
+				break;
+			case 'm':
+				mitre = 1;
+				break;
+			case 'n':
+				nothing = 1;
+				break;
+			case 'c':
+				cable = 1;
+				break;
+			case '?':
+				fprintf( stderr , "Illegal option %c\n" , optc );
+				Usage();
+				exit( 1 );
+				break;
+		
+		}
+	}
+
+	if( (torus + sphere + mitre + nothing) > 1 ) /* Too many joint options */
+	{
+		Usage();
+		fprintf( stderr , "Options t,s,m,n are mutually exclusive\n" );
+		exit( 1 );
+	}
+	else if( (torus + sphere + mitre + nothing) == 0 ) {
+		torus = 1;		/* default */
+	}
+
+	if( (argc - optind) != 2 ) {
+		Usage();
+		exit( 1 );
+	}
+
+	strcpy( name , argv[optind++] ); /* Base name for objects */
+
+	fdout = wdb_fopen( argv[optind] );
+	if( fdout == NULL )
+	{
+		fprintf( stderr , "Cannot open %s\n" , argv[optind] );
+		perror( "Pipe" );
+		Usage();
+		exit( 1 );
+	}
+
+	MAT_IDN(identity);	/* Identity matrix for all objects */
+	pi = atan2( 0.0 , -1.0 );	/* PI */
+
+	printf( "FLUID & PIPING V%d.%d 10 Mar 89\n\n" , VERSION , RELEASE );
+	printf( "append %s to your target description using 'concat' in mged\n" , argv[optind] );
+
+	k = 0.0;
+	while( k == 0.0 )
+	{
+		printf( "UNITS? (ft,in,m,cm, default is millimeters) ");
+		fgets(units, sizeof(units), stdin);	
+		switch (units[0])
+		{
+
+			case '\0':
+				k = 1.0;
+				break;
+
+			case 'f':
+				k = 12*25.4;
+				break;
+
+			case 'i':
+				k=25.4;
+				break;
+
+			case 'm':
+				if ( units[1] == '\0') k=1000.0;
+				else k=1.0;
+				break;
+
+			case 'c':
+				k=10.0;
+				break;
+
+			default:
+				k=0.0;
+				printf( "\n\t%s is not a legal choice for units\n" , units );
+				printf( "\tTry again\n" );
+				break;
+		}
+	}
+
+	done = 0;
+	while( !done )
+	{
+		if( !cable ) {
+			printf( "radius and wall thickness: ");	
+			if (scanf("%lf %lf", &radius,&wall) == EOF )
+				exit( 1 );
+			if (radius > wall)
+				done = 1;
+			else
+			{
+				printf( " *** bad input!\n\n");
+				printf( "\tradius must be larger than wall thickness\n" );
+				printf( "\tTry again\n" );
+			}
+		}
+		else {
+			printf( "radius: ");
+			if( scanf("%lf", &radius ) == EOF )
+				exit( 1 );
+			done=1;
+		}
+	}
+	radius=k*radius;
+	wall=k*wall;
+	
+	Readpoints();	/* Read data points */
+
+	Names();	/* Construct names for all solids */
+
+	Normals();	/* Calculate normals and other vectors */
+
+        Adjust();       /* Adjust points to allow for elbows */
+
+/*	Generate Title */
+
+	strcpy(fname,name);
+	if( !cable )
+		strcat(fname," pipe and fluid");
+	else
+		strcat(fname," cable");
+
+/*	Create ident record	*/
+
+	mk_id(fdout,fname);
+
+	Pipes();	/* Construct the piping */
+
+	Elbows();	/* Construct the elbow sections */
+
+	Groups();	/* Make some groups */
+
+	return 0;
+}
+
+void
+Usage(void)
+{
+	fprintf( stderr , "Usage: pipe [-tsmnc] tag filename\n");
+	fprintf( stderr , "   where 'tag' is the name of the piping run\n");
+	fprintf( stderr , "   and 'filename' is the .g file (e.g., fuel.g)\n");
+	fprintf( stderr , "   -t -> use tori at the bends (default)\n" );
+	fprintf( stderr , "   -s -> use spheres at the corners\n" );
+	fprintf( stderr , "   -m -> mitre the corners\n" );
+	fprintf( stderr , "   -n -> nothing at the corners\n" );
+	fprintf( stderr , "   -c -> cable (no fluid)\n" );
+}
+@
+
+
+11.16
+log
+@change conf.h to a wrapped config.h
+@
+text
+@d32 1
+a32 1
+static const char RCSid[] = "$Header: /cvs/brlcad/proc-db/pipe.c,v 11.15 2004/04/05 05:45:58 morrison Exp $";
+@
+
+
+11.15
+log
+@merge of ansi-6-0-branch into head
+@
+text
+@d32 1
+a32 1
+static const char RCSid[] = "$Header$";
+d35 5
+a39 1
+#include "conf.h"
+@
+
+
+11.14
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d32 1
+a32 1
+static const char RCSid[] = "$Header: /c/CVS/brlcad/proc-db/pipe.c,v 11.12 2002/05/17 12:42:24 morrison Exp $";
+d100 1
+a100 1
+void Usage();
+d105 1
+a105 3
+Make_name( ptr , form , base , number )
+char *ptr,*form,*base;
+int number;
+d120 1
+a120 1
+Readpoints()
+d156 1
+a156 1
+Names()
+d227 1
+a227 1
+Normals()
+d261 1
+a261 1
+Adjust()
+d316 1
+a316 1
+Pipes()
+d491 1
+a491 1
+Elbows()	/* make a tubing elbow and fluid elbow */
+d587 1
+a587 1
+Groups()
+d652 1
+a652 3
+main(argc, argv)
+int argc;
+char *argv[];
+d812 1
+a812 1
+Usage()
+@
+
+
+11.14.2.1
+log
+@Initial ANSIfication
+@
+text
+@d32 1
+a32 1
+static const char RCSid[] = "$Header: /c/CVS/brlcad/proc-db/pipe.c,v 11.14 2002/08/20 17:08:34 jra Exp $";
+d100 1
+a100 1
+void Usage(void);
+d105 3
+a107 1
+Make_name(char *ptr, char *form, char *base, int number)
+d122 1
+a122 1
+Readpoints(void)
+d158 1
+a158 1
+Names(void)
+d229 1
+a229 1
+Normals(void)
+d263 1
+a263 1
+Adjust(void)
+d318 1
+a318 1
+Pipes(void)
+d493 1
+a493 1
+Elbows(void)	/* make a tubing elbow and fluid elbow */
+d589 1
+a589 1
+Groups(void)
+d654 3
+a656 1
+main(int argc, char **argv)
+d816 1
+a816 1
+Usage(void)
+@
+
+
+11.13
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d100 1
+a100 1
+void Usage(void);
+d105 3
+a107 1
+Make_name(char *ptr, char *form, char *base, int number)
+d122 1
+a122 1
+Readpoints(void)
+d158 1
+a158 1
+Names(void)
+d229 1
+a229 1
+Normals(void)
+d263 1
+a263 1
+Adjust(void)
+d318 1
+a318 1
+Pipes(void)
+d493 1
+a493 1
+Elbows(void)	/* make a tubing elbow and fluid elbow */
+d589 1
+a589 1
+Groups(void)
+d654 3
+a656 1
+main(int argc, char **argv)
+d816 1
+a816 1
+Usage(void)
+@
+
+
+11.12
+log
+@added matrix parameter to mk_addmember()
+@
+text
+@d32 1
+a32 1
+static const char RCSid[] = "$Header: /c/CVS/brlcad/proc-db/pipe.c,v 11.11 2001/03/31 01:57:28 morrison Exp $";
+d100 1
+a100 1
+void Usage();
+d105 1
+a105 3
+Make_name( ptr , form , base , number )
+char *ptr,*form,*base;
+int number;
+d120 1
+a120 1
+Readpoints()
+d156 1
+a156 1
+Names()
+d227 1
+a227 1
+Normals()
+d261 1
+a261 1
+Adjust()
+d316 1
+a316 1
+Pipes()
+d491 1
+a491 1
+Elbows()	/* make a tubing elbow and fluid elbow */
+d587 1
+a587 1
+Groups()
+d652 1
+a652 3
+main(argc, argv)
+int argc;
+char *argv[];
+d812 1
+a812 1
+Usage()
+@
+
+
+11.11
+log
+@Deprecated bn_mat_idn() and bn_mat_zero(), updated calls to h/vmath.h's MAT_IDN() and MAT_ZERO() performance improved macros.
+@
+text
+@d32 1
+a32 1
+static const char RCSid[] = "$Header: /c/CVS/brlcad/proc-db/pipe.c,v 11.10 2000/08/24 22:31:33 mike Exp $";
+d347 1
+a347 1
+			mk_addmember( ptr->tube , &head.l , WMOP_UNION );	/* make 'u' member record	   */
+d351 1
+a351 1
+				mk_addmember( ptr->tubflu , &head.l , WMOP_SUBTRACT );	/* make '-' member record	   */
+d372 1
+a372 1
+			mk_addmember( ptr->tube , &head.l , WMOP_UNION );	/* make 'u' member record	   */
+d375 1
+a375 1
+				mk_addmember( ptr->tubflu , &head.l , WMOP_SUBTRACT );	/* make '-' member record	   */
+d378 1
+a378 1
+				mk_addmember( ptr->next->cut , &head.l , WMOP_SUBTRACT );	/* make '+' member record	   */
+d381 1
+a381 1
+				mk_addmember( ptr->cut , &head.l , WMOP_INTERSECT );	/* subtract HAF */
+d395 1
+a395 1
+				mk_addmember( ptr->tubflu , &head.l , WMOP_UNION );	/* make 'u' member record	*/
+d398 1
+a398 1
+					mk_addmember( ptr->next->cut , &head.l , WMOP_SUBTRACT );	/* make '+' member record	   */
+d401 1
+a401 1
+					mk_addmember( ptr->cut , &head.l , WMOP_INTERSECT );	/* subtract */
+d420 1
+a420 1
+			mk_addmember( ptr->tube , &head.l , WMOP_UNION );
+d424 1
+a424 1
+				mk_addmember( ptr->tubflu , &head.l , WMOP_SUBTRACT );
+d427 1
+a427 1
+				mk_addmember( ptr->next->tube , &head.l , WMOP_SUBTRACT );
+d429 1
+a429 1
+				mk_addmember( ptr->prev->tubflu , &head.l , WMOP_SUBTRACT );
+d439 1
+a439 1
+				mk_addmember( ptr->tubflu , &head.l , WMOP_UNION );
+d442 1
+a442 1
+					mk_addmember( ptr->next->tubflu , &head.l , WMOP_SUBTRACT );
+d461 1
+a461 1
+			mk_addmember( ptr->tube , &head.l , WMOP_UNION );
+d465 1
+a465 1
+				mk_addmember( ptr->tubflu , &head.l , WMOP_SUBTRACT );
+d468 1
+a468 1
+				mk_addmember( ptr->next->tube , &head.l , WMOP_SUBTRACT );
+d470 1
+a470 1
+				mk_addmember( ptr->prev->tubflu , &head.l , WMOP_SUBTRACT );
+d480 1
+a480 1
+				mk_addmember( ptr->tubflu , &head.l , WMOP_UNION );
+d483 1
+a483 1
+					mk_addmember( ptr->next->tubflu , &head.l , WMOP_SUBTRACT );
+d553 1
+a553 1
+			mk_addmember( ptr->elbow , &head.l , WMOP_UNION );	/* make 'u' member record	   */
+d555 2
+a556 2
+				mk_addmember(  ptr->elbflu , &head.l , WMOP_SUBTRACT );	/* make '-' member record	   */
+			mk_addmember( ptr->cut , &head.l , WMOP_INTERSECT );
+d561 2
+a562 2
+				mk_addmember( ptr->elbflu , &head.l , WMOP_UNION );	/* make 'u' member record	*/
+				mk_addmember( ptr->cut , &head.l , WMOP_INTERSECT );
+d568 1
+a568 1
+			mk_addmember( ptr->elbow , &head.l , WMOP_UNION );	/* make 'u' member record	   */
+d570 3
+a572 3
+				mk_addmember( ptr->elbflu , &head.l , WMOP_SUBTRACT );	/* make '-' member record	   */
+			mk_addmember( ptr->tube , &head.l , WMOP_SUBTRACT );
+			mk_addmember( ptr->prev->tube , &head.l , WMOP_SUBTRACT );	
+d578 3
+a580 3
+				mk_addmember( ptr->elbflu , &head.l , WMOP_UNION );	/* make 'u' member record	*/
+				mk_addmember( ptr->tube , &head.l , WMOP_SUBTRACT );
+				mk_addmember( ptr->prev->tube , &head.l , WMOP_SUBTRACT );	
+d623 1
+a623 1
+			mk_addmember( ptr->tube_r , &head.l , WMOP_UNION );	/* tube regions */
+d626 1
+a626 1
+				mk_addmember( ptr->elbow_r , &head.l , WMOP_UNION );	/* elbows */
+d641 1
+a641 1
+				mk_addmember( ptr->tubflu_r , &head.l , WMOP_UNION );	/* fluid in tubes */
+d644 1
+a644 1
+					mk_addmember( ptr->elbflu_r , &head.l , WMOP_UNION ); /* fluid in elbows */
+@
+
+
+11.10
+log
+@
+lint
+@
+text
+@d32 1
+a32 1
+static const char RCSid[] = "$Header: /c/CVS/brlcad/proc-db/pipe.c,v 11.9 2000/08/24 04:48:36 mike Exp $";
+d717 1
+a717 1
+	bn_mat_idn(identity);	/* Identity matrix for all objects */
+@
+
+
+11.9
+log
+@
+mk_addmember
+@
+text
+@d32 1
+a32 1
+static const char RCSid[] = "$Header: /c/CVS/brlcad/proc-db/pipe.c,v 11.8 2000/07/12 21:59:07 mike Exp $";
+d161 1
+a161 1
+	char *inform,*outform,*cutform;
+@
+
+
+11.8
+log
+@
+Converted to use new version of LIBWDB.
+@
+text
+@d32 1
+a32 1
+static const char RCSid[] = "$Header: /c/CVS/brlcad/proc-db/pipe.c,v 11.7 2000/07/12 03:44:53 mike Exp $";
+d347 1
+a347 1
+			mk_addmember( ptr->tube , &head , WMOP_UNION );	/* make 'u' member record	   */
+d351 1
+a351 1
+				mk_addmember( ptr->tubflu , &head , WMOP_SUBTRACT );	/* make '-' member record	   */
+d372 1
+a372 1
+			mk_addmember( ptr->tube , &head , WMOP_UNION );	/* make 'u' member record	   */
+d375 1
+a375 1
+				mk_addmember( ptr->tubflu , &head , WMOP_SUBTRACT );	/* make '-' member record	   */
+d378 1
+a378 1
+				mk_addmember( ptr->next->cut , &head , WMOP_SUBTRACT );	/* make '+' member record	   */
+d381 1
+a381 1
+				mk_addmember( ptr->cut , &head , WMOP_INTERSECT );	/* subtract HAF */
+d395 1
+a395 1
+				mk_addmember( ptr->tubflu , &head , WMOP_UNION );	/* make 'u' member record	*/
+d398 1
+a398 1
+					mk_addmember( ptr->next->cut , &head , WMOP_SUBTRACT );	/* make '+' member record	   */
+d401 1
+a401 1
+					mk_addmember( ptr->cut , &head , WMOP_INTERSECT );	/* subtract */
+d420 1
+a420 1
+			mk_addmember( ptr->tube , &head , WMOP_UNION );
+d424 1
+a424 1
+				mk_addmember( ptr->tubflu , &head , WMOP_SUBTRACT );
+d427 1
+a427 1
+				mk_addmember( ptr->next->tube , &head , WMOP_SUBTRACT );
+d429 1
+a429 1
+				mk_addmember( ptr->prev->tubflu , &head , WMOP_SUBTRACT );
+d439 1
+a439 1
+				mk_addmember( ptr->tubflu , &head , WMOP_UNION );
+d442 1
+a442 1
+					mk_addmember( ptr->next->tubflu , &head , WMOP_SUBTRACT );
+d461 1
+a461 1
+			mk_addmember( ptr->tube , &head , WMOP_UNION );
+d465 1
+a465 1
+				mk_addmember( ptr->tubflu , &head , WMOP_SUBTRACT );
+d468 1
+a468 1
+				mk_addmember( ptr->next->tube , &head , WMOP_SUBTRACT );
+d470 1
+a470 1
+				mk_addmember( ptr->prev->tubflu , &head , WMOP_SUBTRACT );
+d480 1
+a480 1
+				mk_addmember( ptr->tubflu , &head , WMOP_UNION );
+d483 1
+a483 1
+					mk_addmember( ptr->next->tubflu , &head , WMOP_SUBTRACT );
+d553 1
+a553 1
+			mk_addmember( ptr->elbow , &head , WMOP_UNION );	/* make 'u' member record	   */
+d555 2
+a556 2
+				mk_addmember(  ptr->elbflu , &head , WMOP_SUBTRACT );	/* make '-' member record	   */
+			mk_addmember( ptr->cut , &head , WMOP_INTERSECT );
+d561 2
+a562 2
+				mk_addmember( ptr->elbflu , &head , WMOP_UNION );	/* make 'u' member record	*/
+				mk_addmember( ptr->cut , &head , WMOP_INTERSECT );
+d568 1
+a568 1
+			mk_addmember( ptr->elbow , &head , WMOP_UNION );	/* make 'u' member record	   */
+d570 3
+a572 3
+				mk_addmember( ptr->elbflu , &head , WMOP_SUBTRACT );	/* make '-' member record	   */
+			mk_addmember( ptr->tube , &head , WMOP_SUBTRACT );
+			mk_addmember( ptr->prev->tube , &head , WMOP_SUBTRACT );	
+d578 3
+a580 3
+				mk_addmember( ptr->elbflu , &head , WMOP_UNION );	/* make 'u' member record	*/
+				mk_addmember( ptr->tube , &head , WMOP_SUBTRACT );
+				mk_addmember( ptr->prev->tube , &head , WMOP_SUBTRACT );	
+d623 1
+a623 1
+			mk_addmember( ptr->tube_r , &head , WMOP_UNION );	/* tube regions */
+d626 1
+a626 1
+				mk_addmember( ptr->elbow_r , &head , WMOP_UNION );	/* elbows */
+d641 1
+a641 1
+				mk_addmember( ptr->tubflu_r , &head , WMOP_UNION );	/* fluid in tubes */
+d644 1
+a644 1
+					mk_addmember( ptr->elbflu_r , &head , WMOP_UNION ); /* fluid in elbows */
+@
+
+
+11.7
+log
+@
+Converted to new way, using mk_lfcomb().
+@
+text
+@d32 1
+a32 1
+static const char RCSid[] = "$Header: /c/CVS/brlcad/proc-db/pipe.c,v 11.6 2000/07/10 23:38:21 mike Exp $";
+d102 1
+a102 1
+FILE *fdout;	/* file for libwdb writes */
+d708 1
+a708 1
+	fdout = fopen( argv[optind] , "w" );
+@
+
+
+11.6
+log
+@
+const RCSid
+@
+text
+@d32 1
+a32 1
+static const char RCSid[] = "$Header: /c/CVS/brlcad/proc-db/pipe.c,v 11.5 2000/07/10 23:35:39 mike Exp $";
+d190 1
+a190 1
+		if( sphere || torus && ptr != root )
+d204 1
+a204 1
+		if( torus || sphere && ptr != root )	/* Make elbow region name */
+d211 1
+a211 1
+			if( torus || sphere && ptr != root )	/* Make elbow fluid region names */
+d324 3
+d347 1
+a347 2
+			mk_fcomb( fdout , ptr->tube_r , 2-cable , REGION );	/* make REGION  comb record	   */
+			mk_memb( fdout , ptr->tube , identity , WMOP_UNION );	/* make 'u' member record	   */
+d351 1
+a351 1
+				mk_memb( fdout , ptr->tubflu , identity , WMOP_SUBTRACT );	/* make '-' member record	   */
+d354 1
+a354 2
+				mk_fcomb( fdout , ptr->tubflu_r , 1 , REGION );		/* make REGION comb record	*/
+				mk_memb( fdout , ptr->tubflu , identity , WMOP_UNION );	/* make 'u' member record	*/
+d356 1
+d372 1
+a372 2
+			mk_fcomb( fdout , ptr->tube_r , comblen , REGION );		/* make REGION  comb record	   */
+			mk_memb( fdout , ptr->tube , identity , WMOP_UNION );	/* make 'u' member record	   */
+d375 1
+a375 1
+				mk_memb( fdout , ptr->tubflu , identity , WMOP_SUBTRACT );	/* make '-' member record	   */
+d378 1
+a378 1
+				mk_memb( fdout , ptr->next->cut , identity , WMOP_SUBTRACT );	/* make '+' member record	   */
+d381 3
+a383 1
+				mk_memb( fdout , ptr->cut , identity , WMOP_INTERSECT );	/* subtract HAF */
+d395 1
+a395 3
+				mk_fcomb( fdout , ptr->tubflu_r , comblen , REGION );	/* make REGION comb record	*/
+
+				mk_memb( fdout , ptr->tubflu , identity , WMOP_UNION );	/* make 'u' member record	*/
+d398 1
+a398 1
+					mk_memb( fdout , ptr->next->cut , identity , WMOP_SUBTRACT );	/* make '+' member record	   */
+d401 3
+a403 1
+					mk_memb( fdout , ptr->cut , identity , WMOP_INTERSECT );	/* subtract */
+a417 2
+			mk_fcomb( fdout , ptr->tube_r , comblen , REGION );
+
+d420 1
+a420 1
+			mk_memb( fdout , ptr->tube , identity , WMOP_UNION );
+d424 1
+a424 1
+				mk_memb( fdout , ptr->tubflu , identity , WMOP_SUBTRACT );
+d427 1
+a427 1
+				mk_memb( fdout , ptr->next->tube , identity , WMOP_SUBTRACT );
+d429 3
+a431 1
+				mk_memb( fdout , ptr->prev->tubflu , identity , WMOP_SUBTRACT );
+a436 5
+				if( ptr->next->tubflu[0] != '\0' )	/* there will be 2 members */
+					mk_fcomb( fdout , ptr->tubflu_r , 2 , REGION );
+				else		/* only 1 member */
+					mk_fcomb( fdout , ptr->tubflu_r , 1 , REGION );
+
+d439 1
+a439 1
+				mk_memb( fdout , ptr->tubflu , identity , WMOP_UNION );
+d442 3
+a444 1
+					mk_memb( fdout , ptr->next->tubflu , identity , WMOP_SUBTRACT );
+a457 2
+			
+			mk_fcomb( fdout , ptr->tube_r , comblen , REGION );
+d461 1
+a461 1
+			mk_memb( fdout , ptr->tube , identity , WMOP_UNION );
+d465 1
+a465 1
+				mk_memb( fdout , ptr->tubflu , identity , WMOP_SUBTRACT );
+d468 1
+a468 1
+				mk_memb( fdout , ptr->next->tube , identity , WMOP_SUBTRACT );
+d470 3
+a472 1
+				mk_memb( fdout , ptr->prev->tubflu , identity , WMOP_SUBTRACT );
+a477 5
+				if( ptr->next->tubflu[0] != '\0' )	/* there will be 2 members */
+					mk_fcomb( fdout , ptr->tubflu_r , 2 , REGION );
+				else		/* only 1 member */
+					mk_fcomb( fdout , ptr->tubflu_r , 1 , REGION );
+
+d480 1
+a480 1
+				mk_memb( fdout , ptr->tubflu , identity , WMOP_UNION );
+d483 3
+a485 1
+					mk_memb( fdout , ptr->next->tubflu , identity , WMOP_SUBTRACT );
+d499 1
+a499 1
+	int comblen;
+d507 2
+d553 1
+a553 2
+			mk_fcomb( fdout , ptr->elbow_r , 3-cable , REGION );	/* make REGION  comb record	   */
+			mk_memb( fdout , ptr->elbow , identity , WMOP_UNION );	/* make 'u' member record	   */
+d555 3
+a557 2
+				mk_memb( fdout , ptr->elbflu , identity , WMOP_SUBTRACT );	/* make '-' member record	   */
+			mk_memb( fdout , ptr->cut , identity , WMOP_INTERSECT );
+d561 3
+a563 3
+				mk_fcomb( fdout , ptr->elbflu_r , 2 , REGION );		/* make REGION comb record	*/
+				mk_memb( fdout , ptr->elbflu , identity , WMOP_UNION );	/* make 'u' member record	*/
+				mk_memb( fdout , ptr->cut , identity , WMOP_INTERSECT );
+d568 1
+a568 3
+			comblen = 4 - cable;
+			mk_fcomb( fdout , ptr->elbow_r , comblen , REGION );	/* make REGION  comb record	   */
+			mk_memb( fdout , ptr->elbow , identity , WMOP_UNION );	/* make 'u' member record	   */
+d570 5
+a574 3
+				mk_memb( fdout , ptr->elbflu , identity , WMOP_SUBTRACT );	/* make '-' member record	   */
+			mk_memb( fdout , ptr->tube , identity , WMOP_SUBTRACT );
+			mk_memb( fdout , ptr->prev->tube , identity , WMOP_SUBTRACT );	
+d578 4
+a581 5
+				comblen = 3;
+				mk_fcomb( fdout , ptr->elbflu_r , 3 , REGION );		/* make REGION comb record	*/
+				mk_memb( fdout , ptr->elbflu , identity , WMOP_UNION );	/* make 'u' member record	*/
+				mk_memb( fdout , ptr->tube , identity , WMOP_SUBTRACT );
+				mk_memb( fdout , ptr->prev->tube , identity , WMOP_SUBTRACT );	
+d596 3
+a619 1
+		mk_fcomb( fdout , tag , comblen , 0 );
+d623 1
+a623 1
+			mk_memb( fdout , ptr->tube_r , identity , WMOP_UNION );	/* tube regions */
+d626 1
+a626 1
+				mk_memb( fdout , ptr->elbow_r , identity , WMOP_UNION );	/* elbows */
+d630 1
+a637 1
+			mk_fcomb( fdout , tag , comblen , 0 );
+d641 1
+a641 1
+				mk_memb( fdout , ptr->tubflu_r , identity , WMOP_UNION );	/* fluid in tubes */
+d644 1
+a644 1
+					mk_memb( fdout , ptr->elbflu_r , identity , WMOP_UNION ); /* fluid in elbows */
+d646 1
+a646 1
+					ptr = ptr->next;
+d648 1
+d653 1
+d812 1
+a812 2
+	exit( 0 );
+
+@
+
+
+11.5
+log
+@
+raytrace.h before wdb.h
+Eliminated use of db.h
+@
+text
+@d32 1
+a32 1
+static char RCSid[] = "$Header: /c/CVS/brlcad/proc-db/pipe.c,v 11.4 2000/03/31 03:07:31 mike Exp $";
+@
+
+
+11.4
+log
+@
+Changed RT_ to BU_ / BN_
+@
+text
+@d32 1
+a32 1
+static char RCSid[] = "$Header: /c/CVS/brlcad/proc-db/pipe.c,v 11.3 1998/12/29 03:29:51 mike Exp $";
+d48 1
+a48 1
+#include "db.h"
+d51 2
+d345 1
+a345 1
+			mk_memb( fdout , ptr->tube , identity , UNION );	/* make 'u' member record	   */
+d349 1
+a349 1
+				mk_memb( fdout , ptr->tubflu , identity , SUBTRACT );	/* make '-' member record	   */
+d353 1
+a353 1
+				mk_memb( fdout , ptr->tubflu , identity , UNION );	/* make 'u' member record	*/
+d371 1
+a371 1
+			mk_memb( fdout , ptr->tube , identity , UNION );	/* make 'u' member record	   */
+d374 1
+a374 1
+				mk_memb( fdout , ptr->tubflu , identity , SUBTRACT );	/* make '-' member record	   */
+d377 1
+a377 1
+				mk_memb( fdout , ptr->next->cut , identity , SUBTRACT );	/* make '+' member record	   */
+d380 1
+a380 1
+				mk_memb( fdout , ptr->cut , identity , INTERSECT );	/* subtract HAF */
+d394 1
+a394 1
+				mk_memb( fdout , ptr->tubflu , identity , UNION );	/* make 'u' member record	*/
+d397 1
+a397 1
+					mk_memb( fdout , ptr->next->cut , identity , SUBTRACT );	/* make '+' member record	   */
+d400 1
+a400 1
+					mk_memb( fdout , ptr->cut , identity , INTERSECT );	/* subtract */
+d419 1
+a419 1
+			mk_memb( fdout , ptr->tube , identity , UNION );
+d423 1
+a423 1
+				mk_memb( fdout , ptr->tubflu , identity , SUBTRACT );
+d426 1
+a426 1
+				mk_memb( fdout , ptr->next->tube , identity , SUBTRACT );
+d428 1
+a428 1
+				mk_memb( fdout , ptr->prev->tubflu , identity , SUBTRACT );
+d441 1
+a441 1
+				mk_memb( fdout , ptr->tubflu , identity , UNION );
+d444 1
+a444 1
+					mk_memb( fdout , ptr->next->tubflu , identity , SUBTRACT );
+d463 1
+a463 1
+			mk_memb( fdout , ptr->tube , identity , UNION );
+d467 1
+a467 1
+				mk_memb( fdout , ptr->tubflu , identity , SUBTRACT );
+d470 1
+a470 1
+				mk_memb( fdout , ptr->next->tube , identity , SUBTRACT );
+d472 1
+a472 1
+				mk_memb( fdout , ptr->prev->tubflu , identity , SUBTRACT );
+d485 1
+a485 1
+				mk_memb( fdout , ptr->tubflu , identity , UNION );
+d488 1
+a488 1
+					mk_memb( fdout , ptr->next->tubflu , identity , SUBTRACT );
+d555 1
+a555 1
+			mk_memb( fdout , ptr->elbow , identity , UNION );	/* make 'u' member record	   */
+d557 2
+a558 2
+				mk_memb( fdout , ptr->elbflu , identity , SUBTRACT );	/* make '-' member record	   */
+			mk_memb( fdout , ptr->cut , identity , INTERSECT );
+d563 2
+a564 2
+				mk_memb( fdout , ptr->elbflu , identity , UNION );	/* make 'u' member record	*/
+				mk_memb( fdout , ptr->cut , identity , INTERSECT );
+d571 1
+a571 1
+			mk_memb( fdout , ptr->elbow , identity , UNION );	/* make 'u' member record	   */
+d573 3
+a575 3
+				mk_memb( fdout , ptr->elbflu , identity , SUBTRACT );	/* make '-' member record	   */
+			mk_memb( fdout , ptr->tube , identity , SUBTRACT );
+			mk_memb( fdout , ptr->prev->tube , identity , SUBTRACT );	
+d581 3
+a583 3
+				mk_memb( fdout , ptr->elbflu , identity , UNION );	/* make 'u' member record	*/
+				mk_memb( fdout , ptr->tube , identity , SUBTRACT );
+				mk_memb( fdout , ptr->prev->tube , identity , SUBTRACT );	
+d623 1
+a623 1
+			mk_memb( fdout , ptr->tube_r , identity , UNION );	/* tube regions */
+d626 1
+a626 1
+				mk_memb( fdout , ptr->elbow_r , identity , UNION );	/* elbows */
+d641 1
+a641 1
+				mk_memb( fdout , ptr->tubflu_r , identity , UNION );	/* fluid in tubes */
+d644 1
+a644 1
+					mk_memb( fdout , ptr->elbflu_r , identity , UNION ); /* fluid in elbows */
+@
+
+
+11.3
+log
+@Fixed gets()
+@
+text
+@d32 1
+a32 1
+static char RCSid[] = "$Header: /c/CVS/brlcad/proc-db/pipe.c,v 11.2 1996/07/15 18:16:22 jra Exp $";
+d713 1
+a713 1
+	mat_idn(identity);	/* Identity matrix for all objects */
+@
+
+
+11.2
+log
+@Minor Mods for IRIX 6.2
+@
+text
+@d32 1
+a32 1
+static char RCSid[] = "$Header: /m/cad/proc-db/RCS/pipe.c,v 11.1 1995/01/04 10:06:16 mike Rel4_4 jra $";
+d723 1
+a723 1
+		gets(units);	
+@
+
+
+11.1
+log
+@Release_4.4
+@
+text
+@d32 1
+a32 1
+static char RCSid[] = "$Header: /m/cad/proc-db/RCS/pipe.c,v 1.4 94/11/14 22:19:09 mike Exp $";
+d98 2
+d812 1
+@
+
+
+1.4
+log
+@Irix 6
+@
+text
+@d32 1
+a32 1
+static char RCSid[] = "$Header: /m/cad/proc-db/RCS/pipe.c,v 1.3 94/10/20 00:09:34 mike Exp Locker: mike $";
+@
+
+
+1.3
+log
+@mk_arb[48]() prototype change
+@
+text
+@d32 1
+a32 1
+static char RCSid[] = "$Header: /m/cad/proc-db/RCS/pipe.c,v 1.2 94/08/09 19:22:06 gdurf Exp Locker: mike $";
+d46 1
+@
+
+
+1.2
+log
+@Factored ifdefs
+@
+text
+@d32 1
+a32 1
+static char RCSid[] = "$Header: /m/cad/proc-db/RCS/pipe.c,v 1.1 1994/05/18 17:17:06 jra Exp gdurf $";
+d544 1
+a544 1
+			mk_arb8( fdout , ptr->cut , pts );
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d32 1
+a32 1
+static char RCSid[] = "$Header: /m/cad/conv/RCS/g-tankill.c,v 1.7 94/04/19 18:49:19 jra Exp $";
+d35 2
+d39 1
+d41 3
+@

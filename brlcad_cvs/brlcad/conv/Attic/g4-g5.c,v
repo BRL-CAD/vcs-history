@@ -1,0 +1,591 @@
+head	11.16;
+access;
+symbols
+	ansi-20040405-merged:11.13.2.1
+	postmerge-20040405-ansi:11.14
+	premerge-20040404-ansi:11.13
+	postmerge-autoconf:11.13
+	autoconf-freeze:11.13
+	premerge-autoconf:11.13
+	ansi-20040316-freeze:11.13.2.1
+	postmerge-20040315-windows:11.13
+	premerge-20040315-windows:11.13
+	windows-20040315-freeze:11.13
+	autoconf-20031203:11.13
+	autoconf-20031202:11.13
+	autoconf-branch:11.13.0.10
+	phong-branch:11.13.0.8
+	photonmap-branch:11.13.0.6
+	rel-6-1-DP:11.13
+	windows-branch:11.13.0.4
+	rel-6-0-2:11.11
+	ansi-branch:11.13.0.2
+	rel-6-0-1-branch:11.11.0.2
+	hartley-6-0-post:11.12
+	hartley-6-0-pre:11.11
+	rel-6-0-1:11.11
+	rel-6-0:11.11
+	offsite-5-3-pre:11.8;
+locks; strict;
+comment	@ * @;
+
+
+11.16
+date	2004.05.24.04.16.12;	author morrison;	state dead;
+branches;
+next	11.15;
+
+11.15
+date	2004.05.10.15.30.42;	author erikg;	state Exp;
+branches;
+next	11.14;
+
+11.14
+date	2004.04.05.07.49.36;	author morrison;	state Exp;
+branches;
+next	11.13;
+
+11.13
+date	2002.08.20.17.07.22;	author jra;	state Exp;
+branches
+	11.13.2.1;
+next	11.12;
+
+11.12
+date	2002.08.15.20.54.34;	author hartley;	state Exp;
+branches;
+next	11.11;
+
+11.11
+date	2001.08.30.20.21.38;	author jra;	state Exp;
+branches;
+next	11.10;
+
+11.10
+date	2001.03.21.20.02.10;	author jra;	state Exp;
+branches;
+next	11.9;
+
+11.9
+date	2001.03.20.18.26.19;	author jra;	state Exp;
+branches;
+next	11.8;
+
+11.8
+date	2000.09.08.05.55.42;	author mike;	state Exp;
+branches;
+next	11.7;
+
+11.7
+date	2000.07.12.21.59.35;	author mike;	state Exp;
+branches;
+next	11.6;
+
+11.6
+date	2000.07.12.03.50.12;	author mike;	state Exp;
+branches;
+next	11.5;
+
+11.5
+date	2000.07.06.22.45.29;	author mike;	state Exp;
+branches;
+next	11.4;
+
+11.4
+date	2000.06.30.15.39.24;	author mike;	state Exp;
+branches;
+next	11.3;
+
+11.3
+date	2000.06.29.21.03.25;	author butler;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	2000.06.29.14.39.28;	author jra;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	2000.06.27.17.42.00;	author mike;	state Exp;
+branches;
+next	;
+
+11.13.2.1
+date	2002.09.19.18.00.36;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+11.16
+log
+@moved to src/conv/
+@
+text
+@#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+
+#ifdef USE_STRING_H
+#include <string.h>
+#else
+#include <strings.h>
+#endif
+
+#include <stdio.h>
+
+#include "machine.h"
+#include "bu.h"
+#include "vmath.h"
+#include "bn.h"
+#include "raytrace.h"
+#include "rtgeom.h"
+
+
+
+int
+main(int argc, char **argv)
+{
+	struct rt_wdb	*fp;
+	struct db_i	*dbip;
+	struct directory	*dp;
+	long	errors = 0;
+	struct bn_tol tol;
+	char name[17];
+
+	name[16] = '\0';
+
+        /* XXX These need to be improved */
+        tol.magic = BN_TOL_MAGIC;
+        tol.dist = 0.005;
+        tol.dist_sq = tol.dist * tol.dist;
+        tol.perp = 1e-6;
+        tol.para = 1 - tol.perp;
+
+	bu_debug = BU_DEBUG_COREDUMP;
+
+	rt_init_resource( &rt_uniresource, 0, NULL );
+
+	if( argc != 3 )  {
+		fprintf(stderr, "Usage: %s v4.g v5.g\n", argv[0]);
+		return 1;
+	}
+
+	if( (dbip = db_open( argv[1], "r" )) == DBI_NULL )  {
+		perror( argv[1] );
+		return 2;
+	}
+
+	if( (fp = wdb_fopen( argv[2] )) == NULL )  {
+		perror( argv[2] );
+		return 3;
+	}
+
+	if( dbip->dbi_version != 4 ) {
+		bu_log( "Input database must be a version 4 datbase!!!!\n" );
+		return 4;
+	}
+
+	RT_CK_DBI(dbip);
+	db_dirbuild( dbip );
+
+	db_update_ident( fp->dbip, dbip->dbi_title, dbip->dbi_local2base );
+
+	/* Retrieve every item in the input database */
+	FOR_ALL_DIRECTORY_START(dp, dbip)  {
+		struct rt_db_internal	intern;
+		int id;
+		int ret;
+
+		fprintf(stderr, "%.16s\n", dp->d_namep );
+
+		id = rt_db_get_internal( &intern, dp, dbip, NULL, &rt_uniresource );
+		if( id < 0 )  {
+			fprintf(stderr,
+				"%s: rt_db_get_internal(%s) failure, skipping\n",
+				argv[0], dp->d_namep);
+			errors++;
+			continue;
+		}
+		if( id == ID_COMBINATION ) {
+			struct rt_comb_internal *comb;
+			char *ptr;
+
+			comb = (struct rt_comb_internal *)intern.idb_ptr;
+			RT_CK_COMB( comb );
+
+			/* Convert "plastic" to "phong" in the shader string */
+			while( (ptr=strstr( bu_vls_addr( &comb->shader), "plastic" )) != NULL ) {
+				strncpy( ptr, "phong  ", 7 );
+			}
+		}
+		if ( id == ID_HF ) {
+			if (rt_hf_to_dsp( &intern, &rt_uniresource )) {
+				fprintf(stderr,
+					"%s: Conversion from HF to DSP failed for solid %s\n",
+					argv[0], dp->d_namep );
+				errors++;
+				continue;
+			}
+		}
+		if( id == ID_POLY)
+		{
+			if( rt_pg_to_bot( &intern, &tol, &rt_uniresource ) )
+			{
+				fprintf( stderr, "%s: Conversion from polysolid to BOT failed for solid %s\n",
+					argv[0], dp->d_namep );
+				errors++;
+				continue;
+			}
+		}
+
+		/* to insure null termination */
+		strncpy( name, dp->d_namep, 16 );
+		ret = wdb_put_internal( fp, name, &intern, 1.0 );
+		if( ret < 0 )  {
+			fprintf(stderr,
+				"%s: wdb_put_internal(%s) failure, skipping\n",
+				argv[0], dp->d_namep);
+			rt_db_free_internal( &intern, &rt_uniresource );
+			errors++;
+			continue;
+		}
+		rt_db_free_internal( &intern, &rt_uniresource );
+	} FOR_ALL_DIRECTORY_END
+
+	wdb_close( fp );
+	db_close( dbip );
+
+	fprintf(stderr, "%ld objects failed to convert\n", errors);
+	return 0;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+@
+
+
+11.15
+log
+@change conf.h to a wrapped config.h
+@
+text
+@@
+
+
+11.14
+log
+@merge of ansi-6-0-branch into HEAD
+@
+text
+@d1 5
+a5 1
+#include "conf.h"
+@
+
+
+11.13
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d21 1
+a21 3
+main(argc, argv)
+int	argc;
+char	**argv;
+@
+
+
+11.13.2.1
+log
+@Initial ANSIfication
+@
+text
+@d21 3
+a23 1
+main(int argc, char **argv)
+@
+
+
+11.12
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d21 3
+a23 1
+main(int argc, char **argv)
+@
+
+
+11.11
+log
+@Now converts title and units also
+@
+text
+@d21 1
+a21 3
+main(argc, argv)
+int	argc;
+char	**argv;
+@
+
+
+11.10
+log
+@Input database must be version 4
+@
+text
+@d30 3
+d68 1
+a68 4
+#if 0
+	/* XXX Need wdb_ routine to update title, units, etc. */
+	db5_fwrite_ident( fp, dbip->dbi_title, dbip->dbi_local2base );
+#endif
+d76 1
+a76 1
+		fprintf(stderr, "%s\n", dp->d_namep );
+d117 4
+a120 1
+		ret = wdb_put_internal( fp, dp->d_namep, &intern, 1.0 );
+@
+
+
+11.9
+log
+@Now converts "plastic" to "phong" in all shader strings
+@
+text
+@d57 5
+@
+
+
+11.8
+log
+@
+Tree routines now need resource structure.
+Added rt_init_resource() call.
+@
+text
+@d3 6
+d81 12
+d130 57
+@
+
+
+11.7
+log
+@
+Converted to use new version of LIBWDB
+@
+text
+@d34 2
+d67 1
+a67 1
+		id = rt_db_get_internal( &intern, dp, dbip, NULL );
+d76 1
+a76 1
+			if (rt_hf_to_dsp( &intern )) {
+d86 1
+a86 1
+			if( rt_pg_to_bot( &intern, &tol ) )
+d99 1
+a99 1
+			rt_db_free_internal( &intern );
+d103 1
+a103 1
+		rt_db_free_internal( &intern );
+@
+
+
+11.6
+log
+@
+#args
+@
+text
+@d19 1
+a19 1
+	FILE	*fp;
+a21 1
+	int	i;
+d44 1
+a44 1
+	if( (fp = fopen( argv[2], "w" )) == NULL )  {
+d52 2
+d55 1
+d58 17
+a74 10
+	for( i = RT_DBNHASH-1; i >= 0; i-- )  {
+		for( dp = dbip->dbi_Head[i]; dp; dp = dp->d_forw )  {
+			struct rt_db_internal	intern;
+			int id;
+			int ret;
+
+			fprintf(stderr, "%s\n", dp->d_namep );
+
+			id = rt_db_get_internal( &intern, dp, dbip, NULL );
+			if( id < 0 )  {
+d76 2
+a77 2
+					"%s: rt_db_get_internal(%s) failure, skipping\n",
+					argv[0], dp->d_namep);
+d81 4
+a84 10
+			if ( id == ID_HF ) {
+				if (rt_hf_to_dsp( &intern )) {
+					fprintf(stderr,
+						"%s: Conversion from HF to DSP failed for solid %s\n",
+						argv[0], dp->d_namep );
+					errors++;
+					continue;
+				}
+			}
+			if( id == ID_POLY)
+d86 2
+a87 14
+				if( rt_pg_to_bot( &intern, &tol ) )
+				{
+					fprintf( stderr, "%s: Conversion from polysolid to BOT failed for solid %s\n",
+						argv[0], dp->d_namep );
+					errors++;
+					continue;
+				}
+			}
+			ret = rt_fwrite_internal5( fp, dp->d_namep, &intern, 1.0 );
+			if( ret < 0 )  {
+				fprintf(stderr,
+					"%s: rt_fwrite_internal5(%s) failure, skipping\n",
+					argv[0], dp->d_namep);
+				rt_db_free_internal( &intern );
+d91 6
+d98 2
+d101 2
+a102 1
+	}
+d104 1
+a104 1
+	fclose( fp );
+@
+
+
+11.5
+log
+@
+Changed conversion routines to have better names.
+@
+text
+@d91 1
+a91 1
+			ret = rt_fwrite_internal5( fp, dp->d_namep, &intern, 1.0, NULL );
+@
+
+
+11.4
+log
+@
+lint
+@
+text
+@d73 1
+a73 1
+				if (hf_to_dsp( &intern )) {
+d83 1
+a83 1
+				if( pg_bot( &intern, &tol ) )
+@
+
+
+11.3
+log
+@Added support for converting HF to DSP
+@
+text
+@d107 1
+a107 1
+	fprintf(stderr, "%d objects failed to convert\n", errors);
+@
+
+
+11.2
+log
+@Added code to convert polysolids to BOT solids
+@
+text
+@d72 9
+@
+
+
+11.1
+log
+@
+Added converter to go from g4 to g5
+@
+text
+@d12 2
+d24 8
+d71 10
+@
+

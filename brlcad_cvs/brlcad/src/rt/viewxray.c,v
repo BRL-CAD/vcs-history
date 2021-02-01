@@ -1,0 +1,877 @@
+head	14.13;
+access;
+symbols
+	rel-7-10-4:14.12
+	STABLE:14.12.0.2
+	stable-branch:14.4
+	rel-7-10-2:14.12
+	rel-7-10-0:14.11
+	rel-7-8-4:14.9
+	rel-7-8-2:14.8
+	rel-7-8-0:14.7
+	trimnurbs-branch:14.7.0.2
+	help:14.7
+	temp_tag:14.6
+	bobWinPort-20051223-freeze:14.5
+	postmerge-20051223-bobWinPort:14.6
+	premerge-20051223-bobWinPort:14.6
+	rel-7-6-6:14.6
+	rel-7-6-4:14.6
+	rel-7-6-2:14.5
+	rel-7-6-branch:14.5.0.4
+	rel-7-6-0:14.5
+	rel-7-4-2:14.4.2.1
+	rel-7-4-branch:14.4.0.2
+	bobWinPort:14.5.0.2
+	rel-7-4-0:14.4
+	rel-7-2-6:14.4
+	rel-7-2-4:14.4
+	rel-7-2-2:14.4
+	rel-7-2-0:14.4
+	rel-7-0-4:14.3
+	rel-7-0-2:14.3
+	rel-7-0-1:14.2
+	opensource-post:14.2
+	opensource-pre:1.3
+	rel-7-0-branch:1.3.0.2
+	rel-7-0:1.3;
+locks; strict;
+comment	@ * @;
+
+
+14.13
+date	2007.11.14.17.12.04;	author bob1961;	state Exp;
+branches;
+next	14.12;
+
+14.12
+date	2007.04.17.03.23.57;	author brlcad;	state Exp;
+branches;
+next	14.11;
+
+14.11
+date	2007.01.23.01.13.46;	author brlcad;	state Exp;
+branches;
+next	14.10;
+
+14.10
+date	2007.01.20.14.37.00;	author brlcad;	state Exp;
+branches;
+next	14.9;
+
+14.9
+date	2006.07.30.18.58.33;	author brlcad;	state Exp;
+branches;
+next	14.8;
+
+14.8
+date	2006.06.03.02.04.34;	author brlcad;	state Exp;
+branches;
+next	14.7;
+
+14.7
+date	2006.01.18.06.46.24;	author brlcad;	state Exp;
+branches;
+next	14.6;
+
+14.6
+date	2005.10.23.04.44.38;	author brlcad;	state Exp;
+branches;
+next	14.5;
+
+14.5
+date	2005.07.16.23.23.38;	author brlcad;	state Exp;
+branches
+	14.5.4.1;
+next	14.4;
+
+14.4
+date	2005.01.30.20.31.11;	author brlcad;	state Exp;
+branches
+	14.4.2.1;
+next	14.3;
+
+14.3
+date	2004.12.24.01.40.01;	author brlcad;	state Exp;
+branches;
+next	14.2;
+
+14.2
+date	2004.12.21.06.38.23;	author morrison;	state Exp;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.31;	author morrison;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2004.09.16.03.13.13;	author morrison;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2004.08.02.23.01.52;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.15.20.48;	author morrison;	state Exp;
+branches;
+next	;
+
+14.4.2.1
+date	2005.08.16.21.03.50;	author brlcad;	state Exp;
+branches;
+next	;
+
+14.5.4.1
+date	2005.11.13.13.46.19;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.13
+log
+@AmbientIntensity is already declared in optical.h
+@
+text
+@/*                      V I E W X R A Y . C
+ * BRL-CAD
+ *
+ * Copyright (c) 1990-2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@file viewxray.c
+ *
+ *  Ray Tracing program RTXRAY bottom half.
+ *
+ *  This module produces pseudo XRAY images of models by adding
+ *  up ray path lengths.  By default it will scale these lengths
+ *  by the max model RPP length and write a grey scale BW file.
+ *  The alternate lighting model outputs "doubles" containing the
+ *  actual lengths for post processing.
+ *
+ *  A better version of this would know something about material
+ *  densities.
+ *
+ *  Author -
+ *	Phillip Dykstra
+ *
+ *  Source -
+ *	SECAD/VLD Computing Consortium, Bldg 394
+ *	The U. S. Army Ballistic Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005
+ *
+ */
+#ifndef lint
+static const char RCSviewxray[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/rt/viewxray.c,v 14.12 2007/04/17 03:23:57 brlcad Exp $ (BRL)";
+#endif
+
+#include "common.h"
+
+#include <stdio.h>
+#include "machine.h"
+#include "vmath.h"
+#include "raytrace.h"
+#include "fb.h"
+#include "rtprivate.h"
+
+
+/* lighting models */
+#define	LGT_BW		0
+#define	LGT_FLOAT	1
+
+
+extern	FBIO	*fbp;
+extern	FILE	*outfp;
+extern	fastf_t	viewsize;
+extern	int	lightmodel;
+extern	int	width, height;
+
+static	unsigned char *scanbuf;
+static	int pixsize = 0;		/* bytes per pixel in scanbuf */
+static	double	contrast_boost = 2.0;
+
+static int xrayhit(register struct application *ap, struct partition *PartHeadp, struct seg *segp);
+static int xraymiss(register struct application *ap);
+
+/* Viewing module specific "set" variables */
+struct bu_structparse view_parse[] = {
+	{"",	0, (char *)0,	0,	BU_STRUCTPARSE_FUNC_NULL }
+};
+
+const char title[] = "RT X-Ray";
+const char usage[] = "\
+Usage: rtxray [options] model.g objects... >stuff\n\
+Options:\n\
+ -s #		Grid size in pixels, default 512\n\
+ -a Az		Azimuth in degrees	(conflicts with -M)\n\
+ -e Elev	Elevation in degrees	(conflicts with -M)\n\
+ -M		Read model2view matrix on stdin (conflicts with -a, -e)\n\
+ -o file.bw	Output file name, else frame buffer\n\
+ -A #		Contrast boost (default 2.0), may clip if > 1\n\
+ -x #		Set librt debug flags\n\
+ -l 0		line buffered B&W X-Rays (default)\n\
+ -l 1		Floating point X-Rays (path lengths in doubles)\n\
+";
+
+int	use_air = 0;			/* Handling of air in librt */
+int	using_mlib = 0;			/* Material routines NOT used */
+
+
+/*
+ *  Called at the start of a run.
+ *  Returns 1 if framebuffer should be opened, else 0.
+ */
+int
+view_init(register struct application *ap, char *file, char *obj, int minus_o, int minus_F)
+{
+	/*
+	 * We need to work to get the output pixels and scanlines
+	 * in order before we can run in parallel.  Something like
+	 * view.c does in its dynamic buffering mode.
+	 *
+	 * XXX this hack-around causes a need for more careful
+	 * semaphore acquisition since it may block
+	 */
+	if (rt_g.rtg_parallel) {
+		rt_g.rtg_parallel = 0;
+		bu_log("rtxray: Can't do parallel yet, using one CPU\n");
+	}
+
+	if( lightmodel == LGT_BW ) {
+		if( minus_o )
+			pixsize = 1;		/* BW file */
+		else
+			pixsize = 3;		/* Frame buffer */
+	} else {
+		/* XXX - Floating output uses no buffer */
+		pixsize = 0;
+	}
+	if( pixsize ) {
+		scanbuf = (unsigned char *)
+			bu_malloc( width*pixsize, "scanline buffer" );
+	}
+
+	if( minus_F || (!minus_o && !minus_F) ) {
+	    /* open a framebuffer? */
+	    if( lightmodel == LGT_FLOAT ) {
+		bu_log("rtxray: Can't do floating point mode to frame buffer, use -o\n");
+		return 0;
+	    }
+	    return 1;
+	}
+
+	/* no framebuffer */
+	return 0;
+}
+
+/* beginning of a frame */
+void
+view_2init(struct application *ap, char *framename)
+{
+	/*
+	 *  This is a dangerous hack to allow us to use -A #
+	 *  as a way of passing in a contrast_boost factor.
+	 *  We need a way for view modules to add their own
+	 *  flags to the command line arguments.
+	 */
+	if (AmbientIntensity > 1.0)
+		contrast_boost = AmbientIntensity;
+	bu_log("Contrast Boost = %5.2f\n", contrast_boost);
+
+	ap->a_hit = xrayhit;
+	ap->a_miss = xraymiss;
+	ap->a_onehit = 0;
+}
+
+/* end of each pixel */
+void
+view_pixel(register struct application *ap)
+{
+}
+
+/* end of each line */
+void
+view_eol(register struct application *ap)
+{
+    int i;
+    unsigned char *buf = (unsigned char *)NULL;
+
+    if( lightmodel == LGT_BW ) {
+	if( outfp != NULL ) {
+	    if (rt_g.rtg_parallel) {
+		bu_semaphore_acquire( BU_SEM_SYSCALL );
+	    }
+	    fwrite( scanbuf, pixsize, width, outfp );
+	    if (rt_g.rtg_parallel) {
+		bu_semaphore_release( BU_SEM_SYSCALL );
+	    }
+	    if( fbp != FBIO_NULL ) {
+		if (!buf) {
+		    buf = (unsigned char *)bu_malloc(sizeof(RGBpixel)*width, "allocating temporary buffer in viewxray");
+		}
+
+		/* fb_write only accepts RGBpixel arrays, so convert it */
+		for (i=0; i < width; i++) {
+		    buf[i*3+RED] = scanbuf[i];
+		    buf[i*3+GRN] = scanbuf[i];
+		    buf[i*3+BLU] = scanbuf[i];
+		}
+
+		if (rt_g.rtg_parallel) {
+		    bu_semaphore_acquire( BU_SEM_SYSCALL );
+		}
+		fb_write( fbp, 0, ap->a_y, buf, width );
+		if (rt_g.rtg_parallel) {
+		    bu_semaphore_release( BU_SEM_SYSCALL );
+		}
+
+		if (buf) {
+		    bu_free(buf, "releasing temporary buffer in viewxray");
+		}
+	    }
+	} else {
+	    if (rt_g.rtg_parallel) {
+		bu_semaphore_acquire( BU_SEM_SYSCALL );
+	    }
+	    fb_write( fbp, 0, ap->a_y, scanbuf, width );
+	    if (rt_g.rtg_parallel) {
+		bu_semaphore_release( BU_SEM_SYSCALL );
+	    }
+	}
+    }
+}
+
+void	view_setup(void) {}
+/* end of a frame, called after rt_clean() */
+void	view_cleanup(void) {}
+
+/* end of each frame */
+void
+view_end(void)
+{
+
+}
+
+static int
+xrayhit(register struct application *ap, struct partition *PartHeadp, struct seg *segp)
+{
+	register struct partition *pp;
+	register struct hit *hitp;
+	fastf_t	totdist;
+	fastf_t	fvalue;
+	unsigned char value;
+
+	for( pp=PartHeadp->pt_forw; pp != PartHeadp; pp = pp->pt_forw )
+		if( pp->pt_outhit->hit_dist >= 0.0 )  break;
+	if( pp == PartHeadp )  {
+		bu_log("xrayhit:  no hit out front?\n");
+		return(0);
+	}
+
+	if(R_DEBUG&RDEBUG_HITS)  {
+		rt_pr_pt( ap->a_rt_i, pp );
+	}
+
+	hitp = pp->pt_inhit;
+	if( hitp->hit_dist >= INFINITY )  {
+		bu_log("xrayhit:  entry beyond infinity\n");
+		return(1);
+	}
+	/* Check to see if eye is "inside" the solid */
+	if( hitp->hit_dist < 0.0 )  {
+		/* XXX */
+		bu_log("xrayhit:  Eye inside solid (%g)\n", hitp->hit_dist );
+		for( pp=PartHeadp->pt_forw; pp != PartHeadp; pp = pp->pt_forw )
+			rt_pr_pt( ap->a_rt_i, pp );
+		return(0);
+	}
+
+	/* Finally! We are ready to walk the partition chain */
+
+	/* Compute the total thickness */
+	totdist = 0;
+	while( pp != PartHeadp ) {
+		double	dist;
+
+		dist = pp->pt_outhit->hit_dist - pp->pt_inhit->hit_dist;
+		totdist += dist;
+
+		pp = pp->pt_forw;
+	}
+
+	switch( lightmodel ) {
+	case LGT_FLOAT:
+		bu_semaphore_acquire( BU_SEM_SYSCALL );
+		fwrite( &totdist, sizeof(totdist), 1, outfp );
+		bu_semaphore_release( BU_SEM_SYSCALL );
+		break;
+	case LGT_BW:
+		fvalue = 1.0 - contrast_boost*totdist/viewsize;
+		if( fvalue > 1.0 ) fvalue = 1.0;
+		else if( fvalue <= 0.0 ) fvalue = 0.0;
+		value = 1.0 + 254.99 * fvalue;
+		bu_semaphore_acquire( RT_SEM_RESULTS );
+		if( pixsize == 1 ) {
+			scanbuf[ap->a_x] = value;
+		} else {
+			scanbuf[ap->a_x*3+RED] = value;
+			scanbuf[ap->a_x*3+GRN] = value;
+			scanbuf[ap->a_x*3+BLU] = value;
+		}
+		bu_semaphore_release( RT_SEM_RESULTS );
+		break;
+	}
+
+	return(1);	/* report hit to main routine */
+}
+
+static int
+xraymiss(register struct application *ap)
+{
+	static	double	zero = 0;
+
+	switch( lightmodel ) {
+	case LGT_BW:
+		bu_semaphore_acquire( RT_SEM_RESULTS );
+		if( pixsize == 1 ) {
+			scanbuf[ap->a_x] = 0;
+		} else {
+			scanbuf[ap->a_x*3+RED] = 0;
+			scanbuf[ap->a_x*3+GRN] = 0;
+			scanbuf[ap->a_x*3+BLU] = 0;
+		}
+		bu_semaphore_release( RT_SEM_RESULTS );
+		break;
+	case LGT_FLOAT:
+		bu_semaphore_acquire( BU_SEM_SYSCALL );
+		fwrite( &zero, sizeof(zero), 1, outfp );
+		bu_semaphore_release( BU_SEM_SYSCALL );
+		break;
+	default:
+		bu_log( "xraymiss: Bad lighting model %d\n", lightmodel );
+		break;
+	}
+
+	return(0);	/* report miss to main routine */
+}
+
+void application_init (void) {}
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+14.12
+log
+@redo the client-side version reporting to use the new brlcad_version() interface, utilizing a per-binary title as needed, instead of the former vers.sh setup.
+@
+text
+@d43 1
+a43 1
+static const char RCSviewxray[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/rt/viewxray.c,v 14.11 2007/01/23 01:13:46 brlcad Exp $ (BRL)";
+a64 1
+extern	double	AmbientIntensity;	/* XXX - temp hack for contrast! */
+@
+
+
+14.11
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@d43 1
+a43 1
+static const char RCSviewxray[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/rt/viewxray.c,v 14.10 2007/01/20 14:37:00 brlcad Exp $ (BRL)";
+d52 1
+a53 1
+#include "fb.h"
+d56 4
+a59 2
+int	use_air = 0;			/* Handling of air in librt */
+int	using_mlib = 0;			/* Material routines NOT used */
+d80 2
+a81 1
+char usage[] = "\
+d95 3
+a97 3
+/* lighting models */
+#define	LGT_BW		0
+#define	LGT_FLOAT	1
+@
+
+
+14.10
+log
+@update copyright to 2007
+@
+text
+@d8 2
+a9 3
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+d14 1
+a14 1
+ * General Public License for more details.
+d16 2
+a17 2
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+d43 1
+a43 1
+static const char RCSviewxray[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/rt/viewxray.c,v 14.9 2006/07/30 18:58:33 brlcad Exp $ (BRL)";
+@
+
+
+14.9
+log
+@quell warning
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 1990-2006 United States Government as represented by
+d44 1
+a44 1
+static const char RCSviewxray[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/rt/viewxray.c,v 14.8 2006/06/03 02:04:34 brlcad Exp $ (BRL)";
+@
+
+
+14.8
+log
+@quell unsigned type warning
+@
+text
+@d44 1
+a44 1
+static const char RCSviewxray[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/rt/viewxray.c,v 14.7 2006/01/18 06:46:24 brlcad Exp $ (BRL)";
+d174 1
+a174 1
+    unsigned char *buf = (char *)0;
+@
+
+
+14.7
+log
+@update copyright to 2006
+@
+text
+@d44 1
+a44 1
+static const char RCSviewxray[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/rt/viewxray.c,v 14.6 2005/10/23 04:44:38 brlcad Exp $ (BRL)";
+d174 1
+a174 1
+    char *buf = (char *)0;
+d187 1
+a187 1
+		    buf = (char *)bu_malloc(sizeof(RGBpixel)*width, "allocating temporary buffer in viewxray");
+@
+
+
+14.6
+log
+@trailing ws
+@
+text
+@d4 1
+a4 1
+ * Copyright (C) 1990-2005 United States Government as represented by
+d44 1
+a44 1
+static const char RCSviewxray[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/rt/viewxray.c,v 14.5 2005/07/16 23:23:38 brlcad Exp $ (BRL)";
+@
+
+
+14.5
+log
+@add support for simultaneous -o file and -F framebuffer output to rtxray
+@
+text
+@d36 1
+a36 1
+ *  
+d41 1
+a41 1
+ *  
+d44 1
+a44 1
+static const char RCSviewxray[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/rt/viewxray.c,v 14.4 2005/01/30 20:31:11 brlcad Exp $ (BRL)";
+d141 1
+a141 1
+	return 0; 
+@
+
+
+14.5.4.1
+log
+@merge changes from HEAD aka rel-7-6-4 to the rel-7-6-branch just in case someone peeks a gander or tries to continue/build the branch
+@
+text
+@d36 1
+a36 1
+ *
+d41 1
+a41 1
+ *
+d44 1
+a44 1
+static const char RCSviewxray[] = "@@(#)$Header$ (BRL)";
+d141 1
+a141 1
+	return 0;
+@
+
+
+14.4
+log
+@update copyright to 2005
+@
+text
+@d44 1
+a44 1
+static const char RCSviewxray[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/rt/viewxray.c,v 14.3 2004/12/24 01:40:01 brlcad Exp $ (BRL)";
+d102 1
+a102 1
+view_init(register struct application *ap, char *file, char *obj, int minus_o)
+d105 6
+a110 3
+	 *  We need to work to get the output pixels and scanlines
+	 *  in order before we can run in parallel.  Something like
+	 *  view.c does in its dynamic buffering mode.
+d131 7
+a137 3
+	if( minus_o ) {
+		/* output is to a file */
+		return(0);		/* don't open frame buffer */
+d140 2
+a141 5
+	if( lightmodel == LGT_FLOAT ) {
+		bu_log("rtxray: Can't do floating point mode to frame buffer, use -o\n");
+		exit(1);
+	}
+	return(1);		/* we need a framebuffer */
+d173 38
+a210 1
+	if( lightmodel == LGT_BW ) {
+d212 3
+a214 4
+		if( outfp != NULL )
+			fwrite( scanbuf, pixsize, width, outfp );
+		else if( fbp != FBIO_NULL )
+			fb_write( fbp, 0, ap->a_y, scanbuf, width );
+d216 1
+d218 1
+@
+
+
+14.4.2.1
+log
+@merge in changes through Aug10 for 7.4.2 release
+@
+text
+@d44 1
+a44 1
+static const char RCSviewxray[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/rt/viewxray.c,v 14.5 2005/07/16 23:23:38 brlcad Exp $ (BRL)";
+d102 1
+a102 1
+view_init(register struct application *ap, char *file, char *obj, int minus_o, int minus_F)
+d105 3
+a107 6
+	 * We need to work to get the output pixels and scanlines
+	 * in order before we can run in parallel.  Something like
+	 * view.c does in its dynamic buffering mode.
+	 *
+	 * XXX this hack-around causes a need for more careful
+	 * semaphore acquisition since it may block
+d128 6
+a133 3
+	if( minus_F || (!minus_o && !minus_F) ) {
+	    /* open a framebuffer? */
+	    if( lightmodel == LGT_FLOAT ) {
+d135 1
+a135 3
+		return 0;
+	    }
+	    return 1;
+d137 1
+a137 3
+
+	/* no framebuffer */
+	return 0; 
+d169 1
+a169 38
+    int i;
+    char *buf = (char *)0;
+
+    if( lightmodel == LGT_BW ) {
+	if( outfp != NULL ) {
+	    if (rt_g.rtg_parallel) {
+		bu_semaphore_acquire( BU_SEM_SYSCALL );
+	    }
+	    fwrite( scanbuf, pixsize, width, outfp );
+	    if (rt_g.rtg_parallel) {
+		bu_semaphore_release( BU_SEM_SYSCALL );
+	    }
+	    if( fbp != FBIO_NULL ) {
+		if (!buf) {
+		    buf = (char *)bu_malloc(sizeof(RGBpixel)*width, "allocating temporary buffer in viewxray");
+		}
+
+		/* fb_write only accepts RGBpixel arrays, so convert it */
+		for (i=0; i < width; i++) {
+		    buf[i*3+RED] = scanbuf[i];
+		    buf[i*3+GRN] = scanbuf[i];
+		    buf[i*3+BLU] = scanbuf[i];
+		}
+
+		if (rt_g.rtg_parallel) {
+		    bu_semaphore_acquire( BU_SEM_SYSCALL );
+		}
+		fb_write( fbp, 0, ap->a_y, buf, width );
+		if (rt_g.rtg_parallel) {
+		    bu_semaphore_release( BU_SEM_SYSCALL );
+		}
+
+		if (buf) {
+		    bu_free(buf, "releasing temporary buffer in viewxray");
+		}
+	    }
+	} else {
+	    if (rt_g.rtg_parallel) {
+d171 4
+a174 3
+	    }
+	    fb_write( fbp, 0, ap->a_y, scanbuf, width );
+	    if (rt_g.rtg_parallel) {
+a175 1
+	    }
+a176 1
+    }
+@
+
+
+14.3
+log
+@add the mysteriously missing gpl header..
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 1990-2004 United States Government as represented by
+d44 1
+a44 1
+static const char RCSviewxray[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/rt/viewxray.c,v 14.2 2004/12/21 06:38:23 morrison Exp $ (BRL)";
+@
+
+
+14.2
+log
+@remove the old copyright notice section
+@
+text
+@d1 21
+a21 2
+/*
+ *			V I E W X R A Y . C
+d44 1
+a44 1
+static const char RCSviewxray[] = "@@(#)$Header: /cvs/brlcad/src/rt/viewxray.c,v 14.1 2004/11/16 19:42:31 morrison Exp $ (BRL)";
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@a22 3
+ *  Copyright Notice -
+ *	This software is Copyright (C) 1990-2004 by the United States Army.
+ *	All rights reserved.
+d25 1
+a25 1
+static const char RCSviewxray[] = "@@(#)$Header: /cvs/brlcad/src/rt/viewxray.c,v 1.3 2004/09/16 03:13:13 morrison Exp $ (BRL)";
+@
+
+
+1.3
+log
+@a_hit hook functions are now also given a segment pointer, so match prototype even if unused and quell the warnings
+@
+text
+@d28 1
+a28 1
+static const char RCSviewxray[] = "@@(#)$Header: /cvs/brlcad/src/rt/viewxray.c,v 1.2 2004/08/02 23:01:52 morrison Exp $ (BRL)";
+d278 10
+@
+
+
+1.2
+log
+@replace the wrapped config.h block with common.h
+@
+text
+@d28 1
+a28 1
+static const char RCSviewxray[] = "@@(#)$Header: /cvs/brlcad/src/rt/viewxray.c,v 1.1 2004/05/20 15:20:48 morrison Exp $ (BRL)";
+a32 2
+
+
+d40 1
+d55 2
+a56 2
+static int xrayhit(register struct application *ap, struct partition *PartHeadp);
+static int xraymiss(register struct application *ap, struct partition *PartHeadp);
+d175 1
+a175 1
+xrayhit(register struct application *ap, struct partition *PartHeadp)
+d248 1
+a248 1
+xraymiss(register struct application *ap, struct partition *PartHeadp)
+@
+
+
+1.1
+log
+@Vast reorganization begins.  Sources moved from top-level directories into src/.
+@
+text
+@d28 1
+a28 1
+static const char RCSviewxray[] = "@@(#)$Header: /cvs/brlcad/rt/viewxray.c,v 11.14 2004/05/10 15:30:49 erikg Exp $ (BRL)";
+d31 1
+a31 3
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+@
+

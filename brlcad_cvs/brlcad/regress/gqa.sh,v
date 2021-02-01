@@ -1,0 +1,475 @@
+head	14.13;
+access;
+symbols
+	rel-7-10-4:14.10
+	STABLE:14.10.0.2
+	rel-7-10-2:14.10
+	rel-7-10-0:14.8
+	rel-7-8-4:14.7
+	rel-7-8-2:14.7
+	rel-7-8-0:14.5
+	trimnurbs-branch:14.5.0.2
+	help:14.5
+	temp_tag:14.5
+	bobWinPort-20051223-freeze:14.1
+	postmerge-20051223-bobWinPort:14.5
+	premerge-20051223-bobWinPort:14.5
+	rel-7-6-6:14.5
+	rel-7-6-4:14.3
+	rel-7-6-2:14.3
+	rel-7-6-branch:14.3.0.2
+	rel-7-6-0:14.3
+	bobWinPort:14.1.0.2;
+locks; strict;
+comment	@# @;
+
+
+14.13
+date	2007.10.22.04.36.20;	author brlcad;	state Exp;
+branches;
+next	14.12;
+
+14.12
+date	2007.10.15.22.51.50;	author brlcad;	state Exp;
+branches;
+next	14.11;
+
+14.11
+date	2007.10.14.05.31.15;	author brlcad;	state Exp;
+branches;
+next	14.10;
+
+14.10
+date	2007.06.03.17.17.38;	author brlcad;	state Exp;
+branches;
+next	14.9;
+
+14.9
+date	2007.06.03.06.32.53;	author brlcad;	state Exp;
+branches;
+next	14.8;
+
+14.8
+date	2007.01.27.00.31.38;	author brlcad;	state Exp;
+branches;
+next	14.7;
+
+14.7
+date	2006.04.20.21.45.09;	author lbutler;	state Exp;
+branches;
+next	14.6;
+
+14.6
+date	2006.04.20.15.19.53;	author lbutler;	state Exp;
+branches;
+next	14.5;
+
+14.5
+date	2005.12.06.17.13.00;	author lbutler;	state Exp;
+branches;
+next	14.4;
+
+14.4
+date	2005.12.06.16.20.21;	author lbutler;	state Exp;
+branches;
+next	14.3;
+
+14.3
+date	2005.08.25.04.18.31;	author lbutler;	state Exp;
+branches;
+next	14.2;
+
+14.2
+date	2005.08.15.22.31.00;	author lbutler;	state Exp;
+branches;
+next	14.1;
+
+14.1
+date	2005.08.15.13.59.10;	author lbutler;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.13
+log
+@more consistent echo output
+@
+text
+@#!/bin/sh
+
+LD_LIBRARY_PATH=../src/other/tcl/unix:../src/other/tk/unix:$$LD_LIBRARY_PATH
+DYLD_LIBRARY_PATH=../src/other/tcl/unix:../src/other/tk/unix:$$DYLD_LIBRARY_PATH
+export LD_LIBRARY_PATH DYLD_LIBRARY_PATH
+
+rm -f gqa.g density_table.txt gqa.log gqa_mged.log gqa.mged
+
+echo "5 1 stuff" > density_table.txt
+echo "2 1 gas" >> density_table.txt
+
+cat > gqa.mged <<EOF
+units m
+dbbinary -i u c _DENSITIES density_table.txt
+
+in box1.s rpp 0 10 0 10 0 10
+in box2.s rpp 1  9 1  9 1  9
+in box3.s rpp 1 10 1  9 1  9
+in box4.s rpp 0.5  9.5 0.5  5 0.5  9.5
+
+r solid_box.r u box1.s
+adjust solid_box.r GIFTmater 5
+mater solid_box.r "plastic tr=0.5 di=0.5 sp=0.5" 128 128 128 0
+
+r closed_box.r u box1.s - box2.s
+adjust closed_box.r GIFTmater 5
+mater closed_box.r "plastic tr=0.5 di=0.5 sp=0.5" 128 128 128 0
+
+r open_box.r u box1.s - box3.s
+mater open_box.r "plastic tr=0.5 di=0.5 sp=0.5" 128 128 128 0
+
+
+r exposed_air.r u box3.s
+adjust exposed_air.r air 2
+mater exposed_air.r  "plastic tr=0.8 di=0.1 sp=0.1" 255 255 128 0
+g exposed_air.g exposed_air.r open_box.r
+
+r adj_air1.r u box2.s + box4.s
+r adj_air2.r u box2.s - box4.s
+
+adjust adj_air1.r air 3
+adjust adj_air1.r GIFTmater 2
+
+adjust adj_air2.r air 4
+adjust adj_air2.r GIFTmater 2
+
+mater adj_air1.r  "plastic tr=0.5 di=0.1 sp=0.1" 255 128 128  0
+mater adj_air2.r  "plastic tr=0.5 di=0.1 sp=0.1" 128 128 255 0
+
+g adj_air.g closed_box.r adj_air1.r adj_air2.r
+
+g gap.g closed_box.r adj_air2.r
+
+r overlap_obj.r u box3.s
+adjust overlap_obj.r GIFTMater 5
+g overlaps closed_box.r overlap_obj.r
+
+
+q
+EOF
+
+../src/mged/mged -c gqa.g <<EOF > gqa_mged.log 2>&1
+`cat gqa.mged`
+EOF
+
+#
+# now that the inputs have been built, run the tests
+#
+# box1.s = 10x10x10     = 1000 m^3
+# box2.s = 8x8x8        =  512 m^3
+# box3.s = 8x8x9        =  576 m^3
+# adj_air1.r = 512-256  = 256 m^3
+# adj_air2.r = 512-256  = 256 m^3
+# closed_box.r =1000-512= 488 m^3
+# exposed_air.r         = 576 m^3
+# open_box.r = 1000-576 = 424 m^3
+
+
+GQA="../src/gtools/g_qa -u m,m^3,kg -g 0.25m-0.5mm -p"
+export GQA
+
+STATUS=0
+export STATUS
+
+#
+# somehow need to check results of these
+#
+CMD="$GQA -Ao gqa.g overlaps"
+echo $CMD
+echo $CMD >> gqa.log
+$CMD >> gqa.log 2>&1
+
+
+echo >> gqa.log
+CMD="$GQA -Ae gqa.g exposed_air.g"
+echo $CMD
+echo $CMD >> gqa.log 2>&1
+$CMD >> gqa.log 2>&1
+
+echo >> gqa.log
+CMD="$GQA -Aa gqa.g adj_air.g"
+echo $CMD
+echo $CMD >> gqa.log 2>&1
+$CMD >> gqa.log 2>&1
+
+echo >> gqa.log
+CMD="$GQA -Ag gqa.g gap.g"
+echo $CMD
+echo $CMD >> gqa.log 2>&1
+$CMD >> gqa.log 2>&1
+
+echo >> gqa.log
+CMD="$GQA -Av -v gqa.g closed_box.r"
+echo $CMD
+echo $CMD >> gqa.log 2>&1
+$CMD >> gqa.log 2>&1
+
+echo >> gqa.log
+CMD="$GQA -r -Aw -v gqa.g closed_box.r"
+echo $CMD
+echo $CMD >> gqa.log 2>&1
+$CMD >> gqa.log 2>&1
+
+
+echo >> gqa.log
+CMD="$GQA -r -Avw gqa.g solid_box.r"
+echo $CMD
+echo $CMD >> gqa.log 2>&1
+$CMD >> gqa.log 2>&1
+
+
+echo >> gqa.log
+CMD="$GQA -r -Avw gqa.g adj_air.g"
+echo $CMD
+echo $CMD >> gqa.log 2>&1
+$CMD >> gqa.log 2>&1
+
+
+echo >> gqa.log
+CMD="$GQA -r -v -g 0.25m-25mm -Awo gqa.g closed_box.r"
+echo $CMD
+echo $CMD >> gqa.log 2>&1
+$CMD >> gqa.log 2>&1
+
+
+CMD="$GQA -g 50mm -Ao gqa.g closed_box.r"
+echo $CMD
+echo $CMD >> gqa.log 2>&1
+$CMD >> gqa.log 2>&1
+
+
+if [ $STATUS = 0 ] ; then
+    echo "-> gqa.sh succeeded"
+else
+    echo "-> gqa.sh FAILED"
+fi
+
+exit $STATUS
+
+# Local Variables:
+# mode: sh
+# tab-width: 8
+# sh-indentation: 4
+# sh-basic-offset: 4
+# indent-tabs-mode: t
+# End:
+# ex: shiftwidth=4 tabstop=8
+@
+
+
+14.12
+log
+@exit, not return
+@
+text
+@d153 1
+a153 1
+    /bin/echo '-> gqa.sh succeeded'
+d155 1
+a155 1
+    /bin/echo '-> gqa.sh FAILED'
+@
+
+
+14.11
+log
+@emphasize the result if it's a failure
+@
+text
+@d158 1
+a158 1
+return $STATUS
+@
+
+
+14.10
+log
+@move more of the mged scripts to their own files so that segfault failures on linux are more brief.
+@
+text
+@d155 1
+a155 1
+    /bin/echo '-> gqa.sh failed'
+d157 11
+@
+
+
+14.9
+log
+@set the ld_library_path so the binaries invoked by the test can find the tcl/tk libraries.
+@
+text
+@d7 1
+a7 1
+rm -f gqa.g density_table.txt gqa.log
+d12 1
+a12 2
+../src/mged/mged -c gqa.g <<EOF > /dev/null 2>&1
+
+d62 4
+@
+
+
+14.8
+log
+@ws, test two
+@
+text
+@d2 5
+@
+
+
+14.7
+log
+@Fixed various sh/csh syntax errrors.
+@
+text
+@d61 5
+a65 5
+# box1.s = 10x10x10	= 1000 m^3
+# box2.s = 8x8x8	=  512 m^3
+# box3.s = 8x8x9	=  576 m^3
+# adj_air1.r = 512-256	= 256 m^3
+# adj_air2.r = 512-256	= 256 m^3
+d67 1
+a67 1
+# exposed_air.r 	= 576 m^3
+@
+
+
+14.6
+log
+@Updates to make it easier to check the status of a regression test.  Each test
+now reports its notion of whether it succeeded or failed.
+@
+text
+@d144 2
+a145 2
+if [ $STATUS == 0 ] ; then
+    /bin/echo '-> iges.sh succeeded'
+d147 2
+a148 2
+    /bin/echo '-> iges.sh failed'
+endif
+@
+
+
+14.5
+log
+@Changed handling of -g option.  If user specifies only 1 value, it is now the
+LIMIT on how small to let the gridspacing get, not the initial spacing.
+@
+text
+@d74 2
+d77 3
+a79 1
+
+d142 7
+@
+
+
+14.4
+log
+@Updated termination check so that "vol/weight" tests cannot cause early
+termination when "error checks" are being done.  The -n required_hits flag
+now only applies to vol/weight calculations.  This fixes a behavioral bug
+where analysis could run past the "lower" limit on the grid spacing.
+Since interface checking is not implemented, it was removed it from the manpage.
+Updated manpage with new syntax for -g option.  This is not implemented, but it
+snuck in.  I'll commit the changes to g_qa.c RSN.
+@
+text
+@d134 4
+@
+
+
+14.3
+log
+@updates so that regression tests run against build tree, not install dir.
+Can now be run from build dir other than in source tree.
+@
+text
+@d51 1
+d127 7
+@
+
+
+14.2
+log
+@Regression test refinements for g_qa
+@
+text
+@d7 1
+a7 1
+mged -c gqa.g <<EOF > /dev/null 2>&1
+d70 1
+a70 1
+GQA="../src/gtools/.libs/g_qa -u m,m^3,kg -g 0.25m,0.5mm -p"
+@
+
+
+14.1
+log
+@Integrated g_qa testing.  Not that at the moment we run the test but don't check the results.
+@
+text
+@d3 2
+a4 1
+echo "5 7.68 stuff" > density_table.txt
+a6 12
+
+# box1.s = 10x10x10	= 1000 m^3
+# box2.s = 8x8x8	=  512 m^3
+# box3.s = 8x8x9	=  576 m^3
+# adj_air1.r = 512-256	= 256 m^3
+# adj_air2.r = 512-256	= 256 m^3
+# closed_box.r =1000-512= 488 m^3
+# exposed_air.r 	= 576 m^3
+# open_box.r = 1000-576 = 424 m^3
+
+
+
+d17 4
+d57 14
+a70 1
+GQA="../src/gtools/.libs/g_qa -u m,m^3,kg"
+a72 1
+rm -f gqa.log
+a73 2
+echo $GQA -Ao gqa.g overlaps
+$GQA -Ao gqa.g overlaps >> gqa.log 2>&1
+d75 11
+d88 4
+a91 2
+echo $GQA -Ae gqa.g exposed_air.g
+$GQA -Ae gqa.g exposed_air.g >> gqa.log 2>&1
+d94 4
+a97 2
+echo $GQA -Ag -r gqa.g gap.g
+$GQA -Ag gqa.g gap.g >> gqa.log 2>&1
+d100 4
+a103 2
+echo $GQA -Av -r gqa.g closed_box.r
+$GQA -Av gqa.g closed_box.r >> gqa.log 2>&1
+d106 4
+a109 2
+echo $GQA -Aw -r gqa.g closed_box.r
+$GQA -Aw gqa.g closed_box.r >> gqa.log 2>&1
+d113 12
+a124 2
+echo $GQA -Avw gqa.g adj_air.g
+$GQA -Avw gqa.g adj_air.g >> gqa.log 2>&1
+@
+

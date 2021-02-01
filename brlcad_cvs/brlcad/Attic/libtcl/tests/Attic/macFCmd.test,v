@@ -1,0 +1,455 @@
+head	1.3;
+access;
+symbols
+	rel-5-2:1.2
+	rel-5-1-patches:1.2.0.2
+	rel-5-1:1.2
+	rel-5-0:1.1
+	rel-5-0beta:1.1;
+locks; strict;
+comment	@# @;
+
+
+1.3
+date	2000.12.06.21.20.37;	author bparker;	state dead;
+branches;
+next	1.2;
+
+1.2
+date	99.10.19.19.36.15;	author jra;	state Exp;
+branches
+	1.2.2.1;
+next	1.1;
+
+1.1
+date	98.06.02.19.42.05;	author jra;	state Exp;
+branches;
+next	;
+
+1.2.2.1
+date	2000.12.06.21.25.59;	author bparker;	state dead;
+branches;
+next	;
+
+
+desc
+@Original
+@
+
+
+1.3
+log
+@Upgrading to newer version
+@
+text
+@# This file tests the tclfCmd.c file.
+#
+# This file contains a collection of tests for one or more of the Tcl
+# built-in commands.  Sourcing this file into Tcl runs the tests and
+# generates output for errors.  No output means no errors were found.
+#
+# Copyright (c) 1997 Sun Microsystems, Inc.
+# Copyright (c) 1998-1999 by Scriptics Corporation.
+#
+# See the file "license.terms" for information on usage and redistribution
+# of this file, and for a DISCLAIMER OF ALL WARRANTIES.
+#
+# RCS: @@(#) $Id: macFCmd.test,v 1.2 1999/10/19 19:36:15 jra Exp $
+#
+
+if {[lsearch [namespace children] ::tcltest] == -1} {
+    package require tcltest
+    namespace import ::tcltest::*
+}
+
+catch {file delete -force foo.dir}
+file mkdir foo.dir
+if {[catch {file attributes foo.dir -readonly 1}]} {
+    set ::tcltest::testConstraints(fileSharing) 0
+    set ::tcltest::testConstraints(notFileSharing) 1
+} else {
+    set ::tcltest::testConstraints(fileSharing) 1
+    set ::tcltest::testConstraints(notFileSharing) 0
+}
+file delete -force foo.dir
+
+test macFCmd-1.1 {GetFileFinderAttributes - no file} {macOnly} {
+    catch {file delete -force foo.file}
+    list [catch {file attributes foo.file -creator} msg] $msg
+} {1 {couldn't get attributes for file ":foo.file": no such file or directory}}
+test macFCmd-1.2 {GetFileFinderAttributes - creator} {macOnly} {
+    catch {file delete -force foo.file}
+    catch {close [open foo.file w]}
+    list [catch {file attributes foo.file -creator} msg] $msg \
+	    [file delete -force foo.file]
+} {0 {MPW } {}}
+test macFCmd-1.3 {GetFileFinderAttributes - type} {macOnly} {
+    catch {file delete -force foo.file}
+    catch {close [open foo.file w]}
+    list [catch {file attributes foo.file -type} msg] $msg \
+	    [file delete -force foo.file]
+} {0 TEXT {}}
+test macFCmd-1.4 {GetFileFinderAttributes - not hidden} {macOnly} {
+    catch {file delete -force foo.file}
+    catch {close [open foo.file w]}
+    list [catch {file attributes foo.file -hidden} msg] $msg \
+	    [file delete -force foo.file]
+} {0 0 {}}
+test macFCmd-1.5 {GetFileFinderAttributes - hidden} {macOnly} {
+    catch {file delete -force foo.file}
+    catch {close [open foo.file w]}
+    file attributes foo.file -hidden 1
+    list [catch {file attributes foo.file -hidden} msg] $msg \
+	    [file delete -force foo.file]
+} {0 1 {}}
+test macFCmd-1.6 {GetFileFinderAttributes - folder creator} {macOnly} {
+    catch {file delete -force foo.dir}
+    file mkdir foo.dir
+    list [catch {file attributes foo.dir -creator} msg] $msg \
+	    [file delete -force foo.dir]
+} {0 Fldr {}}
+test macFCmd-1.7 {GetFileFinderAttributes - folder type} {macOnly} {
+    catch {file delete -force foo.dir}
+    file mkdir foo.dir
+    list [catch {file attributes foo.dir -type} msg] $msg \
+	    [file delete -force foo.dir]
+} {0 Fldr {}}
+test macFCmd-1.8 {GetFileFinderAttributes - folder hidden} {macOnly} {
+    catch {file delete -force foo.dir}
+    file mkdir foo.dir
+    list [catch {file attributes foo.dir -hidden} msg] $msg \
+	    [file delete -force foo.dir]
+} {0 0 {}}
+
+test macFCmd-2.1 {GetFileReadOnly - bad file} {macOnly} {
+    catch {file delete -force foo.file}
+    list [catch {file attributes foo.file -readonly} msg] $msg
+} {1 {couldn't get attributes for file ":foo.file": no such file or directory}}
+test macFCmd-2.2 {GetFileReadOnly - file not read only} {macOnly} {
+    catch {file delete -force foo.file}
+    close [open foo.file w]
+    list [catch {file attributes foo.file -readonly} msg] $msg \
+	    [file delete -force foo.file]
+} {0 0 {}}
+test macFCmd-2.3 {GetFileReadOnly - file read only} {macOnly} {
+    catch {file delete -force foo.file}
+    close [open foo.file w]
+    file attributes foo.file -readonly 1
+    list [catch {file attributes foo.file -readonly} msg] $msg \
+	    [file delete -force foo.file]
+} {0 1 {}}
+test macFCmd-2.4 {GetFileReadOnly - directory not read only} {macOnly} {
+    catch {file delete -force foo.dir}
+    file mkdir foo.dir
+    list [catch {file attributes foo.dir -readonly} msg] $msg \
+	    [file delete -force foo.dir]
+} {0 0 {}}
+test macFCmd-2.5 {GetFileReadOnly - directory read only} {macOnly fileSharing} {
+    catch {file delete -force foo.dir}
+    file mkdir foo.dir
+    file attributes foo.dir -readonly 1
+    list [catch {file attributes foo.dir -readonly} msg] $msg \
+	    [file delete -force foo.dir]
+} {0 1 {}}
+
+test macFCmd-3.1 {SetFileFinderAttributes - bad file} {macOnly} {
+    catch {file delete -force foo.file}
+    list [catch {file attributes foo.file -creator FOOO} msg] $msg
+} {1 {couldn't set attributes for file ":foo.file": no such file or directory}}
+test macFCmd-3.2 {SetFileFinderAttributes - creator} {macOnly} {
+    catch {file delete -force foo.file}
+    close [open foo.file w]
+    list [catch {file attributes foo.file -creator FOOO} msg] $msg \
+	    [file attributes foo.file -creator] [file delete -force foo.file]
+} {0 {} FOOO {}}
+test macFCmd-3.3 {SetFileFinderAttributes - bad creator} {macOnly} {
+    catch {file delete -force foo.file}
+    close [open foo.file w]
+    list [catch {file attributes foo.file -creator 0} msg] $msg \
+	    [file delete -force foo.file]
+} {1 {expected Macintosh OS type but got "0"} {}}
+test macFCmd-3.4 {SetFileFinderAttributes - hidden} {macOnly} {
+    catch {file delete -force foo.file}
+    close [open foo.file w]
+    list [catch {file attributes foo.file -hidden 1} msg] $msg \
+	    [file attributes foo.file -hidden] [file delete -force foo.file]
+} {0 {} 1 {}}
+test macFCmd-3.5 {SetFileFinderAttributes - type} {macOnly} {
+    catch {file delete -force foo.file}
+    close [open foo.file w]
+    list [catch {file attributes foo.file -type FOOO} msg] $msg \
+	    [file attributes foo.file -type] [file delete -force foo.file]
+} {0 {} FOOO {}}
+test macFCmd-3.6 {SetFileFinderAttributes - bad type} {macOnly} {
+    catch {file delete -force foo.file}
+    close [open foo.file w]
+    list [catch {file attributes foo.file -type 0} msg] $msg \
+	    [file delete -force foo.file]
+} {1 {expected Macintosh OS type but got "0"} {}}
+test macFCmd-3.7 {SetFileFinderAttributes - directory} {macOnly} {
+    catch {file delete -force foo.dir}
+    file mkdir foo.dir
+    list [catch {file attributes foo.dir -creator FOOO} msg] \
+	    $msg [file delete -force foo.dir]
+} {1 {cannot set -creator: ":foo.dir" is a directory} {}}
+
+test macFCmd-4.1 {SetFileReadOnly - bad file} {macOnly} {
+    catch {file delete -force foo.file}
+    list [catch {file attributes foo.file -readonly 1} msg] $msg
+} {1 {couldn't set attributes for file ":foo.file": no such file or directory}}
+test macFCmd-4.2 {SetFileReadOnly - file not readonly} {macOnly} {
+    catch {file delete -force foo.file}
+    close [open foo.file w]
+    list [catch {file attributes foo.file -readonly 0} msg] \
+	    $msg [file attributes foo.file -readonly] [file delete -force foo.file]
+} {0 {} 0 {}}
+test macFCmd-4.3 {SetFileReadOnly - file readonly} {macOnly} {
+    catch {file delete -force foo.file}
+    close [open foo.file w]
+    list [catch {file attributes foo.file -readonly 1} msg] \
+	    $msg [file attributes foo.file -readonly] [file delete -force foo.file]
+} {0 {} 1 {}}
+test macFCmd-4.4 {SetFileReadOnly - directory not readonly} \
+	{macOnly fileSharing} {
+    catch {file delete -force foo.dir}
+    file mkdir foo.dir
+    list [catch {file attributes foo.dir -readonly 0} msg] \
+	    $msg [file attributes foo.dir -readonly] [file delete -force foo.dir]
+} {0 {} 0 {}}
+test macFCmd-4.5 {SetFileReadOnly - directory not readonly} \
+	{macOnly notFileSharing} {
+    catch {file delete -force foo.dir}
+    file mkdir foo.dir
+    list [catch {file attributes foo.dir -readonly 0} msg] $msg \
+	    [file delete -force foo.dir]
+} {1 {cannot set a directory to read-only when File Sharing is turned off} {}}
+test macFCmd-4.6 {SetFileReadOnly - directory readonly} {macOnly fileSharing} {
+    catch {file delete -force foo.dir}
+    file mkdir foo.dir
+    list [catch {file attributes foo.dir -readonly 1} msg] $msg \
+	    [file attributes foo.dir -readonly] [file delete -force foo.dir]
+} {0 {} 1 {}}
+test macFCmd-4.7 {SetFileReadOnly - directory readonly} {macOnly notFileSharing} {
+    catch {file delete -force foo.dir}
+    file mkdir foo.dir
+    list [catch {file attributes foo.dir -readonly 1} msg] $msg \
+	    [file delete -force foo.dir]
+} {1 {cannot set a directory to read-only when File Sharing is turned off} {}}
+
+# cleanup
+::tcltest::cleanupTests
+return
+
+
+
+
+
+
+
+
+
+
+
+
+@
+
+
+1.2
+log
+@TCL 8.2.1 update
+@
+text
+@d13 1
+a13 1
+# RCS: @@(#) $Id: macFCmd.test,v 1.5 1999/07/01 17:36:18 jenn Exp $
+@
+
+
+1.2.2.1
+log
+@Upgrading to newer version
+@
+text
+@d13 1
+a13 1
+# RCS: @@(#) $Id: macFCmd.test,v 1.2 1999/10/19 19:36:15 jra Exp $
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d8 1
+d13 1
+a13 1
+# SCCS: @@(#) macFCmd.test 1.3 97/06/23 18:24:10
+d16 3
+a18 2
+if {$tcl_platform(platform) != "macintosh"} {
+    return
+a20 2
+if {[string compare test [info procs test]] == 1} then {source defs}
+
+d24 2
+a25 2
+    set testConfig(fileSharing) 0
+    set testConfig(notFileSharing) 1
+d27 2
+a28 2
+    set testConfig(fileSharing) 1
+    set testConfig(notFileSharing) 0
+d32 1
+a32 1
+test macFCmd-1.1 {GetFileFinderAttributes - no file} {
+d36 1
+a36 1
+test macFCmd-1.2 {GetFileFinderAttributes - creator} {
+d39 2
+a40 1
+    list [catch {file attributes foo.file -creator} msg] $msg [file delete -force foo.file]
+d42 1
+a42 1
+test macFCmd-1.3 {GetFileFinderAttributes - type} {
+d45 2
+a46 1
+    list [catch {file attributes foo.file -type} msg] $msg [file delete -force foo.file]
+d48 1
+a48 1
+test macFCmd-1.4 {GetFileFinderAttributes - not hidden} {
+d51 2
+a52 1
+    list [catch {file attributes foo.file -hidden} msg] $msg [file delete -force foo.file]
+d54 1
+a54 1
+test macFCmd-1.5 {GetFileFinderAttributes - hidden} {
+d58 2
+a59 1
+    list [catch {file attributes foo.file -hidden} msg] $msg [file delete -force foo.file]
+d61 1
+a61 1
+test macFCmd-1.6 {GetFileFinderAttributes - folder creator} {
+d64 2
+a65 1
+    list [catch {file attributes foo.dir -creator} msg] $msg [file delete -force foo.dir]
+d67 1
+a67 1
+test macFCmd-1.7 {GetFileFinderAttributes - folder type} {
+d70 2
+a71 1
+    list [catch {file attributes foo.dir -type} msg] $msg [file delete -force foo.dir]
+d73 1
+a73 1
+test macFCmd-1.8 {GetFileFinderAttributes - folder hidden} {
+d76 2
+a77 1
+    list [catch {file attributes foo.dir -hidden} msg] $msg [file delete -force foo.dir]
+d80 1
+a80 1
+test macFCmd-2.1 {GetFileReadOnly - bad file} {
+d84 1
+a84 1
+test macFCmd-2.2 {GetFileReadOnly - file not read only} {
+d87 2
+a88 1
+    list [catch {file attributes foo.file -readonly} msg] $msg [file delete -force foo.file]
+d90 1
+a90 1
+test macFCmd-2.3 {GetFileReadOnly - file read only} {
+d94 2
+a95 1
+    list [catch {file attributes foo.file -readonly} msg] $msg [file delete -force foo.file]
+d97 1
+a97 1
+test macFCmd-2.4 {GetFileReadOnly - directory not read only} {
+d100 2
+a101 1
+    list [catch {file attributes foo.dir -readonly} msg] $msg [file delete -force foo.dir]
+d103 1
+a103 1
+test macFCmd-2.5 {GetFileReadOnly - directory read only} {fileSharing} {
+d107 2
+a108 1
+    list [catch {file attributes foo.dir -readonly} msg] $msg [file delete -force foo.dir]
+d111 1
+a111 1
+test macFCmd-3.1 {SetFileFinderAttributes - bad file} {
+d115 1
+a115 1
+test macFCmd-3.2 {SetFileFinderAttributes - creator} {
+d118 2
+a119 1
+    list [catch {file attributes foo.file -creator FOOO} msg] $msg [file attributes foo.file -creator] [file delete -force foo.file]
+d121 1
+a121 1
+test macFCmd-3.3 {SetFileFinderAttributes - bad creator} {
+d124 2
+a125 1
+    list [catch {file attributes foo.file -creator 0} msg] $msg [file delete -force foo.file]
+d127 1
+a127 1
+test macFCmd-3.4 {SetFileFinderAttributes - hidden} {
+d130 2
+a131 1
+    list [catch {file attributes foo.file -hidden 1} msg] $msg [file attributes foo.file -hidden] [file delete -force foo.file]
+d133 1
+a133 1
+test macFCmd-3.5 {SetFileFinderAttributes - type} {
+d136 2
+a137 1
+    list [catch {file attributes foo.file -type FOOO} msg] $msg [file attributes foo.file -type] [file delete -force foo.file]
+d139 1
+a139 1
+test macFCmd-3.6 {SetFileFinderAttributes - bad type} {
+d142 2
+a143 1
+    list [catch {file attributes foo.file -type 0} msg] $msg [file delete -force foo.file]
+d145 1
+a145 1
+test macFCmd-3.7 {SetFileFinderAttributes - directory} {
+d148 2
+a149 1
+    list [catch {file attributes foo.dir -creator FOOO} msg] $msg [file delete -force foo.dir]
+d152 1
+a152 1
+test macFCmd-4.1 {SetFileReadOnly - bad file} {
+d156 1
+a156 1
+test macFCmd-4.2 {SetFileReadOnly - file not readonly} {
+d159 2
+a160 1
+    list [catch {file attributes foo.file -readonly 0} msg] $msg [file attributes foo.file -readonly] [file delete -force foo.file]
+d162 1
+a162 1
+test macFCmd-4.3 {SetFileReadOnly - file readonly} {
+d165 2
+a166 1
+    list [catch {file attributes foo.file -readonly 1} msg] $msg [file attributes foo.file -readonly] [file delete -force foo.file]
+d168 2
+a169 1
+test macFCmd-4.4 {SetFileReadOnly - directory not readonly} {fileSharing} {
+d172 2
+a173 1
+    list [catch {file attributes foo.dir -readonly 0} msg] $msg [file attributes foo.dir -readonly] [file delete -force foo.dir]
+d175 2
+a176 1
+test macFCmd-4.5 {SetFileReadOnly - directory not readonly} {notFileSharing} {
+d179 2
+a180 1
+    list [catch {file attributes foo.dir -readonly 0} msg] $msg [file delete -force foo.dir]
+d182 1
+a182 1
+test macFCmd-4.6 {SetFileReadOnly - directory readonly} {fileSharing} {
+d185 2
+a186 1
+    list [catch {file attributes foo.dir -readonly 1} msg] $msg [file attributes foo.dir -readonly] [file delete -force foo.dir]
+d188 1
+a188 1
+test macFCmd-4.7 {SetFileReadOnly - directory readonly} {notFileSharing} {
+d191 2
+a192 1
+    list [catch {file attributes foo.dir -readonly 1} msg] $msg [file delete -force foo.dir]
+d194 16
+@
+

@@ -1,0 +1,470 @@
+head	11.9;
+access;
+symbols
+	ansi-20040405-merged:11.6.2.1
+	postmerge-20040405-ansi:11.7
+	premerge-20040404-ansi:11.6
+	postmerge-autoconf:11.6
+	autoconf-freeze:11.6
+	premerge-autoconf:11.6
+	postmerge-20040315-windows:11.6
+	premerge-20040315-windows:11.6
+	windows-20040315-freeze:11.6
+	autoconf-20031203:11.6
+	autoconf-20031202:11.6
+	autoconf-branch:11.6.0.10
+	phong-branch:11.6.0.8
+	photonmap-branch:11.6.0.6
+	rel-6-1-DP:11.6
+	windows-branch:11.6.0.4
+	rel-6-0-2:11.4
+	ansi-branch:11.6.0.2
+	rel-6-0-1-branch:11.4.0.2
+	hartley-6-0-post:11.5
+	hartley-6-0-pre:11.4
+	rel-6-0-1:11.4
+	rel-6-0:11.4
+	rel-5-4:11.2
+	offsite-5-3-pre:11.3
+	rel-5-3:11.2
+	rel-5-2:11.2
+	rel-5-1-branch:11.2.0.2
+	rel-5-1:11.2
+	rel-5-0:11.2
+	rel-5-0-beta:11.2
+	rel-4-5:11.2
+	ctj-4-5-post:11.2
+	ctj-4-5-pre:11.2
+	rel-4-4:11.1
+	rel-4-0:10.1;
+locks; strict;
+comment	@ * @;
+
+
+11.9
+date	2004.05.21.16.38.44;	author morrison;	state dead;
+branches;
+next	11.8;
+
+11.8
+date	2004.05.10.15.30.50;	author erikg;	state Exp;
+branches;
+next	11.7;
+
+11.7
+date	2004.04.05.05.46.00;	author morrison;	state Exp;
+branches;
+next	11.6;
+
+11.6
+date	2002.08.20.17.08.47;	author jra;	state Exp;
+branches
+	11.6.2.1;
+next	11.5;
+
+11.5
+date	2002.08.15.20.55.59;	author hartley;	state Exp;
+branches;
+next	11.4;
+
+11.4
+date	2001.08.10.20.44.35;	author jra;	state Exp;
+branches;
+next	11.3;
+
+11.3
+date	2000.08.24.22.46.17;	author mike;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	96.07.17.17.00.59;	author jra;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	95.01.04.10.20.26;	author mike;	state Rel4_4;
+branches;
+next	10.3;
+
+10.3
+date	95.01.04.07.13.19;	author mike;	state Exp;
+branches;
+next	10.2;
+
+10.2
+date	94.08.11.16.38.13;	author gdurf;	state Exp;
+branches;
+next	10.1;
+
+10.1
+date	91.10.12.06.51.55;	author mike;	state Rel4_0;
+branches;
+next	1.1;
+
+1.1
+date	91.01.03.20.45.14;	author butler;	state Exp;
+branches;
+next	;
+
+11.6.2.1
+date	2002.09.19.18.02.27;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@dist
+@
+
+
+11.9
+log
+@moved to src/tools/
+@
+text
+@/*
+ * This software is copyrighted as noted below.  It may be freely copied,
+ * modified, and redistributed, provided that the copyright notice is 
+ * preserved on all copies.
+ * 
+ * There is no warranty or other guarantee of fitness for this software,
+ * it is provided solely "as is".  Bug reports or fixes may be sent
+ * to the author, who may or may not act on them as he desires.
+ *
+ * You may not include this software in a program or other software product
+ * without supplying the source, or without informing the end-user that the 
+ * source is available for no extra charge.
+ *
+ * If you modify this software, you should include a notice giving the
+ * name of the person performing the modification, the date of modification,
+ * and the reason for such modification.
+ */
+/* 
+ * avg4.c - Reduce image by half in X and Y, producing alphas even
+ *          if they weren't there originally.
+ * 
+ * Author:	Rod Bogart & John W. Peterson
+ * 		Computer Science Dept.
+ * 		University of Utah
+ * Date:	Fri Jun 20 1986
+ * Copyright (c) 1986, University of Utah
+ * 
+ */
+#ifndef lint
+static const char rcs_ident[] = "$Header: /n/xoff/cvs/brlcad/tools/avg4.c,v 11.8 2004/05/10 15:30:50 erikg Exp $";
+#endif
+
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+
+#include <stdio.h>
+
+#ifdef USE_STRING_H
+#include <string.h>
+#else
+#include <strings.h>
+#endif
+
+#include "machine.h"
+#include "externs.h"
+
+#include "rle.h"
+
+#define MALLOC_ERR {fprintf(stderr, "avg4: ran out of heap space\n");exit(-2);}
+
+static int bit_count[16] = {0, 63, 63, 127, 63, 127, 127,
+    192, 63, 127, 127, 192, 127, 192, 192, 255};
+
+int
+main(int argc, char **argv)
+{
+    char	*infname = NULL, *outfname = NULL;
+    char	*cmd = cmd_name( argv );
+    int		oflag = 0;
+    int		rle_cnt;
+    FILE	*outfile = stdout;
+    int         i, j;
+    int		new_xlen,
+		new_ylen;
+    int		rle_err;
+    rle_hdr in_hdr, out_hdr;
+    rle_pixel **rows0, **rows1, **rowsout;
+    rle_pixel *ptr0, *ptr1, *ptrout, *alphptr;
+    int		A, chan;
+    
+    if ( scanargs( argc, argv, "% o%-outfile!s infile%s",
+		   &oflag, &outfname, &infname ) == 0 )
+	exit( 1 );
+
+    in_hdr.rle_file = rle_open_f( cmd, infname, "r" );
+
+    for ( rle_cnt = 0;
+	  (rle_err = rle_get_setup( &in_hdr )) == RLE_SUCCESS;
+	  rle_cnt++ )
+    {
+	if ( rle_cnt == 0 )
+	    outfile = rle_open_f( cmd, outfname, "w" );
+
+	out_hdr = in_hdr;
+	rle_addhist( argv, &in_hdr, &out_hdr );
+
+	new_xlen = (in_hdr.xmax - in_hdr.xmin +1 ) / 2;
+	new_ylen = (in_hdr.ymax - in_hdr.ymin +1 ) / 2;
+	out_hdr.xmin = in_hdr.xmin / 2;
+	out_hdr.ymin = in_hdr.ymin / 2;
+	out_hdr.xmax = out_hdr.xmin + new_xlen - 1;
+	out_hdr.ymax = out_hdr.ymin + new_ylen - 1;
+
+	out_hdr.alpha = 1;	/* Force alpha in output. */
+	RLE_SET_BIT( out_hdr, RLE_ALPHA );
+
+	out_hdr.rle_file = outfile;
+	rle_put_setup( &out_hdr );
+
+	/* Oink. */
+	if (rle_row_alloc( &in_hdr, &rows0 ))
+	    MALLOC_ERR;
+
+	if (rle_row_alloc( &in_hdr, &rows1 ))
+	    MALLOC_ERR;
+
+	if (rle_row_alloc( &out_hdr, &rowsout ))
+	    MALLOC_ERR;
+
+	for ( j = 0; j < new_ylen*2; j+=2 )
+	{
+	    rle_getrow(&in_hdr, rows0 );
+	    rle_getrow(&in_hdr, rows1 );
+
+	    for (chan = RLE_ALPHA; chan < in_hdr.ncolors; chan++)
+	    {
+		ptr0 = &(rows0[chan][in_hdr.xmin]);
+		ptr1 = &(rows1[chan][in_hdr.xmin]);
+		ptrout = rowsout[chan];
+		alphptr = rowsout[RLE_ALPHA];
+		/*
+		 * If we don't start out with an alpha channel in the
+		 * original image, then we want to fake one up.  This
+		 * works by counting the number of non-zero pixels in the
+		 * R, G and B channels.  We set bits in the alpha channel
+		 * for the non-zero pixels found, then use bit_count to
+		 * convert this to reasonable coverage values.
+		 */
+		if ((chan == RLE_ALPHA) && (!in_hdr.alpha))
+		{
+		    bzero((char *)alphptr, new_xlen);
+		}
+		else for( i = 0; i < new_xlen; i++)
+		{
+		    if (!in_hdr.alpha)
+		    {
+			*alphptr |= (*ptr0 ? 1 : 0) | (ptr0[1] ? 2 : 0) |
+			    (*ptr1 ? 4 : 0) | (ptr1[1] ? 8 : 0);
+
+			/* calc fake alpha from bit count */
+			if (chan == (in_hdr.ncolors - 1))
+			    *alphptr = bit_count[*alphptr];
+
+			alphptr++;
+		    }
+		    A = (int) *ptr0++ + (int) *ptr0++ +
+			(int) *ptr1++ + (int) *ptr1++;
+		    *ptrout++ = (rle_pixel) (A / 4);
+		}
+	    }
+	    rle_putrow( rowsout, new_xlen, &out_hdr );
+	}
+	rle_puteof( &out_hdr );
+
+	rle_row_free( &in_hdr, rows0 );
+	rle_row_free( &in_hdr, rows1 );
+	rle_row_free( &out_hdr, rowsout );
+    }
+
+    if ( rle_cnt == 0 || (rle_err != RLE_EOF && rle_err != RLE_EMPTY) )
+	rle_get_error( rle_err, cmd, infname );
+    
+    exit( 0 );
+}
+@
+
+
+11.8
+log
+@change conf.h to a wrapped config.h
+@
+text
+@d30 1
+a30 1
+static const char rcs_ident[] = "$Header: /cvs/brlcad/tools/avg4.c,v 11.7 2004/04/05 05:46:00 morrison Exp $";
+@
+
+
+11.7
+log
+@merge of ansi-6-0-branch into head
+@
+text
+@d30 1
+a30 1
+static const char rcs_ident[] = "$Header$";
+d33 5
+a37 1
+#include "conf.h"
+@
+
+
+11.6
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d30 1
+a30 1
+static const char rcs_ident[] = "$Header: /c/CVS/brlcad/tools/avg4.c,v 11.4 2001/08/10 20:44:35 jra Exp $";
+d54 1
+a54 3
+main(argc, argv)
+int	argc;
+char	*argv[];
+@
+
+
+11.6.2.1
+log
+@Initial ANSIfication
+@
+text
+@d30 1
+a30 1
+static const char rcs_ident[] = "$Header: /c/CVS/brlcad/tools/avg4.c,v 11.6 2002/08/20 17:08:47 jra Exp $";
+d54 3
+a56 1
+main(int argc, char **argv)
+@
+
+
+11.5
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d54 3
+a56 1
+main(int argc, char **argv)
+@
+
+
+11.4
+log
+@lint
+@
+text
+@d30 1
+a30 1
+static const char rcs_ident[] = "$Header: /c/CVS/brlcad/tools/avg4.c,v 11.3 2000/08/24 22:46:17 mike Exp $";
+d54 1
+a54 3
+main(argc, argv)
+int	argc;
+char	*argv[];
+@
+
+
+11.3
+log
+@
+lint
+@
+text
+@d30 1
+a30 1
+static const char rcs_ident[] = "$Header: /c/CVS/brlcad/tools/avg4.c,v 11.2 1996/07/17 17:00:59 jra Exp $";
+d36 6
+@
+
+
+11.2
+log
+@Minor Mods for IRIX 6.2
+@
+text
+@d30 1
+a30 1
+static char rcs_ident[] = "$Header: /m/cad/tools/RCS/avg4.c,v 11.1 1995/01/04 10:20:26 mike Rel4_4 jra $";
+@
+
+
+11.1
+log
+@Release_4.4
+@
+text
+@d30 1
+a30 1
+static char rcs_ident[] = "$Header: /m/cad/tools/RCS/avg4.c,v 10.3 95/01/04 07:13:19 mike Exp $";
+d44 1
+a44 1
+static bit_count[16] = {0, 63, 63, 127, 63, 127, 127,
+@
+
+
+10.3
+log
+@DEC Alpha
+@
+text
+@d30 1
+a30 1
+static char rcs_ident[] = "$Header: /m/cad/tools/RCS/avg4.c,v 10.2 94/08/11 16:38:13 gdurf Exp Locker: mike $";
+@
+
+
+10.2
+log
+@Altered #defines and #includes to conform to BRL-CAD standards
+@
+text
+@d30 1
+a30 1
+static char rcs_ident[] = "$Header: /m/cad/tools/RCS/avg4.c,v 10.1 1991/10/12 06:51:55 mike Rel4_0 gdurf $";
+d126 1
+a126 1
+		    bzero(alphptr, new_xlen);
+@
+
+
+10.1
+log
+@Release_4.0
+@
+text
+@d30 1
+a30 1
+static char rcs_ident[] = "$Header: /m/cad/tools/RCS/avg4.c,v 1.1 91/01/03 20:45:14 butler Exp $";
+d33 1
+a35 4
+#include <rle.h>
+#ifdef USE_STDLIB_H
+#include <stdlib.h>
+#endif /* USE_STDLIB_H */
+d37 5
+d47 1
+a47 1
+void
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d30 1
+a30 1
+static char rcs_ident[] = "$Header: /usr/users/spencer/src/urt/tools/RCS/avg4.c,v 3.0 90/08/03 15:21:41 spencer Exp $";
+@

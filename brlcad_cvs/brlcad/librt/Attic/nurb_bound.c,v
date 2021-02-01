@@ -1,0 +1,738 @@
+head	11.9;
+access;
+symbols
+	ansi-20040405-merged:11.5.2.2
+	postmerge-20040405-ansi:11.7
+	premerge-20040404-ansi:11.6
+	postmerge-autoconf:11.6
+	autoconf-freeze:11.5.10.1
+	premerge-autoconf:11.6
+	ansi-20040316-freeze:11.5.2.1
+	postmerge-20040315-windows:11.6
+	premerge-20040315-windows:11.6
+	windows-20040315-freeze:11.5.4.1
+	autoconf-20031203:11.5
+	autoconf-20031202:11.5
+	autoconf-branch:11.5.0.10
+	phong-branch:11.5.0.8
+	photonmap-branch:11.5.0.6
+	rel-6-1-DP:11.5
+	windows-branch:11.5.0.4
+	rel-6-0-2:11.3
+	ansi-branch:11.5.0.2
+	rel-6-0-1-branch:11.3.0.4
+	hartley-6-0-post:11.4
+	hartley-6-0-pre:11.3
+	rel-6-0-1:11.3
+	rel-6-0:11.3
+	rel-5-4:11.3
+	offsite-5-3-pre:11.3
+	rel-5-3:11.3
+	rel-5-2:11.3
+	rel-5-1-branch:11.3.0.2
+	rel-5-1:11.3
+	rel-5-0:11.3
+	rel-5-0-beta:11.3
+	rel-4-5:11.3
+	ctj-4-5-post:11.3
+	ctj-4-5-pre:11.3
+	rel-4-4:11.1
+	rel-4-0:10.1;
+locks; strict;
+comment	@ * @;
+
+
+11.9
+date	2004.05.21.18.07.34;	author morrison;	state dead;
+branches;
+next	11.8;
+
+11.8
+date	2004.05.10.15.30.46;	author erikg;	state Exp;
+branches;
+next	11.7;
+
+11.7
+date	2004.04.05.08.48.58;	author morrison;	state Exp;
+branches;
+next	11.6;
+
+11.6
+date	2004.02.02.17.39.28;	author morrison;	state Exp;
+branches;
+next	11.5;
+
+11.5
+date	2002.08.20.17.08.06;	author jra;	state Exp;
+branches
+	11.5.2.1
+	11.5.4.1
+	11.5.10.1;
+next	11.4;
+
+11.4
+date	2002.08.15.20.55.19;	author hartley;	state Exp;
+branches;
+next	11.3;
+
+11.3
+date	96.12.31.01.09.27;	author mike;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	95.12.01.02.49.33;	author mike;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	95.01.04.09.53.43;	author mike;	state Rel4_4;
+branches
+	11.1.1.1;
+next	10.5;
+
+10.5
+date	94.08.11.01.09.30;	author gdurf;	state Exp;
+branches;
+next	10.4;
+
+10.4
+date	92.05.29.01.19.34;	author mike;	state Exp;
+branches;
+next	10.3;
+
+10.3
+date	92.05.29.00.52.18;	author mike;	state Exp;
+branches;
+next	10.2;
+
+10.2
+date	92.05.28.22.11.56;	author mike;	state Exp;
+branches;
+next	10.1;
+
+10.1
+date	91.10.12.06.39.05;	author mike;	state Rel4_0;
+branches;
+next	1.2;
+
+1.2
+date	91.06.14.09.42.07;	author stay;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	91.05.18.02.35.06;	author stay;	state Exp;
+branches;
+next	;
+
+11.1.1.1
+date	98.01.29.06.43.38;	author mike;	state Rel4_5;
+branches;
+next	;
+
+11.5.2.1
+date	2002.09.19.18.01.42;	author morrison;	state Exp;
+branches;
+next	11.5.2.2;
+
+11.5.2.2
+date	2004.03.17.21.18.55;	author morrison;	state Exp;
+branches;
+next	;
+
+11.5.4.1
+date	2004.03.11.23.43.43;	author morrison;	state Exp;
+branches;
+next	;
+
+11.5.10.1
+date	2004.02.12.18.37.46;	author erikg;	state Exp;
+branches;
+next	;
+
+
+desc
+@Bounding routines
+@
+
+
+11.9
+log
+@moved to src/
+@
+text
+@/* 
+ *       N U R B _ B O U N D . C
+ *
+ * Function -
+ *     Find the bounding box for the a NURB surface.
+ * 
+ * Author -
+ *     Paul R. Stay
+ *
+ * Source -
+ *     SECAD/VLD Computing Consortium, Bldg 394
+ *     The U.S. Army Ballistic Research Laboratory
+ *     Aberdeen Proving Ground, Maryland 21005
+ *
+ * Copyright Notice -
+ *     This software is Copyright (C) 1990-2004 by the United States Army.
+ *     All rights reserved.
+ */
+
+/* Since a B-Spline surface follows the convex hull property 
+ * the bounding box can be found by taking the min and max of
+ * all points in the control  If the surface mesh contains
+ * homogeneous points (i.e. [XYZW]) then divide out the W first.
+ */
+
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+
+#include <stdio.h>
+
+#include "machine.h"
+#include "vmath.h"
+#include "raytrace.h"
+#include "nurb.h"
+
+#define NEAR_ZERO(val,epsilon)	( ((val) > -epsilon) && ((val) < epsilon) )
+
+#ifndef INFINITY		/* if INFINITY is not defined define it */
+#define INFINITY	(1.0e20)
+#endif
+
+/* rt_nurb_sbound()
+ * 	Calculates the bounding Right Parallel Piped (RPP) of the
+ *	NURB surface, and returns the minimum and maximum points
+ * 	of the surface.
+ */
+
+int
+rt_nurb_s_bound(struct face_g_snurb *srf, fastf_t *bmin, fastf_t *bmax)
+{
+	register fastf_t *p_ptr;	/* Mesh pointr */
+	register int	coords;		/* Elements per vector */
+	int	i;
+	int	rat;
+
+
+	bmin[0] = bmin[1] = bmin[2] = INFINITY;
+	bmax[0] = bmax[1] = bmax[2] = -INFINITY;
+
+	if ( srf == (struct face_g_snurb *)0 )  {
+		bu_log("nurb_s_bound:  NULL surface\n");
+		return(-1);		/* BAD */
+	}
+
+	p_ptr = srf->ctl_points;
+	coords = RT_NURB_EXTRACT_COORDS(srf->pt_type);
+	rat =    RT_NURB_IS_PT_RATIONAL(srf->pt_type);
+
+	for ( i = ( srf->s_size[RT_NURB_SPLIT_ROW] * 
+	    srf->s_size[RT_NURB_SPLIT_COL] ); i > 0; i--) {
+		if ( !rat ) {
+			VMINMAX( bmin, bmax, p_ptr );
+		} else if ( rat  ) {
+			point_t tmp_pt;
+			if ( NEAR_ZERO( p_ptr[H], SMALL ) )  {
+				HPRINT( "mesh point", p_ptr );
+				bu_log("nurb_s_bound:  H too small\n");
+			} else {
+				HDIVIDE( tmp_pt, p_ptr );
+				VMINMAX( bmin, bmax, tmp_pt );
+			}
+		}
+		p_ptr += coords;
+	}
+	return(0);	/* OK */
+}
+
+
+int
+rt_nurb_c_bound(struct edge_g_cnurb *crv, fastf_t *bmin, fastf_t *bmax)
+{
+	register fastf_t *p_ptr;	/* Mesh pointr */
+	register int	coords;		/* Elements per vector */
+	int	i;
+	int	rat;
+
+
+	bmin[0] = bmin[1] = bmin[2] = INFINITY;
+	bmax[0] = bmax[1] = bmax[2] = -INFINITY;
+
+	if ( crv == (struct edge_g_cnurb *)0 )  {
+		bu_log("nurb_c_bound:  NULL surface\n");
+		return(-1);		/* BAD */
+	}
+
+	p_ptr = crv->ctl_points;
+	coords = RT_NURB_EXTRACT_COORDS(crv->pt_type);
+	rat =    RT_NURB_IS_PT_RATIONAL(crv->pt_type);
+
+	for ( i = crv->c_size; i > 0; i--) {
+		if ( !rat ) {
+			VMINMAX( bmin, bmax, p_ptr );
+		} else if ( rat  ) {
+			point_t tmp_pt;
+			if ( NEAR_ZERO( p_ptr[H], SMALL ) )  {
+				HPRINT( "mesh point", p_ptr );
+				bu_log("nurb_c_bound:  H too small\n");
+			} else {
+				HDIVIDE( tmp_pt, p_ptr );
+				VMINMAX( bmin, bmax, tmp_pt );
+			}
+		}
+		p_ptr += coords;
+	}
+	return(0);	/* OK */
+}
+
+
+/* rt_nurb_s_check( srf ) 
+ * 	Checks the NURB surface control points to make
+ *	sure no one point is near INIFITY, which probably means
+ * 	that the surface mesh is bad.
+ */
+
+int
+rt_nurb_s_check(register struct face_g_snurb *srf)
+{
+	register fastf_t *mp;	/* Mesh pointr */
+	register int	i;
+
+	mp = srf->ctl_points;
+	i = srf->s_size[RT_NURB_SPLIT_ROW] * 
+	    srf->s_size[RT_NURB_SPLIT_COL] * 
+	    srf->pt_type;
+	for ( ; i > 0; i--, mp++)  {
+		/* Sanity checking */
+		if ( !NEAR_ZERO( *mp, INFINITY ) )  {
+			bu_log("nurb_s_check:  bad mesh found\n");
+			return(-1);	/* BAD */
+		}
+	}
+	return(0);			/* OK */
+}
+
+
+
+/* rt_nurb_c_check( srf ) 
+ * 	Checks the NURB curve control points to make
+ *	sure no one point is near INIFITY, which probably means
+ * 	that the surface mesh is bad.
+ */
+
+int
+rt_nurb_c_check(register struct edge_g_cnurb *crv)
+{
+	register fastf_t *mp;	/* Mesh pointr */
+	register int	i;
+
+	mp = crv->ctl_points;
+	i = crv->c_size * 
+	    crv->pt_type;
+	for ( ; i > 0; i--, mp++)  {
+		/* Sanity checking */
+		if ( !NEAR_ZERO( *mp, INFINITY ) )  {
+			bu_log("nurb_c_check:  bad mesh found\n");
+			return(-1);	/* BAD */
+		}
+	}
+	return(0);			/* OK */
+}
+
+
+@
+
+
+11.8
+log
+@change conf.h to a wrapped config.h
+@
+text
+@@
+
+
+11.7
+log
+@merge of ansi-6-0-branch into HEAD
+@
+text
+@d26 5
+a30 1
+#include "conf.h"
+@
+
+
+11.6
+log
+@update copyright to include span through 2003
+@
+text
+@d48 1
+a48 3
+rt_nurb_s_bound( srf, bmin, bmax )
+struct face_g_snurb *srf;
+point_t bmin, bmax;
+d89 1
+a89 3
+rt_nurb_c_bound( crv, bmin, bmax )
+struct edge_g_cnurb *crv;
+point_t bmin, bmax;
+d135 1
+a135 2
+rt_nurb_s_check( srf )
+register struct face_g_snurb *srf;
+d163 1
+a163 2
+rt_nurb_c_check( crv )
+register struct edge_g_cnurb *crv;
+@
+
+
+11.5
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d16 1
+a16 1
+ *     This software is Copyright (C) 1990 by the United States Army.
+@
+
+
+11.5.4.1
+log
+@sync to HEAD...
+@
+text
+@d16 1
+a16 1
+ *     This software is Copyright (C) 1990-2004 by the United States Army.
+@
+
+
+11.5.10.1
+log
+@merge from HEAD
+@
+text
+@d16 1
+a16 1
+ *     This software is Copyright (C) 1990-2004 by the United States Army.
+@
+
+
+11.5.2.1
+log
+@Initial ANSIfication
+@
+text
+@d48 3
+a50 1
+rt_nurb_s_bound(struct face_g_snurb *srf, fastf_t *bmin, fastf_t *bmax)
+d91 3
+a93 1
+rt_nurb_c_bound(struct edge_g_cnurb *crv, fastf_t *bmin, fastf_t *bmax)
+d139 2
+a140 1
+rt_nurb_s_check(register struct face_g_snurb *srf)
+d168 2
+a169 1
+rt_nurb_c_check(register struct edge_g_cnurb *crv)
+@
+
+
+11.5.2.2
+log
+@sync branch with HEAD
+@
+text
+@d16 1
+a16 1
+ *     This software is Copyright (C) 1990-2004 by the United States Army.
+@
+
+
+11.4
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d48 3
+a50 1
+rt_nurb_s_bound(struct face_g_snurb *srf, fastf_t *bmin, fastf_t *bmax)
+d91 3
+a93 1
+rt_nurb_c_bound(struct edge_g_cnurb *crv, fastf_t *bmin, fastf_t *bmax)
+d139 2
+a140 1
+rt_nurb_s_check(register struct face_g_snurb *srf)
+d168 2
+a169 1
+rt_nurb_c_check(register struct edge_g_cnurb *crv)
+@
+
+
+11.3
+log
+@libbu
+@
+text
+@d48 1
+a48 3
+rt_nurb_s_bound( srf, bmin, bmax )
+struct face_g_snurb *srf;
+point_t bmin, bmax;
+d89 1
+a89 3
+rt_nurb_c_bound( crv, bmin, bmax )
+struct edge_g_cnurb *crv;
+point_t bmin, bmax;
+d135 1
+a135 2
+rt_nurb_s_check( srf )
+register struct face_g_snurb *srf;
+d163 1
+a163 2
+rt_nurb_c_check( crv )
+register struct edge_g_cnurb *crv;
+@
+
+
+11.2
+log
+@LIBNURB data structures have been fully merged withNMG data structures.
+@
+text
+@d62 1
+a62 1
+		rt_log("nurb_s_bound:  NULL surface\n");
+d78 1
+a78 1
+				rt_log("nurb_s_bound:  H too small\n");
+d105 1
+a105 1
+		rt_log("nurb_c_bound:  NULL surface\n");
+d120 1
+a120 1
+				rt_log("nurb_c_bound:  H too small\n");
+d152 1
+a152 1
+			rt_log("nurb_s_check:  bad mesh found\n");
+d180 1
+a180 1
+			rt_log("nurb_c_check:  bad mesh found\n");
+@
+
+
+11.1
+log
+@Release_4.4
+@
+text
+@d49 1
+a49 1
+struct snurb *srf;
+d61 1
+a61 1
+	if ( srf == (struct snurb *)0 )  {
+d92 1
+a92 1
+struct cnurb *crv;
+d104 1
+a104 1
+	if ( crv == (struct cnurb *)0 )  {
+d140 1
+a140 1
+register struct snurb *srf;
+d169 1
+a169 1
+register struct cnurb *crv;
+@
+
+
+11.1.1.1
+log
+@Release_4.5
+@
+text
+@d49 1
+a49 1
+struct face_g_snurb *srf;
+d61 2
+a62 2
+	if ( srf == (struct face_g_snurb *)0 )  {
+		bu_log("nurb_s_bound:  NULL surface\n");
+d78 1
+a78 1
+				bu_log("nurb_s_bound:  H too small\n");
+d92 1
+a92 1
+struct edge_g_cnurb *crv;
+d104 2
+a105 2
+	if ( crv == (struct edge_g_cnurb *)0 )  {
+		bu_log("nurb_c_bound:  NULL surface\n");
+d120 1
+a120 1
+				bu_log("nurb_c_bound:  H too small\n");
+d140 1
+a140 1
+register struct face_g_snurb *srf;
+d152 1
+a152 1
+			bu_log("nurb_s_check:  bad mesh found\n");
+d169 1
+a169 1
+register struct edge_g_cnurb *crv;
+d180 1
+a180 1
+			bu_log("nurb_c_check:  bad mesh found\n");
+@
+
+
+10.5
+log
+@Added includes
+@
+text
+@@
+
+
+10.4
+log
+@Control polygon/mesh is now just part of the cnurb/snurb structures,
+rather than being a separate structure of their own.
+@
+text
+@d26 2
+d29 1
+d32 1
+@
+
+
+10.3
+log
+@Modifications due to data structure revisions:  mesh and knots are no
+longer pointers, but in-place structures.
+@
+text
+@d22 1
+a22 1
+ * all points in the control mesh. If the surface mesh contains
+d62 3
+a64 3
+	p_ptr = srf->mesh.ctl_points;
+	coords = RT_NURB_EXTRACT_COORDS(srf->mesh.pt_type);
+	rat =    RT_NURB_IS_PT_RATIONAL(srf->mesh.pt_type);
+d66 2
+a67 2
+	for ( i = ( srf->mesh.s_size[RT_NURB_SPLIT_ROW] * 
+	    srf->mesh.s_size[RT_NURB_SPLIT_COL] ); i > 0; i--) {
+d105 3
+a107 3
+	p_ptr = crv->mesh.ctl_points;
+	coords = RT_NURB_EXTRACT_COORDS(crv->mesh.pt_type);
+	rat =    RT_NURB_IS_PT_RATIONAL(crv->mesh.pt_type);
+d109 1
+a109 1
+	for ( i = crv->mesh.c_size; i > 0; i--) {
+d141 4
+a144 4
+	mp = srf->mesh.ctl_points;
+	i = srf->mesh.s_size[RT_NURB_SPLIT_ROW] * 
+	    srf->mesh.s_size[RT_NURB_SPLIT_COL] * 
+	    srf->mesh.pt_type;
+d170 3
+a172 3
+	mp = crv->mesh.ctl_points;
+	i = crv->mesh.c_size * 
+	    crv->mesh.pt_type;
+@
+
+
+10.2
+log
+@Expanded names of manifest constants
+@
+text
+@d62 3
+a64 3
+	p_ptr = srf->mesh->ctl_points;
+	coords = RT_NURB_EXTRACT_COORDS(srf->mesh->pt_type);
+	rat =    RT_NURB_IS_PT_RATIONAL(srf->mesh->pt_type);
+d66 2
+a67 2
+	for ( i = ( srf->mesh->s_size[RT_NURB_SPLIT_ROW] * 
+	    srf->mesh->s_size[RT_NURB_SPLIT_COL] ); i > 0; i--) {
+d105 3
+a107 3
+	p_ptr = crv->mesh->ctl_points;
+	coords = RT_NURB_EXTRACT_COORDS(crv->mesh->pt_type);
+	rat =    RT_NURB_IS_PT_RATIONAL(crv->mesh->pt_type);
+d109 1
+a109 1
+	for ( i = crv->mesh->c_size; i > 0; i--) {
+d141 4
+a144 4
+	mp = srf->mesh->ctl_points;
+	i = srf->mesh->s_size[RT_NURB_SPLIT_ROW] * 
+	    srf->mesh->s_size[RT_NURB_SPLIT_COL] * 
+	    srf->mesh->pt_type;
+d170 3
+a172 3
+	mp = crv->mesh->ctl_points;
+	i = crv->mesh->c_size * 
+	    crv->mesh->pt_type;
+@
+
+
+10.1
+log
+@Release_4.0
+@
+text
+@d63 2
+a64 2
+	coords = EXTRACT_COORDS(srf->mesh->pt_type);
+	rat =    EXTRACT_RAT(srf->mesh->pt_type);
+d66 2
+a67 2
+	for ( i = ( srf->mesh->s_size[ROW] * 
+	    srf->mesh->s_size[COL] ); i > 0; i--) {
+d106 2
+a107 2
+	coords = EXTRACT_COORDS(crv->mesh->pt_type);
+	rat =    EXTRACT_RAT(crv->mesh->pt_type);
+d142 2
+a143 2
+	i = srf->mesh->s_size[ROW] * 
+	    srf->mesh->s_size[COL] * 
+@
+
+
+1.2
+log
+@fixed nurb.h
+@
+text
+@@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d29 1
+a29 1
+#include "./nurb.h"
+d32 2
+d35 1
+@

@@ -1,0 +1,573 @@
+head	11.8;
+access;
+symbols
+	ansi-20040405-merged:11.5.2.1
+	postmerge-20040405-ansi:11.6
+	premerge-20040404-ansi:11.5
+	postmerge-autoconf:11.5
+	autoconf-freeze:11.5
+	premerge-autoconf:11.5
+	postmerge-20040315-windows:11.5
+	premerge-20040315-windows:11.5
+	windows-20040315-freeze:11.5
+	autoconf-20031203:11.5
+	autoconf-20031202:11.5
+	autoconf-branch:11.5.0.10
+	phong-branch:11.5.0.8
+	photonmap-branch:11.5.0.6
+	rel-6-1-DP:11.5
+	windows-branch:11.5.0.4
+	rel-6-0-2:11.3
+	ansi-branch:11.5.0.2
+	rel-6-0-1-branch:11.3.0.2
+	hartley-6-0-post:11.4
+	hartley-6-0-pre:11.3
+	rel-6-0-1:11.3
+	rel-6-0:11.3
+	rel-5-4:11.1
+	offsite-5-3-pre:11.2
+	rel-5-3:11.1
+	rel-5-2:11.1
+	rel-5-1-branch:11.1.0.2
+	rel-5-1:11.1
+	rel-5-0:11.1
+	rel-5-0-beta:11.1
+	rel-4-5:11.1
+	ctj-4-5-post:11.1
+	ctj-4-5-pre:11.1
+	rel-4-4:11.1
+	rel-4-0:10.1;
+locks; strict;
+comment	@ * @;
+
+
+11.8
+date	2004.05.21.16.38.55;	author morrison;	state dead;
+branches;
+next	11.7;
+
+11.7
+date	2004.05.10.15.30.50;	author erikg;	state Exp;
+branches;
+next	11.6;
+
+11.6
+date	2004.04.05.05.46.01;	author morrison;	state Exp;
+branches;
+next	11.5;
+
+11.5
+date	2002.08.20.17.08.50;	author jra;	state Exp;
+branches
+	11.5.2.1;
+next	11.4;
+
+11.4
+date	2002.08.15.20.56.01;	author hartley;	state Exp;
+branches;
+next	11.3;
+
+11.3
+date	2001.04.20.22.31.27;	author morrison;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	2000.08.24.22.46.22;	author mike;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	95.01.04.10.21.09;	author mike;	state Rel4_4;
+branches;
+next	10.2;
+
+10.2
+date	94.08.11.20.09.10;	author gdurf;	state Exp;
+branches;
+next	10.1;
+
+10.1
+date	91.10.12.06.52.47;	author mike;	state Rel4_0;
+branches;
+next	1.1;
+
+1.1
+date	91.01.03.20.45.28;	author butler;	state Exp;
+branches;
+next	;
+
+11.5.2.1
+date	2002.09.19.18.02.29;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@dist
+@
+
+
+11.8
+log
+@moved to src/tools/
+@
+text
+@/*
+ * This software is copyrighted as noted below.  It may be freely copied,
+ * modified, and redistributed, provided that the copyright notice is 
+ * preserved on all copies.
+ * 
+ * There is no warranty or other guarantee of fitness for this software,
+ * it is provided solely "as is".  Bug reports or fixes may be sent
+ * to the author, who may or may not act on them as he desires.
+ *
+ * You may not include this software in a program or other software product
+ * without supplying the source, or without informing the end-user that the 
+ * source is available for no extra charge.
+ *
+ * If you modify this software, you should include a notice giving the
+ * name of the person performing the modification, the date of modification,
+ * and the reason for such modification.
+ */
+/* 
+ * rleselect.c - Select images from an RLE file.
+ * 
+ * Author:	Spencer W. Thomas
+ * 		EECS Dept.
+ * 		University of Michigan
+ * Date:	Wed Jul 11 1990
+ * Copyright (c) 1990, University of Michigan
+ */
+
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+
+#include <stdio.h>
+
+#include "machine.h"
+#include "externs.h"		/* For malloc, realloc and free */
+#include "rle.h"
+
+static void insert(int **sorted_list_p, int i, int n);
+
+static const char *my_name = "rleselect";
+
+/*****************************************************************
+ * TAG( rleselect )
+ *
+ * Select images from an RLE file.
+ * Usage:
+ * 	rleselect [-i infile] [-o outfile] image-numbers ...
+ * Inputs:
+ * 	-i infile:	The input RLE file.  Default stdin.
+ * 			"-" means stdin.
+ * 	image-numbers:	A space-separated list of image numbers.
+ * 			Images are numbered from 1 in the input file.
+ * 			Images in this list will be included in the
+ * 			output. 
+ * 			A negative number in the list means that all
+ * 			images from the previous number to the
+ * 			absolute value of this number should be
+ * 			included.  A number of 0 is taken to mean
+ * 			'-infinity' (i.e., all images from the
+ * 			previous through the end).
+ * Examples:
+ * 	rleselect 1 4 5
+ * 			Selects images 1, 4, and 5.
+ * 	rleselect 4 1 5
+ * 			Does the same.
+ * 	rleselect 1 -4 5
+ * 			Selects images 1 through 5.
+ * 	rleselect 3 0
+ * 			Selects images 3 through the last.
+ * 	rleselect -4
+ * 			Selects images 1 through 4.
+ * Outputs:
+ * 	-o outfile:	The output RLE file.  Default stdout.
+ * 			"-" means stdout.
+ * Assumptions:
+ *	[None]
+ * Algorithm:
+ * 	Sort the list of desired image numbers.  (Treat N - infinity
+ * 	specially.)  Read images, skipping if they are not in the
+ * 	list, and copying if they are.
+ */
+int
+main(int argc, char **argv)
+{
+    char       *infname = NULL,
+    	       *outfname = NULL;
+    int        *image_list = NULL;
+    int 	oflag = 0,
+    		iflag = 0,
+		verbose = 0;
+    int		nimage = 0;
+    int		nsorted = 0;
+    int		thrulast = -1;	/* If > 0, take this through last. */
+    int		rle_cnt, rle_err, width, y;
+    FILE       *outfile = stdout;
+    rle_hdr in_hdr, out_hdr;	/* Headers for input and output files. */
+    rle_pixel **rows;		/* Will be used for scanline storage. */
+    int	       *sorted_list;
+    register int i, j;
+    
+    my_name = cmd_name( argv );
+
+    if ( scanargs( argc, argv,
+		   "% i%-infile%s o%-outfile!s v%- image-numbers!*d",
+		   &iflag, &infname, &oflag, &outfname, &verbose,
+		   &nimage, &image_list ) == 0 )
+	exit( 1 );
+
+    if ( nimage == 0 )
+    {
+	fprintf( stderr, "%s: No images selected.\n", my_name );
+	exit( 0 );
+    }
+
+    /*
+     * Scan the image list, expanding "through" specifications.  Then
+     * sort the result.
+     */
+    for ( i = 0; i < nimage; i++ )
+    {
+	if ( image_list[i] < 0 )
+	{
+	    image_list[i] = abs( image_list[i] );
+	    if ( i == 0 )
+		j = 1;
+	    else
+		j = image_list[i-1] + 1;
+	    for ( ; j <= image_list[i]; j++ )
+		insert( &sorted_list, j, nsorted++ );
+	}
+	else if ( image_list[i] == 0 )
+	{
+	    if ( i == 0 )
+		thrulast = 1;
+	    else
+		thrulast = image_list[i-1];
+	}
+	else
+	    insert( &sorted_list, image_list[i], nsorted++ );
+    }
+    /* Optimize list. */
+    if ( thrulast >= 0 )
+    {
+	for ( i = nsorted - 1; i >= 0 && sorted_list[i] >= thrulast; i-- )
+	    ;
+	nsorted = i + 1;
+    }
+
+    if ( verbose )
+    {
+	fprintf( stderr, "%s: Selecting images", my_name );
+	for ( i = 0; i < nsorted; i++ )
+	{
+	    if ( i % 14 == 0 )
+		fprintf( stderr, "\n\t" );
+	    fprintf( stderr, "%d%s", sorted_list[i],
+		     ((i < nsorted - 1) || thrulast >= 0)  ? ", " : "" );
+	}
+	if ( thrulast > 0 )
+	    fprintf( stderr, "%s%d - last", i % 14 == 0 ? "\n\t" : "",
+		     thrulast );
+	putc( '\n', stderr );
+	fflush( stderr );
+    }
+
+	
+    /* Open the input file.
+     * The output file won't be opened until the first image header
+     * has been read.  This avoids unnecessarily wiping out a
+     * pre-existing file if the input is garbage.
+     */
+    in_hdr.rle_file = rle_open_f( my_name, infname, "r" );
+
+    /* Read images from the input file until the end of file is
+     * encountered or an error occurs.
+     */
+    rle_cnt = 0;
+    i = 0;
+    while ( (rle_err = rle_get_setup( &in_hdr )) == RLE_SUCCESS )
+    {
+	/* Open the output file when the first header is successfully read. */
+	if ( rle_cnt == 0 )
+	    outfile = rle_open_f( my_name, outfname, "w" );
+
+	/* Count the input images. */
+	rle_cnt++;
+
+	/* If it's not in the list, skip it. */
+	while ( rle_cnt > sorted_list[i] && i < nsorted )
+	    i++;
+	if ( ! (thrulast >= 0 && rle_cnt >= thrulast) &&
+	     (i >= nsorted || rle_cnt < sorted_list[i]) )
+	{
+	    while ( rle_getskip( &in_hdr ) != 32768 )
+		;
+	    continue;
+	}
+
+	/* The output header is a copy of the input header.  The only
+	 * difference is the FILE pointer.
+	 */
+	out_hdr = in_hdr;
+	out_hdr.rle_file = outfile;
+
+	/* Add to the history comment. */
+	rle_addhist( argv, &in_hdr, &out_hdr );
+
+	/* Write the output image header. */
+	rle_put_setup( &out_hdr );
+
+	/* Since rle_getrow and rle_putrow use different array origins,
+	 * we will compensate by adjusting the xmin and xmax values in
+	 * the input header.  [rle_getrow assumes that the scanline
+	 * array starts at pixel 0, while rle_putrow assumes that the
+	 * scanline array starts at pixel xmin.  This is a botch, but
+	 * it's too late to change it now.]
+	 */
+	in_hdr.xmax -= in_hdr.xmin;
+	in_hdr.xmin = 0;
+	width = in_hdr.xmax + 1;	/* Width of a scanline. */
+
+	/* Allocate memory into which the image scanlines can be read.
+	 * This should happen after the above adjustment, to minimize
+	 * the amount of memory allocated.
+	 */
+	if ( rle_row_alloc( &out_hdr, &rows ) < 0 )
+	{
+	    fprintf( stderr, "rleskel: Unable to allocate image memory.\n" );
+	    exit( RLE_NO_SPACE );
+	}
+	
+	/* Read the input image and copy it to the output file. */
+	for ( y = in_hdr.ymin; y <= in_hdr.ymax; y++ )
+	{
+	    /* Read a scanline. */
+	    rle_getrow( &in_hdr, rows );
+	    
+	    /* Process the scanline as desired here. */
+
+	    /* Write the processed scanline. */
+	    rle_putrow( rows, width, &out_hdr );
+	}
+
+	/* Free memory. */
+	rle_row_free( &in_hdr, rows );
+
+	/* Write an end-of-image code. */
+	rle_puteof( &out_hdr );
+    }
+    
+    /* Check for an error.  EOF or EMPTY is ok if at least one image
+     * has been read.  Otherwise, print an error message.
+     */
+    if ( rle_cnt == 0 || (rle_err != RLE_EOF && rle_err != RLE_EMPTY) )
+	rle_get_error( rle_err, my_name, infname );
+
+    exit( 0 );
+}
+
+
+static void 
+insert(int **sorted_list_p, int i, int n)
+{
+    register int *sorted_list = *sorted_list_p;
+    register int j;
+
+    if ( n == 0 )
+    {
+	sorted_list = (int *)malloc( sizeof(int) );
+	if ( sorted_list == NULL )
+	{
+	    fprintf( stderr, "%s: Out of memory\n", my_name );
+	    exit( RLE_NO_SPACE );
+	}
+	*sorted_list = i;
+    }
+    else
+    {
+	sorted_list = (int *)realloc( sorted_list, (n + 1) * sizeof(int) );
+	if ( sorted_list == NULL )
+	{
+	    fprintf( stderr, "%s: Out of memory\n", my_name );
+	    exit( RLE_NO_SPACE );
+	}
+
+	for ( j = n - 1; j >= 0 && sorted_list[j] > i; j-- )
+	    sorted_list[j+1] = sorted_list[j];
+	sorted_list[j+1] = i;
+    }
+
+    *sorted_list_p = sorted_list;
+}
+
+@
+
+
+11.7
+log
+@change conf.h to a wrapped config.h
+@
+text
+@@
+
+
+11.6
+log
+@merge of ansi-6-0-branch into head
+@
+text
+@d28 5
+a32 1
+#include "conf.h"
+@
+
+
+11.5
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d36 1
+a36 1
+static void insert();
+d81 1
+a81 3
+main( argc, argv )
+int argc;
+char **argv;
+d260 1
+a260 3
+insert( sorted_list_p, i, n )
+int **sorted_list_p;
+int i, n;
+@
+
+
+11.5.2.1
+log
+@Initial ANSIfication
+@
+text
+@d36 1
+a36 1
+static void insert(int **sorted_list_p, int i, int n);
+d81 3
+a83 1
+main(int argc, char **argv)
+d262 3
+a264 1
+insert(int **sorted_list_p, int i, int n)
+@
+
+
+11.4
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d36 1
+a36 1
+static void insert(int **sorted_list_p, int i, int n);
+d81 3
+a83 1
+main(int argc, char **argv)
+d262 3
+a264 1
+insert(int **sorted_list_p, int i, int n)
+@
+
+
+11.3
+log
+@CONST to const
+@
+text
+@d36 1
+a36 1
+static void insert();
+d81 1
+a81 3
+main( argc, argv )
+int argc;
+char **argv;
+d260 1
+a260 3
+insert( sorted_list_p, i, n )
+int **sorted_list_p;
+int i, n;
+@
+
+
+11.2
+log
+@
+lint
+@
+text
+@d38 1
+a38 1
+static CONST char *my_name = "rleselect";
+@
+
+
+11.1
+log
+@Release_4.4
+@
+text
+@d80 1
+a80 1
+void
+@
+
+
+10.2
+log
+@Altered #defines and #includes to conform to BRL-CAD standards
+@
+text
+@@
+
+
+10.1
+log
+@Release_4.0
+@
+text
+@d28 2
+a30 12
+#include <rle.h>
+
+#ifdef USE_STDLIB_H
+#include <stdlib.h>
+#else
+
+#ifdef VOID_STAR
+extern void *malloc(), *realloc();
+#else
+extern char *malloc(), *realloc();
+#endif
+extern void free();
+d32 3
+a34 1
+#endif /* USE_STDLIB_H */
+d38 1
+a38 1
+static CONST_DECL char *my_name = "rleselect";
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@@

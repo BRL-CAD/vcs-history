@@ -1,0 +1,505 @@
+head	1.12;
+access;
+symbols
+	rel-7-10-4:1.12
+	STABLE:1.12.0.2
+	rel-7-10-2:1.11
+	rel-7-10-0:1.11
+	rel-7-8-4:1.4
+	rel-7-8-2:1.4
+	rel-7-8-0:1.4
+	trimnurbs-branch:1.4.0.2
+	help:1.4
+	temp_tag:1.4
+	bobWinPort-20051223-freeze:1.3
+	postmerge-20051223-bobWinPort:1.4
+	premerge-20051223-bobWinPort:1.4
+	rel-7-6-6:1.4
+	rel-7-6-4:1.4
+	rel-7-6-2:1.3
+	rel-7-6-branch:1.3.0.6
+	rel-7-6-0:1.3
+	rel-7-4-2:1.3
+	rel-7-4-branch:1.3.0.4
+	bobWinPort:1.3.0.2
+	rel-7-4-0:1.3;
+locks; strict;
+comment	@ * @;
+
+
+1.12
+date	2007.09.10.19.38.27;	author erikgreenwald;	state Exp;
+branches;
+next	1.11;
+
+1.11
+date	2007.02.20.08.05.27;	author brlcad;	state Exp;
+branches;
+next	1.10;
+
+1.10
+date	2007.02.08.06.49.19;	author brlcad;	state Exp;
+branches;
+next	1.9;
+
+1.9
+date	2007.02.02.17.11.22;	author erikgreenwald;	state Exp;
+branches;
+next	1.8;
+
+1.8
+date	2007.02.02.08.48.28;	author brlcad;	state Exp;
+branches;
+next	1.7;
+
+1.7
+date	2007.01.27.01.41.31;	author brlcad;	state Exp;
+branches;
+next	1.6;
+
+1.6
+date	2007.01.23.01.13.23;	author brlcad;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	2007.01.21.00.53.11;	author brlcad;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	2005.10.23.04.44.28;	author brlcad;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2005.07.10.06.28.41;	author twingy;	state Exp;
+branches
+	1.3.6.1;
+next	1.2;
+
+1.2
+date	2005.06.17.21.41.01;	author erikgreenwald;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2005.06.17.15.09.29;	author lbutler;	state Exp;
+branches;
+next	;
+
+1.3.6.1
+date	2005.11.13.13.46.12;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.12
+log
+@should only be using common.h, not brlcad_config.h
+@
+text
+@/*                          M A I N . C
+ * BRL-CAD / ADRT
+ *
+ * Copyright (c) 2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This library is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@file main.c
+ *
+ *  Author -
+ *      Justin L. Shumaker
+ *
+ * $Id: main.c,v 1.11 2007/02/20 08:05:27 brlcad Exp $
+ */
+
+#ifdef HAVE_CONFIG_H
+# include "common.h"
+#endif
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <signal.h>
+#include <unistd.h>
+
+#include <bu.h>
+
+#include "rise.h"
+#include "slave.h"
+#include "tienet.h"
+
+
+#ifdef HAVE_GETOPT_H
+# include <getopt.h>
+#endif
+
+#ifdef HAVE_GETOPT_LONG
+static struct option longopts[] =
+{
+	{ "help",	no_argument,		NULL, 'h' },
+	{ "port",	required_argument,	NULL, 'p' },
+	{ "threads",	required_argument,	NULL, 't' },
+	{ "version",	no_argument,		NULL, 'v' },
+};
+#endif
+static char shortopts[] = "Xdhp:t:v";
+
+
+static void finish(int sig) {
+  printf("Collected signal %d, aborting!\n", sig);
+  exit(EXIT_FAILURE);
+}
+
+
+static void help() {
+  printf("%s\n", RISE_VER_DETAIL);
+  printf("%s", "usage: rise_slave [options] [host]\n\
+  -v\t\tdisplay version\n\
+  -h\t\tdisplay help\n\
+  -P\t\tport number\n\
+  -H ...\tconnect to master and shutdown when complete\n\
+  -t ...\tnumber of threads to launch for processing\n");
+}
+
+
+int main(int argc, char **argv) {
+  int		port = 0, c = 0, threads = 0;
+  char		host[64], temp[64];
+
+
+  /* Default Port */
+  signal(SIGINT, finish);
+
+  /* Initialize strings */
+  host[0] = 0;
+  port = 0;
+
+  /* Parse command line options */
+
+  while((c =
+#ifdef HAVE_GETOPT_LONG
+	getopt_long(argc, argv, shortopts, longopts, NULL)
+#else
+	getopt(argc, argv, shortopts)
+#endif
+	)!= -1)
+  {
+	  switch(c) {
+	    case 'p':
+	      port = atoi(optarg);
+	      break;
+
+	    case 't':
+	      strncpy(temp, optarg, 4);
+	      threads = atoi(temp);
+	      if(threads < 0) threads = 0;
+	      if(threads > 32) threads = 32;
+	      break;
+
+	    case 'h':
+	      help();
+	      return EXIT_SUCCESS;
+
+	    case 'v':
+	      printf("%s\n", RISE_VER_DETAIL);
+	      return EXIT_SUCCESS;
+
+	    default:
+	      help();
+	      return EXIT_FAILURE;
+	  }
+  }
+
+  argc -= optind;
+  argv += optind;
+
+  if(argc)
+    strncpy(host, argv[0], 64);
+
+  if(!host[0]) {
+    if(!port)
+      port = TN_SLAVE_PORT;
+    printf("running as daemon.\n");
+  } else {
+    if(!port)
+      port = TN_MASTER_PORT;
+  }
+
+  rise_slave(port, host, threads);
+
+  return EXIT_SUCCESS;
+}
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+1.11
+log
+@revert the introduction of a libbu dependency to adrt, it's somewhat inconsequential value added just to get bu_getopt processing compared to the benefit of it still compiling stand-alone if needed.
+@
+text
+@d25 1
+a25 1
+ * $Id: main.c,v 1.10 2007/02/08 06:49:19 brlcad Exp $
+d29 1
+a29 1
+# include "brlcad_config.h"
+@
+
+
+1.10
+log
+@give adrt some distinctiveness in the header
+@
+text
+@d25 1
+a25 1
+ * $Id: main.c,v 1.9 2007/02/02 17:11:22 erikgreenwald Exp $
+d96 1
+a96 1
+	bu_getopt(argc, argv, shortopts)
+d102 1
+a102 1
+	      port = atoi(bu_optarg);
+d106 1
+a106 1
+	      strncpy(temp, bu_optarg, 4);
+d126 2
+a127 2
+  argc -= bu_optind;
+  argv += bu_optind;
+@
+
+
+1.9
+log
+@include bu.h and link libbu for bu_getopt
+@
+text
+@d2 1
+a2 1
+ * BRL-CAD
+d25 1
+a25 1
+ * $Id: main.c,v 1.8 2007/02/02 08:48:28 brlcad Exp $
+@
+
+
+1.8
+log
+@convert all of the lingering getopt calls to bu_getopt (as well as the related getopt globals optind, opterr, optarg) -- libbu's getopt has the benefit of being re-entrant and is portable to environments where getopt() may not be available.
+@
+text
+@d25 1
+a25 1
+ * $Id: main.c,v 1.7 2007/01/27 01:41:31 brlcad Exp $
+d37 3
+@
+
+
+1.7
+log
+@ws. lots and lots of ws.  see sh/ws.sh for details (cases 'abcdeg').
+@
+text
+@d25 1
+a25 1
+ * $Id: main.c,v 1.6 2007/01/23 01:13:23 brlcad Exp $
+d93 1
+a93 1
+	getopt(argc, argv, shortopts)
+d99 1
+a99 1
+	      port = atoi(optarg);
+d103 1
+a103 1
+	      strncpy(temp, optarg, 4);
+d123 2
+a124 2
+  argc -= optind;
+  argv += optind;
+@
+
+
+1.6
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@d25 1
+a25 1
+ * $Id: main.c,v 1.5 2007/01/21 00:53:11 brlcad Exp $
+d98 22
+a119 22
+            case 'p':
+              port = atoi(optarg);
+              break;
+
+            case 't':
+              strncpy(temp, optarg, 4);
+              threads = atoi(temp);
+              if(threads < 0) threads = 0;
+              if(threads > 32) threads = 32;
+              break;
+
+            case 'h':
+              help();
+              return EXIT_SUCCESS;
+
+            case 'v':
+              printf("%s\n", RISE_VER_DETAIL);
+              return EXIT_SUCCESS;
+
+            default:
+              help();
+              return EXIT_FAILURE;
+@
+
+
+1.5
+log
+@standard header and footer cleanup
+@
+text
+@d9 1
+a9 1
+ * as published by the Free Software Foundation.
+d25 1
+a25 1
+ * $Id: main.c,v 1.4 2005/10/23 04:44:28 brlcad Exp $
+@
+
+
+1.4
+log
+@trailing ws
+@
+text
+@d1 25
+a25 2
+/*
+ * $Id: main.c,v 1.3 2005/07/10 06:28:41 twingy Exp $
+d142 10
+@
+
+
+1.3
+log
+@updated help, removed host argument.
+@
+text
+@d2 1
+a2 1
+ * $Id: main.c,v 1.2 2005/06/17 21:41:01 erikgreenwald Exp $
+d66 1
+a66 1
+  while((c = 
+@
+
+
+1.3.6.1
+log
+@merge changes from HEAD aka rel-7-6-4 to the rel-7-6-branch just in case someone peeks a gander or tries to continue/build the branch
+@
+text
+@d2 1
+a2 1
+ * $Id$
+d66 1
+a66 1
+  while((c =
+@
+
+
+1.2
+log
+@use brlcad_config.h instead of config.h
+@
+text
+@d2 1
+a2 1
+ * $Id: main.c,v 1.1 2005/06/17 15:09:29 lbutler Exp $
+d27 1
+a27 1
+	{ "port",	required_argument,	NULL, 'P' },
+a29 1
+  	{ "host",	required_argument,	NULL, 'H' }
+d32 1
+a32 1
+static char shortopts[] = "XdhP:t:vH:";
+d43 1
+a43 1
+  printf("%s", "usage: rise_slave [options]\n\
+d62 1
+a62 2
+  port = TN_SLAVE_PORT;
+
+d75 22
+a96 22
+		  case 'P':
+			  port = atoi(optarg);
+			  break;
+		  case 't':
+			  strncpy(temp, optarg, 4);
+			  threads = atoi(temp);
+			  if(threads < 0) threads = 0;
+			  if(threads > 32) threads = 32;
+			  break;
+		  case 'H':
+			  port = TN_MASTER_PORT;
+			  strncpy(host, optarg, 64);
+			  break;
+		  case 'h':
+			  help();
+			  return EXIT_SUCCESS;
+		  case 'v':
+			  printf("%s\n", RISE_VER_DETAIL);
+			  return EXIT_SUCCESS;
+		default:
+			  help();
+			  return EXIT_FAILURE;
+d99 1
+d103 12
+@
+
+
+1.1
+log
+@Welcome ADRT
+@
+text
+@d2 1
+a2 1
+ * $Id: main.c,v 1.2 2005/04/19 15:16:49 justin Exp $
+d6 1
+a6 1
+# include "config.h"
+@
+

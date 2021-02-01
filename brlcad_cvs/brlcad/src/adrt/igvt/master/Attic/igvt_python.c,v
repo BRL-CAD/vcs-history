@@ -1,0 +1,455 @@
+head	1.12;
+access;
+symbols;
+locks; strict;
+comment	@ * @;
+
+
+1.12
+date	2005.07.10.03.58.18;	author twingy;	state dead;
+branches;
+next	1.11;
+
+1.11
+date	2005.07.10.03.48.10;	author twingy;	state Exp;
+branches;
+next	1.10;
+
+1.10
+date	2005.07.10.01.50.46;	author twingy;	state Exp;
+branches;
+next	1.9;
+
+1.9
+date	2005.07.09.02.44.44;	author twingy;	state Exp;
+branches;
+next	1.8;
+
+1.8
+date	2005.06.29.17.07.38;	author twingy;	state Exp;
+branches;
+next	1.7;
+
+1.7
+date	2005.06.28.21.05.13;	author twingy;	state Exp;
+branches;
+next	1.6;
+
+1.6
+date	2005.06.23.21.51.25;	author twingy;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	2005.06.23.20.00.53;	author twingy;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	2005.06.23.05.22.17;	author twingy;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2005.06.23.04.55.51;	author twingy;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2005.06.23.00.43.14;	author twingy;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2005.06.22.05.19.34;	author twingy;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.12
+log
+@IGVT->ISST 90%
+@
+text
+@#include "ivat_python.h"
+#include "Python.h"
+#undef HAVE_STAT
+#undef HAVE_TM_ZONE
+#include "master.h"
+
+char *ivat_python_response;
+
+
+void ivat_python_init(void);
+void ivat_python_command(char *command);
+static PyObject* ivat_python_stdout(PyObject *self, PyObject* args);
+static PyObject* ivat_python_get_camera_pos(PyObject *self, PyObject* args);
+static PyObject* ivat_python_set_camera_pos(PyObject *self, PyObject* args);
+static PyObject* ivat_python_get_azel(PyObject *self, PyObject* args);
+static PyObject* ivat_python_set_azel(PyObject *self, PyObject* args);
+static PyObject* ivat_python_get_spall_angle(PyObject *self, PyObject* args);
+static PyObject* ivat_python_set_spall_angle(PyObject *self, PyObject* args);
+
+
+static PyMethodDef IVAT_Methods[] = {
+    {"stdout", ivat_python_stdout, METH_VARARGS, "redirected output."},
+    {"get_camera_pos", ivat_python_get_camera_pos, METH_VARARGS, "get camera position."},
+    {"set_camera_pos", ivat_python_set_camera_pos, METH_VARARGS, "set camera position."},
+    {"get_azel", ivat_python_get_azel, METH_VARARGS, "get azimuth and elevation."},
+    {"set_azel", ivat_python_set_azel, METH_VARARGS, "set azimuth and elevation."},
+    {"get_spall_angle", ivat_python_get_spall_angle, METH_VARARGS, "get spall angle."},
+    {"set_spall_angle", ivat_python_set_spall_angle, METH_VARARGS, "set spall angle."},
+    {NULL, NULL, 0, NULL}
+};
+
+
+void ivat_python_init() {
+  Py_Initialize();
+
+
+  ivat_python_response = (char *)malloc(1024);
+
+  PyImport_AddModule("adrt");
+  Py_InitModule("adrt", IVAT_Methods);
+  PyRun_SimpleString("import adrt");
+  
+
+  /* Redirect the output */
+  PyRun_SimpleString("\
+import sys\n\
+import string\n\
+class Redirect:\n\
+    def __init__(self, stdout):\n\
+        self.stdout = stdout\n\
+    def write(self, s):\n\
+        adrt.stdout(s)\n\
+sys.stdout = Redirect(sys.stdout)\n\
+sys.stderr = Redirect(sys.stderr)\n\
+");
+
+}
+
+
+void ivat_python_free() {
+  free(ivat_python_response);
+  Py_Finalize();
+}
+
+
+void ivat_python_code(char *code) {
+  ivat_python_response[0] = 0;
+
+  PyRun_SimpleString(code);
+  strcpy(code, ivat_python_response);
+}
+
+
+/* Called once for every line */
+static PyObject* ivat_python_stdout(PyObject *self, PyObject* args) {
+  char *string;
+
+  if(PyArg_ParseTuple(args, "s", &string))
+    strcat(ivat_python_response, string);
+
+  return PyInt_FromLong(0);
+}
+
+
+/* Get camera position */
+static PyObject* ivat_python_get_camera_pos(PyObject *self, PyObject* args) {
+  return Py_BuildValue("fff", ivat_master_camera_pos.v[0], ivat_master_camera_pos.v[1], ivat_master_camera_pos.v[2]);
+}
+
+
+/* Set camera position */
+static PyObject* ivat_python_set_camera_pos(PyObject *self, PyObject* args) {
+  PyArg_ParseTuple(args, "fff", &ivat_master_camera_pos.v[0], &ivat_master_camera_pos.v[1], &ivat_master_camera_pos.v[2]);
+  return PyInt_FromLong(0);
+}
+
+
+/* Get azimuth and elevation */
+static PyObject* ivat_python_get_azel(PyObject *self, PyObject* args) {
+  return Py_BuildValue("ff", ivat_master_azim, ivat_master_elev);
+}
+
+
+/* Set azimith and elevation */
+static PyObject* ivat_python_set_azel(PyObject *self, PyObject* args) {
+  PyArg_ParseTuple(args, "ff", &ivat_master_azim, &ivat_master_elev);
+  return PyInt_FromLong(0);
+}
+
+
+/* Get spall angle */
+static PyObject* ivat_python_get_spall_angle(PyObject *self, PyObject* args) {
+  return Py_BuildValue("f", ivat_master_spall_angle);
+}
+
+
+/* Set spall angle */
+static PyObject* ivat_python_set_spall_angle(PyObject *self, PyObject* args) {
+  PyArg_ParseTuple(args, "f", &ivat_master_spall_angle);
+  return PyInt_FromLong(0);
+}
+
+@
+
+
+1.11
+log
+@75% done IGVT -> IVAT conversion.
+@
+text
+@@
+
+
+1.10
+log
+@basic component server communication complete.
+@
+text
+@d1 1
+a1 1
+#include "igvt_python.h"
+d7 1
+a7 1
+char *igvt_python_response;
+d10 19
+a28 19
+void igvt_python_init(void);
+void igvt_python_command(char *command);
+static PyObject* igvt_python_stdout(PyObject *self, PyObject* args);
+static PyObject* igvt_python_get_camera_pos(PyObject *self, PyObject* args);
+static PyObject* igvt_python_set_camera_pos(PyObject *self, PyObject* args);
+static PyObject* igvt_python_get_azel(PyObject *self, PyObject* args);
+static PyObject* igvt_python_set_azel(PyObject *self, PyObject* args);
+static PyObject* igvt_python_get_spall_angle(PyObject *self, PyObject* args);
+static PyObject* igvt_python_set_spall_angle(PyObject *self, PyObject* args);
+
+
+static PyMethodDef IGVT_Methods[] = {
+    {"stdout", igvt_python_stdout, METH_VARARGS, "redirected output."},
+    {"get_camera_pos", igvt_python_get_camera_pos, METH_VARARGS, "get camera position."},
+    {"set_camera_pos", igvt_python_set_camera_pos, METH_VARARGS, "set camera position."},
+    {"get_azel", igvt_python_get_azel, METH_VARARGS, "get azimuth and elevation."},
+    {"set_azel", igvt_python_set_azel, METH_VARARGS, "set azimuth and elevation."},
+    {"get_spall_angle", igvt_python_get_spall_angle, METH_VARARGS, "get spall angle."},
+    {"set_spall_angle", igvt_python_set_spall_angle, METH_VARARGS, "set spall angle."},
+d33 1
+a33 1
+void igvt_python_init() {
+d37 1
+a37 1
+  igvt_python_response = (char *)malloc(1024);
+d40 1
+a40 1
+  Py_InitModule("adrt", IGVT_Methods);
+d60 2
+a61 2
+void igvt_python_free() {
+  free(igvt_python_response);
+d66 2
+a67 2
+void igvt_python_code(char *code) {
+  igvt_python_response[0] = 0;
+d70 1
+a70 1
+  strcpy(code, igvt_python_response);
+d75 1
+a75 1
+static PyObject* igvt_python_stdout(PyObject *self, PyObject* args) {
+d79 1
+a79 1
+    strcat(igvt_python_response, string);
+d86 2
+a87 2
+static PyObject* igvt_python_get_camera_pos(PyObject *self, PyObject* args) {
+  return Py_BuildValue("fff", igvt_master_camera_pos.v[0], igvt_master_camera_pos.v[1], igvt_master_camera_pos.v[2]);
+d92 2
+a93 2
+static PyObject* igvt_python_set_camera_pos(PyObject *self, PyObject* args) {
+  PyArg_ParseTuple(args, "fff", &igvt_master_camera_pos.v[0], &igvt_master_camera_pos.v[1], &igvt_master_camera_pos.v[2]);
+d99 2
+a100 2
+static PyObject* igvt_python_get_azel(PyObject *self, PyObject* args) {
+  return Py_BuildValue("ff", igvt_master_azim, igvt_master_elev);
+d105 2
+a106 2
+static PyObject* igvt_python_set_azel(PyObject *self, PyObject* args) {
+  PyArg_ParseTuple(args, "ff", &igvt_master_azim, &igvt_master_elev);
+d112 2
+a113 2
+static PyObject* igvt_python_get_spall_angle(PyObject *self, PyObject* args) {
+  return Py_BuildValue("f", igvt_master_spall_angle);
+d118 2
+a119 2
+static PyObject* igvt_python_set_spall_angle(PyObject *self, PyObject* args) {
+  PyArg_ParseTuple(args, "f", &igvt_master_spall_angle);
+@
+
+
+1.9
+log
+@made the arguments for slave and observer more convenient, debugging python
+adrt.blah bug.
+@
+text
+@a68 1
+printf("CP:1\n");
+a69 2
+printf("CP:2\n");
+
+a77 1
+printf("CP:A\n");
+a79 1
+printf("CP:B\n");
+@
+
+
+1.8
+log
+@spawl -> spall.
+@
+text
+@d68 2
+d71 2
+d81 1
+d84 1
+@
+
+
+1.7
+log
+@Spawl cone rendering method now display as shaded red transparent.  Added
+python hooks for getting and setting spawl angle.
+@
+text
+@d17 2
+a18 2
+static PyObject* igvt_python_get_spawl_angle(PyObject *self, PyObject* args);
+static PyObject* igvt_python_set_spawl_angle(PyObject *self, PyObject* args);
+d27 2
+a28 2
+    {"get_spawl_angle", igvt_python_get_spawl_angle, METH_VARARGS, "get spawl angle."},
+    {"set_spawl_angle", igvt_python_set_spawl_angle, METH_VARARGS, "set spawl angle."},
+d110 3
+a112 3
+/* Get spawl angle */
+static PyObject* igvt_python_get_spawl_angle(PyObject *self, PyObject* args) {
+  return Py_BuildValue("f", igvt_master_spawl_angle);
+d116 3
+a118 3
+/* Set spawl angle */
+static PyObject* igvt_python_set_spawl_angle(PyObject *self, PyObject* args) {
+  PyArg_ParseTuple(args, "f", &igvt_master_spawl_angle);
+@
+
+
+1.6
+log
+@Camera position, azimuth, and elevation accessible from python now.
+Added cut and paste to editor, 85% done.
+@
+text
+@d17 2
+d27 2
+d108 14
+@
+
+
+1.5
+log
+@Several minor additional improvements to the editor window, 80% done.
+@
+text
+@d3 3
+a5 1
+
+d13 4
+a16 1
+static PyObject* igvt_python_get_camera_position(PyObject *self, PyObject* args);
+d21 4
+a24 4
+    {"get_camera_pos", igvt_python_get_camera_position, METH_VARARGS, "get camera position."},
+#if 0
+    {"set_camera_pos", igvt_python_set_camera_position, METH_VARARGS, "set camera position."},
+#endif
+d76 20
+a95 1
+  return PyInt_FromLong(42L);
+d99 4
+a102 3
+/* Getting camera position */
+static PyObject* igvt_python_get_camera_position(PyObject *self, PyObject* args) {
+  return PyInt_FromLong(42L);
+@
+
+
+1.4
+log
+@memory bug fix.
+@
+text
+@d11 1
+d16 1
+d18 1
+a18 2
+    {"camera.set.position", igvt_python_set_camera_position, METH_VARARGS, "set camera position."},
+    {"camera.get.position", igvt_python_get_camera_position, METH_VARARGS, "get camera position."},
+d73 6
+@
+
+
+1.3
+log
+@Python interpretor working now.  Command interface has become a blender style
+editing interface with ctrl+p to process and ctrl+l to clear buffers.  Rise image
+output re-enabled.
+@
+text
+@d14 5
+a18 2
+    {"stdout",  igvt_python_stdout, METH_VARARGS,
+     "test an external function call."},
+@
+
+
+1.2
+log
+@Skeleton framework for python integration in place, console 75% done.
+@
+text
+@a43 1
+  free(igvt_python_response);
+d48 1
+d53 1
+a53 1
+void igvt_python_command(char *command) {
+d55 2
+a56 2
+  PyRun_SimpleString(command);
+  strcpy(command, igvt_python_response);
+d60 1
+@
+
+
+1.1
+log
+@more additions to the console and beginning to add python interpreter.
+@
+text
+@d2 4
+a5 1
+//#include "Python.h"
+d10 8
+d21 29
+a49 1
+//  Py_Initialize();
+d54 13
+@
+

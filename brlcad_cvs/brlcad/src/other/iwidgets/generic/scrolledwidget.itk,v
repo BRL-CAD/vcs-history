@@ -1,0 +1,621 @@
+head	14.2;
+access;
+symbols
+	rel-7-10-4:14.1
+	STABLE:14.1.0.10
+	stable-branch:14.1
+	rel-7-10-2:14.1
+	rel-7-10-0:14.1
+	rel-7-8-4:14.1
+	rel-7-8-2:14.1
+	rel-7-8-0:14.1
+	trimnurbs-branch:14.1.0.8
+	help:14.1
+	temp_tag:14.1
+	bobWinPort-20051223-freeze:14.1
+	postmerge-20051223-bobWinPort:14.1
+	premerge-20051223-bobWinPort:14.1
+	rel-7-6-6:14.1
+	rel-7-6-4:14.1
+	rel-7-6-2:14.1
+	rel-7-6-branch:14.1.0.6
+	rel-7-6-0:14.1
+	rel-7-4-2:14.1
+	rel-7-4-branch:14.1.0.4
+	bobWinPort:14.1.0.2
+	rel-7-4-0:14.1
+	rel-7-2-6:14.1
+	rel-7-2-4:14.1
+	rel-7-2-2:14.1
+	rel-7-2-0:14.1
+	rel-7-0-4:14.1
+	rel-7-0-2:14.1
+	rel-7-0-1:14.1
+	opensource-post:14.1
+	opensource-pre:1.1
+	rel-7-0-branch:1.1.0.2
+	rel-7-0:1.1;
+locks; strict;
+comment	@# @;
+
+
+14.2
+date	2007.09.14.15.21.36;	author erikgreenwald;	state Exp;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.19;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.14.49.47;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.2
+log
+@removed trailing whitespace
+@
+text
+@#
+# Scrolledwidget
+# ----------------------------------------------------------------------
+# Implements a general purpose base class for scrolled widgets, by
+# creating the necessary horizontal and vertical scrollbars and
+# providing protected methods for controlling their display.  The
+# derived class needs to take advantage of the fact that the grid
+# is used and the vertical scrollbar is in row 0, column 2 and the
+# horizontal scrollbar in row 2, column 0.
+#
+# ----------------------------------------------------------------------
+#  AUTHOR: Mark Ulferts                        mulferts@@austin.dsccc.com
+#
+#  @@(#) $Id: scrolledwidget.itk,v 14.1 2004/11/16 19:42:19 morrison Exp $
+# ----------------------------------------------------------------------
+#            Copyright (c) 1997 DSC Technologies Corporation
+# ======================================================================
+# Permission to use, copy, modify, distribute and license this software
+# and its documentation for any purpose, and without fee or written
+# agreement with DSC, is hereby granted, provided that the above copyright
+# notice appears in all copies and that both the copyright notice and
+# warranty disclaimer below appear in supporting documentation, and that
+# the names of DSC Technologies Corporation or DSC Communications
+# Corporation not be used in advertising or publicity pertaining to the
+# software without specific, written prior permission.
+#
+# DSC DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE, INCLUDING
+# ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS, AND NON-
+# INFRINGEMENT. THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, AND THE
+# AUTHORS AND DISTRIBUTORS HAVE NO OBLIGATION TO PROVIDE MAINTENANCE,
+# SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS. IN NO EVENT SHALL
+# DSC BE LIABLE FOR ANY SPECIAL, INDIRECT OR CONSEQUENTIAL DAMAGES OR
+# ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS,
+# WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTUOUS ACTION,
+# ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS
+# SOFTWARE.
+# ======================================================================
+
+#
+# Usual options.
+#
+itk::usual Scrolledwidget {
+    keep -background -borderwidth -cursor -highlightcolor -highlightthickness
+    keep -activebackground -activerelief -jump -troughcolor
+    keep -labelfont -foreground
+}
+
+# ------------------------------------------------------------------
+#                            SCROLLEDWIDGET
+# ------------------------------------------------------------------
+itcl::class iwidgets::Scrolledwidget {
+    inherit iwidgets::Labeledwidget
+
+    constructor {args} {}
+    destructor {}
+
+    itk_option define -sbwidth sbWidth Width 15
+    itk_option define -scrollmargin scrollMargin ScrollMargin 3
+    itk_option define -vscrollmode vscrollMode VScrollMode static
+    itk_option define -hscrollmode hscrollMode HScrollMode static
+    itk_option define -width width Width 30
+    itk_option define -height height Height 30
+
+    protected method _scrollWidget {wid first last}
+    protected method _vertScrollbarDisplay {mode}
+    protected method _horizScrollbarDisplay {mode}
+    protected method _configureEvent {}
+
+    protected variable _vmode off            ;# Vertical scroll mode
+    protected variable _hmode off            ;# Vertical scroll mode
+    protected variable _recheckHoriz 1       ;# Flag to check need for
+                                             ;#  horizontal scrollbar
+    protected variable _recheckVert 1        ;# Flag to check need for
+                                             ;#  vertical scrollbar
+
+    protected variable _interior {}
+}
+
+#
+# Provide a lowercased access method for the Scrolledwidget class.
+#
+proc ::iwidgets::scrolledwidget {pathName args} {
+    uplevel ::iwidgets::Scrolledwidget $pathName $args
+}
+
+#
+# Use option database to override default resources of base classes.
+#
+option add *Scrolledwidget.labelPos n widgetDefault
+
+# ------------------------------------------------------------------
+#                        CONSTRUCTOR
+# ------------------------------------------------------------------
+itcl::body iwidgets::Scrolledwidget::constructor {args} {
+
+    #
+    # Turn off the borderwidth on the hull and save off the
+    # interior for later use.
+    #
+    component hull configure -borderwidth 0
+    set _interior $itk_interior
+
+    #
+    # Check if the scrollbars need mapping upon a configure event.
+    #
+    bind $_interior <Configure> [itcl::code $this _configureEvent]
+
+    #
+    # Turn off propagation in the containing shell.
+    #
+    # Due to a bug in the tk4.2 grid, we have to check the
+    # propagation before setting it.  Setting it to the same
+    # value it already is will cause it to toggle.
+    #
+    if {[grid propagate $_interior]} {
+	grid propagate $_interior no
+    }
+
+    #
+    # Create the vertical scroll bar
+    #
+    itk_component add vertsb {
+	scrollbar $itk_interior.vertsb -orient vertical
+    } {
+	usual
+	keep -borderwidth -elementborderwidth -jump -relief
+	rename -highlightbackground -background background Background
+    }
+
+    #
+    # Create the horizontal scrollbar
+    #
+    itk_component add horizsb {
+	scrollbar $itk_interior.horizsb -orient horizontal
+    } {
+	usual
+	keep -borderwidth -elementborderwidth -jump -relief
+	rename -highlightbackground -background background Background
+    }
+
+    #
+    # Initialize the widget based on the command line options.
+    #
+    eval itk_initialize $args
+}
+
+# ------------------------------------------------------------------
+#                           DESTURCTOR
+# ------------------------------------------------------------------
+itcl::body iwidgets::Scrolledwidget::destructor {} {
+}
+
+# ------------------------------------------------------------------
+#                             OPTIONS
+# ------------------------------------------------------------------
+
+# ------------------------------------------------------------------
+# OPTION: -sbwidth
+#
+# Set the width of the scrollbars.
+# ------------------------------------------------------------------
+itcl::configbody iwidgets::Scrolledwidget::sbwidth {
+    $itk_component(vertsb) configure -width $itk_option(-sbwidth)
+    $itk_component(horizsb) configure -width $itk_option(-sbwidth)
+}
+
+# ------------------------------------------------------------------
+# OPTION: -scrollmargin
+#
+# Set the distance between the scrollbars and the list box.
+# ------------------------------------------------------------------
+itcl::configbody iwidgets::Scrolledwidget::scrollmargin {
+    set pixels [winfo pixels $_interior	$itk_option(-scrollmargin)]
+
+    if {$_hmode == "on"} {
+	grid rowconfigure $_interior 1 -minsize $pixels
+    }
+
+    if {$_vmode == "on"} {
+	grid columnconfigure $_interior 1 -minsize $pixels
+    }
+}
+
+# ------------------------------------------------------------------
+# OPTION: -vscrollmode
+#
+# Enable/disable display and mode of veritcal scrollbars.
+# ------------------------------------------------------------------
+itcl::configbody iwidgets::Scrolledwidget::vscrollmode {
+    switch $itk_option(-vscrollmode) {
+    	static {
+    	    _vertScrollbarDisplay on
+    	}
+
+    	dynamic -
+    	none {
+    	    _vertScrollbarDisplay off
+    	}
+
+    	default {
+    	    error "bad vscrollmode option\
+		    \"$itk_option(-vscrollmode)\": should be\
+		    static, dynamic, or none"
+    	}
+    }
+}
+
+# ------------------------------------------------------------------
+# OPTION: -hscrollmode
+#
+# Enable/disable display and mode of horizontal scrollbars.
+# ------------------------------------------------------------------
+itcl::configbody iwidgets::Scrolledwidget::hscrollmode {
+    switch $itk_option(-hscrollmode) {
+    	static {
+    	    _horizScrollbarDisplay on
+    	}
+
+    	dynamic -
+    	none {
+    	    _horizScrollbarDisplay off
+    	}
+
+    	default {
+    	    error "bad hscrollmode option\
+		    \"$itk_option(-hscrollmode)\": should be\
+		    static, dynamic, or none"
+    	}
+    }
+}
+
+# ------------------------------------------------------------------
+# OPTION: -width
+#
+# Specifies the width of the scrolled widget.  The value may be
+# specified in any of the forms acceptable to Tk_GetPixels.
+# ------------------------------------------------------------------
+itcl::configbody iwidgets::Scrolledwidget::width {
+    $_interior configure -width \
+	[winfo pixels $_interior $itk_option(-width)]
+}
+
+# ------------------------------------------------------------------
+# OPTION: -height
+#
+# Specifies the height of the scrolled widget.  The value may be
+# specified in any of the forms acceptable to Tk_GetPixels.
+# ------------------------------------------------------------------
+itcl::configbody iwidgets::Scrolledwidget::height {
+    $_interior configure -height \
+	[winfo pixels $_interior $itk_option(-height)]
+}
+
+# ------------------------------------------------------------------
+#                            METHODS
+# ------------------------------------------------------------------
+
+# ------------------------------------------------------------------
+# PROTECTED METHOD: _vertScrollbarDisplay mode
+#
+# Displays the vertical scrollbar based on the input mode.
+# ------------------------------------------------------------------
+itcl::body iwidgets::Scrolledwidget::_vertScrollbarDisplay {mode} {
+    switch $mode  {
+	on {
+	    set _vmode on
+
+	    grid columnconfigure $_interior 1 -minsize \
+		    [winfo pixels $_interior $itk_option(-scrollmargin)]
+	    grid $itk_component(vertsb) -row 0 -column 2 -sticky ns
+	}
+
+	off {
+	    set _vmode off
+
+	    grid columnconfigure $_interior 1 -minsize 0
+	    grid forget $itk_component(vertsb)
+	}
+
+	default {
+	    error "invalid argument \"$mode\": should be on or off"
+	}
+    }
+}
+
+# ------------------------------------------------------------------
+# PROTECTED METHOD: _horizScrollbarDisplay mode
+#
+# Displays the horizontal scrollbar based on the input mode.
+# ------------------------------------------------------------------
+itcl::body iwidgets::Scrolledwidget::_horizScrollbarDisplay {mode} {
+    switch $mode  {
+	on {
+	    set _hmode on
+
+	    grid rowconfigure $_interior 1 -minsize \
+		    [winfo pixels $_interior $itk_option(-scrollmargin)]
+	    grid $itk_component(horizsb) -row 2 -column 0 -sticky ew
+	}
+
+	off {
+	    set _hmode off
+
+	    grid rowconfigure $_interior 1 -minsize 0
+	    grid forget $itk_component(horizsb)
+	}
+
+	default {
+	    error "invalid argument \"$mode\": should be on or off"
+	}
+    }
+}
+
+# ------------------------------------------------------------------
+# PROTECTED METHOD: _scrollWidget wid first last
+#
+# Performs scrolling and display of scrollbars based on the total
+# and maximum frame size as well as the current -vscrollmode and
+# -hscrollmode settings.  Parameters are automatic scroll parameters.
+# ------------------------------------------------------------------
+itcl::body iwidgets::Scrolledwidget::_scrollWidget {wid first last} {
+    $wid set $first $last
+
+    if {$wid == $itk_component(vertsb)} {
+	if {$itk_option(-vscrollmode) == "dynamic"} {
+	    if {($_recheckVert != 1) && ($_vmode == "on")} {
+		return
+	    } else {
+		set _recheckVert 0
+	    }
+
+	    if {($first == 0) && ($last == 1)} {
+		if {$_vmode != "off"} {
+		    _vertScrollbarDisplay off
+		}
+
+	    } else {
+		if {$_vmode != "on"} {
+		    _vertScrollbarDisplay on
+		}
+	    }
+	}
+
+    } elseif {$wid == $itk_component(horizsb)} {
+	if {$itk_option(-hscrollmode) == "dynamic"} {
+	    if {($_recheckHoriz != 1) && ($_hmode == "on")} {
+		return
+	    } else {
+		set _recheckHoriz 0
+	    }
+
+	    if {($first == 0) && ($last == 1)} {
+		if {$_hmode != "off"} {
+		    _horizScrollbarDisplay off
+		}
+
+	    } else {
+		if {$_hmode != "on"} {
+		    _horizScrollbarDisplay on
+		}
+	    }
+	}
+    }
+}
+
+# ------------------------------------------------------------------
+# PROTECTED METHOD: _configureEvent
+#
+# Resets the recheck flags which determine if we'll try and map
+# the scrollbars in dynamic mode.
+# ------------------------------------------------------------------
+itcl::body iwidgets::Scrolledwidget::_configureEvent {} {
+    update idletasks
+    set _recheckVert 1
+    set _recheckHoriz 1
+}
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@d5 2
+a6 2
+# creating the necessary horizontal and vertical scrollbars and 
+# providing protected methods for controlling their display.  The 
+d12 1
+a12 1
+#  AUTHOR: Mark Ulferts                        mulferts@@austin.dsccc.com 
+d14 1
+a14 1
+#  @@(#) $Id: scrolledwidget.itk,v 1.1 2004/05/20 14:49:47 morrison Exp $
+d18 7
+a24 7
+# Permission to use, copy, modify, distribute and license this software 
+# and its documentation for any purpose, and without fee or written 
+# agreement with DSC, is hereby granted, provided that the above copyright 
+# notice appears in all copies and that both the copyright notice and 
+# warranty disclaimer below appear in supporting documentation, and that 
+# the names of DSC Technologies Corporation or DSC Communications 
+# Corporation not be used in advertising or publicity pertaining to the 
+d26 2
+a27 2
+# 
+# DSC DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE, INCLUDING 
+d30 4
+a33 4
+# AUTHORS AND DISTRIBUTORS HAVE NO OBLIGATION TO PROVIDE MAINTENANCE, 
+# SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS. IN NO EVENT SHALL 
+# DSC BE LIABLE FOR ANY SPECIAL, INDIRECT OR CONSEQUENTIAL DAMAGES OR 
+# ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, 
+d35 1
+a35 1
+# ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS 
+d43 1
+a43 1
+    keep -background -borderwidth -cursor -highlightcolor -highlightthickness 
+d58 9
+a66 9
+    itk_option define -scrollmargin scrollMargin ScrollMargin 3 
+    itk_option define -vscrollmode vscrollMode VScrollMode static 
+    itk_option define -hscrollmode hscrollMode HScrollMode static 
+    itk_option define -width width Width 30 
+    itk_option define -height height Height 30 
+
+    protected method _scrollWidget {wid first last} 
+    protected method _vertScrollbarDisplay {mode} 
+    protected method _horizScrollbarDisplay {mode} 
+d71 1
+a71 1
+    protected variable _recheckHoriz 1       ;# Flag to check need for 
+d73 1
+a73 1
+    protected variable _recheckVert 1        ;# Flag to check need for 
+d81 1
+a81 1
+# 
+d97 1
+a97 1
+    # Turn off the borderwidth on the hull and save off the 
+d111 1
+a111 1
+    # Due to a bug in the tk4.2 grid, we have to check the 
+d118 2
+a119 2
+	
+    # 
+d123 1
+a123 1
+	scrollbar $itk_interior.vertsb -orient vertical 
+d126 1
+a126 1
+	keep -borderwidth -elementborderwidth -jump -relief 
+d134 1
+a134 1
+	scrollbar $itk_interior.horizsb -orient horizontal 
+d137 1
+a137 1
+	keep -borderwidth -elementborderwidth -jump -relief 
+d140 1
+a140 1
+    
+d174 1
+a174 1
+    	
+d178 1
+a178 1
+	
+d194 1
+a194 1
+	
+d199 1
+a199 1
+	
+d218 1
+a218 1
+	
+d223 1
+a223 1
+	
+d235 2
+a236 2
+# Specifies the width of the scrolled widget.  The value may be 
+# specified in any of the forms acceptable to Tk_GetPixels.  
+d240 1
+a240 1
+	[winfo pixels $_interior $itk_option(-width)] 
+d246 2
+a247 2
+# Specifies the height of the scrolled widget.  The value may be 
+# specified in any of the forms acceptable to Tk_GetPixels.  
+d251 1
+a251 1
+	[winfo pixels $_interior $itk_option(-height)] 
+d267 1
+a267 1
+	    
+d272 1
+a272 1
+	
+d275 1
+a275 1
+	    
+d277 1
+a277 1
+	    grid forget $itk_component(vertsb) 
+d279 1
+a279 1
+	
+d295 1
+a295 1
+	    
+d300 1
+a300 1
+	
+d303 1
+a303 1
+	    
+d305 1
+a305 1
+	    grid forget $itk_component(horizsb) 
+d307 1
+a307 1
+	
+d317 2
+a318 2
+# Performs scrolling and display of scrollbars based on the total 
+# and maximum frame size as well as the current -vscrollmode and 
+d336 1
+a336 1
+		
+d343 1
+a343 1
+	
+d356 1
+a356 1
+		
+d370 1
+a370 1
+# the scrollbars in dynamic mode.  
+@
+
+
+1.1
+log
+@Sources that are external to BRL-CAD are moved from the top level to src/other/.
+@
+text
+@d14 1
+a14 1
+#  @@(#) $Id: scrolledwidget.itk,v 1.1 2003/03/13 13:20:36 jra Exp $
+@
+

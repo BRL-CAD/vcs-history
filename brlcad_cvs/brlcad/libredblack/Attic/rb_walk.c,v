@@ -1,0 +1,741 @@
+head	11.6;
+access;
+symbols
+	rel-4-5:11.5
+	ctj-4-5-post:11.5
+	ctj-4-5-pre:11.5
+	rel-4-4:11.1;
+locks; strict;
+comment	@ * @;
+
+
+11.6
+date	98.12.30.04.24.10;	author mike;	state dead;
+branches;
+next	11.5;
+
+11.5
+date	96.08.27.07.10.51;	author mike;	state Exp;
+branches;
+next	11.4;
+
+11.4
+date	95.09.20.12.02.21;	author pjt;	state Exp;
+branches;
+next	11.3;
+
+11.3
+date	95.07.10.20.17.51;	author pjt;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	95.04.19.19.03.56;	author pjt;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	95.01.04.10.05.58;	author mike;	state Rel4_4;
+branches;
+next	2.6;
+
+2.6
+date	94.12.30.16.41.04;	author stay;	state Exp;
+branches;
+next	2.5;
+
+2.5
+date	94.09.26.12.21.10;	author jra;	state Exp;
+branches;
+next	2.4;
+
+2.4
+date	94.09.22.15.46.55;	author jra;	state Exp;
+branches;
+next	2.3;
+
+2.3
+date	94.09.22.15.34.50;	author pjt;	state Exp;
+branches;
+next	2.2;
+
+2.2
+date	94.09.22.15.27.13;	author pjt;	state Exp;
+branches;
+next	2.1;
+
+2.1
+date	93.03.25.11.03.32;	author pjt;	state Exp;
+branches;
+next	1.8;
+
+1.8
+date	93.03.25.11.00.27;	author pjt;	state Exp;
+branches;
+next	1.7;
+
+1.7
+date	93.01.15.13.08.09;	author pjt;	state zero_1;
+branches;
+next	1.6;
+
+1.6
+date	93.01.15.10.42.10;	author pjt;	state zero_0;
+branches;
+next	1.5;
+
+1.5
+date	93.01.14.10.51.16;	author pjt;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	93.01.14.09.22.55;	author pjt;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	92.11.06.13.55.37;	author pjt;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	92.11.05.11.32.43;	author pjt;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	92.11.04.12.14.22;	author pjt;	state Exp;
+branches;
+next	;
+
+
+desc
+@
+     Routines to walk a red-black tree
+
+@
+
+
+11.6
+log
+@All moved to libbu
+@
+text
+@/*			R B _ W A L K . C
+ *
+ *	    Routines for traversal of red-black trees
+ *
+ *	The function rb_walk() is defined in terms of the function
+ *	_rb_walk(), which, in turn, calls any of the six functions
+ *
+ *		static void prewalknodes()
+ *		static void inwalknodes()
+ *		static void postwalknodes()
+ *		static void prewalkdata()
+ *		static void inwalkdata()
+ *		static void postwalkdata()
+ *
+ *	depending on the type of traversal desired and the objects
+ *	to be visited (nodes themselves, or merely the data stored
+ *	in them).  Each of these last six functions has four parameters:
+ *	the root of the tree to traverse, the order on which to do the
+ *	walking, the function to apply at each visit, and the current
+ *	depth in the tree.
+ *
+ *	Author:	Paul Tanenbaum
+ *
+ */
+#ifndef lint
+static char RCSid[] = "@@(#) $Header: /c/CVS/brlcad/libredblack/rb_walk.c,v 11.5 1996/08/27 07:10:51 mike Exp mike $";
+#endif
+
+#include "conf.h"
+
+#include <stdio.h>
+#include <math.h>
+#include "machine.h"
+#include "rtlist.h"
+#include "bu.h"
+#include "compat4.h"
+#include "redblack.h"
+#include "./rb_internals.h"
+
+/*		        P R E W A L K N O D E S ( )
+ *
+ *	    Perform a preorder traversal of a red-black tree
+ */
+static void prewalknodes (root, order, visit, depth)
+
+struct rb_node	*root;
+int		order;
+void		(*visit)();
+int		depth;
+
+{
+    RB_CKMAG(root, RB_NODE_MAGIC, "red-black node");
+    RB_CKORDER(root -> rbn_tree, order);
+
+    if (root == rb_null(root -> rbn_tree))
+	return;
+    visit(root, depth);
+    prewalknodes (rb_left_child(root, order), order, visit, depth + 1);
+    prewalknodes (rb_right_child(root, order), order, visit, depth + 1);
+}
+
+/*		        I N W A L K N O D E S ( )
+ *
+ *	    Perform an inorder traversal of a red-black tree
+ */
+static void inwalknodes (root, order, visit, depth)
+
+struct rb_node	*root;
+int		order;
+void		(*visit)();
+int		depth;
+
+{
+    RB_CKMAG(root, RB_NODE_MAGIC, "red-black node");
+    RB_CKORDER(root -> rbn_tree, order);
+
+    if (root == rb_null(root -> rbn_tree))
+	return;
+    inwalknodes (rb_left_child(root, order), order, visit, depth + 1);
+    visit(root, depth);
+    inwalknodes (rb_right_child(root, order), order, visit, depth + 1);
+}
+
+/*		        P O S T W A L K N O D E S ( )
+ *
+ *	    Perform a postorder traversal of a red-black tree
+ */
+static void postwalknodes (root, order, visit, depth)
+
+struct rb_node	*root;
+int		order;
+void		(*visit)();
+int		depth;
+
+{
+    RB_CKMAG(root, RB_NODE_MAGIC, "red-black node");
+    RB_CKORDER(root -> rbn_tree, order);
+
+    if (root == rb_null(root -> rbn_tree))
+	return;
+    postwalknodes (rb_left_child(root, order), order, visit, depth + 1);
+    postwalknodes (rb_right_child(root, order), order, visit, depth + 1);
+    visit(root, depth);
+}
+
+/*		        P R E W A L K D A T A ( )
+ *
+ *	    Perform a preorder traversal of a red-black tree
+ */
+static void prewalkdata (root, order, visit, depth)
+
+struct rb_node	*root;
+int		order;
+void		(*visit)();
+int		depth;
+
+{
+    RB_CKMAG(root, RB_NODE_MAGIC, "red-black node");
+    RB_CKORDER(root -> rbn_tree, order);
+
+    if (root == rb_null(root -> rbn_tree))
+	return;
+    visit(rb_data(root, order), depth);
+    prewalkdata (rb_left_child(root, order), order, visit, depth + 1);
+    prewalkdata (rb_right_child(root, order), order, visit, depth + 1);
+}
+
+/*		        I N W A L K D A T A ( )
+ *
+ *	    Perform an inorder traversal of a red-black tree
+ */
+static void inwalkdata (root, order, visit, depth)
+
+struct rb_node	*root;
+int		order;
+void		(*visit)();
+int		depth;
+
+{
+    RB_CKMAG(root, RB_NODE_MAGIC, "red-black node");
+    RB_CKORDER(root -> rbn_tree, order);
+
+    if (root == rb_null(root -> rbn_tree))
+	return;
+    inwalkdata (rb_left_child(root, order), order, visit, depth + 1);
+    visit(rb_data(root, order), depth);
+    inwalkdata (rb_right_child(root, order), order, visit, depth + 1);
+}
+
+/*		        P O S T W A L K D A T A ( )
+ *
+ *	    Perform a postorder traversal of a red-black tree
+ */
+static void postwalkdata (root, order, visit, depth)
+
+struct rb_node	*root;
+int		order;
+void		(*visit)();
+int		depth;
+
+{
+    RB_CKMAG(root, RB_NODE_MAGIC, "red-black node");
+    RB_CKORDER(root -> rbn_tree, order);
+
+    if (root == rb_null(root -> rbn_tree))
+	return;
+    postwalkdata (rb_left_child(root, order), order, visit, depth + 1);
+    postwalkdata (rb_right_child(root, order), order, visit, depth + 1);
+    visit(rb_data(root, order), depth);
+}
+
+/*		        _ R B _ W A L K ( )
+ *
+ *		    Traverse a red-black tree
+ *
+ *	This function has five parameters: the tree to traverse,
+ *	the order on which to do the walking, the function to apply
+ *	to each node, whether to apply the function to the entire node
+ *	(or just to its data), and the type of traversal (preorder,
+ *	inorder, or postorder).
+ *
+ *	N.B. _rb_walk() is not declared static because it is called
+ *	by rb_diagnose_tree() in rb_diag.c.
+ */
+void _rb_walk (tree, order, visit, what_to_visit, trav_type)
+
+rb_tree	*tree;
+int	order;
+void	(*visit)();
+int	what_to_visit;
+int	trav_type;
+
+{
+    static void (*walk[][3])() =
+		{
+		    { prewalknodes, inwalknodes, postwalknodes },
+		    { prewalkdata, inwalkdata, postwalkdata }
+		};
+
+    RB_CKMAG(tree, RB_TREE_MAGIC, "red-black tree");
+    RB_CKORDER(tree, order);
+    switch (trav_type)
+    {
+	case PREORDER:
+	case INORDER:
+	case POSTORDER:
+	    switch (what_to_visit)
+	    {
+		case WALK_NODES:
+		case WALK_DATA:
+		    (*walk[what_to_visit][trav_type])
+			(rb_root(tree, order), order, visit, 0);
+		    break;
+		default:
+		    rt_log("FATAL: _rb_walk(): Illegal visitation object: %d\n",
+			what_to_visit);
+		    exit (1);
+	    }
+	    break;
+	default:
+	    rt_log("FATAL: _rb_walk(): Illegal traversal type: %d\n",
+		trav_type);
+	    exit (1);
+    }
+}
+
+/*		        R B _ W A L K ( )
+ *
+ *		Applications interface to _rb_walk()
+ *
+ *	This function has four parameters: the tree to traverse,
+ *	the order on which to do the walking, the function to apply
+ *	to each node, and the type of traversal (preorder, inorder,
+ *	or postorder).
+ */
+void rb_walk (tree, order, visit, trav_type)
+
+rb_tree	*tree;
+int	order;
+void	(*visit)();
+int	trav_type;
+
+{
+    RB_CKMAG(tree, RB_TREE_MAGIC, "red-black tree");
+    RB_CKORDER(tree, order);
+
+    _rb_walk(tree, order, visit, WALK_DATA, trav_type);
+}
+@
+
+
+11.5
+log
+@Changed over to bu.h
+@
+text
+@d26 1
+a26 1
+static char RCSid[] = "@@(#) $Header: /m/cad/libredblack/RCS/rb_walk.c,v 11.4 1995/09/20 12:02:21 pjt Exp pjt $";
+@
+
+
+11.4
+log
+@Added comment that _rb_walk() is intentionally not static
+@
+text
+@d26 1
+a26 1
+static char RCSid[] = "@@(#) $Header: /m/cad/libredblack/RCS/rb_walk.c,v 11.3 1995/07/10 20:17:51 pjt Exp pjt $";
+d35 2
+@
+
+
+11.3
+log
+@Must now include rtlist.h before redblack.h
+@
+text
+@d26 1
+a26 1
+static char RCSid[] = "@@(#) $Header: /m/cad/libredblack/RCS/rb_walk.c,v 11.2 1995/04/19 19:03:56 pjt Exp $";
+d179 3
+@
+
+
+11.2
+log
+@include machine.h
+@
+text
+@d26 1
+a26 1
+static char RCSid[] = "@@(#) $Header: /m/cad/libredblack/RCS/rb_walk.c,v 11.1 95/01/04 10:05:58 mike Rel4_4 $";
+d34 1
+@
+
+
+11.1
+log
+@Release_4.4
+@
+text
+@d26 1
+a26 1
+static char RCSid[] = "@@(#) $Header: /m/cad/libredblack/RCS/rb_walk.c,v 2.6 94/12/30 16:41:04 stay Exp $";
+d33 1
+@
+
+
+2.6
+log
+@deleted reference to stdlib, it wil be included in conf.h if
+it exists or is STDC
+@
+text
+@d26 1
+a26 1
+static char RCSid[] = "@@(#) $Header: /m/cad/libredblack/RCS/rb_walk.c,v 2.5 1994/09/26 12:21:10 jra Exp stay $";
+@
+
+
+2.5
+log
+@Added #include "conf.h"
+@
+text
+@d26 1
+a26 1
+static char RCSid[] = "@@(#) $Header: /m/cad/libredblack/RCS/rb_walk.c,v 2.4 94/09/22 15:46:55 jra Exp Locker: jra $";
+a30 1
+#include <stdlib.h>
+@
+
+
+2.4
+log
+@Fixed a few typos.
+@
+text
+@d26 1
+a26 1
+static char RCSid[] = "@@(#) $Header: /m/cad/libredblack/RCS/rb_walk.c,v 2.3 94/09/22 15:34:50 pjt Exp Locker: jra $";
+d28 2
+@
+
+
+2.3
+log
+@Changed "#include "rt_internals.h" to "#include "./rt_internals.h"
+@
+text
+@d26 1
+a26 1
+static char RCSid[] = "@@(#) $Header: /m/cad/libredblack/RCS/rb_walk.c,v 2.2 94/09/22 15:27:13 pjt Exp Locker: pjt $";
+d63 2
+a64 2
+(struct rb_node	*root;
+int		order,
+d177 1
+a177 1
+void _rb_walk (tree, order, *visit, what_to_visit, trav_type)
+@
+
+
+2.2
+log
+@Replaced prototype-type definition with K&R type
+@
+text
+@d26 1
+a26 1
+static char RCSid[] = "@@(#) $Header: /m/cad/libredblack/RCS/rb_walk.c,v 2.1 93/03/25 11:03:32 pjt Exp $";
+d33 1
+a33 1
+#include "rb_internals.h"
+@
+
+
+2.1
+log
+@Installed into BRL CAD tree
+@
+text
+@d26 1
+a26 1
+static char RCSid[] = "@@(#) $Header: /m/cad/libredblack/RCS/rb_walk.c,v 1.8 93/03/25 11:00:27 pjt Exp Locker: pjt $";
+d39 7
+a45 3
+static void prewalknodes
+	    (struct rb_node *root, int order,
+	    void (*visit)(), int depth)
+d61 7
+a67 3
+static void inwalknodes
+	    (struct rb_node *root, int order,
+	    void (*visit)(), int depth)
+d83 7
+a89 3
+static void postwalknodes
+	    (struct rb_node *root, int order,
+	    void (*visit)(), int depth)
+d105 7
+a111 3
+static void prewalkdata
+	    (struct rb_node *root, int order,
+	    void (*visit)(), int depth)
+d127 7
+a133 3
+static void inwalkdata
+	    (struct rb_node *root, int order,
+	    void (*visit)(), int depth)
+d149 7
+a155 3
+static void postwalkdata
+	    (struct rb_node *root, int order,
+	    void (*visit)(), int depth)
+d177 8
+a184 3
+void _rb_walk
+    (rb_tree *tree, int order, void (*visit)(),
+     int what_to_visit, int trav_type)
+d228 7
+a234 3
+void rb_walk
+	(rb_tree *tree, int order, void (*visit)(),
+	int trav_type)
+@
+
+
+1.8
+log
+@Added authorship comment
+@
+text
+@d26 1
+a26 1
+static char RCSid[] = "@@(#) $Header: /m/cad/libredblack/RCS/rb_walk.c,v 1.7 93/01/15 13:08:09 pjt zero_1 Locker: pjt $";
+@
+
+
+1.7
+log
+@1. Switched from fprintf(stderr, ) to rt_log()
+2. Added comments and general clean up
+@
+text
+@d21 3
+d26 1
+a26 1
+static char RCSid[] = "@@(#) $Header: /arl/pjt/libredblack/RCS/rb_walk.c,v 1.6 93/01/15 10:42:10 pjt Exp Locker: pjt $";
+@
+
+
+1.6
+log
+@Implemented all three traversal types: preorder, inorder, and postorder
+@
+text
+@d19 2
+a20 2
+ *	walking, the function to apply at each visit, and a block of
+ *	data to pass to the visit function.
+d23 1
+a23 1
+static char RCSid[] = "@@(#) $Header: /arl/pjt/libredblack/RCS/rb_walk.c,v 1.5 93/01/14 10:51:16 pjt Exp Locker: pjt $";
+d144 1
+a144 1
+ *	This function has six parameters: the tree to traverse,
+d147 2
+a148 2
+ *	(or just to its data), the type of traversal, and a data block
+ *	to pass to the visit function.
+d175 1
+a175 2
+		    fprintf(stderr,
+			" _rb_walk(): Illegal visitation object: %d\n",
+d181 2
+a182 2
+	    fprintf(stderr,
+		" _rb_walk(): Illegal traversal type: %d\n", trav_type);
+d191 1
+a191 1
+ *	This function has five parameters: the tree to traverse,
+d193 2
+a194 2
+ *	to each node, the type of traversal, and a block of data to
+ *	pass to the visit function.
+@
+
+
+1.5
+log
+@1. Added calls to RB_CKORDER()
+2. Made execution of body of _rb_walk() unconditional
+@
+text
+@d3 1
+a3 1
+ *	Written by:	Paul Tanenbaum
+d5 16
+a20 1
+ *  $Header: /arl/pjt/libredblack/RCS/rb_walk.c,v 1.4 93/01/14 09:22:55 pjt Exp Locker: pjt $
+d22 3
+d32 1
+a32 1
+/*		        _ R B _ W A L K ( )
+d34 17
+a50 1
+ *	    Perform an inorder tree walk on a red-black tree
+d52 1
+a52 3
+ *	This function has three parameters: the root of the tree
+ *	to traverse, the order on which to do the walking, and the
+ *	function to apply to the data in each node.
+d54 3
+a56 1
+static void _rb_walk (struct rb_node *root, int order, void (*visit)())
+d58 2
+d61 15
+d81 3
+a83 3
+    _rb_walk (rb_left_child(root, order), order, visit);
+    visit(rb_data(root, order));
+    _rb_walk (rb_right_child(root, order), order, visit);
+d86 1
+a86 1
+/*		        R B _ W A L K ( )
+d88 17
+a104 1
+ *	        Applications interface to _rb_walk()
+d106 1
+a106 3
+ *	This function has three parameters: the tree to traverse,
+ *	the order on which to do the walking, and the function to
+ *	apply to each node.
+d108 3
+a110 1
+void rb_walk (rb_tree *tree, int order, void (*visit)())
+d112 2
+d115 45
+d162 25
+d188 17
+a204 1
+    _rb_walk(rb_root(tree, order), order, visit);
+@
+
+
+1.4
+log
+@1. Added check for rb_null in rb_walk()
+2. Switched to rb_data()
+@
+text
+@d5 1
+a5 1
+ *  $Header: /arl/pjt/libredblack/RCS/rb_walk.c,v 1.3 92/11/06 13:55:37 pjt Exp Locker: pjt $
+d25 8
+a32 10
+    /* Check data type of the parameter "root" */
+    if (root != 0)
+    {
+	RB_CKMAG(root, RB_NODE_MAGIC, "red-black node");
+	if (root == rb_null(root -> rbn_tree))
+	    return;
+	_rb_walk (rb_left_child(root, order), order, visit);
+	visit(rb_data(root, order));
+	_rb_walk (rb_right_child(root, order), order, visit);
+    }
+d47 2
+@
+
+
+1.3
+log
+@Made _rb_walk static
+@
+text
+@d5 1
+a5 1
+ *  $Header: /arl/pjt/libredblack/RCS/rb_walk.c,v 1.2 92/11/05 11:32:43 pjt Exp Locker: pjt $
+d29 2
+d32 1
+a32 1
+	visit(root -> rbn_data);
+@
+
+
+1.2
+log
+@Replaced reference to rbt_root by call to rb_root()
+@
+text
+@d5 1
+a5 1
+ *  $Header: /arl/pjt/libredblack/RCS/rb_walk.c,v 1.1 92/11/04 12:14:22 pjt Exp Locker: pjt $
+d20 1
+a20 1
+ *	function to apply to each node.
+d22 1
+a22 1
+void _rb_walk (struct rb_node *root, int order, void (*visit)())
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d5 1
+a5 1
+ *  $Header: /arl/pjt/libredblack/RCS/rb_create.c,v 1.2 92/11/04 10:48:18 pjt Exp Locker: pjt $
+d47 1
+a47 1
+    _rb_walk(tree -> rbt_root, order, visit);
+@

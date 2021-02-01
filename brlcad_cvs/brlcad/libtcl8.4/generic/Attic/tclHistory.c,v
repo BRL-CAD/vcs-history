@@ -1,0 +1,324 @@
+head	1.4;
+access;
+symbols
+	ansi-20040405-merged:1.3.4.1
+	postmerge-20040405-ansi:1.3
+	premerge-20040404-ansi:1.3
+	postmerge-autoconf:1.3
+	autoconf-freeze:1.1.6.4
+	premerge-autoconf:1.3
+	postmerge-20040315-windows:1.3
+	premerge-20040315-windows:1.3
+	windows-20040315-freeze:1.3.2.1
+	autoconf-20031203:1.1.6.1
+	autoconf-20031202:1.1
+	autoconf-branch:1.1.0.6
+	phong-branch:1.1.0.4
+	photonmap-branch:1.1.0.2
+	windows-branch:1.3.0.2
+	ansi-branch:1.3.0.4;
+locks; strict;
+comment	@ * @;
+
+
+1.4
+date	2004.05.21.18.03.45;	author morrison;	state dead;
+branches;
+next	1.3;
+
+1.3
+date	2004.03.04.19.47.01;	author morrison;	state Exp;
+branches
+	1.3.2.1
+	1.3.4.1;
+next	1.2;
+
+1.2
+date	2003.11.07.14.54.27;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2003.03.13.19.18.07;	author jra;	state Exp;
+branches
+	1.1.6.1;
+next	;
+
+1.1.6.1
+date	2003.12.03.16.24.28;	author erikg;	state Exp;
+branches;
+next	1.1.6.2;
+
+1.1.6.2
+date	2004.02.12.18.42.33;	author erikg;	state Exp;
+branches;
+next	1.1.6.3;
+
+1.1.6.3
+date	2004.03.15.12.04.42;	author erikg;	state Exp;
+branches;
+next	1.1.6.4;
+
+1.1.6.4
+date	2004.03.15.14.01.09;	author erikg;	state Exp;
+branches;
+next	;
+
+1.3.2.1
+date	2004.03.12.09.58.45;	author morrison;	state Exp;
+branches;
+next	;
+
+1.3.4.1
+date	2004.03.17.21.19.30;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.4
+log
+@moved from top-level to src/other/.
+@
+text
+@/* 
+ * tclHistory.c --
+ *
+ *	This module and the Tcl library file history.tcl together implement
+ *	Tcl command history. Tcl_RecordAndEval(Obj) can be called to record
+ *	commands ("events") before they are executed. Commands defined in
+ *	history.tcl may be used to perform history substitutions.
+ *
+ * Copyright (c) 1990-1993 The Regents of the University of California.
+ * Copyright (c) 1994-1997 Sun Microsystems, Inc.
+ *
+ * See the file "license.terms" for information on usage and redistribution
+ * of this file, and for a DISCLAIMER OF ALL WARRANTIES.
+ *
+ * RCS: @@(#) $Id: tclHistory.c,v 1.3 2004/03/04 19:47:01 morrison Exp $
+ */
+
+#include "tclInt.h"
+#include "tclPort.h"
+
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * Tcl_RecordAndEval --
+ *
+ *	This procedure adds its command argument to the current list of
+ *	recorded events and then executes the command by calling
+ *	Tcl_Eval.
+ *
+ * Results:
+ *	The return value is a standard Tcl return value, the result of
+ *	executing cmd.
+ *
+ * Side effects:
+ *	The command is recorded and executed.
+ *
+ *----------------------------------------------------------------------
+ */
+
+int
+Tcl_RecordAndEval(interp, cmd, flags)
+    Tcl_Interp *interp;		/* Token for interpreter in which command
+				 * will be executed. */
+    CONST char *cmd;		/* Command to record. */
+    int flags;			/* Additional flags.  TCL_NO_EVAL means
+				 * only record: don't execute command.
+				 * TCL_EVAL_GLOBAL means use Tcl_GlobalEval
+				 * instead of Tcl_Eval. */
+{
+    register Tcl_Obj *cmdPtr;
+    int length = strlen(cmd);
+    int result;
+
+    if (length > 0) {
+	/*
+	 * Call Tcl_RecordAndEvalObj to do the actual work.
+	 */
+
+	cmdPtr = Tcl_NewStringObj(cmd, length);
+	Tcl_IncrRefCount(cmdPtr);
+	result = Tcl_RecordAndEvalObj(interp, cmdPtr, flags);
+
+	/*
+	 * Move the interpreter's object result to the string result, 
+	 * then reset the object result.
+	 */
+
+	Tcl_SetResult(interp, TclGetString(Tcl_GetObjResult(interp)),
+	        TCL_VOLATILE);
+
+	/*
+	 * Discard the Tcl object created to hold the command.
+	 */
+	
+	Tcl_DecrRefCount(cmdPtr);	
+    } else {
+	/*
+	 * An empty string. Just reset the interpreter's result.
+	 */
+
+	Tcl_ResetResult(interp);
+	result = TCL_OK;
+    }
+    return result;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * Tcl_RecordAndEvalObj --
+ *
+ *	This procedure adds the command held in its argument object to the
+ *	current list of recorded events and then executes the command by
+ *	calling Tcl_EvalObj.
+ *
+ * Results:
+ *	The return value is a standard Tcl return value, the result of
+ *	executing the command.
+ *
+ * Side effects:
+ *	The command is recorded and executed.
+ *
+ *----------------------------------------------------------------------
+ */
+
+int
+Tcl_RecordAndEvalObj(interp, cmdPtr, flags)
+    Tcl_Interp *interp;		/* Token for interpreter in which command
+				 * will be executed. */
+    Tcl_Obj *cmdPtr;		/* Points to object holding the command to
+				 * record and execute. */
+    int flags;			/* Additional flags. TCL_NO_EVAL means
+				 * record only: don't execute the command.
+				 * TCL_EVAL_GLOBAL means evaluate the
+				 * script in global variable context instead
+				 * of the current procedure. */
+{
+    int result;
+    Tcl_Obj *list[3];
+    register Tcl_Obj *objPtr;
+
+    /*
+     * Do recording by eval'ing a tcl history command: history add $cmd.
+     */
+
+    list[0] = Tcl_NewStringObj("history", -1);
+    list[1] = Tcl_NewStringObj("add", -1);
+    list[2] = cmdPtr;
+    
+    objPtr = Tcl_NewListObj(3, list);
+    Tcl_IncrRefCount(objPtr);
+    (void) Tcl_EvalObjEx(interp, objPtr, TCL_EVAL_GLOBAL);
+    Tcl_DecrRefCount(objPtr);
+
+    /*
+     * Execute the command.
+     */
+
+    result = TCL_OK;
+    if (!(flags & TCL_NO_EVAL)) {
+	result = Tcl_EvalObjEx(interp, cmdPtr, flags & TCL_EVAL_GLOBAL);
+    }
+    return result;
+}
+@
+
+
+1.3
+log
+@Updated to tcl 8.4.6
+@
+text
+@d15 1
+a15 1
+ * RCS: @@(#) $Id: tclHistory.c,v 1.4 2002/01/16 06:02:34 dgp Exp $
+@
+
+
+1.3.4.1
+log
+@sync branch with HEAD
+@
+text
+@d15 1
+a15 1
+ * RCS: @@(#) $Id$
+@
+
+
+1.3.2.1
+log
+@merge from HEAD
+@
+text
+@d15 1
+a15 1
+ * RCS: @@(#) $Id$
+@
+
+
+1.2
+log
+@updated tcl to 8.4.4
+@
+text
+@@
+
+
+1.1
+log
+@*** empty log message ***
+@
+text
+@@
+
+
+1.1.6.1
+log
+@updates from HEAD, part 1
+@
+text
+@d15 1
+a15 1
+ * RCS: @@(#) $Id: tclHistory.c,v 1.2 2003/11/07 14:54:27 morrison Exp $
+@
+
+
+1.1.6.2
+log
+@merge from HEAD
+@
+text
+@@
+
+
+1.1.6.3
+log
+@merge from head
+@
+text
+@d15 1
+a15 1
+ * RCS: @@(#) $Id: tclHistory.c,v 1.3 2004/03/04 19:47:01 morrison Exp $
+@
+
+
+1.1.6.4
+log
+@merge from head...
+@
+text
+@d15 1
+a15 1
+ * RCS: @@(#) $Id: tclHistory.c,v 1.1.6.3 2004/03/15 12:04:42 erikg Exp $
+@
+
+

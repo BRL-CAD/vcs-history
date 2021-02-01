@@ -1,0 +1,602 @@
+head	11.7;
+access;
+symbols
+	ansi-20040405-merged:11.4.2.2
+	postmerge-20040405-ansi:11.6
+	premerge-20040404-ansi:11.5
+	postmerge-autoconf:11.5
+	autoconf-freeze:11.4.10.1
+	premerge-autoconf:11.5
+	ansi-20040316-freeze:11.4.2.1
+	postmerge-20040315-windows:11.5
+	premerge-20040315-windows:11.4
+	windows-20040315-freeze:11.4.4.1
+	autoconf-20031203:11.4
+	autoconf-20031202:11.4
+	autoconf-branch:11.4.0.10
+	phong-branch:11.4.0.8
+	photonmap-branch:11.4.0.6
+	rel-6-1-DP:11.4
+	windows-branch:11.4.0.4
+	rel-6-0-2:11.2
+	ansi-branch:11.4.0.2
+	rel-6-0-1-branch:11.2.0.2
+	hartley-6-0-post:11.3
+	hartley-6-0-pre:11.2
+	rel-6-0-1:11.2
+	rel-6-0:11.2
+	rel-5-4:11.1
+	offsite-5-3-pre:11.2
+	rel-5-3:11.1
+	rel-5-2:11.1
+	rel-5-1-branch:11.1.0.2
+	rel-5-1:11.1;
+locks; strict;
+comment	@ * @;
+
+
+11.7
+date	2004.05.21.18.07.35;	author morrison;	state dead;
+branches;
+next	11.6;
+
+11.6
+date	2004.04.05.08.48.58;	author morrison;	state Exp;
+branches;
+next	11.5;
+
+11.5
+date	2004.03.16.20.03.10;	author morrison;	state Exp;
+branches;
+next	11.4;
+
+11.4
+date	2002.08.20.17.08.10;	author jra;	state Exp;
+branches
+	11.4.2.1
+	11.4.4.1
+	11.4.10.1;
+next	11.3;
+
+11.3
+date	2002.08.15.20.55.21;	author hartley;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	2000.07.10.23.01.50;	author mike;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	2000.05.22.23.54.02;	author mike;	state Exp;
+branches;
+next	;
+
+11.4.2.1
+date	2002.09.19.18.01.47;	author morrison;	state Exp;
+branches;
+next	11.4.2.2;
+
+11.4.2.2
+date	2004.03.17.21.19.00;	author morrison;	state Exp;
+branches;
+next	;
+
+11.4.4.1
+date	2002.09.26.23.04.04;	author morrison;	state Exp;
+branches;
+next	;
+
+11.4.10.1
+date	2004.03.18.18.10.29;	author erikg;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+11.7
+log
+@moved to src/
+@
+text
+@/*
+ *			T I M E R - N T . C
+ *
+ * Function -
+ *	To provide timing information on Microsoft Windows NT.
+ */
+#ifndef lint
+static const char RCStimer_nt[] = "@@(#)$Header: /n/xoff/cvs/brlcad/librt/timer-nt.c,v 11.6 2004/04/05 08:48:58 morrison Exp $ (BRL)";
+#endif
+
+
+#include <stdio.h>
+#include <string.h>
+#include <time.h>
+
+#include "machine.h"
+#include "externs.h"
+#include "bu.h"
+
+/* Standard System V stuff */
+static clock_t start;
+time_t time0;
+
+/*
+ *			P R E P _ T I M E R
+ */
+void
+rt_prep_timer(void)
+{
+	start = clock();
+	time( &time0 );
+}
+
+/*
+ *			R T _ G E T _ T I M E R
+ *
+ *  Reports on the passage of time, since rt_prep_timer() was called.
+ *  Explicit return is number of CPU seconds.
+ *  String return is descriptive.
+ *  If "elapsed" pointer is non-null, number of elapsed seconds are returned.
+ *  Times returned will never be zero.
+ */
+double
+rt_get_timer(struct bu_vls	*vp, double *elapsed)
+{
+	long	now;
+	double	user_cpu_secs;
+	double	sys_cpu_secs;
+	double	elapsed_secs;
+	double	percent;
+	clock_t finish;
+
+	/* Real time.  1 second resolution. */
+	(void)time(&now);
+	elapsed_secs = difftime(now,time0);
+
+	finish = clock();
+	sys_cpu_secs = (double)(finish - start);
+	sys_cpu_secs /= CLOCKS_PER_SEC;
+
+	user_cpu_secs = sys_cpu_secs;
+
+	if( user_cpu_secs < 0.00001 )  user_cpu_secs = 0.00001;
+	if( elapsed_secs < 0.00001 )  elapsed_secs = user_cpu_secs;	/* It can't be any less! */
+
+	if( elapsed )  *elapsed = elapsed_secs;
+
+	if( vp )  {
+		percent = user_cpu_secs/elapsed_secs*100.0;
+		BU_CK_VLS(vp);
+		bu_vls_printf( vp,
+			"%g user + %g sys in %g elapsed secs (%g%%)",
+			user_cpu_secs, sys_cpu_secs, elapsed_secs, percent );
+	}
+	return( user_cpu_secs );
+}
+
+double
+rt_read_timer(char *str, int len)
+{
+	struct bu_vls	vls;
+	double		cpu;
+	int		todo;
+
+	if( !str )  return  rt_get_timer( (struct bu_vls *)0, (double *)0 );
+
+	bu_vls_init( &vls );
+	cpu = rt_get_timer( &vls, (double *)0 );
+	todo = bu_vls_strlen( &vls );
+	if( todo > len )  todo = len-1;
+	strncpy( str, bu_vls_addr(&vls), todo );
+	str[todo] = '\0';
+	return cpu;
+}
+@
+
+
+11.6
+log
+@merge of ansi-6-0-branch into HEAD
+@
+text
+@d8 1
+a8 1
+static const char RCStimer_nt[] = "@@(#)$Header$ (BRL)";
+@
+
+
+11.5
+log
+@merge of windows-6-0-branch into head
+@
+text
+@d28 1
+a28 1
+rt_prep_timer()
+d44 1
+a44 3
+rt_get_timer( vp, elapsed )
+struct bu_vls	*vp;
+double		*elapsed;
+d79 1
+a79 2
+rt_read_timer(str,len)
+char *str;
+d94 1
+a94 1
+}@
+
+
+11.4
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d8 1
+a8 1
+static const char RCStimer_nt[] = "@@(#)$Header: /c/CVS/brlcad/librt/timer-nt.c,v 11.2 2000/07/10 23:01:50 mike Exp $ (BRL)";
+d11 1
+d13 10
+d30 2
+a31 1
+
+a33 1
+
+d35 7
+a41 2
+ *			R E A D _ T I M E R
+ * 
+d44 37
+d84 14
+a97 6
+	char line[132];
+
+	sprintf(line,"timer-nt.c:  I don't know how to tell time on NT yet!");
+	if(str && len > 0)  (void)strncpy( str, line, len );
+	return( 0.42 );
+}
+@
+
+
+11.4.10.1
+log
+@merge from head
+@
+text
+@d8 1
+a8 1
+static const char RCStimer_nt[] = "@@(#)$Header$ (BRL)";
+a10 1
+
+a11 10
+#include <string.h>
+#include <time.h>
+
+#include "machine.h"
+#include "externs.h"
+#include "bu.h"
+
+/* Standard System V stuff */
+static clock_t start;
+time_t time0;
+d19 1
+a19 2
+	start = clock();
+	time( &time0 );
+d22 1
+d24 2
+a25 7
+ *			R T _ G E T _ T I M E R
+ *
+ *  Reports on the passage of time, since rt_prep_timer() was called.
+ *  Explicit return is number of CPU seconds.
+ *  String return is descriptive.
+ *  If "elapsed" pointer is non-null, number of elapsed seconds are returned.
+ *  Times returned will never be zero.
+a27 37
+rt_get_timer( vp, elapsed )
+struct bu_vls	*vp;
+double		*elapsed;
+{
+	long	now;
+	double	user_cpu_secs;
+	double	sys_cpu_secs;
+	double	elapsed_secs;
+	double	percent;
+	clock_t finish;
+
+	/* Real time.  1 second resolution. */
+	(void)time(&now);
+	elapsed_secs = difftime(now,time0);
+
+	finish = clock();
+	sys_cpu_secs = (double)(finish - start);
+	sys_cpu_secs /= CLOCKS_PER_SEC;
+
+	user_cpu_secs = sys_cpu_secs;
+
+	if( user_cpu_secs < 0.00001 )  user_cpu_secs = 0.00001;
+	if( elapsed_secs < 0.00001 )  elapsed_secs = user_cpu_secs;	/* It can't be any less! */
+
+	if( elapsed )  *elapsed = elapsed_secs;
+
+	if( vp )  {
+		percent = user_cpu_secs/elapsed_secs*100.0;
+		BU_CK_VLS(vp);
+		bu_vls_printf( vp,
+			"%g user + %g sys in %g elapsed secs (%g%%)",
+			user_cpu_secs, sys_cpu_secs, elapsed_secs, percent );
+	}
+	return( user_cpu_secs );
+}
+
+double
+d31 6
+a36 14
+	struct bu_vls	vls;
+	double		cpu;
+	int		todo;
+
+	if( !str )  return  rt_get_timer( (struct bu_vls *)0, (double *)0 );
+
+	bu_vls_init( &vls );
+	cpu = rt_get_timer( &vls, (double *)0 );
+	todo = bu_vls_strlen( &vls );
+	if( todo > len )  todo = len-1;
+	strncpy( str, bu_vls_addr(&vls), todo );
+	str[todo] = '\0';
+	return cpu;
+}@
+
+
+11.4.4.1
+log
+@Modifications (on a 6.0 source distribution) for initial port to windows (merged with sources close to 6.0.2)
+@
+text
+@d8 1
+a8 1
+static const char RCStimer_nt[] = "@@(#)$Header: /c/CVS/brlcad/librt/timer-nt.c,v 11.4 2002/08/20 17:08:10 jra Exp $ (BRL)";
+a10 1
+
+a11 10
+#include <string.h>
+#include <time.h>
+
+#include "machine.h"
+#include "externs.h"
+#include "bu.h"
+
+/* Standard System V stuff */
+static clock_t start;
+time_t time0;
+d19 1
+a19 2
+	start = clock();
+	time( &time0 );
+d22 1
+d24 2
+a25 7
+ *			R T _ G E T _ T I M E R
+ *
+ *  Reports on the passage of time, since rt_prep_timer() was called.
+ *  Explicit return is number of CPU seconds.
+ *  String return is descriptive.
+ *  If "elapsed" pointer is non-null, number of elapsed seconds are returned.
+ *  Times returned will never be zero.
+a27 37
+rt_get_timer( vp, elapsed )
+struct bu_vls	*vp;
+double		*elapsed;
+{
+	long	now;
+	double	user_cpu_secs;
+	double	sys_cpu_secs;
+	double	elapsed_secs;
+	double	percent;
+	clock_t finish;
+
+	/* Real time.  1 second resolution. */
+	(void)time(&now);
+	elapsed_secs = difftime(now,time0);
+
+	finish = clock();
+	sys_cpu_secs = (double)(finish - start);
+	sys_cpu_secs /= CLOCKS_PER_SEC;
+
+	user_cpu_secs = sys_cpu_secs;
+
+	if( user_cpu_secs < 0.00001 )  user_cpu_secs = 0.00001;
+	if( elapsed_secs < 0.00001 )  elapsed_secs = user_cpu_secs;	/* It can't be any less! */
+
+	if( elapsed )  *elapsed = elapsed_secs;
+
+	if( vp )  {
+		percent = user_cpu_secs/elapsed_secs*100.0;
+		BU_CK_VLS(vp);
+		bu_vls_printf( vp,
+			"%g user + %g sys in %g elapsed secs (%g%%)",
+			user_cpu_secs, sys_cpu_secs, elapsed_secs, percent );
+	}
+	return( user_cpu_secs );
+}
+
+double
+d31 6
+a36 14
+	struct bu_vls	vls;
+	double		cpu;
+	int		todo;
+
+	if( !str )  return  rt_get_timer( (struct bu_vls *)0, (double *)0 );
+
+	bu_vls_init( &vls );
+	cpu = rt_get_timer( &vls, (double *)0 );
+	todo = bu_vls_strlen( &vls );
+	if( todo > len )  todo = len-1;
+	strncpy( str, bu_vls_addr(&vls), todo );
+	str[todo] = '\0';
+	return cpu;
+}@
+
+
+11.4.2.1
+log
+@Initial ANSIfication
+@
+text
+@d8 1
+a8 1
+static const char RCStimer_nt[] = "@@(#)$Header: /c/CVS/brlcad/librt/timer-nt.c,v 11.4 2002/08/20 17:08:10 jra Exp $ (BRL)";
+d17 1
+a17 1
+rt_prep_timer(void)
+d28 2
+a29 1
+rt_read_timer(char *str, int len)
+@
+
+
+11.4.2.2
+log
+@sync branch with HEAD
+@
+text
+@d8 1
+a8 1
+static const char RCStimer_nt[] = "@@(#)$Header$ (BRL)";
+a10 1
+
+a11 10
+#include <string.h>
+#include <time.h>
+
+#include "machine.h"
+#include "externs.h"
+#include "bu.h"
+
+/* Standard System V stuff */
+static clock_t start;
+time_t time0;
+d19 1
+a19 2
+	start = clock();
+	time( &time0 );
+d22 1
+d24 2
+a25 7
+ *			R T _ G E T _ T I M E R
+ *
+ *  Reports on the passage of time, since rt_prep_timer() was called.
+ *  Explicit return is number of CPU seconds.
+ *  String return is descriptive.
+ *  If "elapsed" pointer is non-null, number of elapsed seconds are returned.
+ *  Times returned will never be zero.
+d28 1
+a28 1
+rt_get_timer(struct bu_vls	*vp, double *elapsed)
+d30 1
+a30 31
+	long	now;
+	double	user_cpu_secs;
+	double	sys_cpu_secs;
+	double	elapsed_secs;
+	double	percent;
+	clock_t finish;
+
+	/* Real time.  1 second resolution. */
+	(void)time(&now);
+	elapsed_secs = difftime(now,time0);
+
+	finish = clock();
+	sys_cpu_secs = (double)(finish - start);
+	sys_cpu_secs /= CLOCKS_PER_SEC;
+
+	user_cpu_secs = sys_cpu_secs;
+
+	if( user_cpu_secs < 0.00001 )  user_cpu_secs = 0.00001;
+	if( elapsed_secs < 0.00001 )  elapsed_secs = user_cpu_secs;	/* It can't be any less! */
+
+	if( elapsed )  *elapsed = elapsed_secs;
+
+	if( vp )  {
+		percent = user_cpu_secs/elapsed_secs*100.0;
+		BU_CK_VLS(vp);
+		bu_vls_printf( vp,
+			"%g user + %g sys in %g elapsed secs (%g%%)",
+			user_cpu_secs, sys_cpu_secs, elapsed_secs, percent );
+	}
+	return( user_cpu_secs );
+}
+d32 3
+a34 16
+double
+rt_read_timer(char *str, int len)
+{
+	struct bu_vls	vls;
+	double		cpu;
+	int		todo;
+
+	if( !str )  return  rt_get_timer( (struct bu_vls *)0, (double *)0 );
+
+	bu_vls_init( &vls );
+	cpu = rt_get_timer( &vls, (double *)0 );
+	todo = bu_vls_strlen( &vls );
+	if( todo > len )  todo = len-1;
+	strncpy( str, bu_vls_addr(&vls), todo );
+	str[todo] = '\0';
+	return cpu;
+@
+
+
+11.3
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d17 1
+a17 1
+rt_prep_timer(void)
+d28 2
+a29 1
+rt_read_timer(char *str, int len)
+@
+
+
+11.2
+log
+@
+Added "const" to RCSid string, to silence warnings of unused variable
+on GCC compilers
+@
+text
+@d8 1
+a8 1
+static const char RCStimer_nt[] = "@@(#)$Header: /c/CVS/brlcad/librt/timer-nt.c,v 11.1 2000/05/22 23:54:02 mike Exp $ (BRL)";
+d17 1
+a17 1
+rt_prep_timer()
+d28 1
+a28 2
+rt_read_timer(str,len)
+char *str;
+@
+
+
+11.1
+log
+@
+Timer routines for WinNT
+@
+text
+@d8 1
+a8 1
+static char RCStimer_nt[] = "@@(#)$Header: /c/CVS/brlcad/librt/timerhep.c,v 11.1 1995/01/04 09:58:48 mike Rel4_4 $ (BRL)";
+@
+

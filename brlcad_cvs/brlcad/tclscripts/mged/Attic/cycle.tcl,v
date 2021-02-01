@@ -1,0 +1,155 @@
+head	1.3;
+access;
+symbols
+	ansi-20040405-merged:1.2
+	postmerge-20040405-ansi:1.2
+	premerge-20040404-ansi:1.2
+	postmerge-autoconf:1.2
+	autoconf-freeze:1.2
+	premerge-autoconf:1.2
+	postmerge-20040315-windows:1.2
+	premerge-20040315-windows:1.2
+	windows-20040315-freeze:1.2
+	autoconf-20031203:1.2
+	autoconf-20031202:1.2
+	autoconf-branch:1.2.0.14
+	phong-branch:1.2.0.12
+	photonmap-branch:1.2.0.10
+	rel-6-1-DP:1.2
+	windows-branch:1.2.0.8
+	rel-6-0-2:1.2
+	ansi-branch:1.2.0.6
+	rel-6-0-1-branch:1.2.0.4
+	hartley-6-0-post:1.2
+	hartley-6-0-pre:1.2
+	rel-6-0-1:1.2
+	rel-6-0:1.2
+	rel-5-4:1.2
+	offsite-5-3-pre:1.2
+	rel-5-3:1.2
+	rel-5-2:1.2
+	rel-5-1-branch:1.2.0.2
+	rel-5-1:1.2;
+locks; strict;
+comment	@# @;
+
+
+1.3
+date	2004.05.21.16.41.23;	author morrison;	state dead;
+branches;
+next	1.2;
+
+1.2
+date	99.11.23.21.25.46;	author jra;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	99.09.20.15.20.37;	author jra;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.3
+log
+@moved to src/tclscripts/
+@
+text
+@# Routines to check for cylic references
+
+check_externs "db bu_get_value_by_keyword"
+
+#
+#	This routine returns a list of all the objects directly referenced
+#	in the tree (as returned by "db get comb tree"). If the refs
+#	argument is non-empty, then the returned list includes $refs
+proc get_refs { refs tree } {
+	set op [lindex $tree 0]
+	if { [string compare $op "l"] == 0 } {
+		# this is a leaf
+		set leaf [lindex $tree 1]
+
+		# if the leaf is not aleady in the list append it
+		if { [lsearch -exact $refs $leaf] == -1 } {
+			lappend refs $leaf
+		}
+	} else {
+		# this is a binary node (+, -, or u)
+		# recurse on each subtree
+		set subtree [lindex $tree 1]
+		set refs [get_refs $refs $subtree]
+		set subtree [lindex $tree 2]
+		set refs [get_refs $refs $subtree]
+		
+	}
+
+	# return the final list
+	return $refs
+}
+
+#	comb is a combination name
+#	ancestors is a list of ancestors of comb
+#	this routine descends "comb" looking for cyclic references
+#	returns "1" if it finds a cycle, "0" otherwise
+proc check_cycle { ancestors comb } {
+	foreach anc $ancestors {
+		if { [string compare $anc $comb] == 0 } {
+			return 1
+		}
+	}
+
+	# get the combination from disk
+	set comb_all [concat type [db get $comb]]
+
+	# if this is not really a combination, there cannot be a cycle
+	if { [bu_get_value_by_keyword type $comb_all] != "comb" } {
+		return 0
+	}
+
+	# add this combination to the list of ancestors
+	lappend ancestors $comb
+
+	# recurse for each combination referred to by this combination
+	foreach desc [get_refs "" [bu_get_value_by_keyword tree $comb_all]] {
+		# if this reference does not support the "db get" interface,
+		# then it is not a combination
+		if { [catch {db get $desc} tcl_desc] == 0 } {
+		if { [string compare [lindex $tcl_desc 0] "comb"] == 0 } {
+				if { [check_cycle $ancestors $desc] == 1 } {
+					return 1
+				}
+			}
+		}
+	}
+
+	# if we get here, no cycles were found
+	return 0
+}
+@
+
+
+1.2
+log
+@
+Used "catch" to handle objects not suported by "db get".
+@
+text
+@@
+
+
+1.1
+log
+@Initial version of code to check for cyclic references in MGED trees
+@
+text
+@d57 7
+a63 3
+		if { [string compare [lindex [db get $desc] 0] "comb"] == 0 } {
+			if { [check_cycle $ancestors $desc] == 1 } {
+				return 1
+@
+

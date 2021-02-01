@@ -1,0 +1,994 @@
+head	1.3;
+access;
+symbols
+	rel-7-10-4:1.2
+	STABLE:1.2.0.2
+	rel-7-10-2:1.2
+	rel-7-10-0:1.1;
+locks; strict;
+comment	@ * @;
+
+
+1.3
+date	2007.11.06.21.38.54;	author erikgreenwald;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2007.05.07.04.17.50;	author brlcad;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2007.03.02.21.50.10;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.3
+log
+@tk 8.5a6->8.5b1
+@
+text
+@/*
+ * xgc.c --
+ *
+ *	This file contains generic routines for manipulating X graphics
+ *	contexts.
+ *
+ * Copyright (c) 1995-1996 Sun Microsystems, Inc.
+ *
+ * See the file "license.terms" for information on usage and redistribution of
+ * this file, and for a DISCLAIMER OF ALL WARRANTIES.
+ *
+ * RCS: @@(#) $Id: xgc.c,v 1.13 2007/07/02 13:04:07 das Exp $
+ */
+
+#include <tkInt.h>
+
+#if !defined(MAC_OSX_TK)
+#   include <X11/Xlib.h>
+#endif
+#ifdef MAC_OSX_TK
+#   include <X11/Xlib.h>
+#   include <X11/X.h>
+#   define Cursor XCursor
+#   define Region XRegion
+#endif
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * XCreateGC --
+ *
+ *	Allocate a new GC, and initialize the specified fields.
+ *
+ * Results:
+ *	Returns a newly allocated GC.
+ *
+ * Side effects:
+ *	None.
+ *
+ *----------------------------------------------------------------------
+ */
+
+GC
+XCreateGC(
+    Display *display,
+    Drawable d,
+    unsigned long mask,
+    XGCValues *values)
+{
+    GC gp;
+
+    /*
+     * In order to have room for a dash list, MAX_DASH_LIST_SIZE extra chars
+     * are defined, which is invisible from the outside. The list is assumed
+     * to end with a 0-char, so this must be set explicitely during
+     * initialization.
+     */
+
+#define MAX_DASH_LIST_SIZE 10
+
+    gp = (XGCValues *) ckalloc(sizeof(XGCValues) + MAX_DASH_LIST_SIZE);
+    if (!gp) {
+	return None;
+    }
+
+#define InitField(name,maskbit,default) \
+	(gp->name = (mask & (maskbit)) ? values->name : (default))
+
+    InitField(function,		  GCFunction,		GXcopy);
+    InitField(plane_mask,	  GCPlaneMask,		(unsigned long)(~0));
+    InitField(foreground,	  GCForeground,		
+	    BlackPixelOfScreen(DefaultScreenOfDisplay(display)));
+    InitField(background,	  GCBackground,		
+	    WhitePixelOfScreen(DefaultScreenOfDisplay(display)));
+    InitField(line_width,	  GCLineWidth,		1);
+    InitField(line_style,	  GCLineStyle,		LineSolid);
+    InitField(cap_style,	  GCCapStyle,		0);
+    InitField(join_style,	  GCJoinStyle,		0);
+    InitField(fill_style,	  GCFillStyle,		FillSolid);
+    InitField(fill_rule,	  GCFillRule,		WindingRule);
+    InitField(arc_mode,		  GCArcMode,		ArcPieSlice);
+    InitField(tile,		  GCTile,		None);
+    InitField(stipple,		  GCStipple,		None);
+    InitField(ts_x_origin,	  GCTileStipXOrigin,	0);
+    InitField(ts_y_origin,	  GCTileStipYOrigin,	0);
+    InitField(font,		  GCFont,		None);
+    InitField(subwindow_mode,	  GCSubwindowMode,	ClipByChildren);
+    InitField(graphics_exposures, GCGraphicsExposures,	True);
+    InitField(clip_x_origin,	  GCClipXOrigin,	0);
+    InitField(clip_y_origin,	  GCClipYOrigin,	0);
+    InitField(dash_offset,	  GCDashOffset,		0);
+    InitField(dashes,		  GCDashList,		4);
+    (&(gp->dashes))[1] = 0;
+
+    if (mask & GCClipMask) {
+	gp->clip_mask = (Pixmap) ckalloc(sizeof(TkpClipMask));
+	((TkpClipMask *) gp->clip_mask)->type = TKP_CLIP_PIXMAP;
+	((TkpClipMask *) gp->clip_mask)->value.pixmap = values->clip_mask;
+    } else {
+	gp->clip_mask = None;
+    }
+
+    return gp;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * XChangeGC --
+ *
+ *	Changes the GC components specified by valuemask for the specified GC.
+ *
+ * Results:
+ *	None.
+ *
+ * Side effects:
+ *	Updates the specified GC.
+ *
+ *----------------------------------------------------------------------
+ */
+
+void
+XChangeGC(
+    Display *d,
+    GC gc,
+    unsigned long mask,
+    XGCValues *values)
+{
+#define ModifyField(name,maskbit) \
+	if (mask & (maskbit)) { gc->name = values->name; }
+
+    ModifyField(function, GCFunction);
+    ModifyField(plane_mask, GCPlaneMask);
+    ModifyField(foreground, GCForeground);
+    ModifyField(background, GCBackground);
+    ModifyField(line_width, GCLineWidth);
+    ModifyField(line_style, GCLineStyle);
+    ModifyField(cap_style, GCCapStyle);
+    ModifyField(join_style, GCJoinStyle);
+    ModifyField(fill_style, GCFillStyle);
+    ModifyField(fill_rule, GCFillRule);
+    ModifyField(arc_mode, GCArcMode);
+    ModifyField(tile, GCTile);
+    ModifyField(stipple, GCStipple);
+    ModifyField(ts_x_origin, GCTileStipXOrigin);
+    ModifyField(ts_y_origin, GCTileStipYOrigin);
+    ModifyField(font, GCFont);
+    ModifyField(subwindow_mode, GCSubwindowMode);
+    ModifyField(graphics_exposures, GCGraphicsExposures);
+    ModifyField(clip_x_origin, GCClipXOrigin);
+    ModifyField(clip_y_origin, GCClipYOrigin);
+    ModifyField(dash_offset, GCDashOffset);
+    if (mask & GCClipMask) {
+	XSetClipMask(d, gc, values->clip_mask);
+    }
+    if (mask & GCDashList) {
+	gc->dashes = values->dashes;
+	(&(gc->dashes))[1] = 0;
+    }
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * XFreeGC --
+ *
+ *	Deallocates the specified graphics context.
+ *
+ * Results:
+ *	None.
+ *
+ * Side effects:
+ *	None.
+ *
+ *----------------------------------------------------------------------
+ */
+
+void XFreeGC(
+    Display *d,
+    GC gc)
+{
+    if (gc != None) {
+	if (gc->clip_mask != None) {
+	    ckfree((char*) gc->clip_mask);
+	}
+	ckfree((char *) gc);
+    }
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * XSetForeground, etc. --
+ *
+ *	The following functions are simply accessor functions for the GC
+ *	slots.
+ *
+ * Results:
+ *	None.
+ *
+ * Side effects:
+ *	Each function sets some slot in the GC.
+ *
+ *----------------------------------------------------------------------
+ */
+
+void
+XSetForeground(
+    Display *display,
+    GC gc,
+    unsigned long foreground)
+{
+    gc->foreground = foreground;
+}
+
+void
+XSetBackground(
+    Display *display,
+    GC gc,
+    unsigned long background)
+{
+    gc->background = background;
+}
+
+void
+XSetDashes(
+    Display *display,
+    GC gc,
+    int dash_offset,
+    _Xconst char *dash_list,
+    int n)
+{
+    char *p = &(gc->dashes);
+
+#ifdef TkWinDeleteBrush
+    TkWinDeleteBrush(gc->fgBrush);
+    TkWinDeletePen(gc->fgPen);
+    TkWinDeleteBrush(gc->bgBrush);
+    TkWinDeletePen(gc->fgExtPen);
+#endif
+    gc->dash_offset = dash_offset;
+    if (n > MAX_DASH_LIST_SIZE) n = MAX_DASH_LIST_SIZE;
+    while (n-- > 0) {
+	*p++ = *dash_list++;
+    }
+    *p = 0;
+}
+
+void
+XSetFunction(
+    Display *display,
+    GC gc,
+    int function)
+{
+    gc->function = function;
+}
+
+void
+XSetFillRule(
+    Display *display,
+    GC gc,
+    int fill_rule)
+{
+    gc->fill_rule = fill_rule;
+}
+
+void
+XSetFillStyle(
+    Display *display,
+    GC gc,
+    int fill_style)
+{
+    gc->fill_style = fill_style;
+}
+
+void
+XSetTSOrigin(
+    Display *display,
+    GC gc,
+    int x, int y)
+{
+    gc->ts_x_origin = x;
+    gc->ts_y_origin = y;
+}
+
+void
+XSetFont(
+    Display *display,
+    GC gc,
+    Font font)
+{
+    gc->font = font;
+}
+
+void
+XSetArcMode(
+    Display *display,
+    GC gc,
+    int arc_mode)
+{
+    gc->arc_mode = arc_mode;
+}
+
+void
+XSetStipple(
+    Display *display,
+    GC gc,
+    Pixmap stipple)
+{
+    gc->stipple = stipple;
+}
+
+void
+XSetLineAttributes(
+    Display *display,
+    GC gc,
+    unsigned int line_width,
+    int line_style,
+    int cap_style,
+    int join_style)
+{
+    gc->line_width = line_width;
+    gc->line_style = line_style;
+    gc->cap_style = cap_style;
+    gc->join_style = join_style;
+}
+
+void
+XSetClipOrigin(
+    Display *display,
+    GC gc,
+    int clip_x_origin,
+    int clip_y_origin)
+{
+    gc->clip_x_origin = clip_x_origin;
+    gc->clip_y_origin = clip_y_origin;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * TkSetRegion, XSetClipMask --
+ *
+ *	Sets the clipping region/pixmap for a GC.
+ *
+ *	Note that unlike the Xlib equivalent, it is not safe to delete the
+ *	region after setting it into the GC. The only uses of TkSetRegion
+ *	are currently in DisplayFrame and in ImgPhotoDisplay, which use the
+ *	GC immediately.
+ *
+ * Results:
+ *	None.
+ *
+ * Side effects:
+ *	Allocates or dealloates a TkpClipMask.
+ *
+ *----------------------------------------------------------------------
+ */
+
+void
+TkSetRegion(
+    Display *display,
+    GC gc,
+    TkRegion r)
+{
+    TkpClipMask *clip_mask;
+
+    if (r == None) {
+	if (gc->clip_mask) {
+	    ckfree((char*) gc->clip_mask);
+	    gc->clip_mask = None;
+	}
+	return;
+    }
+
+    if (gc->clip_mask == None) {
+	gc->clip_mask = (Pixmap)ckalloc(sizeof(TkpClipMask));
+    }
+    clip_mask = (TkpClipMask*) gc->clip_mask;
+    clip_mask->type = TKP_CLIP_REGION;
+    clip_mask->value.region = r;
+}
+
+void
+XSetClipMask(
+    Display *display,
+    GC gc,
+    Pixmap pixmap)
+{
+    TkpClipMask *clip_mask;
+
+    if (pixmap == None) {
+	if (gc->clip_mask) {
+	    ckfree((char*) gc->clip_mask);
+	    gc->clip_mask = None;
+	}
+	return;
+    }
+
+    if (gc->clip_mask == None) {
+	gc->clip_mask = (Pixmap)ckalloc(sizeof(TkpClipMask));
+    }
+    clip_mask = (TkpClipMask*) gc->clip_mask;
+    clip_mask->type = TKP_CLIP_PIXMAP;
+    clip_mask->value.pixmap = pixmap;
+}
+
+/*
+ * Some additional dummy functions (hopefully implemented soon).
+ */
+
+#if 0
+Cursor
+XCreateFontCursor(
+    Display *display,
+    unsigned int shape)
+{
+    return (Cursor) 0;
+}
+
+void
+XDrawImageString(
+    Display *display,
+    Drawable d,
+    GC gc,
+    int x,
+    int y,
+    _Xconst char *string,
+    int length)
+{
+}
+#endif
+
+void
+XDrawPoint(
+    Display *display,
+    Drawable d,
+    GC gc,
+    int x,
+    int y)
+{
+    XDrawLine(display, d, gc, x, y, x, y);
+}
+
+void
+XDrawPoints(
+    Display *display,
+    Drawable d,
+    GC gc,
+    XPoint *points,
+    int npoints,
+    int mode)
+{
+    int i;
+
+    for (i=0; i<npoints; i++) {
+	XDrawLine(display, d, gc,
+		points[i].x, points[i].y, points[i].x, points[i].y);
+    }
+}
+
+#if !defined(MAC_OSX_TK)
+void
+XDrawSegments(
+    Display *display,
+    Drawable d,
+    GC gc,
+    XSegment *segments,
+    int nsegments)
+{
+}
+#endif
+
+#if 0
+char *
+XFetchBuffer(
+    Display *display,
+    int *nbytes_return,
+    int buffer)
+{
+    return (char *) 0;
+}
+
+Status
+XFetchName(
+    Display *display,
+    Window w,
+    char **window_name_return)
+{
+    return (Status) 0;
+}
+
+Atom *
+XListProperties(
+    Display* display,
+    Window w,
+    int *num_prop_return)
+{
+    return (Atom *) 0;
+}
+
+void
+XMapRaised(
+    Display *display,
+    Window w)
+{
+}
+
+void
+XPutImage(
+    Display *display,
+    Drawable d,
+    GC gc,
+    XImage *image,
+    int src_x,
+    int src_y,
+    int dest_x,
+    int dest_y,
+    unsigned int width,
+    unsigned int height)
+{
+}
+
+void
+XQueryTextExtents(
+    Display *display,
+    XID font_ID,
+    _Xconst char *string,
+    int nchars,
+    int *direction_return,
+    int *font_ascent_return,
+    int *font_descent_return,
+    XCharStruct *overall_return)
+{
+}
+
+void
+XReparentWindow(
+    Display *display,
+    Window w,
+    Window parent,
+    int x,
+    int y)
+{
+}
+
+void
+XRotateBuffers(
+    Display *display,
+    int rotate)
+{
+}
+
+void
+XStoreBuffer(
+    Display *display,
+    _Xconst char *bytes,
+    int nbytes,
+    int buffer)
+{
+}
+
+void
+XUndefineCursor(
+    Display *display,
+    Window w)
+{
+}
+#endif
+
+/*
+ * Local Variables:
+ * mode: c
+ * c-basic-offset: 4
+ * fill-column: 78
+ * End:
+ */
+@
+
+
+1.2
+log
+@upgrade to tcl/tk 8.5a6 (from 8.5a5) .. includes even more (extensive) aquatk fixes/enhancements
+@
+text
+@d12 1
+a12 1
+ * RCS: @@(#) $Id: xgc.c,v 1.11 2007/01/03 08:22:08 das Exp $
+d18 1
+a18 1
+#	include <X11/Xlib.h>
+d21 4
+a24 4
+#	include <X11/Xlib.h>
+#	include <X11/X.h>
+#	define Cursor XCursor
+#	define Region XRegion
+d71 4
+a74 2
+    InitField(foreground,	  GCForeground,		0);
+    InitField(background,	  GCBackground,		0xffffff);
+d347 3
+a349 2
+ *	region after setting it into the GC. The only use of TkSetRegion is
+ *	currently in ImgPhotoDisplay, which uses the GC immediately.
+d366 2
+d379 3
+a381 2
+    ((TkpClipMask*) gc->clip_mask)->type = TKP_CLIP_REGION;
+    ((TkpClipMask*) gc->clip_mask)->value.region = r;
+d390 2
+d403 3
+a405 2
+    ((TkpClipMask*) gc->clip_mask)->type = TKP_CLIP_PIXMAP;
+    ((TkpClipMask*) gc->clip_mask)->value.pixmap = pixmap;
+@
+
+
+1.1
+log
+@upgrade tcl/tk from 8.4.6 to 8.5a5; also move to a recursive configure, using AC_CONFIG_SUBDIRS to call upon tcl, tk, and enigma's configure scripts as needed instead of redoing their build systems for our purpose.  this has a rather drastic impact on the way the libraries are linked together, including the need to compile tcl/tk static so as to avoid libtool portability issues as well as letting us take advantage of their build system for reduced maintenance and easing future upgrades.  undoubtedly more build issues to be worked out with other platforms given the extent of this change.  this does move us one step closer towards correctly linking against system tcl/tk installations too.
+@
+text
+@d1 1
+a1 1
+/* 
+d5 1
+a5 1
+ *	contexts. 
+d9 2
+a10 2
+ * See the file "license.terms" for information on usage and redistribution
+ * of this file, and for a DISCLAIMER OF ALL WARRANTIES.
+d12 1
+a12 1
+ * RCS: @@(#) $Id: xgc.c,v 1.9 2006/07/20 06:24:16 das Exp $
+a25 1
+
+d35 1
+a35 1
+ *	Returns a newly allocated GC. 
+d44 5
+a48 5
+XCreateGC(display, d, mask, values)
+    Display* display;
+    Drawable d;
+    unsigned long mask;
+    XGCValues* values;
+d52 6
+a57 5
+/*
+ * In order to have room for a dash list, MAX_DASH_LIST_SIZE extra chars are
+ * defined, which is invisible from the outside. The list is assumed to end
+ * with a 0-char, so this must be set explicitely during initialization.
+ */
+d61 1
+a61 1
+    gp = (XGCValues *)ckalloc(sizeof(XGCValues) + MAX_DASH_LIST_SIZE);
+d66 26
+a91 23
+    gp->function = 	(mask & GCFunction) 	?values->function	:GXcopy;
+    gp->plane_mask = 	(mask & GCPlaneMask) 	?values->plane_mask 	:(unsigned long )(~0);
+    gp->foreground = 	(mask & GCForeground) 	?values->foreground 	:0;
+    gp->background = 	(mask & GCBackground) 	?values->background 	:0xffffff;
+    gp->line_width = 	(mask & GCLineWidth)	?values->line_width	:1;	
+    gp->line_style = 	(mask & GCLineStyle)	?values->line_style	:LineSolid;
+    gp->cap_style =  	(mask & GCCapStyle)	?values->cap_style	:0;
+    gp->join_style = 	(mask & GCJoinStyle)	?values->join_style	:0;
+    gp->fill_style =  	(mask & GCFillStyle)	?values->fill_style	:FillSolid;
+    gp->fill_rule =  	(mask & GCFillRule)	?values->fill_rule	:WindingRule;
+    gp->arc_mode = 	(mask & GCArcMode)	?values->arc_mode	:ArcPieSlice;
+    gp->tile = 		(mask & GCTile)		?values->tile		:None;
+    gp->stipple = 	(mask & GCStipple)	?values->stipple	:None;
+    gp->ts_x_origin = 	(mask & GCTileStipXOrigin)	?values->ts_x_origin:0;
+    gp->ts_y_origin = 	(mask & GCTileStipYOrigin)	?values->ts_y_origin:0;
+    gp->font = 		(mask & GCFont)		?values->font		:None;
+    gp->subwindow_mode = (mask & GCSubwindowMode)?values->subwindow_mode:ClipByChildren;
+    gp->graphics_exposures = (mask & GCGraphicsExposures)?values->graphics_exposures:True;
+    gp->clip_x_origin = (mask & GCClipXOrigin)	?values->clip_x_origin	:0;
+    gp->clip_y_origin = (mask & GCClipYOrigin)	?values->clip_y_origin	:0;
+    gp->dash_offset = 	(mask & GCDashOffset)	?values->dash_offset	:0;
+    gp->dashes = 	(mask & GCDashList)	?values->dashes		:4;
+    (&(gp->dashes))[1] = 	0;
+d94 3
+a96 3
+	gp->clip_mask = (Pixmap)ckalloc(sizeof(TkpClipMask));
+	((TkpClipMask*)gp->clip_mask)->type = TKP_CLIP_PIXMAP;
+	((TkpClipMask*)gp->clip_mask)->value.pixmap = values->clip_mask;
+d109 1
+a109 2
+ *	Changes the GC components specified by valuemask for the
+ *	specified GC.
+d121 37
+a157 29
+XChangeGC(d, gc, mask, values)
+    Display * d;
+    GC gc;
+    unsigned long mask;
+    XGCValues *values;
+{
+    if (mask & GCFunction) { gc->function = values->function; }
+    if (mask & GCPlaneMask) { gc->plane_mask = values->plane_mask; }
+    if (mask & GCForeground) { gc->foreground = values->foreground; }
+    if (mask & GCBackground) { gc->background = values->background; }
+    if (mask & GCLineWidth) { gc->line_width = values->line_width; }	
+    if (mask & GCLineStyle) { gc->line_style = values->line_style; }
+    if (mask & GCCapStyle) { gc->cap_style = values->cap_style; }
+    if (mask & GCJoinStyle) { gc->join_style = values->join_style; }
+    if (mask & GCFillStyle) { gc->fill_style = values->fill_style; }
+    if (mask & GCFillRule) { gc->fill_rule = values->fill_rule; }
+    if (mask & GCArcMode) { gc->arc_mode = values->arc_mode; }
+    if (mask & GCTile) { gc->tile = values->tile; }
+    if (mask & GCStipple) { gc->stipple = values->stipple; }
+    if (mask & GCTileStipXOrigin) { gc->ts_x_origin = values->ts_x_origin; }
+    if (mask & GCTileStipYOrigin) { gc->ts_y_origin = values->ts_y_origin; }
+    if (mask & GCFont) { gc->font = values->font; }
+    if (mask & GCSubwindowMode) { gc->subwindow_mode = values->subwindow_mode; }
+    if (mask & GCGraphicsExposures) { gc->graphics_exposures = values->graphics_exposures; }
+    if (mask & GCClipXOrigin) { gc->clip_x_origin = values->clip_x_origin; }
+    if (mask & GCClipYOrigin) { gc->clip_y_origin = values->clip_y_origin; }
+    if (mask & GCClipMask) { XSetClipMask(d, gc, values->clip_mask); }
+    if (mask & GCDashOffset) { gc->dash_offset = values->dash_offset; }
+    if (mask & GCDashList) { gc->dashes = values->dashes; (&(gc->dashes))[1] = 0;}
+d176 3
+a178 3
+void XFreeGC(d, gc)
+    Display * d;
+    GC gc;
+d193 2
+a194 2
+ *	The following functions are simply accessor functions for
+ *	the GC slots.
+d205 5
+a209 5
+void 
+XSetForeground(display, gc, foreground)
+    Display *display;
+    GC gc;
+    unsigned long foreground;
+d214 5
+a218 5
+void 
+XSetBackground(display, gc, background)
+    Display *display;
+    GC gc;
+    unsigned long background;
+d224 6
+a229 6
+XSetDashes(display, gc, dash_offset, dash_list, n)
+    Display* display;
+    GC gc;
+    int dash_offset;
+    _Xconst char* dash_list;
+    int n;
+d248 4
+a251 4
+XSetFunction(display, gc, function)
+    Display *display;
+    GC gc;
+    int function;
+d257 4
+a260 4
+XSetFillRule(display, gc, fill_rule)
+    Display *display;
+    GC gc;
+    int fill_rule;
+d266 4
+a269 4
+XSetFillStyle(display, gc, fill_style)
+    Display *display;
+    GC gc;
+    int fill_style;
+d275 4
+a278 4
+XSetTSOrigin(display, gc, x, y)
+    Display *display;
+    GC gc;
+    int x, y;
+d285 4
+a288 4
+XSetFont(display, gc, font)
+    Display *display;
+    GC gc;
+    Font font;
+d294 4
+a297 4
+XSetArcMode(display, gc, arc_mode)
+    Display *display;
+    GC gc;
+    int arc_mode;
+d303 4
+a306 4
+XSetStipple(display, gc, stipple)
+    Display *display;
+    GC gc;
+    Pixmap stipple;
+d312 7
+a318 8
+XSetLineAttributes(display, gc, line_width, line_style, cap_style,
+	join_style)
+    Display *display;
+    GC gc;
+    unsigned int line_width;
+    int line_style;
+    int cap_style;
+    int join_style;
+d327 5
+a331 5
+XSetClipOrigin(display, gc, clip_x_origin, clip_y_origin)
+    Display* display;
+    GC gc;
+    int clip_x_origin;
+    int clip_y_origin;
+d344 3
+a346 4
+ *	Note that unlike the Xlib equivalent, it is not safe to delete
+ *	the region after setting it into the GC.  The only use of
+ *	TkSetRegion is currently in ImgPhotoDisplay, which uses the GC
+ *	immediately.
+d358 4
+a361 4
+TkSetRegion(display, gc, r)
+    Display* display;
+    GC gc;
+    TkRegion r;
+d374 2
+a375 2
+    ((TkpClipMask*)gc->clip_mask)->type = TKP_CLIP_REGION;
+    ((TkpClipMask*)gc->clip_mask)->value.region = r;
+d379 4
+a382 4
+XSetClipMask(display, gc, pixmap)
+    Display* display;
+    GC gc;
+    Pixmap pixmap;
+d395 2
+a396 2
+    ((TkpClipMask*)gc->clip_mask)->type = TKP_CLIP_PIXMAP;
+    ((TkpClipMask*)gc->clip_mask)->value.pixmap = pixmap;
+d405 3
+a407 3
+XCreateFontCursor(display, shape)
+    Display* display;
+    unsigned int shape;
+d413 8
+a420 8
+XDrawImageString(display, d, gc, x, y, string, length)
+    Display* display;
+    Drawable d;
+    GC gc;
+    int x;
+    int y;
+    _Xconst char* string;
+    int length;
+d426 6
+a431 6
+XDrawPoint(display, d, gc, x, y)
+    Display* display;
+    Drawable d;
+    GC gc;
+    int x;
+    int y;
+d437 7
+a443 7
+XDrawPoints(display, d, gc, points, npoints, mode)
+    Display* display;
+    Drawable d;
+    GC gc;
+    XPoint* points;
+    int npoints;
+    int mode;
+d448 2
+a449 1
+	XDrawPoint(display, d, gc, points[i].x, points[i].y);
+d455 6
+a460 6
+XDrawSegments(display, d, gc, segments, nsegments)
+    Display* display;
+    Drawable d;
+    GC gc;
+    XSegment* segments;
+    int nsegments;
+d467 4
+a470 4
+XFetchBuffer(display, nbytes_return, buffer)
+    Display* display;
+    int* nbytes_return;
+    int buffer;
+d475 5
+a479 4
+Status XFetchName(display, w, window_name_return)
+    Display* display;
+    Window w;
+    char** window_name_return;
+d484 5
+a488 4
+Atom *XListProperties(display, w, num_prop_return)
+    Display* display;
+    Window w;
+    int* num_prop_return;
+d494 3
+a496 3
+XMapRaised(display, w)
+    Display* display;
+    Window w;
+d501 11
+a511 11
+XPutImage(display, d, gc, image, src_x, src_y, dest_x, dest_y, width, height)
+    Display* display;
+    Drawable d;
+    GC gc;
+    XImage* image;
+    int src_x;
+    int src_y;
+    int dest_x;
+    int dest_y;
+    unsigned int width;
+    unsigned int height;
+d516 9
+a524 10
+XQueryTextExtents(display, font_ID, string, nchars, direction_return,
+	font_ascent_return, font_descent_return, overall_return)
+    Display* display;
+    XID font_ID;
+    _Xconst char* string;
+    int nchars;
+    int* direction_return;
+    int* font_ascent_return;
+    int* font_descent_return;
+    XCharStruct* overall_return;
+d529 6
+a534 6
+XReparentWindow(display, w, parent, x, y)
+    Display* display;
+    Window w;
+    Window parent;
+    int x;
+    int y;
+d539 3
+a541 3
+XRotateBuffers(display, rotate)
+    Display* display;
+    int rotate;
+d546 5
+a550 5
+XStoreBuffer(display, bytes, nbytes, buffer)
+    Display* display;
+    _Xconst char* bytes;
+    int nbytes;
+    int buffer;
+d555 3
+a557 3
+XUndefineCursor(display, w)
+    Display* display;
+    Window w;
+d561 8
+@
+

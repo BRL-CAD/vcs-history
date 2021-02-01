@@ -1,0 +1,505 @@
+head	14.10;
+access;
+symbols
+	rel-7-10-4:14.10
+	STABLE:14.10.0.2
+	rel-7-10-2:14.10
+	rel-7-10-0:14.9
+	rel-7-8-4:14.7
+	rel-7-8-2:14.6
+	rel-7-8-0:14.6
+	trimnurbs-branch:14.6.0.2
+	help:14.6
+	temp_tag:14.5
+	bobWinPort-20051223-freeze:14.4
+	postmerge-20051223-bobWinPort:14.5
+	premerge-20051223-bobWinPort:14.5
+	rel-7-6-6:14.5
+	rel-7-6-4:14.5
+	rel-7-6-2:14.4
+	rel-7-6-branch:14.4.0.6
+	rel-7-6-0:14.4
+	rel-7-4-2:14.4
+	rel-7-4-branch:14.4.0.4
+	bobWinPort:14.4.0.2
+	rel-7-4-0:14.4
+	rel-7-2-6:14.3
+	rel-7-2-4:14.3
+	rel-7-2-2:14.3
+	rel-7-2-0:14.3
+	rel-7-0-4:14.2
+	rel-7-0-2:14.2
+	rel-7-0-1:14.2
+	opensource-post:14.2
+	opensource-pre:1.3
+	rel-7-0-branch:1.3.0.2
+	rel-7-0:1.3;
+locks; strict;
+comment	@ * @;
+
+
+14.10
+date	2007.07.26.01.13.59;	author brlcad;	state Exp;
+branches;
+next	14.9;
+
+14.9
+date	2007.01.23.01.13.55;	author brlcad;	state Exp;
+branches;
+next	14.8;
+
+14.8
+date	2007.01.20.14.37.05;	author brlcad;	state Exp;
+branches;
+next	14.7;
+
+14.7
+date	2006.07.09.18.25.32;	author brlcad;	state Exp;
+branches;
+next	14.6;
+
+14.6
+date	2006.01.18.06.46.27;	author brlcad;	state Exp;
+branches;
+next	14.5;
+
+14.5
+date	2005.10.23.04.44.39;	author brlcad;	state Exp;
+branches;
+next	14.4;
+
+14.4
+date	2005.06.30.00.08.37;	author erikgreenwald;	state Exp;
+branches
+	14.4.6.1;
+next	14.3;
+
+14.3
+date	2005.01.30.20.31.33;	author brlcad;	state Exp;
+branches;
+next	14.2;
+
+14.2
+date	2004.12.21.03.45.40;	author butler;	state Exp;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.32;	author morrison;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2004.08.02.23.01.53;	author morrison;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2004.06.08.22.04.44;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.15.21.44;	author morrison;	state Exp;
+branches;
+next	;
+
+14.4.6.1
+date	2005.11.13.13.46.20;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.10
+log
+@remove ephemeral data like phone numbers and addresses, including the misleading 'source' statements on code that is continually evolving and receiving contributions from many many sources
+@
+text
+@/*                      D P I X - P I X . C
+ * BRL-CAD
+ *
+ * Copyright (c) 1990-2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@file dpix-pix.c
+ *
+ *  Convert double precision images in .dpix form to a .pix file.
+ *  By default, will determin min/max values to drive exposure
+ *  calculations, and perform linear interpolation on the way to 1-byte
+ *  values.
+ *
+ *  Reads the binary input file, finds the minimum and maximum values
+ *  read, and linearly interpolates these values between 0 and 255.
+ *
+ *  Author -
+ *	S. Muuss, J.D., Feb 04, 1990.
+ *
+ */
+#ifndef lint
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/dpix-pix.c,v 14.9 2007/01/23 01:13:55 brlcad Exp $ (BRL)";
+#endif
+
+#include "common.h"
+
+#include <stdio.h>
+#include <stdlib.h>
+
+#ifdef HAVE_UNISTD_H
+# include <unistd.h>
+#endif
+
+#ifdef HAVE_FCNTL_H
+# include <fcntl.h>
+#endif
+
+#include "machine.h"
+
+#define NUM	(1024 * 16)	/* Note the powers of 2 -- v. efficient */
+static double		doub[NUM];
+static unsigned char	cha[NUM];
+
+int
+main(int argc, char **argv)
+{
+	int		count;			/* count of items */
+	int		got;			/* count of bytes */
+	int		fd;			/* UNIX file descriptor */
+	register double	*dp;			/* ptr to d */
+	register double *ep;
+	double		m;			/* slope */
+	double		b;			/* intercept */
+
+	if( argc < 2 )  {
+		fprintf(stderr, "Usage: dpix-pix file.dpix > file.pix\n");
+		exit(1);
+	}
+
+	if( (fd = open(argv[1], 0)) < 0 )  {
+		perror(argv[1]);
+		exit(1);
+	}
+
+	if( isatty(fileno(stdout)) )  {
+		fprintf(stderr, "dpix-pix:  binary output directed to terminal, aborting\n");
+		exit(2);
+	}
+
+	/* Note that the minimum is set to 1.0e20, the computer's working
+	 * equivalent of positive infinity.  Thus any subsequent value
+	 * must be larger. Likewise, the maximun is set to -1.0e20, the
+	 * equivalent of negative infinity, and any values must thus be
+	 * bigger than it.
+	 */
+	{
+		register double	min, max;		/* high usage items */
+
+		min = 1.0e20;
+		max = -1.0e20;
+
+		while(1)  {
+			got = read( fd, (char *)&doub[0], NUM*sizeof(doub[0]) );
+			if( got <= 0 ) {
+			    if (got < 0) {
+				perror("dpix-pix READ ERROR");
+			    }
+			    break;
+			}
+			count = got / sizeof(doub[0]);
+			ep = &doub[count];
+			for(dp = &doub[0]; dp < ep;)  {
+				register double val;
+				if( (val = *dp++) < min )
+					min = val;
+				else if ( val > max )
+					max = val;
+			}
+		}
+
+		lseek( fd, 0L, 0 );		/* rewind(fp); */
+
+
+		/* This section uses the maximum and the minimum values found to
+		 * compute the m and the b of the line as specified by the
+		 * equation y = mx + b.
+		 */
+		fprintf(stderr, "min=%f, max=%f\n", min, max);
+		if (max < min)  {
+			printf("MINMAX: max less than min!\n");
+			exit(1);
+		}
+
+		m = (255 - 0)/(max - min);
+		b = (-255 * min)/(max - min);
+	}
+
+	while (1)  {
+		register char	*cp;		/* ptr to c */
+		register double	mm;		/* slope */
+		register double	bb;		/* intercept */
+
+		mm = m;
+		bb = b;
+
+		got = read( fd, (char *)&doub[0], NUM*sizeof(doub[0]) );
+		if (got <=  0 ) {
+		    if (got < 0) {
+			perror("dpix-pix READ ERROR");
+		    }
+		    break;
+		}
+		count = got / sizeof(doub[0]);
+		ep = &doub[count];
+		cp = (char *)&cha[0];
+		for(dp = &doub[0]; dp < ep;)  {
+			*cp++ = mm * (*dp++) + bb;
+		}
+
+		/* fd 1 is stdout */
+		got = write( 1, (char *)&cha[0], count*sizeof(cha[0]) );
+		if( got != count*sizeof(cha[0]) )  {
+			perror("write");
+			exit(2);
+		}
+	}
+
+	exit(0);
+}
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+14.9
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@a32 4
+ *  Source -
+ *	SECAD/VLD Computing Consortium, Bldg 394
+ *	The U. S. Army Ballistic Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005-5066
+d35 1
+a35 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/dpix-pix.c,v 14.8 2007/01/20 14:37:05 brlcad Exp $ (BRL)";
+@
+
+
+14.8
+log
+@update copyright to 2007
+@
+text
+@d8 2
+a9 3
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+d14 1
+a14 1
+ * General Public License for more details.
+d16 2
+a17 2
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+d39 1
+a39 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/dpix-pix.c,v 14.7 2006/07/09 18:25:32 brlcad Exp $ (BRL)";
+@
+
+
+14.7
+log
+@add additional error checking to make sure a -1 return value from read() is handled
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 1990-2006 United States Government as represented by
+d40 1
+a40 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/dpix-pix.c,v 14.6 2006/01/18 06:46:27 brlcad Exp $ (BRL)";
+@
+
+
+14.6
+log
+@update copyright to 2006
+@
+text
+@d40 1
+a40 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/dpix-pix.c,v 14.5 2005/10/23 04:44:39 brlcad Exp $ (BRL)";
+d102 6
+a107 2
+			if( got <= 0 )
+				break;
+d145 6
+a150 2
+		if (got <=  0 )
+			break;
+@
+
+
+14.5
+log
+@trailing ws
+@
+text
+@d4 1
+a4 1
+ * Copyright (C) 1990-2005 United States Government as represented by
+d40 1
+a40 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/dpix-pix.c,v 14.4 2005/06/30 00:08:37 erikgreenwald Exp $ (BRL)";
+@
+
+
+14.4
+log
+@added missing includes
+@
+text
+@d33 1
+a33 1
+ *  
+d40 1
+a40 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/dpix-pix.c,v 14.3 2005/01/30 20:31:33 brlcad Exp $ (BRL)";
+d116 1
+a116 1
+	
+@
+
+
+14.4.6.1
+log
+@merge changes from HEAD aka rel-7-6-4 to the rel-7-6-branch just in case someone peeks a gander or tries to continue/build the branch
+@
+text
+@d33 1
+a33 1
+ *
+d40 1
+a40 1
+static const char RCSid[] = "@@(#)$Header$ (BRL)";
+d116 1
+a116 1
+
+@
+
+
+14.3
+log
+@update copyright to 2005
+@
+text
+@d40 1
+a40 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/dpix-pix.c,v 14.2 2004/12/21 03:45:40 butler Exp $ (BRL)";
+d48 8
+@
+
+
+14.2
+log
+@GPL license changes
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 1990-2004 United States Government as represented by
+d40 1
+a40 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/util/dpix-pix.c,v 14.1 2004/11/16 19:42:32 morrison Exp $ (BRL)";
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@d1 21
+a21 2
+/*
+ *			D P I X - P I X . C
+a37 4
+ *  
+ *  Copyright Notice -
+ *	This software is Copyright (C) 1990-2004 by the United States Army.
+ *	All rights reserved.
+d40 1
+a40 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/util/dpix-pix.c,v 1.3 2004/08/02 23:01:53 morrison Exp $ (BRL)";
+@
+
+
+1.3
+log
+@replace the wrapped config.h block with common.h
+@
+text
+@d25 1
+a25 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/util/dpix-pix.c,v 1.2 2004/06/08 22:04:44 morrison Exp $ (BRL)";
+d137 10
+@
+
+
+1.2
+log
+@obliterate externs.h
+@
+text
+@d25 1
+a25 1
+static const char RCSid[] = "@@(#)$Header$ (BRL)";
+d28 1
+a28 3
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+@
+
+
+1.1
+log
+@Vast reorganization begins.  Sources moved from top-level directories into src/.
+@
+text
+@d25 1
+a25 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/util/dpix-pix.c,v 11.10 2004/05/10 15:30:50 erikg Exp $ (BRL)";
+a31 2
+
+
+a35 1
+#include "externs.h"
+@
+

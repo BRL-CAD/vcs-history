@@ -1,0 +1,236 @@
+head	11.3;
+access;
+symbols
+	ansi-20040405-merged:11.2
+	postmerge-20040405-ansi:11.2
+	premerge-20040404-ansi:11.2
+	postmerge-autoconf:11.2
+	autoconf-freeze:11.2
+	premerge-autoconf:11.2
+	ansi-20040316-freeze:11.2
+	postmerge-20040315-windows:11.2
+	premerge-20040315-windows:11.2
+	windows-20040315-freeze:11.2
+	autoconf-20031203:11.2
+	autoconf-20031202:11.2
+	autoconf-branch:11.2.0.12
+	phong-branch:11.2.0.10
+	photonmap-branch:11.2.0.8
+	rel-6-1-DP:11.2
+	windows-branch:11.2.0.6
+	rel-6-0-2:11.2
+	ansi-branch:11.2.0.4
+	rel-6-0-1-branch:11.2.0.2
+	hartley-6-0-post:11.2
+	hartley-6-0-pre:11.2
+	rel-6-0-1:11.2
+	rel-6-0:11.2
+	rel-5-4:11.1
+	offsite-5-3-pre:11.1
+	rel-5-3:11.1
+	rel-5-2:11.1
+	rel-5-1-branch:11.1.0.2
+	rel-5-1:11.1
+	rel-5-0:11.1
+	rel-5-0-beta:11.1
+	rel-4-5:11.1
+	ctj-4-5-post:11.1
+	ctj-4-5-pre:11.1
+	rel-4-4:11.1
+	rel-4-0:10.1;
+locks; strict;
+comment	@ * @;
+
+
+11.3
+date	2004.05.24.04.11.53;	author morrison;	state dead;
+branches;
+next	11.2;
+
+11.2
+date	2001.04.05.19.35.08;	author morrison;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	95.01.04.09.48.39;	author mike;	state Rel4_4;
+branches;
+next	10.2;
+
+10.2
+date	94.08.25.14.55.31;	author gdurf;	state Exp;
+branches;
+next	10.1;
+
+10.1
+date	91.10.12.06.35.35;	author mike;	state Rel4_0;
+branches;
+next	1.1;
+
+1.1
+date	91.01.04.22.06.15;	author butler;	state Exp;
+branches;
+next	;
+
+
+desc
+@fresh from Utah Raster Toolkit Release 3 patchlevel 2
+@
+
+
+11.3
+log
+@moved/renamed from top-level h/ to top-level include/
+@
+text
+@/*
+ * This software is copyrighted as noted below.  It may be freely copied,
+ * modified, and redistributed, provided that the copyright notice is 
+ * preserved on all copies.
+ * 
+ * There is no warranty or other guarantee of fitness for this software,
+ * it is provided solely "as is".  Bug reports or fixes may be sent
+ * to the author, who may or may not act on them as he desires.
+ *
+ * You may not include this software in a program or other software product
+ * without supplying the source, or without informing the end-user that the 
+ * source is available for no extra charge.
+ *
+ * If you modify this software, you should include a notice giving the
+ * name of the person performing the modification, the date of modification,
+ * and the reason for such modification.
+ */
+/* 
+ * rle_put.h - Definitions and a few global variables for rle_putrow/putraw.
+ * 
+ * Author:	Spencer W. Thomas
+ * 		Computer Science Dept.
+ * 		University of Utah
+ * Date:	Mon Aug  9 1982
+ * Copyright (c) 1982 Spencer W. Thomas
+ * 
+ * $Id: rle_put.h,v 11.2 2001/04/05 19:35:08 morrison Exp $
+ */
+
+#ifndef RLE_PUT_H
+#define RLE_PUT_H
+
+/* ****************************************************************
+ * Dispatch table for different output types.
+ */
+#ifdef c_plusplus
+#define ARB_ARGS ...
+#else
+#define ARB_ARGS
+#endif
+
+typedef int rle_fn( ARB_ARGS );
+
+struct rle_dispatch_tab {
+    const char   *magic;	/* magic type flags */
+    rle_fn *setup,			/* startup function */
+	   *skipBlankLines,
+	   *setColor,
+	   *skipPixels,
+	   *newScanLine,
+	   *putdat,			/* put a set of differing pixels */
+	   *putrn,			/* put a run all the same */
+	   *blockHook,			/* hook called at start of new */
+					/* output block */
+	   *putEof;		/* write EOF marker (if possible) */
+};
+
+extern struct rle_dispatch_tab rle_DTable[];
+
+/* 
+ * These definitions presume the existence of a variable called
+ * "fileptr", declared "long * fileptr".  *fileptr should be
+ * initialized to 0 before calling Setup().
+ * A pointer "the_hdr" declared "rle_hdr * the_hdr" is also
+ * presumed to exist.
+ */
+#define	    rle_magic		(rle_DTable[(int)the_hdr->dispatch].magic)
+#define	    Setup()		(*rle_DTable[(int)the_hdr->dispatch].setup)(the_hdr)
+#define	    SkipBlankLines(n)	(*rle_DTable[(int)the_hdr->dispatch].skipBlankLines)(n, the_hdr)
+#define	    SetColor(c)		(*rle_DTable[(int)the_hdr->dispatch].setColor)(c, the_hdr)
+#define	    SkipPixels(n, l, r)	(*rle_DTable[(int)the_hdr->dispatch].skipPixels)(n,l,r, the_hdr)
+#define	    NewScanLine(flag)	(*rle_DTable[(int)the_hdr->dispatch].newScanLine)(flag, the_hdr)
+#define	    putdata(buf, len)	(*rle_DTable[(int)the_hdr->dispatch].putdat)(buf, len, the_hdr)
+#define	    putrun(val, len, f)	(*rle_DTable[(int)the_hdr->dispatch].putrn)(val,len,f, the_hdr)
+#define	    BlockHook()		(*rle_DTable[(int)the_hdr->dispatch].blockHook)(the_hdr)
+#define	    PutEof()		(*rle_DTable[(int)the_hdr->dispatch].putEof)(the_hdr)
+
+/* 
+ * States for run detection
+ */
+#define	DATA	0
+#define	RUN2	1
+#define RUN3	2
+#define	RUN4	3
+#define	INRUN	-1
+
+#endif
+@
+
+
+11.2
+log
+@updated SIGNED to signed
+updated CONST to const
+@
+text
+@d27 1
+a27 1
+ * $Id: rle_put.h,v 11.1 1995/01/04 09:48:39 mike Rel4_4 $
+@
+
+
+11.1
+log
+@Release_4.4
+@
+text
+@d27 1
+a27 1
+ * $Id: rle_put.h,v 10.2 94/08/25 14:55:31 gdurf Exp $
+d45 1
+a45 1
+    CONST char   *magic;	/* magic type flags */
+@
+
+
+10.2
+log
+@Changed CONST_DECL to CONST for constistency
+@
+text
+@d27 1
+a27 1
+ * $Id: rle_put.h,v 10.1 1991/10/12 06:35:35 mike Rel4_0 gdurf $
+@
+
+
+10.1
+log
+@Release_4.0
+@
+text
+@d27 1
+a27 1
+ * $Id: rle_put.h,v 3.0 90/08/03 15:19:51 spencer Exp $
+d30 2
+a31 1
+#include <rle.h>
+d45 1
+a45 1
+    CONST_DECL char   *magic;	/* magic type flags */
+d86 2
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@@

@@ -1,0 +1,494 @@
+head	11.13;
+access;
+symbols
+	ansi-20040405-merged:11.11.6.1
+	postmerge-20040405-ansi:11.12
+	premerge-20040404-ansi:11.12
+	postmerge-autoconf:11.12
+	autoconf-freeze:11.11.14.1
+	premerge-autoconf:11.12
+	ansi-20040316-freeze:11.11
+	postmerge-20040315-windows:11.12
+	premerge-20040315-windows:11.12
+	windows-20040315-freeze:11.11.8.1
+	autoconf-20031203:11.11
+	autoconf-20031202:11.11
+	autoconf-branch:11.11.0.14
+	phong-branch:11.11.0.12
+	photonmap-branch:11.11.0.10
+	rel-6-1-DP:11.11
+	windows-branch:11.11.0.8
+	rel-6-0-2:11.11
+	ansi-branch:11.11.0.6
+	rel-6-0-1-branch:11.11.0.4
+	hartley-6-0-post:11.11
+	hartley-6-0-pre:11.11
+	rel-6-0-1:11.11
+	rel-6-0:11.11
+	rel-5-4:11.11
+	offsite-5-3-pre:11.11
+	rel-5-3:11.11
+	rel-5-2:11.11
+	rel-5-1-branch:11.11.0.2
+	rel-5-1:11.11
+	rel-5-0:11.10
+	rel-5-0-beta:11.10
+	rel-4-5:11.10
+	ctj-4-5-post:11.10
+	ctj-4-5-pre:11.10
+	rel-4-4:11.5
+	rel-4-0:10.1;
+locks; strict;
+comment	@ * @;
+
+
+11.13
+date	2004.05.24.04.01.08;	author morrison;	state dead;
+branches;
+next	11.12;
+
+11.12
+date	2004.02.02.17.39.04;	author morrison;	state Exp;
+branches;
+next	11.11;
+
+11.11
+date	2000.03.29.18.42.43;	author mike;	state Exp;
+branches
+	11.11.6.1
+	11.11.8.1
+	11.11.14.1;
+next	11.10;
+
+11.10
+date	96.07.15.19.19.47;	author jra;	state Exp;
+branches;
+next	11.9;
+
+11.9
+date	95.12.08.17.49.39;	author jra;	state Exp;
+branches;
+next	11.8;
+
+11.8
+date	95.12.05.22.02.45;	author jra;	state Exp;
+branches;
+next	11.7;
+
+11.7
+date	95.11.28.21.35.45;	author jra;	state Exp;
+branches;
+next	11.6;
+
+11.6
+date	95.06.28.15.23.43;	author jra;	state Exp;
+branches;
+next	11.5;
+
+11.5
+date	95.01.04.10.07.39;	author mike;	state Rel4_4;
+branches;
+next	11.4;
+
+11.4
+date	94.08.22.18.44.06;	author gdurf;	state Exp;
+branches;
+next	11.3;
+
+11.3
+date	94.01.07.15.46.05;	author jra;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	94.01.07.15.15.46;	author jra;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	93.06.28.10.37.11;	author jra;	state Exp;
+branches;
+next	10.1;
+
+10.1
+date	91.10.12.06.45.15;	author mike;	state Rel4_0;
+branches;
+next	1.2;
+
+1.2
+date	91.06.12.20.27.43;	author mike;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	91.06.12.19.59.17;	author mike;	state Exp;
+branches;
+next	;
+
+11.11.6.1
+date	2004.03.17.21.16.31;	author morrison;	state Exp;
+branches;
+next	;
+
+11.11.8.1
+date	2004.03.11.23.41.14;	author morrison;	state Exp;
+branches;
+next	;
+
+11.11.14.1
+date	2004.02.12.19.41.38;	author erikg;	state Exp;
+branches;
+next	;
+
+
+desc
+@IGES converter
+@
+
+
+11.13
+log
+@moved to src/iges/
+@
+text
+@/*
+ *  Authors -
+ *	John R. Anderson
+ *	Susanne L. Muuss
+ *	Earl P. Weaver
+ *
+ *  Source -
+ *	VLD/ASB Building 1065
+ *	The U. S. Army Ballistic Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005
+ *  
+ *  Copyright Notice -
+ *	This software is Copyright (C) 1990-2004 by the United States Army.
+ *	All rights reserved.
+ */
+
+#include "./iges_struct.h"
+#include "./iges_extern.h"
+
+
+/*	This routine evaluates the transformation matrix list
+	for each transformation matrix entity */
+
+struct list /* simple linked list for remembering a matrix sequence */
+{
+	int index; /* index to "dir" array for a xform matrix */
+	struct list *prev; /* link to previous xform matrix */
+};
+
+void
+Evalxform()
+{
+
+	int i,j,xform;
+	struct list *ptr,*ptr1,*ptr_root;
+	mat_t rot;
+
+
+	for( i=0 ; i<totentities ; i++ ) /* loop through all entities */
+	{
+		/* skip non-transformation entities */
+		if( dir[i]->type != 124 && dir[i]->type != 700 )
+			continue;
+
+		if( dir[i]->trans >= 0 && !dir[i]->referenced )
+		{
+			/* Make a linked list of the xform matrices
+				in reverse order */
+			ptr = NULL;
+			ptr1 = NULL;
+			ptr_root = NULL;
+			xform = i;
+			while( xform >= 0 )
+			{
+				if( ptr == NULL )
+					ptr = (struct list *)bu_malloc( sizeof( struct list ),
+							"Evalxform: ptr" );
+				else
+				{
+					ptr1 = ptr;
+					ptr = (struct list *)bu_malloc( sizeof( struct list ),
+							"Evalxform: ptr" );
+				}
+				ptr->prev = ptr1;
+				ptr->index = xform;
+				xform = dir[xform]->trans;
+			}
+
+			for( j=0 ; j<16 ; j++ )
+				rot[j] = (*identity)[j];
+
+			ptr_root = ptr;
+			while( ptr != NULL )
+			{
+				if( !dir[ptr->index]->referenced )
+				{
+					Matmult( rot , *dir[ptr->index]->rot , rot );
+					for( j=0 ; j<16 ; j++ )
+						(*dir[ptr->index]->rot)[j] = rot[j];
+					dir[ptr->index]->referenced++;
+				}
+				else
+				{
+					for( j=0 ; j<16 ; j++ )
+					rot[j] = (*dir[ptr->index]->rot)[j];
+				}
+				ptr = ptr->prev;
+			}
+
+			/* Free some memory */
+			ptr = ptr_root;
+			while( ptr )
+			{
+				ptr1 = ptr;
+				ptr = ptr->prev;
+				bu_free( (char *)ptr1, "Evalxform: ptr1" );
+			}
+		}
+	}
+
+	/* set matrices for all other entities */
+	for( i=0 ; i<totentities ; i++ )
+	{
+		/* skip xform entities */
+		if( dir[i]->type == 124 || dir[i]->type == 700 )
+			continue;
+
+		if( dir[i]->trans >= 0 )
+			dir[i]->rot = dir[dir[i]->trans]->rot;
+		else
+			dir[i]->rot = identity;
+	}
+}
+@
+
+
+11.12
+log
+@update copyright to include span through 2003
+@
+text
+@@
+
+
+11.11
+log
+@
+Converted from Release 4 names to know about libbu and libbn
+@
+text
+@d13 1
+a13 1
+ *	This software is Copyright (C) 1990 by the United States Army.
+@
+
+
+11.11.6.1
+log
+@sync branch with HEAD
+@
+text
+@d13 1
+a13 1
+ *	This software is Copyright (C) 1990-2004 by the United States Army.
+@
+
+
+11.11.8.1
+log
+@sync to HEAD...
+@
+text
+@d13 1
+a13 1
+ *	This software is Copyright (C) 1990-2004 by the United States Army.
+@
+
+
+11.11.14.1
+log
+@merge from HEAD
+@
+text
+@d13 1
+a13 1
+ *	This software is Copyright (C) 1990-2004 by the United States Army.
+@
+
+
+11.10
+log
+@Minor Mods for IRIX 6.2
+@
+text
+@d56 1
+a56 1
+					ptr = (struct list *)rt_malloc( sizeof( struct list ),
+d61 1
+a61 1
+					ptr = (struct list *)rt_malloc( sizeof( struct list ),
+d96 1
+a96 1
+				rt_free( (char *)ptr1, "Evalxform: ptr1" );
+@
+
+
+11.9
+log
+@Mods to get trimmed surfaces with subfigures working.
+@
+text
+@d30 1
+a37 3
+	ptr = NULL;
+	ptr1 = NULL;
+	ptr_root = NULL;
+d49 3
+@
+
+
+11.8
+log
+@Checkpoint in mods for handling assemblies (subfigures).
+@
+text
+@d47 1
+a47 1
+		if( dir[i]->trans && !dir[i]->referenced )
+d52 1
+a52 1
+			while( xform )
+d107 1
+a107 1
+		if( dir[i]->trans )
+@
+
+
+11.7
+log
+@Mods to handle TNURB BREP. Also added RT_EXTERNS to iges_struct.h.
+@
+text
+@d34 1
+a34 1
+	struct list *ptr,*ptr1;
+d39 1
+d71 1
+d87 9
+@
+
+
+11.6
+log
+@Converted to use rt_malloc family.
+@
+text
+@a16 5
+#include "conf.h"
+
+#include <stdio.h>
+#include "machine.h"
+#include "vmath.h"
+@
+
+
+11.5
+log
+@Release_4.4
+@
+text
+@d59 2
+a60 1
+					ptr = (struct list *)malloc( sizeof( struct list ) );
+d64 2
+a65 1
+					ptr = (struct list *)malloc( sizeof( struct list ) );
+@
+
+
+11.4
+log
+@Added include of conf.h
+@
+text
+@@
+
+
+11.3
+log
+@Removed excess debug prints
+@
+text
+@d17 2
+@
+
+
+11.2
+log
+@Modified header files
+@
+text
+@a50 3
+			rt_log( "\tTranformation matrix at DE %d references matrix at %d\n" , 
+				i*2+1 , dir[i]->trans * 2 + 1 );
+
+a97 8
+		{
+			rt_log( "Transform:\n" );
+			for( j=0 ; j<16 ; j++ )
+			{
+				rt_log( "%f " , (*dir[dir[i]->trans]->rot)[j] );
+				if( (j+1)%4 == 0 )
+					rt_log( "\n" );
+			}
+a98 9
+			rt_log( "matrix for entity %d is:\n" , i*2+1 );
+			for( j=0 ; j<16 ; j++ )
+			{
+				rt_log( "%f " , (*dir[i]->rot)[j] );
+				if( (j+1)%4 == 0 )
+					rt_log( "\n" );
+			}
+				
+		}
+@
+
+
+11.1
+log
+@Major Upgrade to IGES 5.1
+@
+text
+@d51 3
+d101 8
+d110 9
+@
+
+
+10.1
+log
+@Release_4.0
+@
+text
+@@
+
+
+1.2
+log
+@Modified for Release 4.0
+@
+text
+@@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d18 2
+@

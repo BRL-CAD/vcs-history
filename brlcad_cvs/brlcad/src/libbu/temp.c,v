@@ -1,0 +1,577 @@
+head	1.8;
+access;
+symbols;
+locks; strict;
+comment	@ * @;
+
+
+1.8
+date	2007.12.17.13.24.43;	author d_rossberg;	state Exp;
+branches;
+next	1.7;
+
+1.7
+date	2007.12.14.17.09.48;	author brlcad;	state Exp;
+branches;
+next	1.6;
+
+1.6
+date	2007.12.14.14.44.53;	author bob1961;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	2007.12.14.11.39.11;	author brlcad;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	2007.12.14.11.03.43;	author brlcad;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2007.12.14.10.49.22;	author brlcad;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2007.12.13.21.42.24;	author brlcad;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2007.12.09.21.40.06;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.8
+log
+@time() is declared in time.h
+@
+text
+@/*                           T E M P . C
+ * BRL-CAD
+ *
+ * Copyright (c) 2001-2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This library is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@addtogroup bu_log */
+/** @@{ */
+/** @@file temp.c
+ *
+ * Routine to open a temporary file.
+ *
+ */
+
+#include "common.h"
+
+#include <stdlib.h>
+#include <stdio.h>
+#include <fcntl.h>
+#include <string.h>
+#include <time.h>
+#ifdef HAVE_SYS_TYPES_H
+#  include <sys/types.h>
+#endif
+#ifdef HAVE_SYS_STAT_H
+#  include <sys/stat.h>
+#endif
+
+#include "machine.h"
+#include "bu.h"
+
+
+#define _TF_FAIL "WARNING: Unable to create a temporary file\n"
+
+
+struct _bu_tf_list {
+    struct bu_list l;
+    struct bu_vls fn;
+    FILE *fp;
+    int fd;
+};
+
+static int _bu_temp_files = 0;
+static struct _bu_tf_list *_bu_tf = NULL;
+
+
+static void
+_bu_close_files()
+{
+    struct _bu_tf_list *popped;
+    if (!_bu_tf) {
+	return;
+    }
+
+    /* close all files, free their nodes, and unlink */
+    while (BU_LIST_WHILE(popped, _bu_tf_list, &(_bu_tf->l))) {
+	BU_LIST_DEQUEUE(&(popped->l));
+	if (popped) {
+	    if (BU_VLS_IS_INITIALIZED(&popped->fn) && bu_vls_addr(&popped->fn)) {
+		unlink(bu_vls_addr(&popped->fn));
+		bu_vls_free(&popped->fn);
+	    }
+	    if (popped->fp) {
+		fclose(popped->fp);
+		popped->fp = NULL;
+	    }
+	    if (popped->fd != -1) {
+		close(popped->fd);
+		popped->fd = -1;
+	    }
+	    bu_free(popped, "free bu_temp_file node");
+	}
+    }
+
+    /* free the head */
+    if (_bu_tf->fp) {
+	if (BU_VLS_IS_INITIALIZED(&_bu_tf->fn) && bu_vls_addr(&_bu_tf->fn)) {
+	    unlink(bu_vls_addr(&_bu_tf->fn));
+	    bu_vls_free(&_bu_tf->fn);
+	}
+	if (_bu_tf->fp) {
+	    fclose(_bu_tf->fp);
+	    _bu_tf->fp = NULL;
+	}
+	if (_bu_tf->fd != -1) {
+	    close(_bu_tf->fd);
+	    _bu_tf->fd = -1;
+	}
+    }
+    bu_free(_bu_tf, "free bu_temp_file head");
+}
+
+
+static void
+_bu_add_to_list(const char *fn, FILE *fp, int fd)
+{
+    struct _bu_tf_list *newtf;
+
+    _bu_temp_files++;
+
+    if (_bu_temp_files == 1) {
+	/* schedule files for closure on exit */
+	atexit(_bu_close_files);
+
+	BU_GETSTRUCT(_bu_tf, _bu_tf_list);
+	BU_LIST_INIT(&(_bu_tf->l));
+	bu_vls_init(&_bu_tf->fn);
+
+	bu_vls_strcpy(&_bu_tf->fn, fn);
+	_bu_tf->fp = fp;
+	_bu_tf->fd = fd;
+	
+	return;
+    }
+
+    BU_GETSTRUCT(newtf, _bu_tf_list);
+    bu_vls_init(&_bu_tf->fn);
+
+    bu_vls_strcpy(&_bu_tf->fn, fn);
+    newtf->fp = fp;
+    newtf->fd = fd;
+
+    BU_LIST_PUSH(&(_bu_tf->l), &(newtf->l));
+
+    return;
+}
+
+
+#ifndef HAVE_MKSTEMP
+static int
+mkstemp(char *file_template)
+{
+    int fd = -1;
+    int counter = 0;
+    char *filepath = NULL;
+    int i;
+    int start, end;
+
+    static const char replace[] = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+    static int replacelen = sizeof(replace) - 1;
+
+    /* _O_TEMPORARY on Windows removes file when last descriptor is closed */
+#ifndef O_TEMPORARY
+#  define O_TEMPORARY 0
+#endif
+
+    if (!file_template || file_template[0] == '\0')
+	return -1;
+
+    /* identify the replacement suffix */
+    start = end = strlen(file_template)-1;
+    for (i=strlen(file_template)-1; i>=0; i--) {
+	if (file_template[i] != 'X') {
+	    break;
+	}
+	end = i;
+    }
+
+    do {
+	/* replace the template with random chars */
+	srand((unsigned)time(NULL));
+	for (i=start; i>=end; i--) {
+	    file_template[i] = replace[(int)(replacelen * ((double)rand() / (double)RAND_MAX))];
+	}
+	fd = open(file_template, O_CREAT | O_EXCL | O_TRUNC | O_RDWR | O_TEMPORARY, S_IRUSR | S_IWUSR);
+    } while ((fd == -1) && (counter++ < 1000));
+
+    return fd;
+}
+#endif
+
+
+/**
+ *  b u _ t e m p _ f i l e
+ *
+ * Create a temporary file.  The first readable/writable directory
+ * will be used, searching TMPDIR/TEMP/TMP environment variable
+ * directories followed by default system temp directories and
+ * ultimately trying the current directory.
+ *
+ * This routine is guaranteed to return a new unique file or return
+ * NULL on failure.  The temporary file will be automatically unlinked
+ * on application exit.  It is the caller's responsibility to set file
+ * access settings, preserve file contents, or destroy file contents
+ * if the default behavior is non-optimal.
+ *
+ * The name of the temporary file will be copied into a user-provided
+ * (filepath) buffer if it is a non-NULL pointer and of a sufficient
+ * (len) length to contain the filename.
+ *
+ * Typical Use:
+@@code
+ *	FILE *fp;
+ *	char filename[MAXPATHLEN];
+ *	fp = bu_temp_file(&filename, MAXPATHLEN); // get file name
+ *	...
+ *	fclose(fp); // optional, auto-closed on exit
+ *
+ *	...
+ *
+ *	fp = bu_temp_file(NULL, 0); // don't need file name
+ *      fchmod(fileno(fp), 0777);
+ *	...
+ *	rewind(fp);
+ *	while (fputc(0, fp) == 0);
+ *	fclose(fp);
+@@endcode
+ */
+FILE *
+bu_temp_file(char *filepath, int len)
+{
+    FILE *fp = NULL;
+    int i;
+    int fd = -1;
+    char tempfile[MAXPATHLEN];
+    const char *dir = NULL;
+    const char *envdirs[] = {"TMPDIR", "TEMP", "TMP", NULL};
+    const char *trydirs[] = {
+#ifdef _WIN32
+	"C:\\TEMP",
+	"C:\\WINDOWS\\TEMP",
+#endif
+	"/tmp",
+	"/usr/tmp",
+	"/var/tmp", 
+	".", /* last resort */
+	NULL
+    };
+
+    if (len > MAXPATHLEN) {
+	len = MAXPATHLEN;
+    }
+
+    /* check environment variable directories */
+    for (i=0; envdirs[i]; i++) {
+	dir = getenv(envdirs[i]);
+	if (dir && dir[0] != '\0' && bu_file_writable(dir) && bu_file_executable(dir)) {
+	    break;
+	}
+    }
+
+    if (!dir) {
+	/* try various directories */
+	for (i=0; trydirs[i]; i++) {
+	    dir = trydirs[i];
+	    if (dir && dir[0] != '\0' && bu_file_writable(dir) && bu_file_executable(dir)) {
+		break;
+	    }
+	}
+    }
+
+    if (!dir) {
+	/* give up */
+	bu_log("Unable to find a suitable temp directory\n");
+	bu_log(_TF_FAIL);
+	return NULL;
+    }
+
+    snprintf(tempfile, MAXPATHLEN, "%s%cBRL-CAD_temp_XXXXXXX", dir, BU_DIR_SEPARATOR);
+
+    fd = mkstemp(tempfile);
+
+    if (fd == -1) {
+	perror("mkstemp");
+	bu_log(_TF_FAIL);
+	return NULL;
+    }
+
+    if (filepath) {
+	if (len < strlen(tempfile)) {
+#if 0
+	    bu_log("WARNING: bu_temp_file filepath buffer size is insufficient (%d < %d)\n", len, strlen(tempfile));
+#endif
+	} else {
+	    snprintf(filepath, len, "%s", tempfile);
+	}
+    }
+
+    fp = fdopen(fd, "wb+");
+    if (fp == NULL) {
+	perror("fdopen");
+	bu_log(_TF_FAIL);
+	close(fd);
+	return NULL;
+    }
+
+    /* add the file to the atexit auto-close list */
+    _bu_add_to_list(tempfile, fp, fd);
+
+    return fp;
+}
+
+
+/** @@} */
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+1.7
+log
+@system headers come before our lib headers and should never need to use _WIN32 for header inclusion protection -- use/create the corresponding HAVE_*_H define
+@
+text
+@d34 1
+@
+
+
+1.6
+log
+@if windows, include <sys/stat.h>
+@
+text
+@d34 6
+a43 3
+#if defined(_WIN32) && !defined(__CYGWIN__)
+#include <sys/stat.h>
+#endif
+@
+
+
+1.5
+log
+@in order for the filename to be useful, we need to not automatically unlink it right after it's opened -- add it to the closure linked list and unlink the file later during application exit.
+@
+text
+@d38 3
+@
+
+
+1.4
+log
+@document the bu_temp_file() parameters, don't truncate the filename if it won't fit.
+@
+text
+@d44 1
+d61 1
+a61 1
+    /* close all files, free their nodes */
+d65 4
+d83 4
+d101 1
+a101 1
+_bu_add_to_list(FILE *fp, int fd)
+d113 3
+d118 1
+a118 1
+
+d123 3
+d128 1
+a292 3
+    /* make it go away on close */
+    unlink(tempfile);
+
+d294 1
+a294 1
+    _bu_add_to_list(fp, fd);
+@
+
+
+1.3
+log
+@clean up the list of temp directories that we try to identify so they can all be treated/tested the same in a loop.  the interface should be pretty solid now.
+@
+text
+@d168 2
+a169 2
+ * directories followed by default system and ultimately trying the
+ * current directory.
+d177 4
+d200 1
+a200 1
+bu_temp_file(char *file, int maxfilelen)
+d220 2
+a221 2
+    if (maxfilelen > MAXPATHLEN) {
+	maxfilelen = MAXPATHLEN;
+d259 8
+a266 2
+    if (file) {
+	snprintf(file, maxfilelen, "%s", tempfile);
+@
+
+
+1.2
+log
+@modify bu_temp_file() so that we can capture the name of the temporary file that was created along with the opened file descriptor.  this requires ditching tmpfile_s() entirely on windows since it returns anonymous files, instead providing an implementation of mkstemp() for platforms like Windows that don't provide it.
+@
+text
+@a200 1
+    char *dir = NULL;
+d202 1
+d204 11
+a227 1
+    /* try common system default */
+d229 6
+a234 7
+#ifdef _WIN32
+	dir = "C:\\TEMP";
+#else
+	dir = "/tmp";
+#endif
+	if (!bu_file_writable(dir) || !bu_file_executable(dir)) {
+	    dir = NULL;
+a237 1
+    /* try current dir */
+d239 4
+a242 7
+	dir = ".";
+	if (!bu_file_writable(dir) || !bu_file_executable(dir)) {
+	    /* give up */
+	    bu_log("Unable to find a suitable temp directory\n");
+	    bu_log(_TF_FAIL);
+	    return NULL;
+	}
+@
+
+
+1.1
+log
+@initial addition and implementation of bu_temp_file() -- a relatively secure means to create a temporary file for use by applications.  this implementation should work on most platforms including Windows that support either mkstemp (POSIX) or tmpfile_s (ISO/IEC TR 24731-1) and should conform to the CERT secure coding of temporary file recommendations.  bu_temp_file() presently doesn't take any arguments, though that may change if needed by apps.  it does, however, auto-delete the temporary files on close through an atexit handler and a linked list of temp files that have been opened.  presently creates temp files in the first identifiable/usable temp dir searching TMPDIR, TEMP, TMP, /tmp, and the current directory, creating a file named BRL-CAD_temp_XXXXXXX if using mkstemp.
+@
+text
+@d32 2
+d119 44
+d167 1
+a167 1
+ * will be used, searching TMPDIR/TMP/TEMP environment variable
+d173 3
+a175 4
+ * on application exit.  It is the caller's responsibility to set a
+ * desired umask or to zero the file contents before closing the file.
+ *
+ * There is no (portable) means to get the name of the temporary file.
+d180 2
+a181 2
+ *
+ *	fp = bu_temp_file();
+d187 2
+a188 2
+ *	fp = bu_temp_file();
+ *      fchmod(fileno(fp), 777);
+d196 1
+a196 1
+bu_temp_file()
+a198 3
+
+#ifdef HAVE_MKSTEMP
+
+d202 6
+a207 2
+    char file[MAXPATHLEN];
+    const char *tmpdirs[] = {"TMPDIR", "TEMP", "TMP", NULL};
+d209 3
+a211 3
+    /* check environment */
+    for (i=0; tmpdirs[i]; i++) {
+	dir = getenv(tmpdirs[i]);
+d240 3
+a242 1
+    snprintf(file, MAXPATHLEN, "%s%cBRL-CAD_temp_XXXXXXX", dir, BU_DIR_SEPARATOR);
+a243 1
+    fd = mkstemp(file);
+d250 5
+a254 1
+    fp = fdopen(fd, "w+");
+d263 1
+a263 1
+    unlink(file);
+d269 1
+a270 26
+#endif /* HAVE_MKSTEMP */
+
+#ifdef HAVE_TMPFILE_S
+ 
+    if (_bu_temp_files+1 > TMP_MAX_S) {
+	bu_log("Exceeding temporary file creation limit (%lu > %lu)\n", _bu_temp_files+1, TMP_MAX_S);
+    }
+
+    tmpfile_s(&fp);
+    if (!fp) {
+	perror("tmpfile_s");
+	bu_log(_TF_FAIL);
+	return NULL;
+    }
+
+    /* add the file to the atexit auto-close list */
+    _bu_add_to_list(fp, -1);
+
+    return fp;
+
+#endif /* HAVE_TMPFILE_S */
+
+    /* shouldn't get here */
+    bu_log("WARNING: Unexpectedly unable to create a temporary file\n");
+    return NULL;
+}
+@
+

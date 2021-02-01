@@ -1,0 +1,669 @@
+head	14.12;
+access;
+symbols
+	rel-7-10-4:14.11
+	STABLE:14.11.0.2
+	stable-branch:14.3
+	rel-7-10-2:14.11
+	rel-7-10-0:14.10
+	rel-7-8-4:14.7
+	rel-7-8-2:14.7
+	rel-7-8-0:14.7
+	trimnurbs-branch:14.7.0.2
+	help:14.7
+	temp_tag:14.5
+	bobWinPort-20051223-freeze:14.3
+	postmerge-20051223-bobWinPort:14.5
+	premerge-20051223-bobWinPort:14.5
+	rel-7-6-6:14.5
+	rel-7-6-4:14.5
+	rel-7-6-2:14.3
+	rel-7-6-branch:14.3.0.6
+	rel-7-6-0:14.3
+	rel-7-4-2:14.3
+	rel-7-4-branch:14.3.0.4
+	bobWinPort:14.3.0.2
+	rel-7-4-0:14.3
+	rel-7-2-6:14.3
+	rel-7-2-4:14.3
+	rel-7-2-2:14.3
+	rel-7-2-0:14.3
+	rel-7-0-4:14.2
+	rel-7-0-2:14.2
+	rel-7-0-1:14.2
+	opensource-post:14.2
+	opensource-pre:1.3
+	rel-7-0-branch:1.3.0.2
+	rel-7-0:1.3;
+locks; strict;
+comment	@ * @;
+
+
+14.12
+date	2007.10.26.21.51.26;	author brlcad;	state Exp;
+branches;
+next	14.11;
+
+14.11
+date	2007.07.26.01.13.55;	author brlcad;	state Exp;
+branches;
+next	14.10;
+
+14.10
+date	2007.02.20.08.19.48;	author brlcad;	state Exp;
+branches;
+next	14.9;
+
+14.9
+date	2007.01.23.01.13.33;	author brlcad;	state Exp;
+branches;
+next	14.8;
+
+14.8
+date	2007.01.20.14.36.50;	author brlcad;	state Exp;
+branches;
+next	14.7;
+
+14.7
+date	2006.01.23.07.09.59;	author brlcad;	state Exp;
+branches;
+next	14.6;
+
+14.6
+date	2006.01.18.06.46.15;	author brlcad;	state Exp;
+branches;
+next	14.5;
+
+14.5
+date	2005.11.11.21.29.56;	author brlcad;	state Exp;
+branches;
+next	14.4;
+
+14.4
+date	2005.10.23.04.44.31;	author brlcad;	state Exp;
+branches;
+next	14.3;
+
+14.3
+date	2005.01.30.20.30.43;	author brlcad;	state Exp;
+branches
+	14.3.6.1;
+next	14.2;
+
+14.2
+date	2004.12.21.01.23.58;	author morrison;	state Exp;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.13;	author morrison;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2004.08.02.23.01.48;	author morrison;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2004.06.08.22.04.17;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.15.19.24;	author morrison;	state Exp;
+branches;
+next	;
+
+14.3.6.1
+date	2005.11.13.13.46.14;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.12
+log
+@yet another surge of level 4 flawfinder string length checks. somewhere around 30-40% done.
+@
+text
+@/*                        L G T _ D B . C
+ * BRL-CAD
+ *
+ * Copyright (c) 2004-2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@file lgt_db.c
+	Author:		Gary S. Moss
+*/
+#ifndef lint
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/lgt/lgt_db.c,v 14.11 2007/07/26 01:13:55 brlcad Exp $ (BRL)";
+#endif
+
+#include "common.h"
+
+#include <stdio.h>
+#include <math.h>
+#include <assert.h>
+
+#include "machine.h"
+#include "vmath.h"
+#include "raytrace.h"
+#include "fb.h"
+#include "./hmenu.h"
+#include "./lgt.h"
+#include "./extern.h"
+#include "./vecmath.h"
+#include "./screen.h"
+static int	get_Lgt_Entry(register Lgt_Source *entry, FILE *fp), put_Lgt_Entry(register Lgt_Source *entry, FILE *fp);
+
+/*	l g t _ P r i n t _ D b ( )
+	Print light source database entry.
+ */
+int
+lgt_Print_Db(int id)
+{	register Lgt_Source	*entry;
+		register int		stop;
+		int			lines =	(PROMPT_LINE-TOP_SCROLL_WIN);
+	if( id >= lgt_db_size )
+		return	0;
+	else
+	if( id < 0 )
+		{
+		stop = lgt_db_size - 1;
+		id = 0;
+		}
+	else
+		stop = id;
+	for( ; id <= stop; id++, lines-- )
+		{
+		entry = &lgts[id];
+		if( lines <= 0 && ! do_More( &lines ) )
+			break;
+		prnt_Scroll( "\n" );
+		if( --lines <= 0 && ! do_More( &lines ) )
+			break;
+		prnt_Scroll( "LIGHT SOURCE [%d] %s\n", id, entry->name );
+		if( --lines <= 0 && ! do_More( &lines ) )
+			break;
+		prnt_Scroll( "       manual override\t(%s)\n", entry->over ? "ON" : "OFF" );
+		if( entry->stp == SOLTAB_NULL || entry->over )
+			{
+			if( --lines <= 0 && ! do_More( &lines ) )
+				break;
+			prnt_Scroll( "       azimuth\t\t(%g)\n", entry->azim*DEGRAD );
+			if( --lines <= 0 && ! do_More( &lines ) )
+				break;
+			prnt_Scroll( "       elevation\t(%g)\n", entry->elev*DEGRAD );
+			}
+		if( --lines <= 0 && ! do_More( &lines ) )
+			break;
+		prnt_Scroll( "       distance\t\t(%g)\n", entry->dist );
+		if( --lines <= 0 && ! do_More( &lines ) )
+			break;
+		prnt_Scroll( "       location\t\t<%g,%g,%g>\n",
+				entry->loc[X], entry->loc[Y], entry->loc[Z]
+				);
+		if( --lines <= 0 && ! do_More( &lines ) )
+			break;
+		prnt_Scroll( "       gaussian beam\t(%s)\n", entry->beam ? "ON" : "OFF" );
+		if( entry->beam )
+			{
+			if( --lines <= 0 && ! do_More( &lines ) )
+				break;
+			prnt_Scroll( "       beam radius\t(%g)\n", entry->radius );
+			}
+		if( --lines <= 0 && ! do_More( &lines ) )
+			break;
+		prnt_Scroll( "       intensity\t(%g)\n", entry->energy );
+		if( --lines <= 0 && ! do_More( &lines ) )
+			break;
+		prnt_Scroll( "       color\t\t(%d %d %d)\n",
+				entry->rgb[0], entry->rgb[1], entry->rgb[2]
+				);
+		}
+	(void) fflush( stdout );
+	return	1;
+	}
+
+/*	l g t _ R e a d _ D b ( )
+	Open light source database and read entries into table,
+	return number of entries successfully read.
+ */
+int
+lgt_Rd_Db(char *file)
+{	register Lgt_Source	*entry;
+		register FILE		*fp;
+	if( (fp = fopen( file, "r" )) == NULL )
+		return	0;
+	lgt_db_size = 0;
+	for(	entry = lgts;
+		entry < &lgts[MAX_LGTS]
+	     && get_Lgt_Entry( entry, fp );
+		++entry
+		)
+		lgt_db_size++;
+	(void) fclose( fp );
+	return	lgt_db_size;
+	}
+
+/*	l g t _ S a v e _ D b ( )
+	Write ASCII light source database from table.
+	Return 1 for success, 0 for failure.
+ */
+int
+lgt_Save_Db(char *file)
+{
+	register Lgt_Source	*entry;
+	register FILE		*fp;
+
+	if( (fp = fopen( file, "w" )) == NULL )
+		return	0;
+	setbuf( fp, bu_malloc( BUFSIZ, "buffer" ) );
+	for(	entry = lgts;
+		entry < &lgts[lgt_db_size]
+	     && put_Lgt_Entry( entry, fp );
+		++entry
+		)
+		;
+	(void) fclose( fp );
+	if( entry != &lgts[lgt_db_size] )
+		return	0;
+	return	1;
+	}
+
+/*	l g t _ E d i t _ D b _ E n t r y ( )
+	Create or overwrite entry in light source table.
+ */
+int
+lgt_Edit_Db_Entry(int id)
+{	register Lgt_Source	*entry;
+		char			input_buf[MAX_LN];
+		char			prompt[MAX_LN];
+		int			red, grn, blu;
+	if( id < 0 || id >= MAX_LGTS )
+		return	-1;
+	lgt_db_size = Max( lgt_db_size, id+1 );
+	entry = &lgts[id];
+	(void) snprintf( prompt, MAX_LN, "light source name ? (%s) ", entry->name );
+	if( get_Input( input_buf, MAX_LN, prompt ) != NULL )
+		(void) strncpy( entry->name, input_buf, MAX_LGT_NM-1 );
+	(void) sprintf( prompt, "manual override ? [y|n](%c) ",
+			entry->over ? 'y' : 'n' );
+	if( get_Input( input_buf, MAX_LN, prompt ) != NULL )
+		entry->over = input_buf[0] != 'n';
+	if( entry->over || entry->stp == SOLTAB_NULL )
+		{
+		(void) sprintf( prompt, "azimuth ? (%g) ",
+				entry->azim*DEGRAD );
+		if( get_Input( input_buf, MAX_LN, prompt ) != NULL )
+			{
+			(void) sscanf( input_buf, "%lf", &entry->azim );
+			entry->azim /= DEGRAD;
+			}
+		(void) sprintf( prompt, "elevation ? (%g) ",
+				entry->elev*DEGRAD );
+		if( get_Input( input_buf, MAX_LN, prompt ) != NULL )
+			{
+			(void) sscanf( input_buf, "%lf", &entry->elev );
+			entry->elev /= DEGRAD;
+			}
+		(void) sprintf( prompt, "distance ? (%g) ", entry->dist );
+		if( get_Input( input_buf, MAX_LN, prompt ) != NULL )
+			(void) sscanf( input_buf, "%lf", &entry->dist );
+		}
+	(void) sprintf( prompt, "gaussian beam ? [y|n](%c) ",
+			entry->beam ? 'y' : 'n' );
+	if( get_Input( input_buf, MAX_LN, prompt ) != NULL )
+		entry->beam = input_buf[0] != 'n';
+	if( entry->beam )
+		{
+		(void) sprintf( prompt, "radius of beam ? (%g) ",
+				entry->radius );
+		if( get_Input( input_buf, MAX_LN, prompt ) != NULL )
+			(void) sscanf( input_buf, "%lf", &entry->radius );
+		}
+	(void) sprintf( prompt, "intensity ? [0.0 to 1.0](%g) ",
+			entry->energy );
+	if( get_Input( input_buf, MAX_LN, prompt ) != NULL )
+		(void) sscanf( input_buf, "%lf", &entry->energy );
+	(void) sprintf( prompt, "color ? [0 to 255](%d %d %d) ",
+			entry->rgb[RED],
+			entry->rgb[GRN],
+			entry->rgb[BLU]
+			);
+	if(	get_Input( input_buf, MAX_LN, prompt ) != NULL
+	     &&	sscanf( input_buf, "%d %d %d", &red, &grn, &blu ) == 3
+		)
+		{
+		entry->rgb[RED] = red;
+		entry->rgb[GRN] = grn;
+		entry->rgb[BLU] = blu;
+		}
+	return	1;
+	}
+
+static int
+get_Lgt_Entry(register Lgt_Source *entry, FILE *fp)
+{	register char	*ptr;
+		int		red, grn, blu;
+	if( bu_fgets( entry->name, MAX_LGT_NM, fp ) == NULL )
+		return	0;
+	ptr = &entry->name[strlen(entry->name) - 1];
+	if( *ptr == '\n' )
+		/* Read entire line.					*/
+		*ptr = '\0';
+	else	/* Skip rest of line.					*/
+		while( getc( fp ) != '\n' )
+			;
+	if( fscanf( fp, "%d %d", &entry->beam, &entry->over ) != 2 )
+		return	0;
+	if( fscanf( fp, "%d %d %d", &red, &grn, &blu ) != 3 )
+		return	0;
+	entry->rgb[0] = red;
+	entry->rgb[1] = grn;
+	entry->rgb[2] = blu;
+	if(	fscanf(	fp,
+			"%lf %lf %lf %lf %lf",
+			&entry->azim,
+			&entry->elev,
+			&entry->dist,
+			&entry->energy,
+			&entry->radius
+			) != 5
+		)
+		return	0;
+	while( getc( fp ) != '\n' )
+		; /* Gobble rest of line.				*/
+	return	1;
+	}
+
+static int
+put_Lgt_Entry(register Lgt_Source *entry, FILE *fp)
+{
+	(void) fprintf( fp, "%s\n", entry->name );
+	(void) fprintf(	fp,
+			"%d\n%d\n%u %u %u\n",
+			entry->beam,
+			entry->over,
+			(unsigned) entry->rgb[0],
+			(unsigned) entry->rgb[1],
+			(unsigned) entry->rgb[2]
+			);
+	(void) fprintf( fp,
+			"%f\n%f\n%f\n%f\n%f\n",
+			entry->azim,
+			entry->elev,
+			entry->dist,
+			entry->energy,
+			entry->radius
+			);
+	return	1;
+	}
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+14.11
+log
+@remove ephemeral data like phone numbers and addresses, including the misleading 'source' statements on code that is continually evolving and receiving contributions from many many sources
+@
+text
+@d24 1
+a24 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/lgt/lgt_db.c,v 14.10 2007/02/20 08:19:48 brlcad Exp $ (BRL)";
+d172 1
+a172 1
+	(void) sprintf( prompt, "light source name ? (%s) ", entry->name );
+@
+
+
+14.10
+log
+@update all usages of fgets() to instead use john's swanktastic bu_fgets() that behaves as one would generally want regardless of the line ending type of the compilation platform or of the input files.  bu_fgets() responds to input files that use CR (usually old mac), LF (usually unix, new mac), or CR/LF (usually windows) for the line ending so now these file do too effectivley squashing buggish/bad behavior.
+@
+text
+@a21 4
+			U. S. Army Ballistic Research Laboratory
+			Aberdeen Proving Ground
+			Maryland 21005-5066
+			(301)278-6647 or AV-298-6647
+d24 1
+a24 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/lgt/lgt_db.c,v 14.9 2007/01/23 01:13:33 brlcad Exp $ (BRL)";
+@
+
+
+14.9
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@d28 1
+a28 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/lgt/lgt_db.c,v 14.8 2007/01/20 14:36:50 brlcad Exp $ (BRL)";
+d238 1
+a238 1
+	if( fgets( entry->name, MAX_LGT_NM, fp ) == NULL )
+@
+
+
+14.8
+log
+@update copyright to 2007
+@
+text
+@d8 2
+a9 3
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+d14 1
+a14 1
+ * General Public License for more details.
+d16 2
+a17 2
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+d28 1
+a28 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/lgt/lgt_db.c,v 14.7 2006/01/23 07:09:59 brlcad Exp $ (BRL)";
+@
+
+
+14.7
+log
+@libbu for memory management
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 2004-2006 United States Government as represented by
+d29 1
+a29 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/lgt/lgt_db.c,v 14.6 2006/01/18 06:46:15 brlcad Exp $ (BRL)";
+@
+
+
+14.6
+log
+@update copyright to 2006
+@
+text
+@d29 1
+a29 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/lgt/lgt_db.c,v 14.5 2005/11/11 21:29:56 brlcad Exp $ (BRL)";
+a33 2
+
+
+d151 1
+a151 1
+	setbuf( fp, malloc( BUFSIZ ) );
+@
+
+
+14.5
+log
+@convert STATIC to static and obliterate the NDEBUG hacks now that it's consistent provided throughout the package via configure
+@
+text
+@d4 1
+a4 1
+ * Copyright (C) 2004-2005 United States Government as represented by
+d29 1
+a29 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/lgt/lgt_db.c,v 14.4 2005/10/23 04:44:31 brlcad Exp $ (BRL)";
+@
+
+
+14.4
+log
+@trailing ws
+@
+text
+@d29 1
+a29 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/lgt/lgt_db.c,v 14.3 2005/01/30 20:30:43 brlcad Exp $ (BRL)";
+d49 1
+a49 1
+STATIC int	get_Lgt_Entry(register Lgt_Source *entry, FILE *fp), put_Lgt_Entry(register Lgt_Source *entry, FILE *fp);
+d237 1
+a237 1
+STATIC int
+d272 1
+a272 1
+STATIC int
+@
+
+
+14.3
+log
+@update copyright to 2005
+@
+text
+@d29 1
+a29 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/lgt/lgt_db.c,v 14.2 2004/12/21 01:23:58 morrison Exp $ (BRL)";
+d69 1
+a69 1
+	for( ; id <= stop; id++, lines-- ) 
+@
+
+
+14.3.6.1
+log
+@merge changes from HEAD aka rel-7-6-4 to the rel-7-6-branch just in case someone peeks a gander or tries to continue/build the branch
+@
+text
+@d29 1
+a29 1
+static const char RCSid[] = "@@(#)$Header$ (BRL)";
+d49 1
+a49 1
+static int	get_Lgt_Entry(register Lgt_Source *entry, FILE *fp), put_Lgt_Entry(register Lgt_Source *entry, FILE *fp);
+d69 1
+a69 1
+	for( ; id <= stop; id++, lines-- )
+d237 1
+a237 1
+static int
+d272 1
+a272 1
+static int
+@
+
+
+14.2
+log
+@assign copyright and GPL
+@
+text
+@d4 2
+a5 2
+ * Copyright (c) 2004 United States Government as represented by the
+ * U.S. Army Research Laboratory.
+d29 1
+a29 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/lgt/lgt_db.c,v 14.1 2004/11/16 19:42:13 morrison Exp $ (BRL)";
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@d1 21
+a21 1
+/*
+d29 1
+a29 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/lgt/lgt_db.c,v 1.3 2004/08/02 23:01:48 morrison Exp $ (BRL)";
+@
+
+
+1.3
+log
+@replace the wrapped config.h block with common.h
+@
+text
+@d9 1
+a9 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/lgt/lgt_db.c,v 1.2 2004/06/08 22:04:17 morrison Exp $ (BRL)";
+d274 10
+@
+
+
+1.2
+log
+@obliterate externs.h
+@
+text
+@d9 1
+a9 1
+static const char RCSid[] = "@@(#)$Header$ (BRL)";
+d12 1
+a12 3
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+@
+
+
+1.1
+log
+@Vast reorganization begins.  Sources moved from top-level directories into src/.
+@
+text
+@d9 1
+a9 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/lgt/lgt_db.c,v 11.8 2004/05/10 15:30:43 erikg Exp $ (BRL)";
+a22 1
+#include "externs.h"
+@
+

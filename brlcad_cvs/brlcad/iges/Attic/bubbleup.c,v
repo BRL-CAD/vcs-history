@@ -1,0 +1,402 @@
+head	11.8;
+access;
+symbols
+	ansi-20040405-merged:11.6.6.1
+	postmerge-20040405-ansi:11.7
+	premerge-20040404-ansi:11.7
+	postmerge-autoconf:11.7
+	autoconf-freeze:11.6.14.1
+	premerge-autoconf:11.7
+	ansi-20040316-freeze:11.6
+	postmerge-20040315-windows:11.7
+	premerge-20040315-windows:11.7
+	windows-20040315-freeze:11.6.8.1
+	autoconf-20031203:11.6
+	autoconf-20031202:11.6
+	autoconf-branch:11.6.0.14
+	phong-branch:11.6.0.12
+	photonmap-branch:11.6.0.10
+	rel-6-1-DP:11.6
+	windows-branch:11.6.0.8
+	rel-6-0-2:11.6
+	ansi-branch:11.6.0.6
+	rel-6-0-1-branch:11.6.0.4
+	hartley-6-0-post:11.6
+	hartley-6-0-pre:11.6
+	rel-6-0-1:11.6
+	rel-6-0:11.6
+	rel-5-4:11.6
+	offsite-5-3-pre:11.6
+	rel-5-3:11.6
+	rel-5-2:11.6
+	rel-5-1-branch:11.6.0.2
+	rel-5-1:11.6
+	rel-5-0:11.5
+	rel-5-0-beta:11.5
+	rel-4-5:11.5
+	ctj-4-5-post:11.5
+	ctj-4-5-pre:11.5
+	rel-4-4:11.3
+	rel-4-0:10.1;
+locks; strict;
+comment	@ * @;
+
+
+11.8
+date	2004.05.24.04.01.07;	author morrison;	state dead;
+branches;
+next	11.7;
+
+11.7
+date	2004.02.02.17.39.04;	author morrison;	state Exp;
+branches;
+next	11.6;
+
+11.6
+date	2000.03.29.18.42.41;	author mike;	state Exp;
+branches
+	11.6.6.1
+	11.6.8.1
+	11.6.14.1;
+next	11.5;
+
+11.5
+date	95.11.28.21.35.45;	author jra;	state Exp;
+branches;
+next	11.4;
+
+11.4
+date	95.06.28.15.23.43;	author jra;	state Exp;
+branches;
+next	11.3;
+
+11.3
+date	95.01.04.10.07.31;	author mike;	state Rel4_4;
+branches;
+next	11.2;
+
+11.2
+date	94.08.22.19.31.39;	author gdurf;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	93.06.28.10.37.04;	author jra;	state Exp;
+branches;
+next	10.1;
+
+10.1
+date	91.10.12.06.45.09;	author mike;	state Rel4_0;
+branches;
+next	1.3;
+
+1.3
+date	91.09.26.22.21.45;	author butler;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	91.06.12.20.27.34;	author mike;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	91.06.12.19.59.07;	author mike;	state Exp;
+branches;
+next	;
+
+11.6.6.1
+date	2004.03.17.21.16.30;	author morrison;	state Exp;
+branches;
+next	;
+
+11.6.8.1
+date	2004.03.11.23.41.13;	author morrison;	state Exp;
+branches;
+next	;
+
+11.6.14.1
+date	2004.02.12.19.41.38;	author erikg;	state Exp;
+branches;
+next	;
+
+
+desc
+@IGES converter
+@
+
+
+11.8
+log
+@moved to src/iges/
+@
+text
+@/*
+ *  Authors -
+ *	John R. Anderson
+ *	Susanne L. Muuss
+ *	Earl P. Weaver
+ *
+ *  Source -
+ *	VLD/ASB Building 1065
+ *	The U. S. Army Ballistic Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005
+ *  
+ *  Copyright Notice -
+ *	This software is Copyright (C) 1990-2004 by the United States Army.
+ *	All rights reserved.
+ */
+
+/*	This routine finds union operators in the boolean tree
+	that cannot be handled by BRLCAD (due to BRLCAD's odd
+	way of handling the union operator), and moves them
+	toward the root of the tree.  To get the tree into
+	a BRLCAD-acceptable format, no intersection or
+	subtraction operators can be above any union operator
+	in the tree.  Traverses the tree in LRN order.  Returns 1
+	if no change was made to the tree, 0 otherwise.	*/
+
+#include "./iges_struct.h"
+
+Bubbleup( root )
+struct node *root;
+{
+	struct node *Copytree(),*Pop(),*ptr,*ptra,*ptrb,*ptrc,*ptr1,*ptr2;
+	int op,retval=1;
+
+	ptr = root;
+	while( 1 )
+	{
+		while( ptr != NULL )
+		{
+			Push( ptr );
+			ptr = ptr->left;
+		}
+		ptr = Pop();
+		if( ptr->right != NULL && ptr->right->op == Union )
+		{
+			if( ptr->op == Subtract )
+			{
+			/*	(a-(buc)) => ((a-b)-c)	*/
+				retval = 0;
+				ptr1 = ptr->right;
+				ptra = ptr->left;
+				ptrb = ptr->right->left;
+				ptrc = ptr->right->right;
+				ptr->right = ptrc;
+				ptr->left = ptr1;
+				ptr1->op = Subtract;
+				ptr1->left = ptra;
+				ptr1->right = ptrb;
+				ptra->parent = ptr1;
+				ptrb->parent = ptr1;
+				ptrc->parent = ptr;
+			}
+			else if( ptr->op == Intersect )
+			{
+			/*	(a+(buc)) => (a+b)u(a+c)	*/
+				retval = 0;
+				ptr2 = (struct node *)bu_malloc( sizeof( struct node ), "Bubbleup: ptr2" );
+				ptr1 = ptr->right;
+				ptra = ptr->left;
+				ptrb = ptr->right->left;
+				ptrc = ptr->right->right;
+				ptr->left = ptr2;
+				ptr2->op = Intersect;
+				ptr2->left = ptra;
+				ptr2->right = ptrb;
+				ptr1->right = ptrc;
+				ptr1->op = Intersect;
+				ptr->op = Union;
+				ptr1->left = Copytree( ptra , ptr1 );
+				ptra->parent = ptr2;
+				ptrb->parent = ptr2;
+				ptr2->parent = ptr;
+			}
+		}
+		else if( ptr->left != NULL && ptr->left->op == Union )
+		{
+			if( ptr->op == Intersect || ptr->op == Subtract )
+			{
+			/*	((aub)"+ or -"c) => (a"+ or -"c)u(b"+ or -"c)	*/
+				retval = 0;
+				op = ptr->op;
+				ptra = ptr->left->left;
+				ptrb = ptr->left->right;
+				ptrc = ptr->right;
+				ptr1 = ptr->left;
+				ptr2 = (struct node *)bu_malloc( sizeof( struct node ), "Bubbleup: ptr2" );
+				ptr->op = Union;
+				ptr->right = ptr2;
+				ptr2->op = op;
+				ptr2->left = ptrb;
+				ptr2->right = Copytree( ptrc , ptr2 );
+				ptr1->op = op;
+				ptr1->right = ptrc;
+				ptrc->parent = ptr1;
+				ptrb->parent = ptr2;
+				ptr2->parent = ptr;
+			}
+		}
+
+		if( ptr == root ) /* entire tree has been looked at */
+			return( retval );
+
+		if( ptr != ptr->parent->right ) /* we must be at the left node */
+			ptr = ptr->parent->right; /* so push the right node */
+		else				/* we must be at the right node */
+			ptr = NULL;	/* so don't push anything */
+
+	}
+}
+@
+
+
+11.7
+log
+@update copyright to include span through 2003
+@
+text
+@@
+
+
+11.6
+log
+@
+Converted from Release 4 names to know about libbu and libbn
+@
+text
+@d13 1
+a13 1
+ *	This software is Copyright (C) 1990 by the United States Army.
+@
+
+
+11.6.6.1
+log
+@sync branch with HEAD
+@
+text
+@d13 1
+a13 1
+ *	This software is Copyright (C) 1990-2004 by the United States Army.
+@
+
+
+11.6.8.1
+log
+@sync to HEAD...
+@
+text
+@d13 1
+a13 1
+ *	This software is Copyright (C) 1990-2004 by the United States Army.
+@
+
+
+11.6.14.1
+log
+@merge from HEAD
+@
+text
+@d13 1
+a13 1
+ *	This software is Copyright (C) 1990-2004 by the United States Army.
+@
+
+
+11.5
+log
+@Mods to handle TNURB BREP. Also added RT_EXTERNS to iges_struct.h.
+@
+text
+@d66 1
+a66 1
+				ptr2 = (struct node *)rt_malloc( sizeof( struct node ), "Bubbleup: ptr2" );
+d95 1
+a95 1
+				ptr2 = (struct node *)rt_malloc( sizeof( struct node ), "Bubbleup: ptr2" );
+@
+
+
+11.4
+log
+@Converted to use rt_malloc family.
+@
+text
+@a25 6
+#include "conf.h"
+
+#include <stdio.h>
+
+#include "machine.h"
+#include "vmath.h"
+@
+
+
+11.3
+log
+@Release_4.4
+@
+text
+@d72 1
+a72 1
+				ptr2 = (struct node *)malloc( sizeof( struct node ) );
+d101 1
+a101 1
+				ptr2 = (struct node *)malloc( sizeof( struct node ) );
+@
+
+
+11.2
+log
+@Factored ifdefs
+@
+text
+@@
+
+
+11.1
+log
+@Major Upgrade to IGES 5.1
+@
+text
+@d26 2
+d29 1
+@
+
+
+10.1
+log
+@Release_4.0
+@
+text
+@@
+
+
+1.3
+log
+@changed a "-" to an "=" to create a valid assignment statment.
+@
+text
+@@
+
+
+1.2
+log
+@Modified for Release 4.0
+@
+text
+@d78 1
+a78 1
+				ptr1->right - ptrc;
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d27 2
+@

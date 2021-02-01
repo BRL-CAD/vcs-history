@@ -1,0 +1,539 @@
+head	11.9;
+access;
+symbols
+	ansi-20040405-merged:11.6.2.1
+	postmerge-20040405-ansi:11.7
+	premerge-20040404-ansi:11.6
+	postmerge-autoconf:11.6
+	autoconf-freeze:11.6
+	premerge-autoconf:11.6
+	postmerge-20040315-windows:11.6
+	premerge-20040315-windows:11.6
+	windows-20040315-freeze:11.6
+	autoconf-20031203:11.6
+	autoconf-20031202:11.6
+	autoconf-branch:11.6.0.10
+	phong-branch:11.6.0.8
+	photonmap-branch:11.6.0.6
+	rel-6-1-DP:11.6
+	windows-branch:11.6.0.4
+	rel-6-0-2:11.4
+	ansi-branch:11.6.0.2
+	rel-6-0-1-branch:11.4.0.2
+	hartley-6-0-post:11.5
+	hartley-6-0-pre:11.4
+	rel-6-0-1:11.4
+	rel-6-0:11.4
+	rel-5-4:11.1
+	offsite-5-3-pre:11.3
+	rel-5-3:11.1
+	rel-5-2:11.1
+	rel-5-1-branch:11.1.0.2
+	rel-5-1:11.1
+	rel-5-0:11.1
+	rel-5-0-beta:11.1
+	rel-4-5:11.1
+	ctj-4-5-post:11.1
+	ctj-4-5-pre:11.1
+	rel-4-4:11.1
+	rel-4-0:10.1;
+locks; strict;
+comment	@ * @;
+
+
+11.9
+date	2004.05.21.14.58.03;	author morrison;	state dead;
+branches;
+next	11.8;
+
+11.8
+date	2004.05.10.15.30.51;	author erikg;	state Exp;
+branches;
+next	11.7;
+
+11.7
+date	2004.04.05.05.46.02;	author morrison;	state Exp;
+branches;
+next	11.6;
+
+11.6
+date	2002.08.20.17.09.06;	author jra;	state Exp;
+branches
+	11.6.2.1;
+next	11.5;
+
+11.5
+date	2002.08.15.20.56.18;	author hartley;	state Exp;
+branches;
+next	11.4;
+
+11.4
+date	2001.08.10.20.57.08;	author butler;	state Exp;
+branches;
+next	11.3;
+
+11.3
+date	2000.09.01.03.24.06;	author mike;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	2000.08.23.19.05.09;	author mike;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	95.01.04.10.13.25;	author mike;	state Rel4_4;
+branches;
+next	10.2;
+
+10.2
+date	94.08.23.15.06.09;	author gdurf;	state Exp;
+branches;
+next	10.1;
+
+10.1
+date	91.10.12.06.49.20;	author mike;	state Rel4_0;
+branches;
+next	1.3;
+
+1.3
+date	91.06.29.22.53.24;	author mike;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	90.09.20.10.32.33;	author cjohnson;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	90.08.28.18.53.14;	author cjohnson;	state Exp;
+branches;
+next	;
+
+11.6.2.1
+date	2002.09.19.18.02.45;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@By default, query read a line from stander input and echos it to
+standard output.
+@
+
+
+11.9
+log
+@moved to src/util/
+@
+text
+@/*
+ *			Q U E R Y . C
+ *
+ * By default, query reads a line from standard input and echoes it
+ * to standard output.
+ *
+ *  entry:
+ *	-t	seconds to wait for user response.
+ *	-r	default response
+ *	-v	toggle verbose option (Default "r" in "t" seconds)
+ *	-l	loop rather than respond.
+ *
+ *  Exit:
+ *	<stdout>	The line read
+ *		or	y
+ *		or	response
+ *
+ *  Calls:
+ *	get_args
+ *
+ *  Method:
+ *	straight-forward.
+ *
+ *  Author:
+ *	Christopher T. Johnson - 90/08/28
+ */
+#ifndef lint
+static const char RCSid[] = "@@(#)$Header: /n/xoff/cvs/brlcad/util/query.c,v 11.8 2004/05/10 15:30:51 erikg Exp $ (BRL)";
+#endif
+
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+
+#include <stdio.h>
+#ifdef HAVE_STRING_H
+#include <string.h>
+#else
+#include <strings.h>
+#endif
+#include <signal.h>
+#include <errno.h>
+
+#include "machine.h"
+#include "externs.h"		/* For getopt */
+
+char	Yes_Response[] = "y";
+int	Verbose=0;
+char	*Response= Yes_Response;
+int	Timeout=0;
+int	Loop=0;
+int	Done = 0;
+
+static char usage[] = "\
+Usage: %s [-v] [-t seconds] [-r response ] [-l]\n";
+
+int
+get_args(int argc, register char **argv)
+{
+	register int c;
+
+	while ( (c = getopt( argc, argv, "t:r:vl" )) != EOF )  {
+		switch( c )  {
+		case 't':
+			Timeout = atoi(optarg);
+			break;
+		case 'r':
+			Response = optarg;
+			break;
+		case 'v':
+			Verbose = 1 - Verbose;
+			break;
+		case 'l':
+			Loop = 1;
+			break;
+		default:		/* '?' */
+			return(0);
+		}
+	}
+	if (Timeout < 0) Timeout = 0;
+	if ( (Loop & Timeout) <= 0) Timeout=5;
+
+	if (Loop) Verbose = 0;
+
+	return(1);
+}
+void handler(void);
+
+int
+main(int argc, char **argv)
+{
+	char line[80];
+	char *eol;
+	char *flag;
+
+	if ( !get_args( argc, argv ) )  {
+		(void) fprintf(stderr,usage,argv[0]);
+		exit( 1 );
+	}
+
+	(void) signal(SIGALRM, handler);
+	Done = 0;
+
+	for(;;) {
+		(void) signal(SIGALRM, handler);
+		if (Verbose) {
+			if (Timeout) {
+				(void) fprintf(stderr, 
+				    "(Default: %s in %d sec)", Response,
+				    Timeout);
+			} else {
+				(void) fprintf(stderr,
+				    "(Default: %s)", Response);
+			}
+		}
+		
+		if (Loop) {
+			(void) fprintf(stderr,
+			    "(Default: %s, loop in %d sec)", Response, Timeout);
+		}
+		if (Timeout) alarm(Timeout);
+
+		flag = fgets(line, 80, stdin);
+		if (Done) {
+			if (Loop) {
+				(void) fputs("\n\007", stderr);
+				Done = 0;
+			} else {
+				(void) fputs(Response, stdout);
+				(void) putchar('\n');
+				break;
+			}
+		} else if (flag == NULL) {
+			(void) fputs(Response, stdout);
+			break;
+		} else { /* good response */
+			eol = strlen(line) + line;
+			if (*(eol-1) == '\n') {
+				--eol;
+				*eol = '\0';
+			}
+			if (eol == line) {
+				(void) fputs(Response, stdout);
+			} else {
+				(void) fputs(line, stdout);
+			}
+			(void)putchar('\n');
+			break;
+		}
+	}
+	exit(0);
+}
+void
+handler(void)
+{
+	Done = 1;
+}
+@
+
+
+11.8
+log
+@change conf.h to a wrapped config.h
+@
+text
+@d28 1
+a28 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/util/query.c,v 11.7 2004/04/05 05:46:02 morrison Exp $ (BRL)";
+@
+
+
+11.7
+log
+@merge of ansi-6-0-branch into head
+@
+text
+@d28 1
+a28 1
+static const char RCSid[] = "@@(#)$Header$ (BRL)";
+d31 5
+a35 1
+#include "conf.h"
+@
+
+
+11.6
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d28 1
+a28 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/util/query.c,v 11.4 2001/08/10 20:57:08 butler Exp $ (BRL)";
+d56 1
+a56 2
+get_args( argc, argv )
+register char **argv;
+d85 1
+a85 1
+void handler();
+d88 1
+a88 3
+main( argc, argv )
+int argc;
+char *argv[];
+d152 1
+a152 1
+handler()
+@
+
+
+11.6.2.1
+log
+@Initial ANSIfication
+@
+text
+@d28 1
+a28 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/util/query.c,v 11.6 2002/08/20 17:09:06 jra Exp $ (BRL)";
+d56 2
+a57 1
+get_args(int argc, register char **argv)
+d86 1
+a86 1
+void handler(void);
+d89 3
+a91 1
+main(int argc, char **argv)
+d155 1
+a155 1
+handler(void)
+@
+
+
+11.5
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d56 2
+a57 1
+get_args(int argc, register char **argv)
+d86 1
+a86 1
+void handler(void);
+d89 3
+a91 1
+main(int argc, char **argv)
+d155 1
+a155 1
+handler(void)
+@
+
+
+11.4
+log
+@Misc compiler warnings eliminated
+@
+text
+@d28 1
+a28 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/util/query.c,v 11.3 2000/09/01 03:24:06 mike Exp $ (BRL)";
+d56 1
+a56 2
+get_args( argc, argv )
+register char **argv;
+d85 1
+a85 1
+void handler();
+d88 1
+a88 3
+main( argc, argv )
+int argc;
+char *argv[];
+d152 1
+a152 1
+handler()
+@
+
+
+11.3
+log
+@
+Lint fix
+@
+text
+@d28 1
+a28 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/util/query.c,v 11.2 2000/08/23 19:05:09 mike Exp $ (BRL)";
+d34 5
+d55 1
+d80 1
+a80 1
+	if (Loop & Timeout <= 0) Timeout=5;
+@
+
+
+11.2
+log
+@
+const RCSid
+@
+text
+@d28 1
+a28 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/util/query.c,v 11.1 1995/01/04 10:13:25 mike Rel4_4 $ (BRL)";
+d82 1
+@
+
+
+11.1
+log
+@Release_4.4
+@
+text
+@d28 1
+a28 1
+static char RCSid[] = "@@(#)$Header: /m/cad/util/RCS/query.c,v 10.2 94/08/23 15:06:09 gdurf Exp $ (BRL)";
+@
+
+
+10.2
+log
+@Factored ifdefs
+@
+text
+@d28 1
+a28 1
+static char RCSid[] = "@@(#)$Header: /m/cad/util/RCS/query.c,v 10.1 1991/10/12 06:49:20 mike Rel4_0 gdurf $ (BRL)";
+@
+
+
+10.1
+log
+@Release_4.0
+@
+text
+@d28 1
+a28 1
+static char RCSid[] = "@@(#)$Header: /m/cad/util/RCS/query.c,v 1.3 91/06/29 22:53:24 mike Exp $ (BRL)";
+d31 2
+d35 4
+a45 1
+extern 	int errno;
+a49 2
+extern char *optarg;
+
+a94 1
+#ifndef	SYSV
+a95 1
+#endif
+a98 1
+#ifdef	SYSV
+a99 1
+#endif
+@
+
+
+1.3
+log
+@Fixed SGI optimizer gripe about infinte loop
+@
+text
+@d28 1
+a28 1
+static char RCSid[] = "@@(#)$Header: /m/cad/util/RCS/query.c,v 1.2 90/09/20 10:32:33 cjohnson Exp $ (BRL)";
+@
+
+
+1.2
+log
+@Remove restriction on loop option.  Loop now works with any response.
+@
+text
+@d28 1
+a28 1
+static char RCSid[] = "@@(#)$Header: /m/cad/util/RCS/query.c,v 1.1 90/08/28 18:53:14 cjohnson Exp $ (BRL)";
+d126 1
+a126 1
+				exit(0);
+d130 1
+a130 1
+			exit(0);
+d143 1
+a143 1
+			exit(0);
+d146 1
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d28 1
+a28 1
+static char RCSid[] = "@@(#)$Header: pixfade.c,v 9.2 89/12/29 22:12:26 mike Exp $ (BRL)";
+d43 1
+a43 1
+Usage: %s [-v] [-t seconds] [-r response | -l ]\n";
+a68 3
+	}
+	if (Loop && Response != Yes_Response) {
+		return(0);
+@

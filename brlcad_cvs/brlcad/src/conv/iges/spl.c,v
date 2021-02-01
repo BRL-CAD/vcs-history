@@ -1,0 +1,397 @@
+head	1.5;
+access;
+symbols
+	rel-7-10-4:1.4
+	STABLE:1.4.0.2
+	rel-7-10-2:1.4
+	rel-7-10-0:1.4
+	rel-7-8-4:1.2
+	rel-7-8-2:1.2
+	rel-7-8-0:1.2
+	trimnurbs-branch:1.2.0.2
+	help:1.2
+	temp_tag:1.1
+	postmerge-20051223-bobWinPort:1.1
+	premerge-20051223-bobWinPort:1.1
+	rel-7-6-6:1.1
+	rel-7-6-branch:1.1.0.2
+	rel-7-6-4:1.1;
+locks; strict;
+comment	@ * @;
+
+
+1.5
+date	2007.09.15.16.23.05;	author brlcad;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	2007.01.23.01.13.26;	author brlcad;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2007.01.20.14.36.47;	author brlcad;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2006.01.18.06.46.14;	author brlcad;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2005.10.27.03.44.49;	author brlcad;	state Exp;
+branches
+	1.1.2.1;
+next	;
+
+1.1.2.1
+date	2005.10.27.03.44.49;	author brlcad;	state dead;
+branches;
+next	1.1.2.2;
+
+1.1.2.2
+date	2005.11.13.17.45.00;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.5
+log
+@more c89 embracing.  c89 provides string.h for all of the various str*() and mem*() functions, so remove the check for its presence.  there is still likely to be work required for strict c89 conformance for the various bsd strings.h functions that may be in use.
+@
+text
+@/*                           S P L . C
+ * BRL-CAD
+ *
+ * Copyright (c) 2004-2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@file spl.c
+ *
+ */
+
+#include "common.h"
+
+#include <stdio.h>
+#include <string.h>
+
+#include "machine.h"
+#include "vmath.h"
+#include "nmg.h"
+#include "raytrace.h"
+#include "nurb.h"
+#include "./b_spline.h"
+
+struct b_spline *
+spl_new(u_order, v_order, n_u, n_v, n_rows, n_cols, evp)
+int u_order, v_order, n_u, n_v, n_rows, n_cols, evp;
+{
+	struct b_spline *srf;
+
+	srf = (struct b_spline *) bu_malloc(sizeof(struct b_spline), "spl_new: srf");
+
+	srf->next = (struct b_spline *)0;
+	srf->order[0] = u_order;
+	srf->order[1] = v_order;
+
+	srf->u_kv = (struct knot_vec *) bu_malloc(sizeof(struct knot_vec), "spl_new: srf->u_kv");
+	srf->v_kv = (struct knot_vec *) bu_malloc(sizeof(struct knot_vec), "spl_new: srf->v_kv");
+
+	srf->u_kv->k_size = n_u;
+	srf->v_kv->k_size = n_v;
+
+	srf->u_kv->knots = (fastf_t *) bu_calloc(n_u, sizeof(fastf_t), "spl_new: srf->u_kv->knots");
+	srf->v_kv->knots = (fastf_t *) bu_calloc(n_v, sizeof(fastf_t), "spl_new: srf->v_kv->knots");
+
+	srf->ctl_mesh = (struct b_mesh *) bu_malloc(sizeof(struct b_mesh), "spl_new: srf->ctl_mesh");
+
+	srf->ctl_mesh->mesh = (fastf_t *) bu_calloc(n_rows * n_cols * evp,
+		sizeof (fastf_t), "spl_new: srf->ctl_mesh->mesh");
+
+	srf->ctl_mesh->pt_type = evp;
+	srf->ctl_mesh->mesh_size[0] = n_rows;
+	srf->ctl_mesh->mesh_size[1] = n_cols;
+
+	return srf;
+}
+
+void
+spl_sfree(srf)
+struct b_spline * srf;
+{
+	bu_free((char *)srf->u_kv->knots, "spl_sfree: srf->u_kv->knots");
+	bu_free((char *)srf->v_kv->knots, "spl_sfree: srf->v_kv->knots");
+	bu_free((char *)srf->u_kv, "spl_sfree: srf->u_kv");
+	bu_free((char *)srf->v_kv, "spl_sfree: srf->v_kv");
+
+	bu_free((char *)srf->ctl_mesh->mesh, "spl_sfree: srf->ctl_mesh->mesh");
+	bu_free((char *)srf->ctl_mesh, "spl_sfree: srf->ctl_mesh");
+
+	bu_free((char *)srf, "spl_sfree: srf");
+}
+
+struct knot_vec *
+spl_kvknot(order, lower, upper, num)
+int order, num;
+fastf_t lower, upper;
+{
+	register int i;
+	int total;
+	fastf_t knot_step;
+	register struct knot_vec *new_knots;
+
+	total = order * 2 + num;
+
+	knot_step = (upper - lower) / ( num + 1 );
+
+	new_knots = (struct knot_vec *) bu_malloc(sizeof(struct knot_vec), "spl_kvknot: new_knots");
+	new_knots->k_size = total;
+
+	new_knots->knots = (fastf_t *) bu_calloc(total, sizeof(fastf_t), "spl_kvknot: new_knots->knots");
+
+	for (i = 0; i < order; i++)
+		new_knots->knots[i] = lower;
+
+	for (i = order; i <= (num + order -1); i++)
+		new_knots->knots[i] = new_knots->knots[i-1] + knot_step;
+
+	for (i = num + order; i < total; i++)
+		new_knots->knots[i] = upper;
+
+	return new_knots;
+}
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+1.4
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@d27 1
+a27 5
+#ifdef HAVE_STRING_H
+#  include <string.h>
+#else
+#  include <strings.h>
+#endif
+@
+
+
+1.3
+log
+@update copyright to 2007
+@
+text
+@d8 2
+a9 3
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+d14 1
+a14 1
+ * General Public License for more details.
+d16 2
+a17 2
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+@
+
+
+1.2
+log
+@update copyright to 2006
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 2004-2006 United States Government as represented by
+@
+
+
+1.1
+log
+@moved all the geometry converter directories from src/. to src/conv/.
+@
+text
+@d4 1
+a4 1
+ * Copyright (C) 2004-2005 United States Government as represented by
+@
+
+
+1.1.2.1
+log
+@file spl.c was added on branch rel-7-6-branch on 2005-11-13 17:45:00 +0000
+@
+text
+@d1 128
+@
+
+
+1.1.2.2
+log
+@more merging changes from HEAD aka rel-7-6-4 to the rel-7-6-branch, adding the items that were moved and resolving rcs keyword conflicts
+@
+text
+@a0 128
+/*                           S P L . C
+ * BRL-CAD
+ *
+ * Copyright (C) 2004-2005 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@file spl.c
+ *
+ */
+
+#include "common.h"
+
+#include <stdio.h>
+#ifdef HAVE_STRING_H
+#  include <string.h>
+#else
+#  include <strings.h>
+#endif
+
+#include "machine.h"
+#include "vmath.h"
+#include "nmg.h"
+#include "raytrace.h"
+#include "nurb.h"
+#include "./b_spline.h"
+
+struct b_spline *
+spl_new(u_order, v_order, n_u, n_v, n_rows, n_cols, evp)
+int u_order, v_order, n_u, n_v, n_rows, n_cols, evp;
+{
+	struct b_spline *srf;
+
+	srf = (struct b_spline *) bu_malloc(sizeof(struct b_spline), "spl_new: srf");
+
+	srf->next = (struct b_spline *)0;
+	srf->order[0] = u_order;
+	srf->order[1] = v_order;
+
+	srf->u_kv = (struct knot_vec *) bu_malloc(sizeof(struct knot_vec), "spl_new: srf->u_kv");
+	srf->v_kv = (struct knot_vec *) bu_malloc(sizeof(struct knot_vec), "spl_new: srf->v_kv");
+
+	srf->u_kv->k_size = n_u;
+	srf->v_kv->k_size = n_v;
+
+	srf->u_kv->knots = (fastf_t *) bu_calloc(n_u, sizeof(fastf_t), "spl_new: srf->u_kv->knots");
+	srf->v_kv->knots = (fastf_t *) bu_calloc(n_v, sizeof(fastf_t), "spl_new: srf->v_kv->knots");
+
+	srf->ctl_mesh = (struct b_mesh *) bu_malloc(sizeof(struct b_mesh), "spl_new: srf->ctl_mesh");
+
+	srf->ctl_mesh->mesh = (fastf_t *) bu_calloc(n_rows * n_cols * evp,
+		sizeof (fastf_t), "spl_new: srf->ctl_mesh->mesh");
+
+	srf->ctl_mesh->pt_type = evp;
+	srf->ctl_mesh->mesh_size[0] = n_rows;
+	srf->ctl_mesh->mesh_size[1] = n_cols;
+
+	return srf;
+}
+
+void
+spl_sfree(srf)
+struct b_spline * srf;
+{
+	bu_free((char *)srf->u_kv->knots, "spl_sfree: srf->u_kv->knots");
+	bu_free((char *)srf->v_kv->knots, "spl_sfree: srf->v_kv->knots");
+	bu_free((char *)srf->u_kv, "spl_sfree: srf->u_kv");
+	bu_free((char *)srf->v_kv, "spl_sfree: srf->v_kv");
+
+	bu_free((char *)srf->ctl_mesh->mesh, "spl_sfree: srf->ctl_mesh->mesh");
+	bu_free((char *)srf->ctl_mesh, "spl_sfree: srf->ctl_mesh");
+
+	bu_free((char *)srf, "spl_sfree: srf");
+}
+
+struct knot_vec *
+spl_kvknot(order, lower, upper, num)
+int order, num;
+fastf_t lower, upper;
+{
+	register int i;
+	int total;
+	fastf_t knot_step;
+	register struct knot_vec *new_knots;
+
+	total = order * 2 + num;
+
+	knot_step = (upper - lower) / ( num + 1 );
+
+	new_knots = (struct knot_vec *) bu_malloc(sizeof(struct knot_vec), "spl_kvknot: new_knots");
+	new_knots->k_size = total;
+
+	new_knots->knots = (fastf_t *) bu_calloc(total, sizeof(fastf_t), "spl_kvknot: new_knots->knots");
+
+	for (i = 0; i < order; i++)
+		new_knots->knots[i] = lower;
+
+	for (i = order; i <= (num + order -1); i++)
+		new_knots->knots[i] = new_knots->knots[i-1] + knot_step;
+
+	for (i = num + order; i < total; i++)
+		new_knots->knots[i] = upper;
+
+	return new_knots;
+}
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+

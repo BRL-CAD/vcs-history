@@ -1,0 +1,558 @@
+head	1.12;
+access;
+symbols
+	ansi-20040405-merged:1.9.2.1
+	postmerge-20040405-ansi:1.10
+	premerge-20040404-ansi:1.9
+	postmerge-autoconf:1.9
+	autoconf-freeze:1.9
+	premerge-autoconf:1.9
+	ansi-20040316-freeze:1.9.2.1
+	postmerge-20040315-windows:1.9
+	premerge-20040315-windows:1.9
+	windows-20040315-freeze:1.9
+	autoconf-20031203:1.9
+	autoconf-20031202:1.9
+	autoconf-branch:1.9.0.10
+	phong-branch:1.9.0.8
+	photonmap-branch:1.9.0.6
+	rel-6-1-DP:1.9
+	windows-branch:1.9.0.4
+	rel-6-0-2:1.7
+	ansi-branch:1.9.0.2
+	rel-6-0-1-branch:1.7.0.2
+	hartley-6-0-post:1.8
+	hartley-6-0-pre:1.7
+	rel-6-0-1:1.7
+	rel-6-0:1.7
+	rel-5-4:1.5
+	offsite-5-3-pre:1.7
+	rel-5-3:1.5
+	rel-5-2:1.5
+	rel-5-1-branch:1.5.0.2
+	rel-5-1:1.5
+	rel-5-0:1.3
+	rel-5-0-beta:1.2
+	rel-4-5:1.2
+	ctj-4-5-post:1.2
+	ctj-4-5-pre:1.2;
+locks; strict;
+comment	@ * @;
+
+
+1.12
+date	2004.05.24.04.16.11;	author morrison;	state dead;
+branches;
+next	1.11;
+
+1.11
+date	2004.05.10.15.30.41;	author erikg;	state Exp;
+branches;
+next	1.10;
+
+1.10
+date	2004.04.05.07.49.36;	author morrison;	state Exp;
+branches;
+next	1.9;
+
+1.9
+date	2002.08.20.17.07.20;	author jra;	state Exp;
+branches
+	1.9.2.1;
+next	1.8;
+
+1.8
+date	2002.08.15.20.54.33;	author hartley;	state Exp;
+branches;
+next	1.7;
+
+1.7
+date	2000.09.01.02.38.03;	author mike;	state Exp;
+branches;
+next	1.6;
+
+1.6
+date	2000.07.12.21.59.34;	author mike;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	2000.03.29.18.07.43;	author mike;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	99.12.30.18.46.14;	author jra;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	99.06.03.21.54.19;	author mike;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	97.03.05.20.08.47;	author jra;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	97.02.09.03.22.18;	author jra;	state Exp;
+branches;
+next	;
+
+1.9.2.1
+date	2002.09.19.18.00.35;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@Cyberware laser scan to BRL-CAD Converter.
+@
+
+
+1.12
+log
+@moved to src/conv/
+@
+text
+@/*
+ *	This routine converts Cyberware Digitizer Data (laser scan data)
+ *	to a single BRL-CAD ARS solid. The data must be in cylindrical scan
+ *	format.
+ */
+
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+
+#include <stdio.h>
+#include <math.h>
+#ifdef USE_STRING_H
+#include <string.h>
+#else
+#include <strings.h>
+#endif
+#include <errno.h>
+#include "machine.h"
+#include "vmath.h"
+#include "nmg.h"
+#include "rtgeom.h"
+#include "raytrace.h"
+#include "wdb.h"
+#include "../librt/debug.h"
+
+#define LINE_LEN 256
+
+static char *usage="Usage:\n\tcy-g input_laser_scan_file output_brlcad_file.g\n";
+
+int
+main(int argc, char **argv)
+{
+	FILE *infp;
+	struct rt_wdb *outfp;
+	char line[LINE_LEN];
+	char *cptr;
+	int rshift=5;
+	int nlg=512,nlt=256;
+	int x,y;
+	fastf_t delta_z=0;
+	fastf_t delta_angle;
+	fastf_t angle=0.0;
+	fastf_t *sins, *coss;
+	fastf_t **curves;
+	fastf_t *ptr;
+	int first_non_zero=30000;
+	int last_non_zero=(-1);
+	int new_last=0;
+
+	if( argc != 3 )
+	{
+		bu_log( "%s", usage );
+		exit( 1 );
+	}
+
+	if( (infp=fopen( argv[1], "r" )) == NULL )
+	{
+		bu_log( "Cannot open input file (%s)\n", argv[1] );
+		bu_log( "%s", usage );
+		exit( 1 );
+	}
+
+	if( (outfp = wdb_fopen( argv[2] )) == NULL )
+	{
+		bu_log( "Cannot open output file (%s)\n", argv[2] );
+		bu_log( "%s", usage );
+		exit( 1 );
+	}
+
+
+	/* read ASCII header section */
+	while( 1 )
+	{
+		if( fgets( line, LINE_LEN, infp ) == NULL )
+		{
+			bu_log( "Unexpected EOF while loking for data\n" );
+			exit( 1 );
+		}
+		printf( "%s", line );
+		if( !strncmp( "DATA", line, 4 ) )
+		{
+			bu_log( "Found DATA\n" );
+			break;
+		}
+		else if( !strncmp( "SPACE", line, 5 ) )
+		{
+			if( !strstr( line, "CYLINDRICAL" ) )
+			{
+				bu_log( "Can only handle cylindrical scans right now!\n" );
+				exit( 1 );
+			}
+		}
+		else if( !strncmp( "NLG", line, 3 ) )
+		{
+			cptr = strchr( line, '=' );
+			if( !cptr )
+			{
+				bu_log( "Error in setting NLG\n" );
+				exit( 1 );
+			}
+			nlg = atoi( ++cptr );
+		}
+		else if( !strncmp( "NLT", line, 3 ) )
+		{
+			cptr = strchr( line, '=' );
+			if( !cptr )
+			{
+				bu_log( "Error in setting NLT\n" );
+				exit( 1 );
+			}
+			nlt = atoi( ++cptr );
+		}
+		else if( !strncmp( "LTINCR", line, 6 ) )
+		{
+			int tmp;
+
+			cptr = strchr( line, '=' );
+			if( !cptr )
+			{
+				bu_log( "Error in setting LTINCR\n" );
+				exit( 1 );
+			}
+			tmp = atoi( ++cptr );
+			delta_z = (fastf_t)(tmp)/1000.0;
+		}
+		else if( !strncmp( "RSHIFT", line, 6 ) )
+		{
+			cptr = strchr( line, '=' );
+			if( !cptr )
+			{
+				bu_log( "Error in setting RSHIFT\n" );
+				exit( 1 );
+			}
+			rshift = atoi( ++cptr );
+		}
+	}
+
+	/* calculate angle between longitudinal measurements */
+	delta_angle = bn_twopi/(fastf_t)nlg;
+
+	/* allocate memory to hold vertices */
+	curves = (fastf_t **)bu_malloc( (nlt+2)*sizeof( fastf_t ** ), "ars curve pointers" );
+	for( y=0 ; y<nlt+2 ; y++ )
+		curves[y] = (fastf_t *)bu_calloc( (nlg+1)*3,
+			sizeof(fastf_t), "ars curve" );
+
+	/* allocate memory for a table os sines and cosines */
+	sins = (fastf_t *)bu_calloc( nlg+1, sizeof( fastf_t ), "sines" );
+	coss = (fastf_t *)bu_calloc( nlg+1, sizeof( fastf_t ), "cosines" );
+
+	/* fill in the sines and cosines table */
+	for( x=0 ; x<nlg ; x++ )
+	{
+		angle = delta_angle * (fastf_t)x;
+		sins[x] = sin(angle);
+		coss[x] = cos(angle);
+	}
+	sins[nlg] = sins[0];
+	coss[nlg] = coss[0];
+
+	/* read the actual data */
+	for( x=0 ; x<nlg ; x++ )
+	{
+		fastf_t z=0.0;
+
+		for( y=0 ; y<nlt ; y++ )
+		{
+			short r;
+			long radius;
+			fastf_t rad;
+
+			ptr = &curves[y+1][x*3];
+
+			if( fread( &r, 2, 1, infp ) != 1 )
+				bu_bomb( "Unexpected EOF\n" );
+			if( r < 0 )
+				rad = 0.0;
+			else
+			{
+				if( y < first_non_zero )
+					first_non_zero = y;
+				radius = (long)(r) << rshift;
+				rad = (fastf_t)radius/1000.0;
+				if( y > last_non_zero )
+					last_non_zero = y;
+			}
+			*ptr = rad * coss[x];
+			*(ptr+1) = rad * sins[x];
+			*(ptr+2) = z;
+/*			bu_log( "%d %d: %g (%d) (%g %g %g)\n", x, y, rad, r, V3ARGS( ptr ) ); */
+
+			/* duplicate the first point at the end of the curve */
+			if( x == 0 )
+			{
+				ptr = &curves[y+1][nlg*3];
+				*ptr = rad * coss[x];
+				*(ptr+1) = rad * sins[x];
+				*(ptr+2) = z;
+			}
+			z += delta_z;
+		}
+	}
+
+	/* finished with input file */
+	fclose( infp );
+
+	/* eliminate single vertex spikes on each curve */
+	for( y=first_non_zero ; y<=last_non_zero ; y++ )
+	{
+		int is_zero=1;
+
+		for( x=0 ; x<nlg ; x++ )
+		{
+			fastf_t *next, *prev;
+
+			ptr = &curves[y][x*3];
+			if( x == 0 )
+				prev = &curves[y][nlg*3];
+			else
+				prev = ptr - 3;
+			next = ptr + 3;
+
+			if( ptr[0] != 0.0 || ptr[1] != 0.0 )
+			{
+				if( prev[0] == 0.0 && prev[1] == 0.0 &&
+				    next[0] == 0.0 && next[1] == 0.0 )
+				{
+					ptr[0] = 0.0;
+					ptr[1] = 0.0;
+				}
+				else
+					is_zero = 0;
+			}
+		}
+		if( is_zero && first_non_zero == y )
+			first_non_zero = y + 1;
+		else
+			new_last = y;
+	}
+
+	last_non_zero = new_last;
+
+	/* write out ARS solid
+	 * First curve is all zeros (first_non_zero - 1)
+	 * Last curve is all zeros (last_non_zero + 1 )
+	 * Number of curves is (last_non_zero - first_non_zero + 2)
+	 */
+	mk_id( outfp, "Laser Scan" );
+	mk_ars( outfp, "laser_scan", last_non_zero - first_non_zero + 2, nlg, &curves[first_non_zero-1] );
+	wdb_close( outfp );
+	return 0;
+}
+@
+
+
+1.11
+log
+@change conf.h to a wrapped config.h
+@
+text
+@@
+
+
+1.10
+log
+@merge of ansi-6-0-branch into HEAD
+@
+text
+@d7 5
+a11 1
+#include "conf.h"
+@
+
+
+1.9
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d30 1
+a30 3
+main( argc, argv )
+int argc;
+char *argv[];
+@
+
+
+1.9.2.1
+log
+@Initial ANSIfication
+@
+text
+@d30 3
+a32 1
+main(int argc, char **argv)
+@
+
+
+1.8
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d30 3
+a32 1
+main(int argc, char **argv)
+@
+
+
+1.7
+log
+@
+lint
+@
+text
+@d30 1
+a30 3
+main( argc, argv )
+int argc;
+char *argv[];
+@
+
+
+1.6
+log
+@
+Converted to use new version of LIBWDB
+@
+text
+@d41 1
+a41 1
+	fastf_t delta_z;
+@
+
+
+1.5
+log
+@
+Removed stray RT_EXTERNs, added bn_ prefix.
+@
+text
+@d29 1
+d35 1
+a35 1
+	FILE *outfp;
+d64 1
+a64 1
+	if( (outfp = fopen( argv[2], "w" )) == NULL )
+d251 2
+a252 1
+	fclose( outfp );
+@
+
+
+1.4
+log
+@Eliminated some unused variables
+@
+text
+@a26 2
+RT_EXTERN( fastf_t nmg_loop_plane_area , (struct loopuse *lu , plane_t pl ) );
+
+@
+
+
+1.3
+log
+@
+sed4
+@
+text
+@a49 1
+	int new_first=(-1);
+a169 1
+			point_t pt;
+@
+
+
+1.2
+log
+@Routine to convert Cyberware Digitizer Data to a BRL-CAD ARS solid.
+@
+text
+@d145 1
+a145 1
+	curves = (fastf_t **)rt_malloc( (nlt+2)*sizeof( fastf_t ** ), "ars curve pointers" );
+d147 1
+a147 1
+		curves[y] = (fastf_t *)rt_calloc( (nlg+1)*3,
+d151 2
+a152 2
+	sins = (fastf_t *)rt_calloc( nlg+1, sizeof( fastf_t ), "sines" );
+	coss = (fastf_t *)rt_calloc( nlg+1, sizeof( fastf_t ), "cosines" );
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d1 6
+d29 1
+a29 1
+static char *usage="Usage:\n";
+d50 8
+d61 8
+a68 1
+		bu_log( "Cannot open file %s\n", argv[1] );
+d73 2
+d82 1
+a82 1
+		printf( "%s\n", line );
+d140 2
+d144 1
+d147 1
+a147 1
+		curves[y] = (fastf_t *)rt_calloc( (nlg+1)*ELEMENTS_PER_VECT,
+d150 1
+d154 1
+d164 1
+d176 1
+a176 1
+			ptr = &curves[y+1][x*ELEMENTS_PER_VECT];
+d194 3
+a196 1
+			bu_log( "%d %d: %g (%d) (%g %g %g)\n", x, y, rad, r, V3ARGS( ptr ) );
+d199 1
+a199 1
+				ptr = &curves[y+1][nlg*ELEMENTS_PER_VECT];
+d207 2
+d211 35
+a245 1
+	outfp = fopen( "out.g", "w" );
+d247 5
+@

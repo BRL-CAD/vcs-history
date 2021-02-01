@@ -1,0 +1,338 @@
+head	11.5;
+access;
+symbols
+	rel-5-0:11.4
+	rel-5-0-beta:11.4
+	rel-4-5:11.4
+	ctj-4-5-post:11.4
+	ctj-4-5-pre:11.4
+	rel-4-4:11.1
+	rel-4-0:10.1;
+locks; strict;
+comment	@ * @;
+
+
+11.5
+date	2000.01.06.22.04.10;	author mike;	state dead;
+branches;
+next	11.4;
+
+11.4
+date	96.08.27.06.41.18;	author mike;	state Exp;
+branches;
+next	11.3;
+
+11.3
+date	96.08.14.03.43.42;	author butler;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	96.07.30.04.41.48;	author butler;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	95.01.04.09.58.53;	author mike;	state Rel4_4;
+branches;
+next	10.2;
+
+10.2
+date	94.08.10.20.22.27;	author gdurf;	state Exp;
+branches;
+next	10.1;
+
+10.1
+date	91.10.12.06.41.10;	author mike;	state Rel4_0;
+branches;
+next	1.2;
+
+1.2
+date	91.06.29.22.14.19;	author mike;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	91.06.13.01.35.33;	author mike;	state Exp;
+branches;
+next	;
+
+
+desc
+@Units conversion, to mm
+@
+
+
+11.5
+log
+@
+This function has been moved to LIBBU
+@
+text
+@/*
+ *			U N I T S . C
+ * 
+ *  Module of librt to handle units conversion between strings and mm.
+ *
+ *  Author -
+ *	Michael John Muuss
+ *  
+ *  Source -
+ *	SECAD/VLD Computing Consortium, Bldg 394
+ *	The U. S. Army Ballistic Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005-5066
+ *  
+ *  Copyright Notice -
+ *	This software is Copyright (C) 1990 by the United States Army.
+ *	All rights reserved.
+ */
+#ifndef lint
+static char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/librt/units.c,v 11.4 1996/08/27 06:41:18 mike Exp $ (BRL)";
+#endif
+
+#include "conf.h"
+
+#include <stdio.h>
+#include <ctype.h>
+
+#include "machine.h"
+#include "vmath.h"
+#include "externs.h"
+#include "raytrace.h"
+
+static CONST struct cvt_tab {
+	double	val;
+	char	name[32];
+} rt_units_tab[] = {
+	1.0e-7,		"angstrom",
+	1.0e-7,		"decinanometer",
+	1.0e-6,		"nanometer",
+	1.0e-6,		"nm",
+	1.0e-3,		"micron",
+	1.0e-3,		"micrometer",
+	1.0,		"mm",
+	1.0,		"millimeter",
+	10.0,		"cm",
+	10.0,		"centimeter",
+	1000.0,		"m",
+	1000.0,		"meter",
+	1000000.0,	"km",
+	1000000.0,	"kilometer",
+	25.4,		"in",
+	25.4,		"inch",
+	25.4,		"inche",		/* for plural */
+	304.8,		"ft",
+	304.8,		"foot",
+	304.8,		"feet",
+	456.2,		"cubit",
+	914.4,		"yd",
+	914.4,		"yard",
+	5029.2,		"rd",
+	5029.2,		"rod",
+	1609344.0,	"mi",
+	1609344.0,	"mile",
+	1852000.0,	"nmile",
+	1852000.0,	"nautical mile",
+	1.495979e+14,	"au",
+	1.495979e+14,	"astronomical unit",
+	9.460530e+18,	"lightyear",
+	3.085678e+19,	"parsec",
+	0.0,		"",			/* LAST ENTRY */
+};
+
+/*
+ *			R T _ U N I T S _ C O N V E R S I O N
+ *
+ *  Given a string representation of a unit of distance (eg, "feet"),
+ *  return the multiplier which will convert that unit into millimeters.
+ *
+ *  Returns -
+ *	0.0	error
+ *	>0.0	success
+ */
+double
+rt_units_conversion(str)
+CONST char	*str;
+{
+	register char	*ip;
+	register int	c;
+	register CONST struct cvt_tab	*tp;
+	char		ubuf[64];
+	int		len;
+
+	strncpy( ubuf, str, sizeof(ubuf)-1 );
+	ubuf[sizeof(ubuf)-1] = '\0';
+
+	/* Copy the given string, making it lower case */
+	ip = ubuf;
+	while( (c = *ip) )  {
+		if( !isascii(c) )
+			*ip++ = '_';
+		else if( isupper(c) )
+			*ip++ = tolower(c);
+		else
+			ip++;
+	}
+
+	/* Remove any trailing "s" (plural) */
+	len = strlen(ubuf);
+	if( ubuf[len-1] == 's' )  ubuf[len-1] = '\0';
+
+	/* Search for this string in the table */
+	for( tp=rt_units_tab; tp->name[0]; tp++ )  {
+		if( ubuf[0] != tp->name[0] )  continue;
+		if( strcmp( ubuf, tp->name ) != 0 )  continue;
+		return( tp->val );
+	}
+	return(0.0);		/* Unable to find it */
+}
+
+CONST char *
+rt_units_string(mm)
+register CONST double	mm;
+{
+	register CONST struct cvt_tab	*tp;
+
+	/* Search for this string in the table */
+	for( tp=rt_units_tab; tp->name[0]; tp++ )  {
+		if( mm != tp->val )  continue;
+		return( tp->name );
+	}
+	return (char *)0;
+}
+
+/* Given a string of the form "25cm" or "5.2ft" returns the 
+ * corresponding distance in mm
+ */
+double
+rt_mm_value(s)
+CONST char *s;
+{
+	double v;
+	char *ptr;	
+	register CONST struct cvt_tab	*tp;
+
+	v = strtod(s, &ptr);
+
+	if (ptr == s) return 0.0;
+	if ( ! *ptr) return v;
+
+	for (tp=rt_units_tab; tp->name[0]; tp++ )  {
+		if( *ptr != tp->name[0] )  continue;
+		if( strcmp( ptr, tp->name ) == 0 ) {
+			v *= tp->val;
+			break;
+		}
+	}
+
+	return v;
+}
+@
+
+
+11.4
+log
+@Fixed non-ANSI botch
+@
+text
+@d19 1
+a19 1
+static char RCSid[] = "@@(#)$Header: /m/cad/librt/RCS/units.c,v 11.3 1996/08/14 03:43:42 butler Exp mike $ (BRL)";
+@
+
+
+11.3
+log
+@changed register to auto
+@
+text
+@d19 1
+a19 1
+static char RCSid[] = "@@(#)$Header: /m/cad/librt/RCS/units.c,v 11.2 1996/07/30 04:41:48 butler Exp butler $ (BRL)";
+d138 1
+a138 1
+const char *s;
+d142 1
+a142 1
+	register const struct cvt_tab	*tp;
+@
+
+
+11.2
+log
+@added rt_mm_value()
+@
+text
+@d19 1
+a19 1
+static char RCSid[] = "@@(#)$Header: /m/cad/librt/RCS/units.c,v 11.1 1995/01/04 09:58:53 mike Rel4_4 butler $ (BRL)";
+d141 1
+a141 1
+	register char *ptr;	
+@
+
+
+11.1
+log
+@Release_4.4
+@
+text
+@d19 1
+a19 1
+static char RCSid[] = "@@(#)$Header: /m/cad/librt/RCS/units.c,v 10.2 94/08/10 20:22:27 gdurf Exp $ (BRL)";
+d131 27
+@
+
+
+10.2
+log
+@Added include of conf.h
+@
+text
+@d19 1
+a19 1
+static char RCSid[] = "@@(#)$Header: /m/cad/librt/RCS/units.c,v 10.1 1991/10/12 06:41:10 mike Rel4_0 gdurf $ (BRL)";
+@
+
+
+10.1
+log
+@Release_4.0
+@
+text
+@d19 1
+a19 1
+static char RCSid[] = "@@(#)$Header: /m/cad/librt/RCS/units.c,v 1.2 91/06/29 22:14:19 mike Exp $ (BRL)";
+d21 2
+@
+
+
+1.2
+log
+@ANSI lint
+@
+text
+@d19 1
+a19 1
+static char RCSid[] = "@@(#)$Header: /m/cad/librt/RCS/units.c,v 1.1 91/06/13 01:35:33 mike Exp $ (BRL)";
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d19 1
+a19 1
+static char RCSid[] = "@@(#)$Header: /m/cad/libwdb/RCS/units.c,v 1.3 90/12/11 06:04:44 phil Exp $ (BRL)";
+d86 1
+a86 1
+	register struct cvt_tab	*tp;
+d117 1
+a117 1
+char *
+d121 1
+a121 1
+	register struct cvt_tab	*tp;
+@

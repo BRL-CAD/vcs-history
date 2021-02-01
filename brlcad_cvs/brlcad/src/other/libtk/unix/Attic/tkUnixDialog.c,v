@@ -1,0 +1,293 @@
+head	14.2;
+access;
+symbols
+	stable-branch:14.1
+	rel-7-8-4:14.1
+	rel-7-8-2:14.1
+	rel-7-8-0:14.1
+	trimnurbs-branch:14.1.0.8
+	help:14.1
+	temp_tag:14.1
+	bobWinPort-20051223-freeze:14.1
+	postmerge-20051223-bobWinPort:14.1
+	premerge-20051223-bobWinPort:14.1
+	rel-7-6-6:14.1
+	rel-7-6-4:14.1
+	rel-7-6-2:14.1
+	rel-7-6-branch:14.1.0.6
+	rel-7-6-0:14.1
+	rel-7-4-2:14.1
+	rel-7-4-branch:14.1.0.4
+	bobWinPort:14.1.0.2
+	rel-7-4-0:14.1
+	rel-7-2-6:14.1
+	rel-7-2-4:14.1
+	rel-7-2-2:14.1
+	rel-7-2-0:14.1
+	rel-7-0-4:14.1
+	rel-7-0-2:14.1
+	rel-7-0-1:14.1
+	opensource-post:14.1
+	opensource-pre:1.1
+	rel-7-0-branch:1.1.0.2
+	rel-7-0:1.1;
+locks; strict;
+comment	@ * @;
+
+
+14.2
+date	2007.03.02.21.47.49;	author brlcad;	state dead;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.28;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.14.53.42;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.2
+log
+@upgrade tcl/tk from 8.4.6 to 8.5a5; also move to a recursive configure, using AC_CONFIG_SUBDIRS to call upon tcl, tk, and enigma's configure scripts as needed instead of redoing their build systems for our purpose.  this has a rather drastic impact on the way the libraries are linked together, including the need to compile tcl/tk static so as to avoid libtool portability issues as well as letting us take advantage of their build system for reduced maintenance and easing future upgrades.  undoubtedly more build issues to be worked out with other platforms given the extent of this change.  this does move us one step closer towards correctly linking against system tcl/tk installations too.
+@
+text
+@/*
+ * tkUnixDialog.c --
+ *
+ *	Contains the Unix implementation of the common dialog boxes:
+ *
+ * Copyright (c) 1996 Sun Microsystems, Inc.
+ *
+ * See the file "license.terms" for information on usage and redistribution
+ * of this file, and for a DISCLAIMER OF ALL WARRANTIES.
+ *
+ * RCS: @@(#) $Id: tkUnixDialog.c,v 14.1 2004/11/16 19:42:28 morrison Exp $
+ *
+ */
+ 
+#include "tkPort.h"
+#include "tkInt.h"
+#include "tkUnixInt.h"
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * EvalArgv --
+ *
+ *	Invokes the Tcl procedure with the arguments. argv[0] is set by
+ *	the caller of this function. It may be different than cmdName.
+ *	The TCL command will see argv[0], not cmdName, as its name if it
+ *	invokes [lindex [info level 0] 0]
+ *
+ * Results:
+ *	TCL_ERROR if the command does not exist and cannot be autoloaded.
+ *	Otherwise, return the result of the evaluation of the command.
+ *
+ * Side effects:
+ *	The command may be autoloaded.
+ *
+ *----------------------------------------------------------------------
+ */
+
+static int EvalArgv(interp, cmdName, argc, argv)
+    Tcl_Interp *interp;		/* Current interpreter. */
+    char * cmdName;		/* Name of the TCL command to call */
+    int argc;			/* Number of arguments. */
+    char **argv;		/* Argument strings. */
+{
+    Tcl_CmdInfo cmdInfo;
+
+    if (!Tcl_GetCommandInfo(interp, cmdName, &cmdInfo)) {
+	char * cmdArgv[2];
+
+	/*
+	 * This comand is not in the interpreter yet -- looks like we
+	 * have to auto-load it
+	 */
+	if (!Tcl_GetCommandInfo(interp, "auto_load", &cmdInfo)) {
+	    Tcl_ResetResult(interp);
+	    Tcl_AppendResult(interp, "cannot execute command \"auto_load\"",
+		NULL);
+	    return TCL_ERROR;
+	}
+
+	cmdArgv[0] = "auto_load";
+	cmdArgv[1] = cmdName;
+
+	if ((*cmdInfo.proc)(cmdInfo.clientData, interp, 2, cmdArgv)!= TCL_OK){ 
+	    return TCL_ERROR;
+	}
+
+	if (!Tcl_GetCommandInfo(interp, cmdName, &cmdInfo)) {
+	    Tcl_ResetResult(interp);
+	    Tcl_AppendResult(interp, "cannot auto-load command \"",
+		cmdName, "\"",NULL);
+	    return TCL_ERROR;
+	}
+    }
+
+    return (*cmdInfo.proc)(cmdInfo.clientData, interp, argc, argv);
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * Tk_ChooseColorCmd --
+ *
+ *	This procedure implements the color dialog box for the Unix
+ *	platform. See the user documentation for details on what it
+ *	does.
+ *
+ * Results:
+ *	See user documentation.
+ *
+ * Side effects:
+ *	A dialog window is created the first time this procedure is called.
+ *	This window is not destroyed and will be reused the next time the
+ *	application invokes the "tk_chooseColor" command.
+ *
+ *----------------------------------------------------------------------
+ */
+
+int
+Tk_ChooseColorCmd(clientData, interp, argc, argv)
+    ClientData clientData;	/* Main window associated with interpreter. */
+    Tcl_Interp *interp;		/* Current interpreter. */
+    int argc;			/* Number of arguments. */
+    char **argv;		/* Argument strings. */
+{
+    return EvalArgv(interp, "tk::ColorDialog", argc, argv);
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * Tk_GetOpenFileCmd --
+ *
+ *	This procedure implements the "open file" dialog box for the
+ *	Unix platform. See the user documentation for details on what
+ *	it does.
+ *
+ * Results:
+ *	See user documentation.
+ *
+ * Side effects:
+ *	A dialog window is created the first this procedure is called.
+ *	This window is not destroyed and will be reused the next time
+ *	the application invokes the "tk_getOpenFile" or
+ *	"tk_getSaveFile" command.
+ *
+ *----------------------------------------------------------------------
+ */
+
+int
+Tk_GetOpenFileCmd(clientData, interp, argc, argv)
+    ClientData clientData;	/* Main window associated with interpreter. */
+    Tcl_Interp *interp;		/* Current interpreter. */
+    int argc;			/* Number of arguments. */
+    char **argv;		/* Argument strings. */
+{
+    Tk_Window tkwin = (Tk_Window)clientData;
+
+    if (Tk_StrictMotif(tkwin)) {
+	return EvalArgv(interp, "tk::MotifFDialog", argc, argv);
+    } else {
+	return EvalArgv(interp, "tk::FDialog", argc, argv);
+    }
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * Tk_GetSaveFileCmd --
+ *
+ *	Same as Tk_GetOpenFileCmd but opens a "save file" dialog box
+ *	instead
+ *
+ * Results:
+ *	Same as Tk_GetOpenFileCmd.
+ *
+ * Side effects:
+ *	Same as Tk_GetOpenFileCmd.
+ *
+ *----------------------------------------------------------------------
+ */
+
+int
+Tk_GetSaveFileCmd(clientData, interp, argc, argv)
+    ClientData clientData;	/* Main window associated with interpreter. */
+    Tcl_Interp *interp;		/* Current interpreter. */
+    int argc;			/* Number of arguments. */
+    char **argv;		/* Argument strings. */
+{
+    Tk_Window tkwin = (Tk_Window)clientData;
+
+    if (Tk_StrictMotif(tkwin)) {
+	return EvalArgv(interp, "tk::MotifFDialog", argc, argv);
+    } else {
+	return EvalArgv(interp, "tk::FDialog", argc, argv);
+    }
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * Tk_MessageBoxCmd --
+ *
+ *	This procedure implements the MessageBox window for the
+ *	Unix platform. See the user documentation for details on what
+ *	it does.
+ *
+ * Results:
+ *	See user documentation.
+ *
+ * Side effects:
+ *	None. The MessageBox window will be destroy before this procedure
+ *	returns.
+ *
+ *----------------------------------------------------------------------
+ */
+
+int
+Tk_MessageBoxCmd(clientData, interp, argc, argv)
+    ClientData clientData;	/* Main window associated with interpreter. */
+    Tcl_Interp *interp;		/* Current interpreter. */
+    int argc;			/* Number of arguments. */
+    char **argv;		/* Argument strings. */
+{
+    return EvalArgv(interp, "tk::MessageBox", argc, argv);
+}
+
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@d11 1
+a11 1
+ * RCS: @@(#) $Id: tkUnixDialog.c,v 1.1 2004/05/20 14:53:42 morrison Exp $
+@
+
+
+1.1
+log
+@Sources that are external to BRL-CAD are moved from the top level to src/other/.
+@
+text
+@d11 1
+a11 1
+ * RCS: @@(#) $Id: tkUnixDialog.c,v 1.3 2004/03/04 19:49:31 morrison Exp $
+@
+

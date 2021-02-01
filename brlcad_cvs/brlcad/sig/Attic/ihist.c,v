@@ -1,0 +1,349 @@
+head	11.10;
+access;
+symbols
+	ansi-20040405-merged:11.7.2.1
+	postmerge-20040405-ansi:11.8
+	premerge-20040404-ansi:11.7
+	postmerge-autoconf:11.7
+	autoconf-freeze:11.7
+	premerge-autoconf:11.7
+	postmerge-20040315-windows:11.7
+	premerge-20040315-windows:11.7
+	windows-20040315-freeze:11.7
+	autoconf-20031203:11.7
+	autoconf-20031202:11.7
+	autoconf-branch:11.7.0.10
+	phong-branch:11.7.0.8
+	photonmap-branch:11.7.0.6
+	rel-6-1-DP:11.7
+	windows-branch:11.7.0.4
+	rel-6-0-2:11.5
+	ansi-branch:11.7.0.2
+	rel-6-0-1-branch:11.5.0.2
+	hartley-6-0-post:11.6
+	hartley-6-0-pre:11.5
+	rel-6-0-1:11.5
+	rel-6-0:11.5
+	rel-5-4:11.3
+	offsite-5-3-pre:11.3
+	rel-5-3:11.3
+	rel-5-2:11.3
+	rel-5-1-branch:11.3.0.2
+	rel-5-1:11.3
+	rel-5-0:11.2
+	rel-5-0-beta:11.2
+	rel-4-5:11.1
+	ctj-4-5-post:11.1
+	ctj-4-5-pre:11.1
+	rel-4-4:11.1
+	rel-4-0:10.1;
+locks; strict;
+comment	@ * @;
+
+
+11.10
+date	2004.05.21.16.45.05;	author morrison;	state dead;
+branches;
+next	11.9;
+
+11.9
+date	2004.05.10.15.30.50;	author erikg;	state Exp;
+branches;
+next	11.8;
+
+11.8
+date	2004.04.05.05.46.00;	author morrison;	state Exp;
+branches;
+next	11.7;
+
+11.7
+date	2002.08.20.17.08.43;	author jra;	state Exp;
+branches
+	11.7.2.1;
+next	11.6;
+
+11.6
+date	2002.08.15.20.55.55;	author hartley;	state Exp;
+branches;
+next	11.5;
+
+11.5
+date	2001.08.21.18.40.35;	author jra;	state Exp;
+branches;
+next	11.4;
+
+11.4
+date	2001.08.10.21.22.45;	author morrison;	state Exp;
+branches;
+next	11.3;
+
+11.3
+date	2000.01.31.16.11.22;	author jra;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	98.09.14.15.59.22;	author bparker;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	95.01.04.10.19.17;	author mike;	state Rel4_4;
+branches;
+next	10.1;
+
+10.1
+date	91.10.12.06.51.12;	author mike;	state Rel4_0;
+branches;
+next	1.1;
+
+1.1
+date	90.10.25.20.13.53;	author butler;	state Exp;
+branches;
+next	;
+
+11.7.2.1
+date	2002.09.19.18.02.24;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@safety check in
+@
+
+
+11.10
+log
+@moved to src/sig/
+@
+text
+@#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+
+#ifdef USE_STRING_H
+#include <string.h>
+#else
+#include <strings.h>
+#endif
+
+#include <stdlib.h>
+#include <unistd.h>
+#include <stdio.h>
+#include <math.h>
+
+long	bits[16];
+long	values[65536];
+long	*zerop;
+short	ibuf[1024];
+
+int	verbose = 0;
+
+static char usage[] = "\
+Usage: ihist [-v] < shorts\n";
+
+int main(int argc, char **argv)
+{
+	register long i, bit;
+	int	n;
+	int	max, min;
+	long	num, levels=0;
+
+	while( argc > 1 ) {
+		if( strcmp( argv[1], "-v" ) == 0 ) {
+			verbose++;
+		} else
+			break;
+		argc--;
+		argv++;
+	}
+	if( argc > 1 || isatty(fileno(stdin)) ) {
+		fprintf( stderr, usage );
+		exit( 1 );
+	}
+
+	num = 0;
+	zerop = &values[32768];
+	while( (n = fread(ibuf, 2, 1024, stdin)) > 0 ) {
+		num += n;
+		for( i = 0; i < n; i++ ) {
+			zerop[ ibuf[i] ] ++;
+		}
+	}
+	printf( "%ld values\n", num );
+	max = 32767;
+	while( zerop[max] == 0 )
+		max--;
+	min = -32768;
+	while( zerop[min] == 0 )
+		min++;
+	printf( "Max = %d\n", max );
+	printf( "Min = %d\n", min );
+
+	printf( "Bits\n" );
+	for( i = -32768; i < 32768; i++ ) {
+		if( zerop[i] == 0 )
+			continue;
+		levels++;
+		for( bit = 0; bit < 16; bit++ ) {
+			if( i & (1<<bit) )
+				bits[ bit ] += zerop[i];
+		}
+	}
+	for( bit = 0; bit < 16; bit++ ) {
+		printf( "%8ld: %10ld (%f)\n",
+			bit, bits[bit], (double)bits[bit]/(double)num );
+	}
+
+	printf( "%ld levels used (%04.2f %%)\n", levels, levels/65535.0 * 100.0 );
+	if( verbose ) {
+		for( i = -32768; i < 32768; i++ ) {
+			if( zerop[i] ) {
+				printf( "%ld %ld\n", i, zerop[i] );
+			}
+		}
+	}
+
+	return 0;
+}
+@
+
+
+11.9
+log
+@change conf.h to a wrapped config.h
+@
+text
+@@
+
+
+11.8
+log
+@merge of ansi-6-0-branch into head
+@
+text
+@d1 5
+a5 1
+#include "conf.h"
+@
+
+
+11.7
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d24 1
+a24 2
+int main( argc, argv )
+int argc; char **argv;
+@
+
+
+11.7.2.1
+log
+@Initial ANSIfication
+@
+text
+@d24 2
+a25 1
+int main(int argc, char **argv)
+@
+
+
+11.6
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d24 2
+a25 1
+int main(int argc, char **argv)
+@
+
+
+11.5
+log
+@lint
+@
+text
+@d24 1
+a24 2
+int main( argc, argv )
+int argc; char **argv;
+@
+
+
+11.4
+log
+@added proper checking for string.h/strings.h
+added int return type to main
+added return 0 to main
+@
+text
+@d1 10
+d30 1
+a30 1
+	long	num, levels;
+@
+
+
+11.3
+log
+@Eliminated some unused variables
+@
+text
+@d14 1
+a14 1
+main( argc, argv )
+d76 2
+@
+
+
+11.2
+log
+@*- fix typos
+@
+text
+@a20 1
+	int	mask;
+@
+
+
+11.1
+log
+@Release_4.4
+@
+text
+@d44 1
+a44 1
+	printf( "%d values\n", num );
+d65 1
+a65 1
+		printf( "%8d: %10d (%f)\n",
+d69 1
+a69 1
+	printf( "%d levels used (%04.2f %%)\n", levels, levels/65535.0 * 100.0 );
+d73 1
+a73 1
+				printf( "%d %d\n", i, zerop[i] );
+@
+
+
+10.1
+log
+@Release_4.0
+@
+text
+@@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@@

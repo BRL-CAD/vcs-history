@@ -1,0 +1,647 @@
+head	11.16;
+access;
+symbols
+	ansi-20040405-merged:11.13.2.2
+	postmerge-20040405-ansi:11.15
+	premerge-20040404-ansi:11.14
+	postmerge-autoconf:11.14
+	autoconf-freeze:11.13.10.1
+	premerge-autoconf:11.14
+	postmerge-20040315-windows:11.14
+	premerge-20040315-windows:11.14
+	windows-20040315-freeze:11.13.4.1
+	autoconf-20031203:11.13
+	autoconf-20031202:11.13
+	autoconf-branch:11.13.0.10
+	phong-branch:11.13.0.8
+	photonmap-branch:11.13.0.6
+	rel-6-1-DP:11.13
+	windows-branch:11.13.0.4
+	rel-6-0-2:11.11
+	ansi-branch:11.13.0.2
+	rel-6-0-1-branch:11.11.0.2
+	hartley-6-0-post:11.12
+	hartley-6-0-pre:11.11
+	rel-6-0-1:11.11
+	rel-6-0:11.11
+	rel-5-4:11.7
+	offsite-5-3-pre:11.10
+	rel-5-3:11.7
+	rel-5-2:11.7
+	rel-5-1-branch:11.7.0.2
+	rel-5-1:11.7
+	rel-5-0:11.6
+	rel-5-0-beta:11.6
+	rel-4-5:11.6
+	ctj-4-5-post:11.6
+	ctj-4-5-pre:11.6
+	rel-4-4:11.1;
+locks; strict;
+comment	@ * @;
+
+
+11.16
+date	2004.05.21.17.33.47;	author morrison;	state dead;
+branches;
+next	11.15;
+
+11.15
+date	2004.04.05.05.45.58;	author morrison;	state Exp;
+branches;
+next	11.14;
+
+11.14
+date	2004.02.02.17.39.37;	author morrison;	state Exp;
+branches;
+next	11.13;
+
+11.13
+date	2002.08.20.17.08.35;	author jra;	state Exp;
+branches
+	11.13.2.1
+	11.13.4.1
+	11.13.10.1;
+next	11.12;
+
+11.12
+date	2002.08.15.20.55.47;	author hartley;	state Exp;
+branches;
+next	11.11;
+
+11.11
+date	2001.10.15.19.58.04;	author morrison;	state Exp;
+branches;
+next	11.10;
+
+11.10
+date	2000.07.12.21.59.08;	author mike;	state Exp;
+branches;
+next	11.9;
+
+11.9
+date	2000.07.10.23.38.22;	author mike;	state Exp;
+branches;
+next	11.8;
+
+11.8
+date	2000.07.10.23.35.40;	author mike;	state Exp;
+branches;
+next	11.7;
+
+11.7
+date	2000.01.31.15.27.43;	author jra;	state Exp;
+branches;
+next	11.6;
+
+11.6
+date	96.07.15.18.16.22;	author jra;	state Exp;
+branches;
+next	11.5;
+
+11.5
+date	95.12.01.16.07.16;	author mike;	state Exp;
+branches;
+next	11.4;
+
+11.4
+date	95.12.01.16.06.13;	author mike;	state Exp;
+branches;
+next	11.3;
+
+11.3
+date	95.05.08.20.15.22;	author stay;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	95.05.08.19.34.59;	author stay;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	95.01.04.10.06.21;	author mike;	state Rel4_4;
+branches;
+next	1.1;
+
+1.1
+date	94.10.20.00.09.45;	author mike;	state Exp;
+branches;
+next	;
+
+11.13.2.1
+date	2002.09.19.18.02.13;	author morrison;	state Exp;
+branches;
+next	11.13.2.2;
+
+11.13.2.2
+date	2004.03.17.21.22.55;	author morrison;	state Exp;
+branches;
+next	;
+
+11.13.4.1
+date	2004.03.10.15.06.37;	author morrison;	state Exp;
+branches;
+next	;
+
+11.13.10.1
+date	2004.02.12.19.50.52;	author erikg;	state Exp;
+branches;
+next	;
+
+
+desc
+@Some kind of terrain program.
+@
+
+
+11.16
+log
+@moved to src/proc-db/
+@
+text
+@/* 	T E R R A I N . C
+ *
+ * Create a random terrain spline model database.
+ * Future additions to this program would be to include 
+ * random trees and objects to be inserted into the database.
+ *
+ * Author -
+ *	Paul R. Stay
+ * 
+ * Source
+ *     SECAD/VLD Computing Consortium, Bldg 394
+ *     The U.S. Army Ballistic Research Laboratory
+ *     Aberdeen Proving Ground, Maryland 21005
+ *
+ * Copyright Notice -
+ *     This software is Copyright (C) 1991-2004 by the United States Army.
+ *     All rights reserved.
+ */
+
+
+/* Header files which are used for this example */
+
+#include "conf.h"		/* BRLCAD configuration header */
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <math.h>
+#include "machine.h"		/* BRLCAD specific machine data types */
+#include "externs.h"
+#include "bu.h"
+#include "vmath.h"		/* BRLCAD Vector macros */
+#include "nurb.h"		/* BRLCAD Spline data structures */
+#include "raytrace.h"
+#include "wdb.h"
+
+fastf_t grid[10][10][3];
+
+char *Usage = "This program ordinarily generates a database on stdout.\n\
+	Your terminal probably wouldn't like it.";
+
+void interpolate_data(void);
+
+struct face_g_snurb *surfs[100];
+int nsurf = 0;
+
+struct rt_wdb *outfp;
+
+#ifndef HAVE_DRAND48
+/* simulate drand48() --  using 31-bit random() -- assumed to exist */
+double drand48() {
+  extern long random();
+  return (double)random() / 2147483648.0; /* range [0,1) */
+}
+#endif
+
+int
+main(int argc, char **argv)
+{
+
+	char * id_name = "terrain database";
+	char * nurb_name = "terrain";
+	int	i,j;
+	fastf_t 	hscale;
+
+	outfp = wdb_fopen("terrain.g");
+
+	hscale = 2.5;
+
+
+	while ((i=getopt(argc, argv, "dh:")) != EOF) {
+		switch (i) {
+		case 'd' : rt_g.debug |= DEBUG_MEM | DEBUG_MEM_FULL; break;
+		case 'h' :
+			hscale = atof( optarg );
+			break;
+		default	:
+			(void)fprintf(stderr,
+				"Usage: %s [-d] > database.g\n", *argv);
+			return(-1);
+		}
+	}
+
+	/* Create the database header record.
+  	 * this solid will consist of three surfaces
+	 * a top surface, bottom surface, and the sides 
+	 * (so that it will be closed).
+ 	 */
+
+	mk_id( outfp, id_name);
+
+	for( i = 0; i < 10; i++)
+		for( j = 0; j < 10; j++)
+		{
+			fastf_t		v;
+			fastf_t		drand48(void);
+
+			v = (hscale * drand48()) + 10.0;
+
+			grid[i][j][0] = i;
+			grid[i][j][1] = j;
+			grid[i][j][2] = v;
+
+		}
+
+	interpolate_data();
+
+	mk_bspline( outfp, nurb_name, surfs);
+		
+	return 0;
+}
+
+/* Interpoate the data using b-splines */
+void
+interpolate_data(void)
+{
+	struct face_g_snurb *srf;
+	fastf_t * data;
+	fastf_t rt_nurb_par_edge();
+
+	data = &grid[0][0][0];
+
+	BU_GETSTRUCT( srf, face_g_snurb );
+
+	rt_nurb_sinterp( srf, 4, data, 10, 10 );
+	rt_nurb_kvnorm( &srf->u );
+	rt_nurb_kvnorm( &srf->v );
+
+	surfs[nsurf++] = srf;
+}
+@
+
+
+11.15
+log
+@merge of ansi-6-0-branch into head
+@
+text
+@@
+
+
+11.14
+log
+@update copyright to include span through 2003
+@
+text
+@d41 1
+a41 1
+void interpolate_data();
+d57 1
+a57 2
+main(argc, argv)
+int argc; char * argv[];
+d95 1
+a95 1
+			fastf_t		drand48();
+d114 1
+a114 1
+interpolate_data()
+@
+
+
+11.13
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d16 1
+a16 1
+ *     This software is Copyright (C) 1991 by the United States Army.
+@
+
+
+11.13.4.1
+log
+@merge in updates from HEAD
+@
+text
+@d16 1
+a16 1
+ *     This software is Copyright (C) 1991-2004 by the United States Army.
+@
+
+
+11.13.10.1
+log
+@merge from HEAD
+@
+text
+@d16 1
+a16 1
+ *     This software is Copyright (C) 1991-2004 by the United States Army.
+@
+
+
+11.13.2.1
+log
+@Initial ANSIfication
+@
+text
+@d41 1
+a41 1
+void interpolate_data(void);
+d57 2
+a58 1
+main(int argc, char **argv)
+d96 1
+a96 1
+			fastf_t		drand48(void);
+d115 1
+a115 1
+interpolate_data(void)
+@
+
+
+11.13.2.2
+log
+@sync branch with HEAD
+@
+text
+@d16 1
+a16 1
+ *     This software is Copyright (C) 1991-2004 by the United States Army.
+@
+
+
+11.12
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d41 1
+a41 1
+void interpolate_data(void);
+d57 2
+a58 1
+main(int argc, char **argv)
+d96 1
+a96 1
+			fastf_t		drand48(void);
+d115 1
+a115 1
+interpolate_data(void)
+@
+
+
+11.11
+log
+@Added "Darwin on Power Macintosh" support (finally)
+@
+text
+@d41 1
+a41 1
+void interpolate_data();
+d57 1
+a57 2
+main(argc, argv)
+int argc; char * argv[];
+d95 1
+a95 1
+			fastf_t		drand48();
+d114 1
+a114 1
+interpolate_data()
+@
+
+
+11.10
+log
+@
+Converted to use new version of LIBWDB.
+@
+text
+@d48 8
+@
+
+
+11.9
+log
+@
+const RCSid
+@
+text
+@d30 1
+d43 5
+d58 1
+a58 4
+	if (isatty(fileno(stdout))) {
+		(void)fprintf(stderr, "%s: %s\n", *argv, Usage);
+		return(-1);
+	}
+d82 1
+a82 2
+	mk_id( stdout, id_name);
+	mk_bsolid( stdout, nurb_name, 1, 1.0);
+d99 2
+d109 1
+a109 1
+	struct face_g_snurb srf;
+d115 1
+a115 3
+	rt_nurb_sinterp( &srf, 4, data, 10, 10 );
+	rt_nurb_kvnorm( &srf.u );
+	rt_nurb_kvnorm( &srf.v );
+d117 3
+a119 1
+	mk_bsurf(stdout, &srf);
+d121 1
+@
+
+
+11.8
+log
+@
+raytrace.h before wdb.h
+Eliminated use of db.h
+@
+text
+@d29 1
+d33 1
+a33 2
+#include "../librt/debug.h"	/* rt_g.debug flag settings */
+#include "externs.h"
+d42 1
+d98 2
+a100 1
+}
+@
+
+
+11.7
+log
+@Eliminated some unused variables
+@
+text
+@a28 1
+#include "db.h"			/* BRLCAD data base format */
+@
+
+
+11.6
+log
+@Minor Mods for IRIX 6.2
+@
+text
+@a104 2
+	struct face_g_snurb *srf2, *srf3;
+	struct knot_vector new_kv;
+a106 2
+	fastf_t step;
+	fastf_t tess;
+@
+
+
+11.5
+log
+@New NURBS data structures
+@
+text
+@d41 2
+a69 1
+			break;
+d101 1
+a101 1
+
+@
+
+
+11.4
+log
+@conf.h
+@
+text
+@d103 2
+a104 2
+	struct snurb srf;
+	struct snurb *srf2, *srf3;
+d114 2
+a115 2
+	rt_nurb_kvnorm( &srf.u_knots );
+	rt_nurb_kvnorm( &srf.v_knots );
+@
+
+
+11.3
+log
+@added hscale options
+@
+text
+@d23 3
+a25 1
+#include <stdio.h>		/* Direct the output to stdout */
+@
+
+
+11.2
+log
+@Finally fix this to generate a spline surface given
+a set of data.
+@
+text
+@d24 2
+d32 1
+a46 1
+	fastf_t	v;
+d53 4
+a56 1
+	while ((i=getopt(argc, argv, "d")) != EOF) {
+d59 3
+a77 1
+	hscale = 2.5;
+d82 5
+a86 1
+			v = hscale * drand48() + 10.0;
+@
+
+
+11.1
+log
+@Release_4.4
+@
+text
+@d31 2
+d42 3
+a44 3
+	int 	pt_type;
+	fastf_t * pt1, *pt2;
+	struct snurb * top, bot;
+a67 1
+#ifdef never
+d69 2
+a70 4
+	mk_bsolid( stdout, nurb_name, 2, 1.0);
+#endif
+		
+	pt_type = MAKE_PT_TYPE(3,PT_XYZ,NONRAT);
+d72 7
+a78 3
+	
+	top = (struct snurb *) 
+		rt_nurb_new_snurb( 4, 4, 13, 13, 10, 10, pt_type);
+d80 1
+a80 2
+	bot = (struct snurb *) 
+		rt_nurb_new_snurb( 4, 4, 13, 13, 10, 10, pt_type);
+d82 2
+d85 2
+a86 1
+	/* Now fill in the data */
+d88 15
+a102 3
+	pt1 = (fastf_t * ) top->mesh->ctl_points;
+
+	pt2 = (fastf_t * ) bot->mesh->ctl_points;
+d104 1
+a104 1
+	stride = STRIDE(top->mesh->pt_type);
+a105 20
+
+
+	srandom(1000100);
+
+	for( i = 0; i < 10; i++)
+	for( j = 0; j < 10; j++)
+	{
+		long r;
+		VMOVE(pt1, i * 10; j * 10, 0.0);
+		VMOVE(pt2, i * 10; j * 10, 0.0);
+		if( i == 0)
+			continue;
+		if( j == 0 || j = 9)
+			continue;
+
+		r = random() % 100;
+		pt1[2] = (fastf_t) r;
+	}
+	
+	rt_nurb_print_snurb(top);
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@@

@@ -1,0 +1,664 @@
+head	14.13;
+access;
+symbols
+	rel-7-10-4:14.11
+	STABLE:14.11.0.2
+	rel-7-10-2:14.11
+	rel-7-10-0:14.10
+	rel-7-8-4:14.8
+	rel-7-8-2:14.8
+	rel-7-8-0:14.8
+	trimnurbs-branch:14.8.0.2
+	help:14.8
+	temp_tag:14.7
+	bobWinPort-20051223-freeze:14.4
+	postmerge-20051223-bobWinPort:14.7
+	premerge-20051223-bobWinPort:14.7
+	rel-7-6-6:14.7
+	rel-7-6-4:14.7
+	rel-7-6-2:14.4
+	rel-7-6-branch:14.4.0.6
+	rel-7-6-0:14.4
+	rel-7-4-2:14.4
+	rel-7-4-branch:14.4.0.4
+	bobWinPort:14.4.0.2
+	rel-7-4-0:14.4
+	rel-7-2-6:14.3
+	rel-7-2-4:14.3
+	rel-7-2-2:14.3
+	rel-7-2-0:14.3
+	rel-7-0-4:14.2
+	rel-7-0-2:14.2
+	rel-7-0-1:14.2
+	opensource-post:14.2
+	opensource-pre:1.4
+	rel-7-0-branch:1.4.0.2
+	rel-7-0:1.4;
+locks; strict;
+comment	@ * @;
+
+
+14.13
+date	2007.11.21.20.49.13;	author erikgreenwald;	state Exp;
+branches;
+next	14.12;
+
+14.12
+date	2007.11.21.18.55.37;	author erikgreenwald;	state Exp;
+branches;
+next	14.11;
+
+14.11
+date	2007.07.26.01.13.59;	author brlcad;	state Exp;
+branches;
+next	14.10;
+
+14.10
+date	2007.01.23.01.13.55;	author brlcad;	state Exp;
+branches;
+next	14.9;
+
+14.9
+date	2007.01.20.14.37.06;	author brlcad;	state Exp;
+branches;
+next	14.8;
+
+14.8
+date	2006.01.18.06.46.27;	author brlcad;	state Exp;
+branches;
+next	14.7;
+
+14.7
+date	2005.10.23.04.44.39;	author brlcad;	state Exp;
+branches;
+next	14.6;
+
+14.6
+date	2005.09.22.00.21.51;	author brlcad;	state Exp;
+branches;
+next	14.5;
+
+14.5
+date	2005.09.21.19.05.37;	author brlcad;	state Exp;
+branches;
+next	14.4;
+
+14.4
+date	2005.06.30.00.08.37;	author erikgreenwald;	state Exp;
+branches
+	14.4.6.1;
+next	14.3;
+
+14.3
+date	2005.01.30.20.31.33;	author brlcad;	state Exp;
+branches;
+next	14.2;
+
+14.2
+date	2004.12.21.03.45.40;	author butler;	state Exp;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.32;	author morrison;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	2004.08.02.23.01.53;	author morrison;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2004.06.09.18.21.39;	author erikg;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2004.06.08.22.04.44;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.15.21.45;	author morrison;	state Exp;
+branches;
+next	;
+
+14.4.6.1
+date	2005.11.13.13.46.20;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.13
+log
+@pass bu_exit a NULL instead of an empty string
+@
+text
+@/*                      D U N N S N A P . C
+ * BRL-CAD
+ *
+ * Copyright (c) 1986-2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@file dunnsnap.c
+ *
+ *	Checks status of the Dunn camera and exposes the number of frames
+ *	of film specified in the argument (default is 1 frame).
+ *
+ *	dunnsnap [num_frames]
+ *
+ *  Author -
+ *	Don Merritt
+ *	August 1985
+ *
+ */
+#ifndef lint
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/dunnsnap.c,v 14.12 2007/11/21 18:55:37 erikgreenwald Exp $ (BRL)";
+#endif
+
+#include "common.h"
+
+#ifdef HAVE_UNISTD_H
+#  include <unistd.h>
+#endif
+#include <stdio.h>
+#include <stdlib.h>
+
+#include "machine.h"
+#include "bu.h"
+#include "fb.h"
+
+
+/* Shared with dunncomm.c */
+extern int	fd;
+extern char	cmd;
+extern void dunnopen(void);
+extern int ready(int nsecs);
+extern void getexposure(char *title);
+extern int dunnsend(char color, int val);
+extern int goodstatus(void);
+extern void hangten(void);
+
+
+static int	nframes = 1;
+static char	*framebuffer;
+static int	scr_width = 0;
+static int	scr_height = 0;
+
+static char usage[] = "\
+Usage: dunnsnap [-h] [-F framebuffer]\n\
+	[-{sS} squarescrsize] [-{wW} scr_width] [-{nN} scr_height]\n\
+	[num_frames]\n";
+
+int
+get_args(int argc, register char **argv)
+{
+	register int c;
+
+	while ( (c = bu_getopt( argc, argv, "hF:s:S:w:W:n:N:" )) != EOF )  {
+		switch( c )  {
+		case 'h':
+			/* high-res */
+			scr_height = scr_width = 1024;
+			break;
+		case 'F':
+			framebuffer = bu_optarg;
+			break;
+		case 's':
+		case 'S':
+			scr_height = scr_width = atoi(bu_optarg);
+			break;
+		case 'w':
+		case 'W':
+			scr_width = atoi(bu_optarg);
+			break;
+		case 'n':
+		case 'N':
+			scr_height = atoi(bu_optarg);
+			break;
+
+		default:		/* '?' */
+			return(0);
+		}
+	}
+
+	if( bu_optind < argc )  {
+		nframes = atoi( argv[bu_optind] );
+	}
+	if ( argc > ++bu_optind )
+		(void)fprintf( stderr, "dunnsnap: excess argument(s) ignored\n" );
+
+	return(1);		/* OK */
+}
+
+int
+main(int argc, char **argv)
+{
+	register FBIO *fbp = FBIO_NULL;
+
+	if ( !get_args( argc, argv ) )  {
+		(void)fputs(usage, stderr);
+		bu_exit ( 1, NULL );
+	}
+
+	dunnopen();
+
+	if( framebuffer != (char *)0 )  {
+		if( (fbp = fb_open( framebuffer, scr_width, scr_height )) == FBIO_NULL )
+			bu_exit (12, NULL);
+	}
+
+	/* check argument */
+	if( nframes < 0 )  {
+		fprintf(stderr,"dunnsnap: negative frame count\n");
+		goto bad;
+	}
+	if( nframes >= 10000 )
+		fprintf(stderr,"dunnsnap: What a lot of film!\n");
+
+	if (!ready(2)) {
+		fprintf(stderr,"dunnsnap:  camera not ready at startup\n");
+		goto bad;
+	}
+
+	/* loop until number of frames specified have been exposed */
+
+	while (nframes>0) {
+
+		if (!ready(20)) {
+			fprintf(stderr,"dunnsnap: camera not ready at frame start\n");
+			goto bad;
+		}
+
+		if (!goodstatus()) {
+			fprintf(stderr,"dunnsnap: badstatus\n");
+			goto bad;
+		}
+
+		/* send expose command to camera */
+		cmd = 'I';	/* expose command */
+		write(fd, &cmd, 1);
+		hangten();
+
+		/* Wait a long time here, because exposure can be lengthy */
+		if (!ready(45)) {
+			fprintf(stderr,"dunnsnap: camera not ready after expose cmd\n");
+			goto bad;
+		}
+		--nframes;
+	}
+	if( fbp != FBIO_NULL )
+		fb_close(fbp);
+	bu_exit (0, NULL);
+
+bad:
+	if( fbp != FBIO_NULL )
+		fb_close(fbp);
+	bu_exit (1, NULL);
+}
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+14.12
+log
+@exit->bu_exit where applicable
+@
+text
+@d33 1
+a33 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/dunnsnap.c,v 14.11 2007/07/26 01:13:59 brlcad Exp $ (BRL)";
+d118 1
+a118 1
+		bu_exit ( 1, "" );
+d125 1
+a125 1
+			bu_exit (12, "");
+d169 1
+a169 1
+	bu_exit (0, "");
+d174 1
+a174 1
+	bu_exit (1, "");
+@
+
+
+14.11
+log
+@remove ephemeral data like phone numbers and addresses, including the misleading 'source' statements on code that is continually evolving and receiving contributions from many many sources
+@
+text
+@d33 1
+a33 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/dunnsnap.c,v 14.10 2007/01/23 01:13:55 brlcad Exp $ (BRL)";
+d118 1
+a118 1
+		exit( 1 );
+d125 1
+a125 1
+			exit(12);
+d169 1
+a169 1
+	exit(0);
+d174 1
+a174 1
+	exit(1);
+@
+
+
+14.10
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@a30 4
+ *  Source -
+ *	SECAD/VLD Computing Consortium, Bldg 394
+ *	The U. S. Army Ballistic Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005-5066
+d33 1
+a33 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/dunnsnap.c,v 14.9 2007/01/20 14:37:06 brlcad Exp $ (BRL)";
+@
+
+
+14.9
+log
+@update copyright to 2007
+@
+text
+@d8 2
+a9 3
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+d14 1
+a14 1
+ * General Public License for more details.
+d16 2
+a17 2
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+d37 1
+a37 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/dunnsnap.c,v 14.8 2006/01/18 06:46:27 brlcad Exp $ (BRL)";
+@
+
+
+14.8
+log
+@update copyright to 2006
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 1986-2006 United States Government as represented by
+d38 1
+a38 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/dunnsnap.c,v 14.7 2005/10/23 04:44:39 brlcad Exp $ (BRL)";
+@
+
+
+14.7
+log
+@trailing ws
+@
+text
+@d4 1
+a4 1
+ * Copyright (C) 1986-2005 United States Government as represented by
+d38 1
+a38 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/dunnsnap.c,v 14.6 2005/09/22 00:21:51 brlcad Exp $ (BRL)";
+@
+
+
+14.6
+log
+@add bu.h for bu_getopt stuff
+@
+text
+@d31 1
+a31 1
+ *  
+d38 1
+a38 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/dunnsnap.c,v 14.5 2005/09/21 19:05:37 brlcad Exp $ (BRL)";
+d145 1
+a145 1
+		
+d159 1
+a159 1
+		
+@
+
+
+14.5
+log
+@needs bu.h for bu_getopt
+@
+text
+@d38 1
+a38 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/dunnsnap.c,v 14.4 2005/06/30 00:08:37 erikgreenwald Exp $ (BRL)";
+d44 1
+a44 1
+# include <unistd.h>
+a45 1
+                                                                                                                                                                            
+d50 1
+d53 1
+@
+
+
+14.4
+log
+@added missing includes
+@
+text
+@d38 1
+a38 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/dunnsnap.c,v 14.3 2005/01/30 20:31:33 brlcad Exp $ (BRL)";
+d79 1
+a79 1
+	while ( (c = getopt( argc, argv, "hF:s:S:w:W:n:N:" )) != EOF )  {
+d86 1
+a86 1
+			framebuffer = optarg;
+d90 1
+a90 1
+			scr_height = scr_width = atoi(optarg);
+d94 1
+a94 1
+			scr_width = atoi(optarg);
+d98 1
+a98 1
+			scr_height = atoi(optarg);
+d106 2
+a107 2
+	if( optind < argc )  {
+		nframes = atoi( argv[optind] );
+d109 1
+a109 1
+	if ( argc > ++optind )
+@
+
+
+14.4.6.1
+log
+@merge changes from HEAD aka rel-7-6-4 to the rel-7-6-branch just in case someone peeks a gander or tries to continue/build the branch
+@
+text
+@d31 1
+a31 1
+ *
+d38 1
+a38 1
+static const char RCSid[] = "@@(#)$Header$ (BRL)";
+d44 1
+a44 1
+#  include <unistd.h>
+d46 1
+a50 1
+#include "bu.h"
+a52 1
+
+d79 1
+a79 1
+	while ( (c = bu_getopt( argc, argv, "hF:s:S:w:W:n:N:" )) != EOF )  {
+d86 1
+a86 1
+			framebuffer = bu_optarg;
+d90 1
+a90 1
+			scr_height = scr_width = atoi(bu_optarg);
+d94 1
+a94 1
+			scr_width = atoi(bu_optarg);
+d98 1
+a98 1
+			scr_height = atoi(bu_optarg);
+d106 2
+a107 2
+	if( bu_optind < argc )  {
+		nframes = atoi( argv[bu_optind] );
+d109 1
+a109 1
+	if ( argc > ++bu_optind )
+d144 1
+a144 1
+
+d158 1
+a158 1
+
+@
+
+
+14.3
+log
+@update copyright to 2005
+@
+text
+@d38 1
+a38 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/dunnsnap.c,v 14.2 2004/12/21 03:45:40 butler Exp $ (BRL)";
+d48 1
+@
+
+
+14.2
+log
+@GPL license changes
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 1986-2004 United States Government as represented by
+d38 1
+a38 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/util/dunnsnap.c,v 14.1 2004/11/16 19:42:32 morrison Exp $ (BRL)";
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@d1 21
+a21 2
+/*
+ *			D U N N S N A P . C
+a35 4
+ *  
+ *  Copyright Notice -
+ *	This software is Copyright (C) 1986-2004 by the United States Army.
+ *	All rights reserved.
+d38 1
+a38 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/util/dunnsnap.c,v 1.4 2004/08/02 23:01:53 morrison Exp $ (BRL)";
+@
+
+
+1.4
+log
+@replace the wrapped config.h block with common.h
+@
+text
+@d23 1
+a23 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/util/dunnsnap.c,v 1.3 2004/06/09 18:21:39 erikg Exp $ (BRL)";
+d164 10
+@
+
+
+1.3
+log
+@include unistd.h for getopt stuff
+@
+text
+@d23 1
+a23 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/util/dunnsnap.c,v 1.2 2004/06/08 22:04:44 morrison Exp $ (BRL)";
+d26 1
+a26 3
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+@
+
+
+1.2
+log
+@obliterate externs.h
+@
+text
+@d23 1
+a23 1
+static const char RCSid[] = "@@(#)$Header$ (BRL)";
+d30 4
+@
+
+
+1.1
+log
+@Vast reorganization begins.  Sources moved from top-level directories into src/.
+@
+text
+@d23 1
+a23 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/util/dunnsnap.c,v 11.10 2004/05/10 15:30:50 erikg Exp $ (BRL)";
+a29 2
+
+
+a32 1
+#include "externs.h"			/* For getopt */
+@
+

@@ -1,0 +1,910 @@
+head	1.12;
+access;
+symbols
+	ansi-20040405-merged:1.8.2.2
+	postmerge-20040405-ansi:1.10
+	premerge-20040404-ansi:1.9
+	postmerge-autoconf:1.9
+	autoconf-freeze:1.8.10.2
+	premerge-autoconf:1.9
+	postmerge-20040315-windows:1.9
+	premerge-20040315-windows:1.9
+	windows-20040315-freeze:1.8.4.1
+	autoconf-20031203:1.8
+	autoconf-20031202:1.8
+	autoconf-branch:1.8.0.10
+	phong-branch:1.8.0.8
+	photonmap-branch:1.8.0.6
+	rel-6-1-DP:1.8
+	windows-branch:1.8.0.4
+	rel-6-0-2:1.6
+	ansi-branch:1.8.0.2
+	rel-6-0-1-branch:1.6.0.2
+	hartley-6-0-post:1.7
+	hartley-6-0-pre:1.6
+	rel-6-0-1:1.6
+	rel-6-0:1.6
+	rel-5-4:1.4
+	offsite-5-3-pre:1.5
+	rel-5-3:1.4
+	rel-5-2:1.4
+	rel-5-1-branch:1.4.0.2
+	rel-5-1:1.4
+	rel-5-0:1.3
+	rel-5-0-beta:1.3
+	rel-4-5:1.3
+	ctj-4-5-post:1.2
+	ctj-4-5-pre:1.2;
+locks; strict;
+comment	@ * @;
+
+
+1.12
+date	2004.05.21.14.58.05;	author morrison;	state dead;
+branches;
+next	1.11;
+
+1.11
+date	2004.05.10.15.30.51;	author erikg;	state Exp;
+branches;
+next	1.10;
+
+1.10
+date	2004.04.05.05.46.03;	author morrison;	state Exp;
+branches;
+next	1.9;
+
+1.9
+date	2004.02.02.17.39.52;	author morrison;	state Exp;
+branches;
+next	1.8;
+
+1.8
+date	2002.08.20.17.09.07;	author jra;	state Exp;
+branches
+	1.8.2.1
+	1.8.4.1
+	1.8.10.1;
+next	1.7;
+
+1.7
+date	2002.08.15.20.56.18;	author hartley;	state Exp;
+branches;
+next	1.6;
+
+1.6
+date	2001.08.10.20.57.08;	author butler;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	2000.08.23.19.05.13;	author mike;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	2000.01.31.16.03.10;	author jra;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	97.08.20.18.33.08;	author jra;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	97.03.03.19.03.09;	author pjt;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	97.02.28.20.21.31;	author pjt;	state Exp;
+branches;
+next	;
+
+1.8.2.1
+date	2002.09.19.18.02.46;	author morrison;	state Exp;
+branches;
+next	1.8.2.2;
+
+1.8.2.2
+date	2004.03.17.21.23.37;	author morrison;	state Exp;
+branches;
+next	;
+
+1.8.4.1
+date	2004.03.11.23.52.37;	author morrison;	state Exp;
+branches;
+next	;
+
+1.8.10.1
+date	2004.02.12.19.43.12;	author erikg;	state Exp;
+branches;
+next	1.8.10.2;
+
+1.8.10.2
+date	2004.03.15.14.08.21;	author erikg;	state Exp;
+branches;
+next	;
+
+
+desc
+@     Scale a PIX(5) stream to map onto a curved solid
+@
+
+
+1.12
+log
+@moved to src/util/
+@
+text
+@/*
+ *		    T E X T U R E S C A L E . C
+ *
+ *	Scale a PIX(5) stream to map onto a curved solid
+ *
+ *  Author -
+ *	Paul J. Tanenbaum
+ *  
+ *  Source -
+ *	The U. S. Army Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005-5068  USA
+ *  
+ *  Distribution Notice -
+ *	Re-distribution of this software is restricted, as described in
+ *	your "Statement of Terms and Conditions for the Release of
+ *	The BRL-CAD Package" agreement.
+ *
+ *  Copyright Notice -
+ *	This software is Copyright (C) 1997-2004 by the United States Army
+ *	in all countries except the USA.  All rights reserved.
+ */
+#ifndef lint
+static const char RCSid[] = "@@(#)$Header: /n/xoff/cvs/brlcad/util/texturescale.c,v 1.11 2004/05/10 15:30:51 erikg Exp $ (ARL)";
+#endif
+
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+
+#include <stdio.h>
+#include <math.h>
+
+#include "machine.h"
+#include "externs.h"		/* For getopt, etc */
+#include "vmath.h"
+#include "bu.h"
+#include "bn.h"
+#include "fb.h"
+
+#define	SPHERE		0
+#define	TORUS		1
+
+static char		*file_name;
+static FILE		*infp;
+
+static int		fileinput = 0;	/* Is input a file (not stdin)? */
+static int		autosize = 0;	/* Try to guess input dimensions? */
+
+static int		file_width = 512;
+static int		file_height = 512;
+
+static int		solid_type = SPHERE;
+static fastf_t		r1, r2;		/* radii */
+
+#define	OPT_STRING	"ahn:s:w:ST:?"
+
+#define	made_it()	(void) fprintf(stderr, "Made it to %s:%d\n",	\
+				__FILE__, __LINE__);			\
+				fflush(stderr)
+static char usage[] = "\
+Usage: texturescale [-T 'r1 r2' | -S]\n\
+                 [-ah] [-s squaresize] [-w file_width] [-n file_height]\n\
+                 [file.pix]\n";
+
+/*
+ *		    R E A D _ R A D I I ( )
+ *
+ *	Read in the radii for a torus
+ */
+static int read_radii (fastf_t *r1p, fastf_t *r2p, char *buf)
+{
+    double	tmp[2];
+
+    if (sscanf(buf, "%lf %lf", tmp, tmp + 1) != 2)
+	return (0);
+    if ((tmp[0] <= 0.0) || (tmp[1] <= 0.0))
+	    return (0);
+    *r1p = tmp[0];
+    *r2p = tmp[1];
+    return (1);
+}
+
+/*
+ *		    R E A D _ R O W ( )
+ */
+static int read_row (char *rp, int file_width, FILE *infp)
+{
+    if (fread(rp + 3, 3, file_width, infp) != file_width)
+	return (0);
+    *(rp + RED) = *(rp + GRN) = *(rp + BLU) = 0;
+    *(rp + 3 * (file_width + 1) + RED) =
+    *(rp + 3 * (file_width + 1) + GRN) =
+    *(rp + 3 * (file_width + 1) + BLU) = 0;
+    return (1);
+}
+
+/*
+ *		    G E T _ A R G S ( )
+ */
+static int
+get_args (int argc, register char **argv)
+{
+    register int c;
+
+    while ((c = getopt( argc, argv, OPT_STRING)) != EOF)
+    {
+	switch (c)
+	{
+	    case 'a':
+		autosize = 1;
+		break;
+	    case 'h':
+		file_height = file_width = 1024;
+		autosize = 0;
+		break;
+	    case 'n':
+		file_height = atoi(optarg);
+		autosize = 0;
+		break;
+	    case 's':
+		file_height = file_width = atoi(optarg);
+		autosize = 0;
+		break;
+	    case 'w':
+		file_width = atoi(optarg);
+		autosize = 0;
+		break;
+	    case 'S':
+		solid_type = SPHERE;
+		break;
+	    case 'T':
+		if (! read_radii(&r1, &r2, optarg))
+		{
+		    (void) fprintf(stderr,
+			"Illegal torus radii: '%s'\n", optarg);
+		    return (0);
+		}
+		solid_type = TORUS;
+		break;
+	    case '?':
+		(void) fputs(usage, stderr);
+		exit (0);
+	    default:
+		return (0);
+	}
+    }
+
+    if (optind >= argc)
+    {
+	if(isatty(fileno(stdin)))
+	{
+	    (void) fprintf(stderr, "texturescale: cannot read from tty\n");
+	    return(0);
+	}
+	file_name = "stdin";
+	infp = stdin;
+    }
+    else
+    {
+	file_name = argv[optind];
+	if ((infp = fopen(file_name, "r")) == NULL)
+	{
+	    perror(file_name);
+	    (void) fprintf(stderr, "Cannot open file '%s'\n", file_name);
+	    return (0);
+	}
+	++fileinput;
+    }
+
+    if (argc > ++optind)
+	(void) fprintf(stderr, "texturescale: excess argument(s) ignored\n");
+
+    return (1);
+}
+
+/*
+ *			M A I N ( )
+ */
+int
+main (int argc, char **argv)
+{
+    char		*inbuf;		/* The input scanline */
+    char		*outbuf;	/*  "  output    "    */
+    char		*in, *out;	/* Pointers into inbuf and outbuf */
+    fastf_t		twice_r1r2;
+    fastf_t		squares;
+    fastf_t		scale_fac;
+    fastf_t		theta;
+    fastf_t		x;		/* Scale factor for pixel blending */
+    int			i;		/* Pixel index in inbuf */
+    int			j;		/*   "     "    " outbuf */
+    int			row;
+    int			row_width;
+
+    if (!get_args( argc, argv ))
+    {
+	(void) fputs(usage, stderr);
+	exit (1);
+    }
+
+    if (solid_type == SPHERE)
+    {
+	(void) fprintf(stderr, "Sphere scaling not yet implemented\n");
+	exit (1);
+    }
+    else if (solid_type != TORUS)
+    {
+	(void) fprintf(stderr, "Illegal solid type %d\n", solid_type);
+	exit (0);
+    }
+
+    /*
+     *	Autosize the input if appropriate
+     */
+    if (fileinput && autosize)
+    {
+	int	w, h;
+
+	if (bn_common_file_size(&w, &h, file_name, 3))
+	{
+	    file_width = w;
+	    file_height = h;
+	}
+	else
+	    (void) fprintf(stderr, "texturescale: unable to autosize\n");
+    }
+
+    /*
+     *	Initialize some runtime constants
+     */
+    twice_r1r2 = 2 * r1 * r2;
+    squares = r1 * r1 + r2 * r2;
+    scale_fac = file_width / (r1 + r2);
+
+    /*
+     *	Allocate 1-scanline buffers for input and output
+     */
+    outbuf = malloc(3*file_width);
+    inbuf  = malloc(3*file_width);
+
+    /*
+     *	Do the filtering
+     */
+    for (row = 0; row < file_height; ++row)
+    {
+	/*
+	 *	Read an input scanline
+	 */
+	if (! read_row(inbuf, file_width, infp))
+	{
+	    perror(file_name);
+	    (void) fprintf(stderr, "texturescale:  fread() error\n");
+	    exit(1);
+	}
+
+	/*
+	 *	Determine how much of the input scanline we want
+	 */
+	theta = 2 * bn_pi * row / file_height;
+	row_width = scale_fac * sqrt(squares - twice_r1r2 * cos(theta));
+	in = inbuf + ((file_width - row_width) / 2) * 3;
+	out = outbuf;
+
+	/*
+	 *	Scale the input scanline into the output scanline
+	 */
+	for (i = j = 1; j <= file_width; ++j)
+	{
+	    if (i * file_width < j * row_width)
+	    {
+		x = j - (i * file_width) / row_width;
+		VBLEND2(out, (1.0 - x), in, x, in + 3);
+		++i;
+		in += 3;
+	    }
+	    else
+		VMOVE(out, in);
+	    out += 3;
+	}
+
+	/*
+	 *	Write the output scanline
+	 */
+	if (fwrite(outbuf, 3, file_width, stdout) != file_width)
+	{
+	    perror("stdout");
+	    exit(2);
+	}
+    }
+
+    exit (1);
+}
+@
+
+
+1.11
+log
+@change conf.h to a wrapped config.h
+@
+text
+@d23 1
+a23 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/util/texturescale.c,v 1.10 2004/04/05 05:46:03 morrison Exp $ (ARL)";
+@
+
+
+1.10
+log
+@merge of ansi-6-0-branch into head
+@
+text
+@d23 1
+a23 1
+static const char RCSid[] = "@@(#)$Header$ (ARL)";
+d26 5
+a30 1
+#include "conf.h"
+@
+
+
+1.9
+log
+@update copyright to include span through 2003
+@
+text
+@d23 1
+a23 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/util/texturescale.c,v 1.8 2002/08/20 17:09:07 jra Exp $ (ARL)";
+d68 1
+a68 6
+static int read_radii (r1p, r2p, buf)
+
+fastf_t *r1p;
+fastf_t *r2p;
+char	*buf;
+
+d84 1
+a84 6
+static int read_row (rp, file_width, infp)
+
+char		*rp;
+int		file_width;
+FILE		*infp;
+
+d99 1
+a99 5
+get_args (argc, argv)
+
+int		argc;
+register char **argv;
+
+d178 1
+a178 5
+main (argc, argv)
+
+int	argc;
+char	*argv[];
+
+@
+
+
+1.8
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d19 1
+a19 1
+ *	This software is Copyright (C) 1997 by the United States Army
+d23 1
+a23 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/util/texturescale.c,v 1.6 2001/08/10 20:57:08 butler Exp $ (ARL)";
+@
+
+
+1.8.4.1
+log
+@sync to HEAD...
+@
+text
+@d19 1
+a19 1
+ *	This software is Copyright (C) 1997-2004 by the United States Army
+d23 1
+a23 1
+static const char RCSid[] = "@@(#)$Header: /n/cad/c/CVS/brlcad/util/texturescale.c,v 1.9 2004/02/02 17:39:52 morrison Exp $ (ARL)";
+@
+
+
+1.8.10.1
+log
+@merge from HEAD
+@
+text
+@d19 1
+a19 1
+ *	This software is Copyright (C) 1997-2004 by the United States Army
+d23 1
+a23 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/util/texturescale.c,v 1.9 2004/02/02 17:39:52 morrison Exp $ (ARL)";
+@
+
+
+1.8.10.2
+log
+@merge from head
+@
+text
+@d23 1
+a23 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/util/texturescale.c,v 1.8.10.1 2004/02/12 19:43:12 erikg Exp $ (ARL)";
+@
+
+
+1.8.2.1
+log
+@Initial ANSIfication
+@
+text
+@d23 1
+a23 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/util/texturescale.c,v 1.8 2002/08/20 17:09:07 jra Exp $ (ARL)";
+d68 6
+a73 1
+static int read_radii (fastf_t *r1p, fastf_t *r2p, char *buf)
+d89 6
+a94 1
+static int read_row (char *rp, int file_width, FILE *infp)
+d109 5
+a113 1
+get_args (int argc, register char **argv)
+d192 5
+a196 1
+main (int argc, char **argv)
+@
+
+
+1.8.2.2
+log
+@sync branch with HEAD
+@
+text
+@d19 1
+a19 1
+ *	This software is Copyright (C) 1997-2004 by the United States Army
+d23 1
+a23 1
+static const char RCSid[] = "@@(#)$Header$ (ARL)";
+@
+
+
+1.7
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d68 6
+a73 1
+static int read_radii (fastf_t *r1p, fastf_t *r2p, char *buf)
+d89 6
+a94 1
+static int read_row (char *rp, int file_width, FILE *infp)
+d109 5
+a113 1
+get_args (int argc, register char **argv)
+d192 5
+a196 1
+main (int argc, char **argv)
+@
+
+
+1.6
+log
+@Misc compiler warnings eliminated
+@
+text
+@d23 1
+a23 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/util/texturescale.c,v 1.5 2000/08/23 19:05:13 mike Exp $ (ARL)";
+d68 1
+a68 6
+static int read_radii (r1p, r2p, buf)
+
+fastf_t *r1p;
+fastf_t *r2p;
+char	*buf;
+
+d84 1
+a84 6
+static int read_row (rp, file_width, infp)
+
+char		*rp;
+int		file_width;
+FILE		*infp;
+
+d99 1
+a99 5
+get_args (argc, argv)
+
+int		argc;
+register char **argv;
+
+d178 1
+a178 5
+main (argc, argv)
+
+int	argc;
+char	*argv[];
+
+@
+
+
+1.5
+log
+@
+const RCSid
+@
+text
+@d23 1
+a23 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/util/texturescale.c,v 1.4 2000/01/31 16:03:10 jra Exp $ (ARL)";
+d108 2
+a109 1
+static get_args (argc, argv)
+d191 1
+@
+
+
+1.4
+log
+@Eliminated some unused variables
+@
+text
+@d23 1
+a23 1
+static char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/util/texturescale.c,v 1.3 1997/08/20 18:33:08 jra Exp $ (ARL)";
+@
+
+
+1.3
+log
+@Minor mods for Irix 6.4
+@
+text
+@d23 1
+a23 1
+static char RCSid[] = "@@(#)$Header: /m/cad/util/RCS/texturescale.c,v 1.2 1997/03/03 19:03:09 pjt Exp jra $ (ARL)";
+a75 1
+    int		i;
+@
+
+
+1.2
+log
+@Now works for the torus
+@
+text
+@d23 1
+a23 1
+static char RCSid[] = "@@(#)$Header: /m/cad/util/RCS/texturescale.c,v 1.1 1997/02/28 20:21:31 pjt Exp pjt $ (ARL)";
+d34 2
+d92 1
+a92 1
+unsigned char	*rp;
+d274 1
+a274 1
+	theta = 2 * M_PI * row / file_height;
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d19 1
+a19 1
+ *	This software is Copyright (C) 1996 by the United States Army
+d23 1
+a23 1
+static char RCSid[] = "@@(#)$Header: /m/cad/util/RCS/texturescale.c,v 1.7 1996/12/23 13:59:58 jra Exp $ (ARL)";
+a43 1
+static int		tol_using_rgb = 1; /* Compare via RGB, not HSV? */
+a50 16
+#define	COLORS_NEITHER	0
+#define	COLORS_INTERIOR	1
+#define	COLORS_EXTERIOR	2
+#define	COLORS_BOTH	(COLORS_INTERIOR | COLORS_EXTERIOR)
+static int		colors_specified = COLORS_NEITHER;
+
+static unsigned char	border_rgb[3];
+static unsigned char	exterior_rgb[3];
+static unsigned char	interior_rgb[3];
+static unsigned char	rgb_tol[3];
+
+fastf_t			border_hsv[3];
+fastf_t			exterior_hsv[3];
+fastf_t			interior_hsv[3];
+fastf_t			hsv_tol[3];
+
+a61 24
+ *		    R E A D _ R G B ( )
+ *
+ *	Read in an RGB triple as ints and then (implicitly)
+ *	cast them as unsigned chars.
+ */
+static int read_rgb (rgbp, buf)
+
+unsigned char	*rgbp;
+char		*buf;
+
+{
+    int		tmp[3];
+    int		i;
+
+    if (sscanf(buf, "%d %d %d", tmp, tmp + 1, tmp + 2) != 3)
+	return (0);
+    for (i = 0; i < 3; ++i)
+	if ((tmp[i] < 0) || (tmp[i] > 255))
+	    return (0);
+    VMOVE(rgbp, tmp);
+    return (1);
+}
+
+/*
+a104 14
+ *		    S A M E _ R G B ( )
+ */
+static int same_rgb (color1, color2)
+
+unsigned char	*color1;
+unsigned char	*color2;
+
+{
+    return ((abs(color1[RED] - color2[RED]) <= (int) rgb_tol[RED]) &&
+	    (abs(color1[GRN] - color2[GRN]) <= (int) rgb_tol[GRN]) &&
+	    (abs(color1[BLU] - color2[BLU]) <= (int) rgb_tol[BLU]));
+}
+
+/*
+d195 12
+a206 8
+    char		*outbuf;
+    unsigned char	*inrow[3];
+    int			col_nm;
+    int			i;
+    int			next_row;
+    int			prev_row;
+    int			row_nm;
+    int			this_row;
+d214 10
+a223 10
+#if 1
+    if (solid_type == TORUS)
+	(void) fprintf(stderr,
+	    "We'll produce a torus with r1=%g and r2=%g\n", r1, r2);
+    else if (solid_type == SPHERE)
+	(void) fprintf(stderr, "We'll produce a sphere\n");
+    else
+	(void) fprintf(stderr, "Funny type %d\n", solid_type);
+}
+#else
+d242 1
+a242 2
+     *	Allocate a 1-scanline output buffer
+     *	and a circular input buffer of 3 scanlines
+d244 3
+a246 6
+    outbuf = malloc(3*file_width);
+    for (i = 0; i < 3; ++i)
+	inrow[i] = malloc(3*(file_width + 2));
+    prev_row = 0;
+    this_row = 1;
+    next_row = 2;
+d249 1
+a249 1
+     *	Initialize previous-row buffer
+d251 2
+a252 13
+    for (i = 0; i < 3 * (file_width + 2); ++i)
+	*(inrow[prev_row] + i) = 0;
+
+    /*
+     *	Initialize current- and next-row buffers
+     */
+    if ((! read_row(inrow[this_row], file_width, infp))
+     || (! read_row(inrow[next_row], file_width, infp)))
+    {
+	perror(file_name);
+	(void) fprintf(stderr, "texturescale:  fread() error\n");
+	exit(1);
+    }
+d255 1
+a255 1
+     *		Do the filtering
+d257 1
+a257 1
+    for (row_nm = 0; row_nm < file_height; ++row_nm)
+d260 1
+a260 1
+	 *	Fill the output-scanline buffer
+d262 1
+a262 1
+	if ((row_nm < bottom_edge) || (row_nm > top_edge))
+d264 3
+a266 6
+	    if (fwrite(inrow[this_row] + 3, 3, file_width, stdout)
+		!= file_width)
+	    {
+		perror("stdout");
+		exit(2);
+	    }
+a267 5
+	else
+	{
+	    for (col_nm = 0; col_nm < file_width; ++col_nm)
+	    {
+		unsigned char	*color_ptr;
+d269 7
+a275 6
+		if ((col_nm >= left_edge) && (col_nm <= right_edge)
+		 && is_border(inrow[prev_row], inrow[this_row],
+			    inrow[next_row], col_nm))
+		    color_ptr = border_rgb;
+		else
+		    color_ptr = inrow[this_row] + (col_nm + 1) * 3;
+d277 6
+a282 7
+		VMOVE(outbuf + col_nm * 3, color_ptr);
+	    }
+
+	    /*
+	     *	Write the output scanline
+	     */
+	    if (fwrite(outbuf, 3, file_width, stdout) != file_width)
+d284 4
+a287 2
+		perror("stdout");
+		exit(2);
+d289 3
+d295 1
+a295 8
+	 *	Advance the circular input buffer
+	 */
+	prev_row = this_row;
+	this_row = next_row;
+	next_row = ++next_row % 3;
+
+	/*
+	 *	Grab the next input scanline
+d297 1
+a297 1
+	if (row_nm < file_height - 2)
+d299 2
+a300 6
+	    if (! read_row(inrow[next_row], file_width, infp))
+	    {
+		perror(file_name);
+		(void) fprintf(stderr, "texturescale:  fread() error\n");
+		exit(1);
+	    }
+a301 3
+	else
+	    for (i = 0; i < 3 * (file_width + 2); ++i)
+		*(inrow[next_row] + i) = 0;
+a305 1
+#endif
+@

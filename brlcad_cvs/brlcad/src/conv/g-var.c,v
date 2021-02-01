@@ -1,0 +1,1207 @@
+head	14.10;
+access;
+symbols
+	rel-7-10-4:14.7
+	STABLE:14.7.0.2
+	rel-7-10-2:14.7
+	rel-7-10-0:14.7
+	rel-7-8-4:14.3
+	rel-7-8-2:14.3;
+locks; strict;
+comment	@ * @;
+
+
+14.10
+date	2007.10.22.17.42.34;	author brlcad;	state Exp;
+branches;
+next	14.9;
+
+14.9
+date	2007.10.14.22.15.54;	author brlcad;	state Exp;
+branches;
+next	14.8;
+
+14.8
+date	2007.09.15.16.23.04;	author brlcad;	state Exp;
+branches;
+next	14.7;
+
+14.7
+date	2007.03.06.21.16.44;	author erikgreenwald;	state Exp;
+branches;
+next	14.6;
+
+14.6
+date	2007.01.31.21.40.17;	author brlcad;	state Exp;
+branches;
+next	14.5;
+
+14.5
+date	2007.01.23.01.13.25;	author brlcad;	state Exp;
+branches;
+next	14.4;
+
+14.4
+date	2007.01.20.14.36.43;	author brlcad;	state Exp;
+branches;
+next	14.3;
+
+14.3
+date	2006.06.02.20.14.54;	author brlcad;	state Exp;
+branches;
+next	14.2;
+
+14.2
+date	2006.06.02.18.27.37;	author brlcad;	state Exp;
+branches;
+next	14.1;
+
+14.1
+date	2006.05.02.14.56.10;	author prasad_silva;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.10
+log
+@whoosh, another 10% complete on the bu_bomb to bu_exit conversion review.  also includes a slew of custom exit() calls that can use bu_exit() as well as toning down a slew of overzealous exclamation point use.  (20% complete overall)
+@
+text
+@/*                     G - V A R . C
+ * BRL-CAD
+ *
+ * Copyright (c) 2002-2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This library is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ *
+ */
+/** @@file g-var.c
+ *
+ *  BRL-CAD to (OpenGL) Vertex Array Exporter.
+ *
+ *  Author -
+ *      Prasad P. Silva
+ *
+ *  Source -
+ *      The U. S. Army Research Laboratory
+ *      Aberdeen Proving Ground, Maryland  21005-5068  USA
+ */
+
+#ifndef lint
+static const char RCSid[] = "$Header $";
+#endif
+
+#include "common.h"
+
+/* system headers */
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+
+#ifdef HAVE_UNISTD_H
+#  include <unistd.h>
+#endif
+
+#ifdef HAVE_STDINT_H
+#  include <stdint.h>
+#endif
+
+#include <math.h>
+
+/* interface headers */
+#include "machine.h"		/* machine specific definitions */
+#include "wdb.h"
+#include "raytrace.h"
+
+#define MESH_FORMAT_VERSION 2
+
+/*
+ *          S T R U C T   M E S H
+ */
+struct mesh {
+    char			*name;
+    struct rt_bot_internal 	*bot;
+    struct mesh 		*next;
+};
+
+
+static const char	usage[] = "Usage: %s [-v] [-y] [-s scale] [-f] [-o out_file] brlcad_db.h object\n";
+
+static uint8_t 		verbose = 0;
+static uint8_t		yup = 0;
+static uint8_t		flip_normals = 0;
+static float		scale = 0.001f;
+static char		*out_file = NULL;
+static char		*db_file = NULL;
+static char		*object = NULL;
+
+static FILE		*fp_out;
+static struct db_i	*dbip;
+
+#ifndef WORDS_BIGENDIAN
+static uint8_t		endian = 0;
+#else
+static uint8_t		endian = 1;
+#endif
+static uint8_t		format_version = MESH_FORMAT_VERSION;
+static struct mesh	*head = NULL;
+static struct mesh	*curr = NULL;
+static uint32_t		mesh_count = 0;
+static uint32_t 	total_vertex_count = 0;
+static uint32_t 	total_face_count = 0;
+
+/*
+ *                 M E S H   T R A C K E R
+ */
+void mesh_tracker( struct db_i *dbip, struct directory *dp, genptr_t ptr )
+{
+    struct rt_db_internal internal;
+
+    /* leaf node must be a solid */
+    if ( !( dp->d_flags & DIR_SOLID ) )	{
+	fprintf(stderr, "warning: '%s' is not a solid! (not processed)\n", dp->d_namep);
+	return;
+    }
+
+    /* solid must be a bot */
+    if ( rt_db_get_internal( &internal, dp, dbip, NULL, &rt_uniresource ) != ID_BOT ) {
+	fprintf(stderr, "warning: '%s' is not a bot! (not processed)\n", dp->d_namep);
+	return;
+    }
+    /* track bot */
+    if ( NULL == curr )	{
+	head = (struct mesh *)bu_malloc( sizeof( struct mesh ), dp->d_namep );
+	head->name = dp->d_namep;
+	head->bot = (struct rt_bot_internal *)internal.idb_ptr;
+	head->next = NULL;
+	curr = head;
+    } else {
+	curr->next = (struct mesh *)bu_malloc( sizeof( struct mesh ), dp->d_namep );
+	curr = curr->next;
+	curr->name = dp->d_namep;
+	curr->bot = (struct rt_bot_internal *)internal.idb_ptr;
+	curr->next = NULL;
+    }
+    /* accumulate counts */
+    total_vertex_count += curr->bot->num_vertices;
+    total_face_count += curr->bot->num_faces;
+    mesh_count++;
+}
+
+
+/*
+ *        D E A L L O C   M E S H   L I S T
+ */
+void dealloc_mesh_list()
+{
+    struct mesh* tmp;
+    curr = head;
+    while ( curr != NULL ) {
+	tmp = curr;
+	curr = curr->next;
+	bu_free( tmp, "a mesh" );
+    }
+}
+
+
+/*
+ *       W R I T E   H E A D E R
+ */
+void write_header( struct db_i *dbip )
+{
+    uint16_t len;
+    /*
+      Header format:
+      Endian (1 byte) {0=little; !0=big}
+      File format version (1 byte)
+      Size of Model Name String (2 bytes - short)
+      Model Name String (n bytes - char[])
+      Number of Meshes (4 bytes - int)
+      Total number of vertices (4 bytes - int)
+      Total number of faces (4 bytes - int)
+    */
+
+    /* endian */
+    fwrite( &endian, sizeof(char), 1, fp_out );
+    /* format version */
+    fwrite( &format_version, sizeof(char), 1, fp_out );
+    len = strlen( dbip->dbi_title );
+    /* model name string length */
+    fwrite( &len, sizeof(uint16_t), 1, fp_out );
+    /* model name string */
+    fwrite( dbip->dbi_title, sizeof(char), len, fp_out );
+    /* mesh count */
+    fwrite( &mesh_count, sizeof(uint32_t), 1, fp_out );
+    /* total number of vertices */
+    fwrite( &total_vertex_count, sizeof(uint32_t), 1, fp_out );
+    /* total number of faces */
+    fwrite( &total_face_count, sizeof(uint32_t), 1, fp_out );
+}
+
+
+/*
+ *     G E T   V E R T E X
+ */
+void get_vertex( struct rt_bot_internal *bot, int idx, float *dest )
+{
+    dest[0] = bot->vertices[3*idx] * scale;
+    dest[1] = bot->vertices[3*idx+1] * scale;
+    dest[2] = bot->vertices[3*idx+2] * scale;
+
+    if ( yup ) {
+	/* perform 90deg x-axis rotation */
+	float q = -(M_PI/2.0f);
+	float y = dest[1];
+	float z = dest[2];
+	dest[1] = y * cos(q) - z * sin(q);
+	dest[2] = y * sin(q) + z * cos(q);
+    }
+
+}
+
+/*
+ *    C O M P U T E   N O R M A L
+ */
+void compute_normal( struct rt_bot_internal *bot, int p1, int p2,
+		     int p3, float *dest )
+{
+    float v1[3];
+    float v2[3];
+    float v3[3];
+    float vec1[3];
+    float vec2[3];
+    float fnorm[3];
+    float temp[3];
+    float *np1, *np2, *np3;
+
+    /* get face normal */
+    get_vertex( bot, p1, v1 );
+    if ( flip_normals )	{
+	get_vertex( bot, p3, v2 );
+	get_vertex( bot, p2, v3 );
+    } else {
+	get_vertex( bot, p2, v2 );
+	get_vertex( bot, p3, v3 );
+    }
+
+    VSUB2( vec1, v1, v2 );
+    VSUB2( vec2, v1, v3 );
+    VCROSS( fnorm, vec1, vec2 );
+    VUNITIZE( fnorm );
+
+    /* average existing normal with face normal per vertex */
+    np1 = dest + 3*p1;
+    np2 = dest + 3*p2;
+    np3 = dest + 3*p3;
+    VADD2( temp, fnorm, np1 );
+    VUNITIZE( temp );
+    VMOVE( np1, temp );
+    VADD2( temp, fnorm, np2 );
+    VUNITIZE( temp );
+    VMOVE( np2, temp );
+    VADD2( temp, fnorm, np3 );
+    VUNITIZE( temp );
+    VMOVE( np3, temp );
+}
+
+/*
+ *     G E T   N O R M A L S
+ */
+void get_normals( struct rt_bot_internal *bot, float *dest )
+{
+    int i;
+    for (i=0; i < bot->num_faces; i++) {
+	compute_normal( curr->bot, bot->faces[3*i], bot->faces[3*i+1],
+			bot->faces[3*i+2], dest );
+    }
+}
+
+/*
+ *      W R I T E   M E S H   D A T A
+ */
+void write_mesh_data()
+{
+    /*
+      Data format:
+      Size of Mesh Name String (2 bytes - short)
+      Mesh Name String (n chars)
+      Number of vertices (4 bytes - int)
+      Number of faces (4 bytes - int)
+      Vertex triples (m*3*4 bytes - float[])
+      Normal triples (m*3*4 bytes - float[])
+      Face index format (1 byte) {0=1 byte; 1=2 bytes - short; 2=4 bytes - int}
+      Face triples (m*3*4 bytes - int[])
+    */
+
+    curr = head;
+    while ( NULL != curr ) {
+	uint16_t len;
+	uint32_t nvert, nface;
+	int i;
+	float vec[3];
+	char format;
+
+	/* face triples */
+	uint8_t ind8[3] = {0,0,0};
+	uint16_t ind16[3] = {0,0,0};
+	uint32_t ind32[3] = {0,0,0};
+
+	if ( verbose ) {
+	    fprintf( stderr, ">> writing out mesh '%s' (%u, %u)\n", curr->name,
+		     curr->bot->num_vertices, curr->bot->num_faces );
+	}
+
+	len = strlen( curr->name );
+	/* mesh name string length */
+	fwrite( &len, sizeof(uint16_t), 1, fp_out );
+	/* mesh name string */
+	fwrite( curr->name, sizeof(char), len, fp_out );
+	nvert = curr->bot->num_vertices;
+	nface = curr->bot->num_faces;
+	/* number of vertices */
+	fwrite( &nvert, sizeof(uint32_t), 1, fp_out );
+	/* number of faces */
+	fwrite( &nface, sizeof(uint32_t), 1, fp_out );
+
+	/* vertex triples */
+	for (i=0; i < curr->bot->num_vertices; i++) {
+	    get_vertex( curr->bot, i, vec );
+	    fwrite( vec, sizeof(float), 3, fp_out );
+	}
+	/* normal triples */
+	if ( curr->bot->num_normals == curr->bot->num_vertices ) {
+	    if ( verbose )
+		fprintf(stderr, ">> .. normals found!\n");
+	    /* normals are provided */
+	    fwrite( curr->bot->normals, sizeof(float), curr->bot->num_normals * 3, fp_out );
+	} else {
+	    float *normals;
+	    if ( verbose ) {
+		fprintf(stderr, ">> .. normals will be computed\n");
+	    }
+	    /* normals need to be computed */
+	    normals = bu_calloc( sizeof(float), curr->bot->num_vertices * 3, "normals" );
+	    get_normals( curr->bot, normals );
+	    fwrite( normals, sizeof(float), curr->bot->num_vertices * 3, fp_out );
+	    bu_free( normals, "normals" );
+	}
+
+	if ( nface < 1<<8 ) {
+	    format = 0;
+	} else if ( nface < 1<<16 ) {
+	    format = 1;
+	} else {
+	    format = 2;
+	}
+	/* face index format */
+	fwrite( &format, sizeof(char), 1, fp_out );
+	switch (format) {
+	    case 0:
+		for ( i=0; i< nface; i++) {
+		    ind8[0] = curr->bot->faces[3*i];
+		    if ( flip_normals ) {
+			ind8[1] = curr->bot->faces[3*i+2];
+			ind8[2] = curr->bot->faces[3*i+1];
+		    } else {
+			ind8[1] = curr->bot->faces[3*i+1];
+			ind8[2] = curr->bot->faces[3*i+2];
+		    }
+		    fwrite(&ind8, sizeof(uint8_t), 3, fp_out );
+		}
+		break;
+	    case 1:
+		for ( i=0; i< nface; i++) {
+		    ind16[0] = curr->bot->faces[3*i];
+		    if ( flip_normals ) {
+			ind16[1] = curr->bot->faces[3*i+2];
+			ind16[2] = curr->bot->faces[3*i+1];
+		    } else {
+			ind16[1] = curr->bot->faces[3*i+1];
+			ind16[2] = curr->bot->faces[3*i+2];
+		    }
+		    fwrite( &ind16, sizeof(uint16_t), 3, fp_out );
+		}
+		break;
+	    case 2:
+		for ( i=0; i< nface; i++) {
+		    ind32[0] = curr->bot->faces[3*i];
+		    if ( flip_normals ) {
+			ind32[1] = curr->bot->faces[3*i+2];
+			ind32[2] = curr->bot->faces[3*i+1];
+		    } else {
+			ind32[1] = curr->bot->faces[3*i+1];
+			ind32[2] = curr->bot->faces[3*i+2];
+		    }
+		    fwrite( &ind32, sizeof(uint32_t), 3, fp_out );
+		}
+		break;
+	    default:
+		break;
+	}
+
+	curr = curr->next;
+    }
+}
+
+/*
+ *                                M A I N
+ */
+int main(int argc, char *argv[])
+{
+    register int	c;
+    struct directory* dp;
+
+    /* setup BRL-CAD environment */
+    bu_setlinebuf( stderr );
+    rt_init_resource( &rt_uniresource, 0, NULL );
+
+    /* process command line arguments */
+    while ( (c = bu_getopt(argc, argv, "vo:ys:f") ) != EOF ) {
+	switch(c) {
+	    case 'v':
+		verbose++;
+		break;
+
+	    case 'o':
+		out_file = bu_optarg;
+		break;
+
+	    case 'y':
+		yup++;
+		break;
+
+	    case 's':
+		sscanf( bu_optarg, "%f", &scale );
+		break;
+
+	    case 'f':
+		flip_normals++;
+		break;
+
+	    default:
+		bu_exit(1, usage, argv[0]);
+		break;
+	}
+    }
+    /* param check */
+    if (bu_optind+1 >= argc) {
+	bu_exit(1, usage, argv[0]);
+    }
+    /* get database filename and object */
+    db_file = argv[bu_optind++];
+    object = argv[bu_optind];
+
+    /* open BRL-CAD database */
+    if ( (dbip = db_open( db_file, "r") ) == DBI_NULL ) {
+	perror(argv[0]);
+	bu_exit(1, "Cannot open %s\n", db_file );
+    }
+    if ( db_dirbuild( dbip ) ) {
+	bu_exit(1, "db_dirbuild() failed!\n" );
+    }
+    if ( verbose ) {
+	fprintf(stderr, ">> opened db '%s'\n", dbip->dbi_title);
+    }
+
+    /* setup output stream */
+    if ( out_file == NULL ) {
+	fp_out = stdout;
+    } else {
+	if ( (fp_out = fopen( out_file, "wb") ) == NULL ) {
+	    bu_log( "Cannot open %s\n", out_file );
+	    perror( argv[0] );
+	    return 2;
+	}
+    }
+
+    /* find requested object */
+    db_update_nref(dbip, &rt_uniresource);
+
+    dp = db_lookup( dbip, object, 0 );
+    if ( dp == DIR_NULL ) {
+	bu_exit(1, "Object %s not found in database!\n", object );
+    }
+
+    /* generate mesh list */
+    db_functree( dbip, dp, NULL, mesh_tracker, &rt_uniresource, NULL );
+    if ( verbose ) {
+	fprintf(stderr, ">> mesh count: %d\n", mesh_count);
+    }
+
+    /* writeout header */
+    write_header( dbip );
+
+    /* writeout meshes */
+    write_mesh_data();
+
+    /* finish */
+    dealloc_mesh_list();
+    db_close( dbip );
+    return 0;
+}
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+14.9
+log
+@more level 4 flawfinder issues.  mostly string length clampages.
+@
+text
+@d425 1
+a425 2
+		fprintf(stderr, usage, argv[0]);
+		exit(1);
+d431 1
+a431 2
+	fprintf(stderr, usage, argv[0]);
+	exit(1);
+a438 1
+	bu_log( "Cannot open %s\n", db_file );
+d440 1
+a440 1
+	exit(1);
+d443 1
+a443 1
+	bu_bomb( "db_dirbuild() failed!\n" );
+d465 1
+a465 2
+	bu_log( "Object %s not found in database!\n", object );
+	exit(1);
+@
+
+
+14.8
+log
+@more c89 embracing.  c89 provides string.h for all of the various str*() and mem*() functions, so remove the check for its presence.  there is still likely to be work required for strict c89 conformance for the various bsd strings.h functions that may be in use.
+@
+text
+@d71 1
+a71 1
+static char		usage[] = "Usage: %s [-v] [-y] [-s scale] [-f] [-o out_file] brlcad_db.h object\n";
+@
+
+
+14.7
+log
+@fix header confusion
+@
+text
+@d42 1
+a47 4
+#ifdef HAVE_STRING_H
+#  include <string.h>
+#endif
+
+@
+
+
+14.6
+log
+@consistency on BRL-CAD name use, s/BRLCAD/BRL-CAD/
+@
+text
+@d42 1
+d46 2
+a47 1
+#ifndef HAVE_STRING_H
+a48 2
+#else
+#  include <strings.h>
+d50 1
+d54 1
+@
+
+
+14.5
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@d398 1
+a398 1
+    /* setup BRLCAD environment */
+@
+
+
+14.4
+log
+@update copyright to 2007
+@
+text
+@d9 1
+a9 2
+ * as published by the Free Software Foundation; either version 2 of
+ * the License, or (at your option) any later version.
+d14 1
+a14 1
+ * Library General Public License for more details.
+@
+
+
+14.3
+log
+@follow the style guidelines, use K&R/Java style braces/indents not BSD. ws.
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 2002-2006 United States Government as represented by
+@
+
+
+14.2
+log
+@crazy dev trickling variables throughout as if this were c++ code.  add a local var footer and remove reference to non-existant codebase.  fix header inclusion too.
+@
+text
+@d66 4
+a69 5
+struct mesh
+{
+	char										*name;
+	struct rt_bot_internal 	*bot;
+	struct mesh 						*next;
+d73 1
+a73 1
+static char			usage[] = "Usage: %s [-v] [-y] [-s scale] [-f] [-o out_file] brlcad_db.h object\n";
+d75 7
+a81 7
+static uint8_t 			verbose = 0;
+static uint8_t			yup = 0;
+static uint8_t			flip_normals = 0;
+static float				scale = 0.001f;
+static char					*out_file = NULL;
+static char					*db_file = NULL;
+static char					*object = NULL;
+d83 1
+a83 1
+static FILE					*fp_out;
+d87 1
+a87 1
+static uint8_t			endian = 0;
+d89 1
+a89 1
+static uint8_t			endian = 1;
+d91 1
+a91 1
+static uint8_t			format_version = MESH_FORMAT_VERSION;
+d94 3
+a96 3
+static uint32_t			mesh_count = 0;
+static uint32_t 		total_vertex_count = 0;
+static uint32_t 		total_face_count = 0;
+d103 1
+a103 1
+	struct rt_db_internal internal;
+d105 5
+a109 6
+	/* leaf node must be a solid */
+	if ( !( dp->d_flags & DIR_SOLID ) )
+	{
+		fprintf(stderr, "warning: '%s' is not a solid! (not processed)\n", dp->d_namep);
+		return;
+	}
+d111 23
+a133 28
+	/* solid must be a bot */
+	if ( rt_db_get_internal( &internal, dp, dbip, NULL, &rt_uniresource )
+			!= ID_BOT )
+	{
+		fprintf(stderr, "warning: '%s' is not a bot! (not processed)\n", dp->d_namep);
+		return;
+	}
+	/* track bot */
+	if ( NULL == curr )
+	{
+		head = (struct mesh *)bu_malloc( sizeof( struct mesh ), dp->d_namep );
+		head->name = dp->d_namep;
+		head->bot = (struct rt_bot_internal *)internal.idb_ptr;
+		head->next = NULL;
+		curr = head;
+	}
+	else
+	{
+		curr->next = (struct mesh *)bu_malloc( sizeof( struct mesh ), dp->d_namep );
+		curr = curr->next;
+		curr->name = dp->d_namep;
+		curr->bot = (struct rt_bot_internal *)internal.idb_ptr;
+		curr->next = NULL;
+	}			
+	/* accumulate counts */
+	total_vertex_count += curr->bot->num_vertices;
+	total_face_count += curr->bot->num_faces;
+	mesh_count++;
+d142 7
+a148 8
+	struct mesh* tmp;
+	curr = head;
+	while ( curr != NULL )
+	{
+		tmp = curr;
+		curr = curr->next;
+		bu_free( tmp, "a mesh" );
+	}
+d157 27
+a183 27
+  uint16_t len;
+	/*
+		Header format:
+			Endian (1 byte) {0=little; !0=big}
+			File format version (1 byte)
+			Size of Model Name String (2 bytes - short)
+			Model Name String (n bytes - char[])
+			Number of Meshes (4 bytes - int)
+			Total number of vertices (4 bytes - int)
+			Total number of faces (4 bytes - int)
+	*/
+	
+	/* endian */
+	fwrite( &endian, sizeof(char), 1, fp_out );
+	/* format version */
+	fwrite( &format_version, sizeof(char), 1, fp_out );
+	len = strlen( dbip->dbi_title );
+	/* model name string length */
+	fwrite( &len, sizeof(uint16_t), 1, fp_out );
+	/* model name string */
+	fwrite( dbip->dbi_title, sizeof(char), len, fp_out );
+	/* mesh count */
+	fwrite( &mesh_count, sizeof(uint32_t), 1, fp_out );
+	/* total number of vertices */
+	fwrite( &total_vertex_count, sizeof(uint32_t), 1, fp_out );	
+	/* total number of faces */
+	fwrite( &total_face_count, sizeof(uint32_t), 1, fp_out );
+d192 13
+a204 14
+	dest[0] = bot->vertices[3*idx] * scale;
+	dest[1] = bot->vertices[3*idx+1] * scale;
+	dest[2] = bot->vertices[3*idx+2] * scale;
+
+	if ( yup )
+	{
+		/* perform 90deg x-axis rotation */
+		float q = -(M_PI/2.0f);
+		float y = dest[1];
+		float z = dest[2];
+		dest[1] = y * cos(q) - z * sin(q);
+		dest[2] = y * sin(q) + z * cos(q);
+	}
+	
+d211 1
+a211 1
+	int p3, float *dest )
+d213 37
+a249 40
+	float v1[3];
+	float v2[3];
+	float v3[3];
+	float vec1[3];
+	float vec2[3];
+	float fnorm[3];
+	float temp[3];
+	float *np1, *np2, *np3;
+
+	/* get face normal */
+	get_vertex( bot, p1, v1 );
+	if ( flip_normals )
+	{
+		get_vertex( bot, p3, v2 );
+		get_vertex( bot, p2, v3 );
+	}
+	else
+	{
+		get_vertex( bot, p2, v2 );
+		get_vertex( bot, p3, v3 );	
+	}
+	
+	VSUB2( vec1, v1, v2 );
+	VSUB2( vec2, v1, v3 );
+	VCROSS( fnorm, vec1, vec2 );
+	VUNITIZE( fnorm );
+
+	/* average existing normal with face normal per vertex */
+	np1 = dest + 3*p1;
+	np2 = dest + 3*p2;
+	np3 = dest + 3*p3;
+	VADD2( temp, fnorm, np1 );
+	VUNITIZE( temp );
+	VMOVE( np1, temp );
+	VADD2( temp, fnorm, np2 );
+	VUNITIZE( temp );
+	VMOVE( np2, temp );
+	VADD2( temp, fnorm, np3 );
+	VUNITIZE( temp );
+	VMOVE( np3, temp );
+d257 3
+a259 4
+	int i;
+	for (i=0; i < bot->num_faces; i++)
+	{
+		compute_normal( curr->bot, bot->faces[3*i], bot->faces[3*i+1], 
+d261 1
+a261 1
+	}
+d269 19
+a287 11
+	/*
+		Data format:
+			Size of Mesh Name String (2 bytes - short)
+			Mesh Name String (n chars)
+			Number of vertices (4 bytes - int)
+			Number of faces (4 bytes - int)
+			Vertex triples (m*3*4 bytes - float[])			
+			Normal triples (m*3*4 bytes - float[])
+			Face index format (1 byte) {0=1 byte; 1=2 bytes - short; 2=4 bytes - int}
+			Face triples (m*3*4 bytes - int[])
+	*/
+d289 9
+a297 55
+	curr = head;
+	while ( NULL != curr )
+	{
+	  uint16_t len;
+	  uint32_t nvert, nface;
+	  int i;
+	  float vec[3];
+	  char format;
+
+	  /* face triples */
+	  uint8_t ind8[3] = {0,0,0};
+	  uint16_t ind16[3] = {0,0,0};
+	  uint32_t ind32[3] = {0,0,0};
+
+		if ( verbose )
+			fprintf( stderr, ">> writing out mesh '%s' (%u, %u)\n", curr->name, 
+				curr->bot->num_vertices, curr->bot->num_faces );
+
+		len = strlen( curr->name );
+		/* mesh name string length */
+		fwrite( &len, sizeof(uint16_t), 1, fp_out );
+		/* mesh name string */
+		fwrite( curr->name, sizeof(char), len, fp_out );
+		nvert = curr->bot->num_vertices;		
+		nface = curr->bot->num_faces;
+		/* number of vertices */
+		fwrite( &nvert, sizeof(uint32_t), 1, fp_out );
+		/* number of faces */
+		fwrite( &nface, sizeof(uint32_t), 1, fp_out );
+
+		/* vertex triples */
+		for (i=0; i < curr->bot->num_vertices; i++)
+		{
+			get_vertex( curr->bot, i, vec );
+			fwrite( vec, sizeof(float), 3, fp_out );
+		}
+		/* normal triples */
+		if ( curr->bot->num_normals == curr->bot->num_vertices )
+		{
+			if ( verbose )
+				fprintf(stderr, ">> .. normals found!\n");
+			/* normals are provided */
+			fwrite( curr->bot->normals, sizeof(float), curr->bot->num_normals * 3, fp_out );
+		}
+		else
+		{
+		  float *normals;
+			if ( verbose )
+				fprintf(stderr, ">> .. normals will be computed\n");				
+			/* normals need to be computed */
+			normals = bu_calloc( sizeof(float), curr->bot->num_vertices * 3, "normals" );
+			get_normals( curr->bot, normals );
+			fwrite( normals, sizeof(float), curr->bot->num_vertices * 3, fp_out );
+			bu_free( normals, "normals" );
+		}
+d299 56
+a354 3
+		if ( nface < 1<<8 )
+		{
+			format = 0;
+d356 12
+a367 3
+		else if ( nface < 1<<16 )
+		{
+			format = 1;
+d369 12
+a380 3
+		else
+		{
+			format = 2;
+d382 3
+a384 60
+		/* face index format */
+		fwrite( &format, sizeof(char), 1, fp_out );
+		switch (format)
+		{
+			case 0:
+				for ( i=0; i< nface; i++)
+				{					
+					ind8[0] = curr->bot->faces[3*i];
+					if ( flip_normals )
+					{
+						ind8[1] = curr->bot->faces[3*i+2];
+						ind8[2] = curr->bot->faces[3*i+1];
+					}					
+					else
+					{
+						ind8[1] = curr->bot->faces[3*i+1];
+						ind8[2] = curr->bot->faces[3*i+2];
+					}
+					fwrite(&ind8, sizeof(uint8_t), 3, fp_out );
+				}
+				break;
+			case 1:
+				for ( i=0; i< nface; i++)
+				{					
+					ind16[0] = curr->bot->faces[3*i];
+					if ( flip_normals )
+					{
+						ind16[1] = curr->bot->faces[3*i+2];
+						ind16[2] = curr->bot->faces[3*i+1];
+					}
+					else
+					{
+						ind16[1] = curr->bot->faces[3*i+1];
+						ind16[2] = curr->bot->faces[3*i+2];
+					}
+					fwrite( &ind16, sizeof(uint16_t), 3, fp_out );
+				}
+				break;
+			case 2:
+				for ( i=0; i< nface; i++)
+				{					
+					ind32[0] = curr->bot->faces[3*i];
+					if ( flip_normals )
+					{
+						ind32[1] = curr->bot->faces[3*i+2];
+						ind32[2] = curr->bot->faces[3*i+1];
+					}
+					else
+					{
+						ind32[1] = curr->bot->faces[3*i+1];
+						ind32[2] = curr->bot->faces[3*i+2];
+					}
+					fwrite( &ind32, sizeof(uint32_t), 3, fp_out );
+				}
+				break;
+			default:
+				break;
+		}
+		
+		curr = curr->next;
+d386 3
+d394 1
+a394 1
+int main(int argc, char *argv[]) 
+d396 2
+a397 2
+	register int	c;
+	struct directory* dp;	
+d399 29
+a427 50
+	/* setup BRLCAD environment */
+	bu_setlinebuf( stderr );
+	rt_init_resource( &rt_uniresource, 0, NULL );
+	
+  /* process command line arguments */
+  while ( (c = bu_getopt(argc, argv, "vo:ys:f") ) != EOF )
+	{
+    switch(c) 
+		{
+      case 'v':
+				verbose++;
+        break;
+
+			case 'o':
+				out_file = bu_optarg;
+				break;
+		
+			case 'y':
+				yup++;
+				break;
+		
+			case 's':
+				sscanf( bu_optarg, "%f", &scale );
+				break;
+		
+			case 'f':
+				flip_normals++;
+				break;
+		
+      default:
+				fprintf(stderr, usage, argv[0]);
+				exit(1);
+        break;
+    }
+  }
+	/* param check */
+  if (bu_optind+1 >= argc) 
+	{
+    fprintf(stderr, usage, argv[0]);
+    exit(1);
+  }
+	/* get database filename and object */
+	db_file = argv[bu_optind++];
+	object = argv[bu_optind];
+	
+	/* open BRL-CAD database */
+	if ( (dbip = db_open( db_file, "r") ) == DBI_NULL )
+	{
+		bu_log( "Cannot open %s\n", db_file );
+		perror(argv[0]);
+d429 1
+d431 31
+a461 20
+	if ( db_dirbuild( dbip ) )
+	{
+		bu_bomb( "db_dirbuild() failed!\n" );
+	}
+	if ( verbose )
+		fprintf(stderr, ">> opened db '%s'\n", dbip->dbi_title);
+	
+	/* setup output stream */
+	if ( out_file == NULL )
+	{
+		fp_out = stdout;
+	}
+	else
+	{
+		if ( (fp_out = fopen( out_file, "wb") ) == NULL )
+		{
+			bu_log( "Cannot open %s\n", out_file );
+			perror( argv[0] );
+			return 2;
+		}
+d463 16
+d480 2
+a481 2
+	/* find requested object */
+	db_update_nref(dbip, &rt_uniresource);
+d483 2
+a484 6
+	dp = db_lookup( dbip, object, 0 );
+	if ( dp == DIR_NULL )
+	{
+		bu_log( "Object %s not found in database!\n", object );
+		exit(1);
+	}
+d486 4
+a489 15
+	/* generate mesh list */
+	db_functree( dbip, dp, NULL, mesh_tracker, &rt_uniresource, NULL );
+	if ( verbose )
+		fprintf(stderr, ">> mesh count: %d\n", mesh_count);
+
+	/* writeout header */
+	write_header( dbip );
+
+	/* writeout meshes */
+	write_mesh_data();
+	
+	/* finish */
+	dealloc_mesh_list();
+	db_close( dbip );
+	return 0;
+@
+
+
+14.1
+log
+@Added a vertex array exporter
+@
+text
+@d24 1
+a24 1
+ *  	BRL-CAD to (OpenGL) Vertex Array Exporter.
+a28 3
+ *  Original Codebase -
+ *			Justin L. Shumaker (g-diva)
+ *
+a31 1
+ *
+d47 1
+a47 1
+#	include <string.h>
+d49 4
+a52 1
+#	include <strings.h>
+a54 1
+#include <stdint.h>
+d59 1
+a59 1
+#include "rtprivate.h"
+d104 2
+d112 1
+a112 1
+	struct rt_db_internal internal;
+d149 1
+a150 1
+	struct mesh* tmp;
+d165 1
+d181 1
+a181 1
+	uint16_t len = strlen( dbip->dbi_title );
+d229 1
+d250 3
+a252 3
+	float *np1 = dest + 3*p1;
+	float *np2 = dest + 3*p2;
+	float *np3 = dest + 3*p3;
+d297 11
+d312 1
+a312 1
+		uint16_t len = strlen( curr->name );
+d317 2
+a318 2
+		uint32_t nvert = curr->bot->num_vertices;		
+		uint32_t nface = curr->bot->num_faces;
+d323 1
+a323 2
+		int i;
+		float vec[3];
+d340 1
+d344 1
+a344 2
+			float *normals = bu_malloc( sizeof(float) * curr->bot->num_vertices * 3, "normals" );
+			memset( normals, 0, sizeof(float) * curr->bot->num_vertices * 3 );
+d349 1
+a349 1
+		char format;
+a363 4
+		/* face triples */
+		uint8_t ind8[3];
+		uint16_t ind16[3];
+		uint32_t ind32[3];
+d431 2
+a432 1
+	
+d509 2
+a510 1
+	struct directory* dp = db_lookup( dbip, object, 0 );
+d533 10
+@
+

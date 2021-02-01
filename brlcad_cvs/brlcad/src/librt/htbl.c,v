@@ -1,0 +1,564 @@
+head	14.15;
+access;
+symbols
+	rel-7-10-4:14.14
+	STABLE:14.14.0.2
+	stable-branch:14.6
+	rel-7-10-2:14.14
+	rel-7-10-0:14.14
+	rel-7-8-4:14.10
+	rel-7-8-2:14.9
+	rel-7-8-0:14.9
+	trimnurbs-branch:14.9.0.2
+	help:14.9
+	temp_tag:14.8
+	bobWinPort-20051223-freeze:14.7
+	postmerge-20051223-bobWinPort:14.8
+	premerge-20051223-bobWinPort:14.8
+	rel-7-6-6:14.8
+	rel-7-6-4:14.8
+	rel-7-6-2:14.7
+	rel-7-6-branch:14.7.0.4
+	rel-7-6-0:14.7
+	rel-7-4-2:14.6
+	rel-7-4-branch:14.6.0.2
+	bobWinPort:14.7.0.2
+	rel-7-4-0:14.6
+	rel-7-2-6:14.6
+	rel-7-2-4:14.6
+	rel-7-2-2:14.6
+	rel-7-2-0:14.6
+	rel-7-0-4:14.5
+	rel-7-0-2:14.5
+	rel-7-0-1:14.5
+	opensource-post:14.5
+	opensource-pre:1.3
+	rel-7-0-branch:1.3.0.2
+	rel-7-0:1.3;
+locks; strict;
+comment	@ * @;
+
+
+14.15
+date	2007.12.16.15.59.39;	author brlcad;	state Exp;
+branches;
+next	14.14;
+
+14.14
+date	2007.01.27.01.41.41;	author brlcad;	state Exp;
+branches;
+next	14.13;
+
+14.13
+date	2007.01.23.01.13.37;	author brlcad;	state Exp;
+branches;
+next	14.12;
+
+14.12
+date	2007.01.21.04.45.44;	author brlcad;	state Exp;
+branches;
+next	14.11;
+
+14.11
+date	2007.01.20.14.36.54;	author brlcad;	state Exp;
+branches;
+next	14.10;
+
+14.10
+date	2006.09.16.02.04.25;	author lbutler;	state Exp;
+branches;
+next	14.9;
+
+14.9
+date	2006.01.18.06.46.17;	author brlcad;	state Exp;
+branches;
+next	14.8;
+
+14.8
+date	2005.10.23.04.44.35;	author brlcad;	state Exp;
+branches;
+next	14.7;
+
+14.7
+date	2005.08.12.22.31.08;	author lbutler;	state Exp;
+branches
+	14.7.4.1;
+next	14.6;
+
+14.6
+date	2005.01.30.20.31.00;	author brlcad;	state Exp;
+branches;
+next	14.5;
+
+14.5
+date	2004.12.21.07.18.58;	author morrison;	state Exp;
+branches;
+next	14.4;
+
+14.4
+date	2004.12.21.06.18.45;	author morrison;	state Exp;
+branches;
+next	14.3;
+
+14.3
+date	2004.12.21.05.45.24;	author morrison;	state Exp;
+branches;
+next	14.2;
+
+14.2
+date	2004.12.21.04.18.20;	author morrison;	state Exp;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.16;	author morrison;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2004.08.02.23.01.49;	author morrison;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2004.06.08.19.57.53;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.15.20.03;	author morrison;	state Exp;
+branches;
+next	;
+
+14.7.4.1
+date	2005.11.13.13.46.16;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.15
+log
+@convert all bzero calls to memset
+@
+text
+@/*                          H T B L . C
+ * BRL-CAD
+ *
+ * Copyright (c) 2004-2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This library is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@addtogroup librt */
+/** @@{ */
+/** @@file htbl.c
+ *
+ *  Support for variable length arrays of "struct hit".
+ *  Patterned after the libbu/ptbl.c idea.
+ *
+ *  Author -
+ *	Michael John Muuss
+ *
+ *  Source -
+ *	The U. S. Army Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005-5068  USA
+ *
+ */
+/** @@} */
+
+#ifndef lint
+static const char librt_htbl_RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/librt/htbl.c,v 14.14 2007/01/27 01:41:41 brlcad Exp $ (ARL)";
+#endif
+
+#include "common.h"
+
+
+#include <stdio.h>
+#include <string.h>
+#include "machine.h"
+#include "bu.h"
+#include "vmath.h"
+#include "raytrace.h"
+
+/*
+ *			R T _ H T B L _ I N I T
+ */
+void
+rt_htbl_init(struct rt_htbl *b, int len, const char *str)
+
+				/* initial len. */
+
+{
+	if (bu_debug & BU_DEBUG_PTBL)
+		bu_log("rt_htbl_init(%8x, len=%d, %s)\n", b, len, str);
+	BU_LIST_INIT(&b->l);
+	b->l.magic = RT_HTBL_MAGIC;
+	if( len <= 0 )  len = 64;
+	b->blen = len;
+	b->hits = (struct hit *)bu_calloc(b->blen, sizeof(struct hit), str);
+	b->end = 0;
+}
+
+/*
+ *			R T _ H T B L _ R E S E T
+ *
+ *  Reset the table to have no elements, but retain any existing storage.
+ */
+void
+rt_htbl_reset(struct rt_htbl *b)
+{
+	RT_CK_HTBL(b);
+	b->end = 0;
+	if (bu_debug & BU_DEBUG_PTBL)
+		bu_log("rt_htbl_reset(%8x)\n", b);
+}
+
+/*
+ *			R T _ H T B L _ F R E E
+ *
+ *  Deallocate dynamic hit buffer
+ *  and render unusable without a subsequent rt_htbl_init().
+ */
+void
+rt_htbl_free(struct rt_htbl *b)
+{
+	RT_CK_HTBL(b);
+
+	bu_free((genptr_t)b->hits, "rt_htbl.hits[]");
+	memset((char *)b, 0, sizeof(struct rt_htbl));	/* sanity */
+
+	if (bu_debug & BU_DEBUG_PTBL)
+		bu_log("rt_htbl_free(%8x)\n", b);
+}
+
+/*
+ *			R T _ H T B L _ G E T
+ *
+ *  Allocate another hit structure, extending the array if necessary.
+ */
+struct hit *
+rt_htbl_get(struct rt_htbl *b)
+{
+	RT_CK_HTBL(b);
+
+	if( b->end >= b->blen )  {
+		/* Increase size of array */
+		b->hits = (struct hit *)bu_realloc( (char *)b->hits,
+			sizeof(struct hit) * (b->blen *= 4),
+			"rt_htbl.hits[]" );
+	}
+
+	/* There is sufficient room */
+	return &b->hits[b->end++];
+}
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+14.14
+log
+@ws. lots and lots of ws.  see sh/ws.sh for details (cases 'abcdeg').
+@
+text
+@d38 1
+a38 1
+static const char librt_htbl_RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/librt/htbl.c,v 14.13 2007/01/23 01:13:37 brlcad Exp $ (ARL)";
+d96 1
+a96 1
+	bzero((char *)b, sizeof(struct rt_htbl));	/* sanity */
+@
+
+
+14.13
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@d38 1
+a38 1
+static const char librt_htbl_RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/librt/htbl.c,v 14.12 2007/01/21 04:45:44 brlcad Exp $ (ARL)";
+d57 1
+a57 1
+   		    		/* initial len. */
+@
+
+
+14.12
+log
+@ugh, what tedium.  put some effort towards cleaning up the doxygen labels and making the headers more consistent.  also exclusively using @@ for doxygen instead of \ to try to keep things more consistent.
+@
+text
+@d9 1
+a9 2
+ * as published by the Free Software Foundation; either version 2 of
+ * the License, or (at your option) any later version.
+d14 1
+a14 1
+ * Library General Public License for more details.
+d38 1
+a38 1
+static const char librt_htbl_RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/librt/htbl.c,v 14.11 2007/01/20 14:36:54 brlcad Exp $ (ARL)";
+@
+
+
+14.11
+log
+@update copyright to 2007
+@
+text
+@a20 1
+
+d22 1
+a22 2
+
+/*@@{*/
+d24 1
+d36 1
+a36 1
+/*@@}*/
+d39 1
+a39 1
+static const char librt_htbl_RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/librt/htbl.c,v 14.10 2006/09/16 02:04:25 lbutler Exp $ (ARL)";
+@
+
+
+14.10
+log
+@Doxygen updates
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 2004-2006 United States Government as represented by
+d40 1
+a40 1
+static const char librt_htbl_RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/librt/htbl.c,v 14.9 2006/01/18 06:46:17 brlcad Exp $ (ARL)";
+@
+
+
+14.9
+log
+@update copyright to 2006
+@
+text
+@d22 1
+a22 1
+/** \addtogroup librt */
+d40 1
+a40 1
+static const char librt_htbl_RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/librt/htbl.c,v 14.8 2005/10/23 04:44:35 brlcad Exp $ (ARL)";
+@
+
+
+14.8
+log
+@trailing ws
+@
+text
+@d4 1
+a4 1
+ * Copyright (C) 2004-2005 United States Government as represented by
+d40 1
+a40 1
+static const char librt_htbl_RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/librt/htbl.c,v 14.7 2005/08/12 22:31:08 lbutler Exp $ (ARL)";
+@
+
+
+14.7
+log
+@Doxygen changes
+@
+text
+@d31 1
+a31 1
+ *  
+d35 1
+a35 1
+ *  
+d40 1
+a40 1
+static const char librt_htbl_RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/librt/htbl.c,v 14.6 2005/01/30 20:31:00 brlcad Exp $ (ARL)";
+d58 1
+a58 1
+              	   
+d60 1
+a60 1
+          	     
+@
+
+
+14.7.4.1
+log
+@merge changes from HEAD aka rel-7-6-4 to the rel-7-6-branch just in case someone peeks a gander or tries to continue/build the branch
+@
+text
+@d31 1
+a31 1
+ *
+d35 1
+a35 1
+ *
+d40 1
+a40 1
+static const char librt_htbl_RCSid[] = "@@(#)$Header$ (ARL)";
+d58 1
+a58 1
+
+d60 1
+a60 1
+
+@
+
+
+14.6
+log
+@update copyright to 2005
+@
+text
+@d21 4
+a25 1
+ *
+d37 2
+d40 1
+a40 1
+static const char librt_htbl_RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/librt/htbl.c,v 14.5 2004/12/21 07:18:58 morrison Exp $ (ARL)";
+@
+
+
+14.5
+log
+@the significantly modified pd files are incorporated as new works and assigned copyright, so remove the old statement.
+@
+text
+@d4 2
+a5 2
+ * Copyright (c) 2004 United States Government as represented by the
+ * U.S. Army Research Laboratory.
+d35 1
+a35 1
+static const char librt_htbl_RCSid[] = "@@(#)$Header: /cvs/brlcad/src/librt/htbl.c,v 14.4 2004/12/21 06:18:45 morrison Exp $ (ARL)";
+@
+
+
+14.4
+log
+@they should have received a copy of the LGPL with LGPL'd files
+@
+text
+@a32 2
+ *  Distribution Status -
+ *	Public Domain, Distribution Unlimited.
+d35 1
+a35 1
+static const char librt_htbl_RCSid[] = "@@(#)$Header: /cvs/brlcad/src/librt/htbl.c,v 14.3 2004/12/21 05:45:24 morrison Exp $ (ARL)";
+@
+
+
+14.3
+log
+@s/GNU Library General/GNU Lesser General/g
+@
+text
+@d17 2
+a18 2
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+d37 1
+a37 1
+static const char librt_htbl_RCSid[] = "@@(#)$Header: /cvs/brlcad/src/librt/htbl.c,v 14.2 2004/12/21 04:18:20 morrison Exp $ (ARL)";
+@
+
+
+14.2
+log
+@assign copyright and LGPL
+@
+text
+@d8 1
+a8 1
+ * modify it under the terms of the GNU Library General Public License
+d37 1
+a37 1
+static const char librt_htbl_RCSid[] = "@@(#)$Header: /cvs/brlcad/src/librt/htbl.c,v 14.1 2004/11/16 19:42:16 morrison Exp $ (ARL)";
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@d1 21
+a21 2
+/*
+ *			H T B L . C
+d37 1
+a37 1
+static const char librt_htbl_RCSid[] = "@@(#)$Header: /cvs/brlcad/src/librt/htbl.c,v 1.3 2004/08/02 23:01:49 morrison Exp $ (ARL)";
+@
+
+
+1.3
+log
+@replace the wrapped config.h block with common.h
+@
+text
+@d18 1
+a18 1
+static const char librt_htbl_RCSid[] = "@@(#)$Header: /cvs/brlcad/src/librt/htbl.c,v 1.2 2004/06/08 19:57:53 morrison Exp $ (ARL)";
+d102 10
+@
+
+
+1.2
+log
+@bye bye externs.h
+@
+text
+@d18 1
+a18 1
+static const char librt_htbl_RCSid[] = "@@(#)$Header$ (ARL)";
+d21 1
+a21 3
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+@
+
+
+1.1
+log
+@Vast reorganization begins.  Sources moved from top-level directories into src/.
+@
+text
+@d18 1
+a18 1
+static const char librt_htbl_RCSid[] = "@@(#)$Header: /cvs/brlcad/librt/htbl.c,v 11.8 2004/05/10 15:30:46 erikg Exp $ (ARL)";
+a28 1
+#include "externs.h"
+@
+

@@ -1,0 +1,522 @@
+head	11.12;
+access;
+symbols
+	rel-5-4:11.4
+	offsite-5-3-pre:11.10
+	rel-5-3:11.4
+	rel-5-2:11.4
+	rel-5-1-branch:11.4.0.2
+	rel-5-1:11.4
+	rel-5-0:11.3
+	rel-5-0-beta:11.2;
+locks; strict;
+comment	@ * @;
+
+
+11.12
+date	2001.04.12.20.51.56;	author jra;	state dead;
+branches;
+next	11.11;
+
+11.11
+date	2001.04.02.14.58.39;	author jra;	state Exp;
+branches;
+next	11.10;
+
+11.10
+date	2000.09.08.05.55.42;	author mike;	state Exp;
+branches;
+next	11.9;
+
+11.9
+date	2000.08.25.03.38.15;	author mike;	state Exp;
+branches;
+next	11.8;
+
+11.8
+date	2000.07.13.01.46.19;	author mike;	state Exp;
+branches;
+next	11.7;
+
+11.7
+date	2000.07.12.21.59.35;	author mike;	state Exp;
+branches;
+next	11.6;
+
+11.6
+date	2000.07.11.02.50.22;	author mike;	state Exp;
+branches;
+next	11.5;
+
+11.5
+date	2000.07.10.23.53.59;	author mike;	state Exp;
+branches;
+next	11.4;
+
+11.4
+date	99.12.29.23.23.03;	author mike;	state Exp;
+branches;
+next	11.3;
+
+11.3
+date	99.06.03.21.54.20;	author mike;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	98.07.30.19.52.56;	author jra;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	98.07.09.20.10.16;	author jra;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+11.12
+log
+@Replaced with nmg-bot
+@
+text
+@/* Routine to convert all the NMG solids in a BRL-CAD model to polysolids
+ *
+ *  Author -
+ *      John R. Anderson
+ *  
+ *  Source -
+ *	The U. S. Army Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005-5068  USA
+ *  
+ *  Distribution Notice -
+ *	Re-distribution of this software is restricted, as described in
+ *	your "Statement of Terms and Conditions for the Release of
+ *	The BRL-CAD Pacakge" agreement.
+ *
+ *  Copyright Notice -
+ *	This software is Copyright (C) 1998 by the United States Army
+ *	in all countries except the USA.  All rights reserved.
+ */
+
+
+#ifndef lint
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/conv/nmg-polysolid.c,v 11.11 2001/04/02 14:58:39 jra Exp $ (BRL)";
+#endif
+ 
+#include "conf.h"
+
+#include <stdio.h>
+
+#ifdef USE_STRING_H
+#include <string.h>
+#else
+#include <strings.h>
+#endif
+
+#include <ctype.h>
+#include "machine.h"
+#include "vmath.h"
+#include "externs.h"
+#include "db.h"
+#include "bu.h"
+#include "nmg.h"
+#include "raytrace.h"
+#include "rtgeom.h"
+#include "wdb.h"
+
+static struct db_i *dbip;
+static int verbose=0;
+static struct rt_wdb *fdout=NULL;
+
+static void
+nmg_conv(struct rt_db_internal *intern, const char *name )
+{
+	struct model *m;
+	struct nmgregion *r;
+	struct shell *s;
+
+	RT_CK_DB_INTERNAL(intern);
+	m = (struct model *)intern->idb_ptr;
+	NMG_CK_MODEL( m );
+	r = BU_LIST_FIRST( nmgregion, &m->r_hd );
+	if( BU_LIST_NEXT( nmgregion, &r->l ) !=  (struct nmgregion *)&m->r_hd )
+		bu_bomb( "ERROR: this code works only for NMG models with one region!!!\n" );
+
+	s = BU_LIST_FIRST( shell, &r->s_hd );
+	if( BU_LIST_NEXT( shell, &s->l) != (struct shell *)&r->s_hd )
+		bu_bomb( "ERROR: this code works only for NMG models with one shell!!!\n" );
+
+	if( BU_SETJUMP )
+	{
+		BU_UNSETJUMP;
+		bu_log( "Failed to convert %s\n", name );
+		rt_db_free_internal( intern, &rt_uniresource );
+		return;
+	}
+	mk_bot_from_nmg( fdout, name, s);
+	BU_UNSETJUMP;
+	if(verbose) bu_log("Wrote %s\n", name);
+	rt_db_free_internal( intern, &rt_uniresource );
+}
+
+int
+main( argc, argv )
+int argc;
+char *argv[];
+{
+	struct directory *dp;
+
+	if( argc != 3 && argc != 4 )
+	{
+		bu_log( "Usage:\n\t%s [-v] input.g output.g\n", argv[0] );
+		exit( 1 );
+	}
+
+	if( argc == 4 )
+	{
+		if( !strcmp( argv[1], "-v" ) )
+			verbose = 1;
+		else
+		{
+			bu_log( "Illegal option: %s\n", argv[1] );
+			bu_log( "Usage:\n\t%s [-v] input.g output.g\n", argv[0] );
+			exit( 1 );
+		}
+	}
+
+	rt_init_resource( &rt_uniresource, 0, NULL );
+
+	dbip = db_open( argv[argc-2], "r" );
+	if( dbip == DBI_NULL )
+	{
+		bu_log( "Cannot open file (%s)\n", argv[argc-2] );
+		perror( argv[0] );	
+		bu_bomb( "Cannot open database file\n" );
+	}
+
+	if( (fdout=wdb_fopen( argv[argc-1] )) == NULL )
+	{
+		bu_log( "Cannot open file (%s)\n", argv[argc-1] );
+		perror( argv[0] );	
+		bu_bomb( "Cannot open output file\n" );
+	}
+	db_dirbuild( dbip );
+
+	/* Visit all records in input database, and spew them out,
+	 * modifying NMG objects into BoTs.
+	 */
+	FOR_ALL_DIRECTORY_START(dp, dbip)  {
+		struct rt_db_internal	intern;
+		int id;
+		int ret;
+		id = rt_db_get_internal( &intern, dp, dbip, NULL, &rt_uniresource );
+		if( id < 0 )  {
+			fprintf(stderr,
+				"%s: rt_db_get_internal(%s) failure, skipping\n",
+				argv[0], dp->d_namep);
+			continue;
+		}
+		if ( id == ID_NMG ) {
+	    		nmg_conv( &intern, dp->d_namep );
+		}
+		ret = wdb_put_internal( fdout, dp->d_namep, &intern, 1.0 );
+		if( ret < 0 )  {
+			fprintf(stderr,
+				"%s: wdb_put_internal(%s) failure, skipping\n",
+				argv[0], dp->d_namep);
+			rt_db_free_internal( &intern, &rt_uniresource );
+			continue;
+		}
+		rt_db_free_internal( &intern, &rt_uniresource );
+	} FOR_ALL_DIRECTORY_END
+	wdb_close(fdout);
+	return 0;
+}
+@
+
+
+11.11
+log
+@Lint
+@
+text
+@d22 1
+a22 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/conv/nmg-polysolid.c,v 11.10 2000/09/08 05:55:42 mike Exp $ (BRL)";
+@
+
+
+11.10
+log
+@
+Tree routines now need resource structure.
+Added rt_init_resource() call.
+@
+text
+@d22 1
+a22 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/conv/nmg-polysolid.c,v 11.9 2000/08/25 03:38:15 mike Exp $ (BRL)";
+d28 7
+@
+
+
+11.9
+log
+@
+lint
+@
+text
+@d22 1
+a22 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/conv/nmg-polysolid.c,v 11.8 2000/07/13 01:46:19 mike Exp $ (BRL)";
+d65 1
+a65 1
+		rt_db_free_internal( intern );
+d71 1
+a71 1
+	rt_db_free_internal( intern );
+d99 2
+d124 1
+a124 1
+		id = rt_db_get_internal( &intern, dp, dbip, NULL );
+d139 1
+a139 1
+			rt_db_free_internal( &intern );
+d142 1
+a142 1
+		rt_db_free_internal( &intern );
+@
+
+
+11.8
+log
+@
+Partial conversion.
+@
+text
+@d22 1
+a22 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/conv/nmg-polysolid.c,v 11.7 2000/07/12 21:59:35 mike Exp $ (BRL)";
+d68 1
+a68 2
+/* XXX convert in place to BoT */
+	write_shell_as_polysolid( fdout, name, s);
+d70 1
+@
+
+
+11.7
+log
+@
+Converted to use new version of LIBWDB
+@
+text
+@d22 1
+a22 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/conv/nmg-polysolid.c,v 11.6 2000/07/11 02:50:22 mike Exp $ (BRL)";
+a38 1
+static union record record;
+d44 1
+a44 1
+nmg_conv()
+a45 2
+	struct directory *dp;
+	struct rt_db_internal intern;
+a48 17
+	int id;
+
+	if( (dp=db_lookup( dbip, record.nmg.N_name, LOOKUP_NOISY)) == DIR_NULL )
+	{
+		bu_log( "Cannot find NMG solid named %s (skipping)\n", record.nmg.N_name );
+		return;
+	}
+
+	id = rt_db_get_internal( &intern, dp, dbip, bn_mat_identity );
+	if( id != ID_NMG )
+	{
+		bu_log( "ERROR: rt_db_get_internal returned %d (was expecting %d)\n", id, ID_NMG);
+		bu_bomb( "ERROR: rt_db_get_internal returned wrong type\n" );
+	}
+
+	if( verbose )
+		bu_log( "%s\n", record.nmg.N_name );
+d50 2
+a51 1
+	m = (struct model *)intern.idb_ptr;
+d64 2
+a65 2
+		bu_log( "Failed to convert %s\n", record.nmg.N_name );
+		rt_db_free_internal( &intern );
+d68 2
+a69 1
+	write_shell_as_polysolid( fdout, record.nmg.N_name, s);
+d71 1
+a71 1
+	rt_db_free_internal( &intern );
+d130 1
+a130 1
+	    		nmg_conv( &intern );
+@
+
+
+11.6
+log
+@
+lint
+@
+text
+@d22 1
+a22 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/conv/nmg-polysolid.c,v 11.5 2000/07/10 23:53:59 mike Exp $ (BRL)";
+d36 1
+a37 1
+#include "rtgeom.h"
+d42 1
+a42 2
+static FILE *fdout=NULL;
+static long out_offset=0;
+a83 1
+		(void)fseek( fdout, out_offset, SEEK_SET );
+d92 1
+d97 1
+a97 3
+
+	long offset=0;
+	long granules;
+d125 1
+a125 1
+	if( (fdout=fopen( argv[argc-1], "w")) == NULL )
+d131 1
+d133 24
+a156 21
+	db_scan(dbip, (int (*)())db_diradd, 1, NULL);
+
+	fseek( dbip->dbi_fp, 0, SEEK_SET );
+	while( fread( (char *)&record, sizeof record, 1, dbip->dbi_fp ) == 1  &&
+		!feof(stdin) )
+	{
+		switch( record.u_id )
+		{
+		    	case ID_FREE:
+				break;
+		    	case DBID_NMG:
+				offset = ftell( dbip->dbi_fp );
+				out_offset = ftell( fdout );
+				granules = bu_glong(record.nmg.N_count);
+				offset += granules * sizeof( union record );
+		    		nmg_conv();
+				fseek( dbip->dbi_fp, offset, SEEK_SET );
+		    		break;
+		    	default:
+				fwrite( (char *)&record, sizeof( union record ), 1, fdout );
+		    		break;
+d158 4
+a161 1
+	}
+@
+
+
+11.5
+log
+@
+lint
+@
+text
+@d22 1
+a22 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/conv/nmg-polysolid.c,v 11.4 1999/12/29 23:23:03 mike Exp $ (BRL)";
+d33 1
+a33 2
+#include "wdb.h"
+#include "rtlist.h"
+d36 1
+@
+
+
+11.4
+log
+@
+db_scan() got a client_data argument, which
+db_diradd() needed to learn to ignore.
+@
+text
+@d22 1
+a22 1
+static char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/conv/nmg-polysolid.c,v 11.3 1999/06/03 21:54:20 mike Exp $ (BRL)";
+@
+
+
+11.3
+log
+@
+sed4
+@
+text
+@d22 1
+a22 1
+static char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/conv/nmg-polysolid.c,v 11.2 1998/07/30 19:52:56 jra Exp $ (BRL)";
+d135 1
+a135 1
+	db_scan(dbip, (int (*)())db_diradd, 1);
+@
+
+
+11.2
+log
+@Some minor improvements.
+@
+text
+@d22 1
+a22 1
+static char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/conv/nmg-polysolid.c,v 11.1 1998/07/09 20:10:16 jra Exp $ (BRL)";
+d81 1
+a81 1
+	if( RT_SETJUMP )
+d83 1
+a83 1
+		RT_UNSETJUMP;
+d90 1
+a90 1
+	RT_UNSETJUMP;
+d148 1
+a148 1
+				granules = rt_glong(record.nmg.N_count);
+@
+
+
+11.1
+log
+@Coude to convert all the NMG's in a BRL-CAD model to polysolids.
+@
+text
+@d22 1
+a22 1
+static char RCSid[] = "@@(#)$Header: /m/cad/conv/RCS/g2asc.c,v 11.2 1995/08/18 19:24:35 jra Exp $ (BRL)";
+d41 3
+d68 3
+d81 11
+a91 2
+	write_shell_as_polysolid( stdout, record.nmg.N_name, s);
+
+d102 1
+a102 1
+	if( argc != 2 )
+d104 1
+a104 1
+		bu_log( "Usage:\n\t%s input.g > output.g\n", argv[0] );
+d108 13
+a120 1
+	dbip = db_open( argv[1], "r" );
+d123 1
+a123 1
+		bu_log( "Cannot open file (%s)\n", argv[1] );
+d128 7
+d147 1
+d154 1
+a154 1
+				fwrite( (char *)&record, sizeof( union record ), 1, stdout );
+@

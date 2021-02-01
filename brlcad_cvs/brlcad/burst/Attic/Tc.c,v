@@ -1,0 +1,648 @@
+head	1.9;
+access;
+symbols
+	ansi-20040405-merged:1.8
+	postmerge-20040405-ansi:1.8
+	premerge-20040404-ansi:1.8
+	postmerge-autoconf:1.8
+	autoconf-freeze:1.8
+	premerge-autoconf:1.8
+	ansi-20040316-freeze:1.8
+	postmerge-20040315-windows:1.8
+	premerge-20040315-windows:1.8
+	windows-20040315-freeze:1.8
+	autoconf-20031203:1.8
+	autoconf-20031202:1.8
+	autoconf-branch:1.8.0.12
+	phong-branch:1.8.0.10
+	photonmap-branch:1.8.0.8
+	rel-6-1-DP:1.8
+	windows-branch:1.8.0.6
+	rel-6-0-2:1.8
+	ansi-branch:1.8.0.4
+	rel-6-0-1-branch:1.8.0.2
+	hartley-6-0-post:1.8
+	hartley-6-0-pre:1.8
+	rel-6-0-1:1.8
+	rel-6-0:1.8
+	rel-5-4:1.7
+	offsite-5-3-pre:1.8
+	rel-5-3:1.7
+	rel-5-2:1.7
+	rel-5-1-branch:1.7.0.2
+	rel-5-1:1.7
+	rel-5-0:1.7
+	rel-5-0-beta:1.7
+	rel-4-5:1.7
+	ctj-4-5-post:1.6
+	ctj-4-5-pre:1.6
+	rel-4-4:1.3
+	rel-4-0:1.3;
+locks; strict;
+comment	@ * @;
+
+
+1.9
+date	2004.05.24.04.18.19;	author morrison;	state dead;
+branches;
+next	1.8;
+
+1.8
+date	2000.08.24.23.12.43;	author mike;	state Exp;
+branches;
+next	1.7;
+
+1.7
+date	97.06.23.17.15.55;	author gdurf;	state Exp;
+branches;
+next	1.6;
+
+1.6
+date	97.06.11.01.47.40;	author gdurf;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	96.07.18.17.32.30;	author jra;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	95.02.28.09.11.58;	author jra;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	91.08.26.11.05.08;	author moss;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	91.01.15.13.53.11;	author moss;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	91.01.15.13.46.24;	author moss;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.9
+log
+@moved to src/burst/
+@
+text
+@/*
+	XXX Outdated : should not be used
+  
+	SCCS id:	%Z% %M%	%I%
+	Modified: 	%G% at %U%
+	Retrieved: 	%H% at %T%
+	SCCS archive:	%P%
+
+	Author:	Gary S. Moss
+	U. S. Army Ballistic Research Laboratory
+	Aberdeen Proving Ground
+	Maryland 21005-5066
+*/
+
+#if 0
+
+/*LINTLIBRARY*/
+#ifndef lint
+static const char RCSid[] = "@@(#)$Header: /n/xoff/cvs/brlcad/burst/Tc.c,v 1.8 2000/08/24 23:12:43 mike Exp $ (BRL)";
+static char sccsTag[] = "%Z% %M% %I%, modified %G% at %U%, archive %P%";
+#endif
+
+#include <stdio.h>
+#include <fcntl.h>
+
+#ifdef SYSV
+
+/**#ifndef	TANDEM	*/
+/* USG derivatives */
+#include <termio.h>
+#include <memory.h>
+#ifndef _NFILE
+#define _NFILE	32
+#endif /* _NFILE */
+static struct termio	save_tio[_NFILE], curr_tio[_NFILE];
+#endif /* SYSV */
+
+#ifdef BSD
+#include <sys/ioctl.h>
+#ifdef HAVE_IOCTL_COMPAT_H
+#include <sys/ioctl_compat.h>
+#endif
+#ifndef _NFILE
+#define _NFILE	32
+#endif /* _NFILE */
+/****#ifdef	TANDEM	*/
+/* 7th Edition derivatives */
+#define TCSETA	TIOCSETP
+#define TCGETA	TIOCGETP
+#ifndef	XTABS
+#define	XTABS	(TAB1 | TAB2)
+#endif /* XTABS */
+
+static struct sgttyb	save_tio[_NFILE], curr_tio[_NFILE];
+#endif /* BSD */
+
+void			TcSaveTty(), TcResetTty();
+void			TcSetCbreak(), TcClrCbreak();
+void			TcSetRaw(), TcClrRaw();
+void			TcSetEcho(), TcClrEcho();
+void			TcSetTabs(), TcClrTabs();
+void			TcSetHUPCL();
+void			TcClrCRNL();
+void			prnt_Tio();
+static void		copy_Tio();
+
+/*	
+	void	TcClrCbreak( int fd )
+
+	Clear CBREAK mode, for file descriptor "fd".
+ */
+void
+#if __STDC__
+TcClrCbreak( int fd )
+#else
+TcClrCbreak( fd )
+int	fd;
+#endif
+	{
+#ifdef BSD
+	curr_tio[fd].sg_flags &= ~CBREAK;	/* CBREAK mode OFF.	*/
+#else
+	curr_tio[fd].c_lflag |= ICANON;		/* Canonical input ON.	*/
+#ifndef CRAY2
+	curr_tio[fd].c_cc[VEOF] = 4;		/* defaults!		*/
+	curr_tio[fd].c_cc[VEOL] = 0;		/*   best we can do.... */
+#endif
+#endif
+	(void) ioctl( fd, TCSETA, &curr_tio[fd] );
+	return;
+	}
+
+/*
+	void	TcSetCbreak( int fd )
+
+	Set CBREAK mode, "fd".
+ */
+void
+#if __STDC__
+TcSetCbreak( int fd )
+#else
+TcSetCbreak( fd )
+int	fd;
+#endif
+	{
+#ifdef BSD
+	curr_tio[fd].sg_flags |= CBREAK;	/* CBREAK mode ON.	*/
+#else
+	curr_tio[fd].c_lflag &= ~ICANON;	/* Canonical input OFF. */
+#ifndef CRAY2
+	curr_tio[fd].c_cc[VMIN] = 1;
+	curr_tio[fd].c_cc[VTIME] = 0;
+#endif
+#endif
+	(void) ioctl( fd, TCSETA, &curr_tio[fd] );
+	return;
+	}
+
+/*
+	void	TcClrRaw( int fd )
+
+	Set cooked mode, "fd".
+ */
+void
+clr_Raw( fd )
+int	fd;
+	{
+#ifdef BSD
+	curr_tio[fd].sg_flags &= ~RAW;		/* Raw mode OFF.	*/
+#else
+	curr_tio[fd].c_lflag |= ICANON;		/* Canonical input ON.	*/
+#ifndef CRAY2
+	curr_tio[fd].c_lflag |= ISIG;		/* Signals ON.		*/
+	curr_tio[fd].c_cc[VEOF] = 4;		/* defaults!		*/
+	curr_tio[fd].c_cc[VEOL] = 0;		/*   best we can do.... */
+#endif
+#endif
+	(void) ioctl( fd, TCSETA, &curr_tio[fd] );
+	return;
+	}
+
+/*
+	void	TcSetRaw( int fd )
+
+	Set raw mode, "fd".
+ */
+void
+#if __STDC__
+TcSetRaw( int fd )
+#else
+TcSetRaw( fd )
+int	fd;
+#endif
+	{
+#ifdef BSD
+	curr_tio[fd].sg_flags |= RAW;		/* Raw mode ON.		*/
+#else
+	curr_tio[fd].c_lflag &= ~ICANON;	/* Canonical input OFF. */
+#ifndef CRAY2
+	curr_tio[fd].c_lflag &= ~ISIG;		/* Signals OFF.		*/
+	curr_tio[fd].c_cc[VMIN] = 1;
+	curr_tio[fd].c_cc[VTIME] = 0;
+#endif
+#endif
+	(void) ioctl( fd, TCSETA, &curr_tio[fd] );
+	return;
+	}
+
+/*
+	void	TcSetEcho( int fd )
+
+	Set echo mode, "fd".
+ */
+void
+#if __STDC__
+TcSetEcho( int fd )
+#else
+TcSetEcho( fd )
+int	fd;
+#endif
+	{
+#ifdef BSD
+	curr_tio[fd].sg_flags |= ECHO;		/* Echo mode ON.	*/
+#else
+	curr_tio[fd].c_lflag |= ECHO;		/* Echo mode ON.	*/
+#endif
+	(void) ioctl( fd, TCSETA, &curr_tio[fd] );
+	return;
+	}
+
+/*
+	void	TcClrEcho( int fd )
+
+	Clear echo mode, "fd".
+ */
+void
+#if __STDC__
+TcClrEcho( int fd )
+#else
+TcClrEcho( fd )
+int	fd;
+#endif
+	{
+#ifdef BSD
+	curr_tio[fd].sg_flags &= ~ECHO;		/* Echo mode OFF.	*/
+#else
+	curr_tio[fd].c_lflag &= ~ECHO;		/* Echo mode OFF.	*/
+#endif
+	(void) ioctl( fd, TCSETA, &curr_tio[fd] );
+	return;
+	}
+
+/*
+	void	TcSetTabs( int fd )
+
+	Turn on tab expansion, "fd".
+ */
+void
+#if __STDC__
+TcSetTabs( int fd )
+#else
+TcSetTabs( fd )
+int	fd;
+#endif
+	{
+#ifdef BSD
+	curr_tio[fd].sg_flags |= XTABS;		/* Tab expansion ON.	*/
+#else
+#ifndef CRAY2
+	curr_tio[fd].c_oflag |= TAB3;		/* Tab expansion ON.	*/
+#endif
+#endif
+	(void) ioctl( fd, TCSETA, &curr_tio[fd] );
+	return;
+	}
+
+/*
+	void	TcClrTabs( int fd )
+
+	Turn off tab expansion, "fd".
+ */
+void
+#if __STDC__
+TcClrTabs( int fd )
+#else
+TcClrTabs( fd )
+int	fd;
+#endif
+	{
+#ifdef BSD
+	curr_tio[fd].sg_flags &= ~XTABS;	/* Tab expans. OFF.	*/
+#else
+#ifndef CRAY2
+	curr_tio[fd].c_oflag &= ~TAB3;		/* Tab expans. OFF.	*/
+#endif
+#endif
+	(void) ioctl( fd, TCSETA, &curr_tio[fd] );
+	return;
+	}
+
+/*
+	void	TcSetHUPCL( int fd )
+
+	Turn on "Hang up on last close", "fd".
+ */
+void
+#if __STDC__
+TcSetHUPCL( int fd )
+#else
+TcSetHUPCL( fd )
+int	fd;
+#endif
+	{
+#ifndef CRAY2
+#ifdef BSD
+	(void) ioctl( fd, TIOCHPCL, NULL );
+#else
+	curr_tio[fd].c_cflag |= HUPCL;
+	(void) ioctl( fd, TCSETA, &curr_tio[fd] );
+#endif
+#endif
+	return;
+	}
+
+/*
+	void	TcClrCRNL( int fd )
+
+	Turn off CR/LF mapping, "fd".
+ */
+void
+#if __STDC__
+TcClrCRNL( int fd )
+#else
+TcClrCRNL( fd )
+#endif
+	{
+#ifdef BSD
+	curr_tio[fd].sg_flags &= ~CRMOD;
+#else
+#ifndef CRAY2
+	curr_tio[fd].c_oflag &= ~(ONLCR|OCRNL);
+	curr_tio[fd].c_iflag &= ~(ICRNL|INLCR);
+#endif
+#endif
+	(void) ioctl( fd, TCSETA, &curr_tio[fd] );
+	}
+
+/*
+	void	TcSaveTty( int fd )
+
+	Get and save terminal parameters, "fd".
+ */
+void
+#if __STDC__
+TcSaveTty( int fd )
+#else
+TcSaveTty( fd )
+int	fd;
+#endif
+	{
+	(void) ioctl( fd, TCGETA, &save_tio[fd] );
+	copy_Tio( &curr_tio[fd], &save_tio[fd] );
+	return;
+	}
+
+/*
+	void	TcResetTty( int fd )
+
+	Set the terminal back to the mode that the user had last time
+	TcSaveTty() was called for "fd".
+ */
+void
+#if __STDC__
+TcResetTty( int fd )
+#else
+TcResetTty( fd )
+int	fd;
+#endif
+	{
+	(void) ioctl( fd, TCSETA, &save_tio[fd] ); /* Write setting.		*/
+	return;
+	}
+
+/*	c o p y _ T i o ( )						*/
+static void
+copy_Tio( to, from )
+#ifdef BSD
+struct sgttyb	*to, *from;
+#else
+struct termio	*to, *from;
+#endif
+	{
+#ifdef BSD
+	(void) bcopy( (char *)from, (char*)to, sizeof(struct sgttyb) );
+#else
+	(void) memcpy( (char *) to, (char *) from, (int) sizeof(struct termio) );
+#endif
+	return;
+	}
+
+/*	p r n t _ T i o ( )						*/
+void
+prnt_Tio( msg, tio_ptr )
+char		*msg;
+#ifdef BSD
+struct sgttyb	*tio_ptr;
+#else
+struct termio	*tio_ptr;
+#endif
+	{	register int	i;
+	(void) fprintf( stderr, "%s :\n\r", msg );
+#ifdef BSD
+	(void) fprintf( stderr, "\tsg_ispeed=%d\n\r", (int) tio_ptr->sg_ispeed );
+	(void) fprintf( stderr, "\tsg_ospeed=%d\n\r", (int) tio_ptr->sg_ospeed );
+	(void) fprintf( stderr, "\tsg_erase='%c'\n\r", tio_ptr->sg_erase );
+	(void) fprintf( stderr, "\tsg_kill='%c'\n\r", tio_ptr->sg_kill );
+	(void) fprintf( stderr, "\tsg_flags=0x%x\n\r", tio_ptr->sg_flags );
+#else
+
+	(void) fprintf( stderr, "\tc_iflag=0x%x\n\r", tio_ptr->c_iflag );
+	(void) fprintf( stderr, "\tc_oflag=0x%x\n\r", tio_ptr->c_oflag );
+	(void) fprintf( stderr, "\tc_cflag=0x%x\n\r", tio_ptr->c_cflag );
+	(void) fprintf( stderr, "\tc_lflag=0x%x\n\r", tio_ptr->c_lflag );
+	(void) fprintf( stderr, "\tc_line=%c\n\r", tio_ptr->c_line );
+	for( i = 0; i < NCC; ++i )
+		{
+		(void) fprintf( stderr,
+				"\tc_cc[%d]=0%o\n\r",
+				i,
+				tio_ptr->c_cc[i]
+				);
+		}
+#endif
+	return;
+	}
+
+#endif
+@
+
+
+1.8
+log
+@
+RCSid
+@
+text
+@d19 1
+a19 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/burst/Tc.c,v 1.7 1997/06/23 17:15:55 gdurf Exp $ (BRL)";
+@
+
+
+1.7
+log
+@ifdeffed away most of the code since burst now uses libtermio
+@
+text
+@d19 1
+a19 1
+static char RCSid[] = "@@(#)$Header: /m/cad/burst/RCS/Tc.c,v 1.6 1997/06/11 01:47:40 gdurf Exp gdurf $ (BRL)";
+@
+
+
+1.6
+log
+@Added support for ioctl_compat.h if it exists (bsdi, NetBSD)
+@
+text
+@d2 2
+d14 3
+d19 1
+a19 1
+static char RCSid[] = "@@(#)$Header: /m/cad/burst/RCS/Tc.c,v 1.5 1996/07/18 17:32:30 jra Exp gdurf $ (BRL)";
+d396 2
+@
+
+
+1.5
+log
+@Minor Mods for IRIX 6.2
+@
+text
+@d14 1
+a14 1
+static char RCSid[] = "@@(#)$Header: /m/cad/burst/RCS/Tc.c,v 1.4 1995/02/28 09:11:58 jra Exp jra $ (BRL)";
+d35 3
+@
+
+
+1.4
+log
+@Changes _STDC_ to __STDC__
+@
+text
+@d14 1
+a14 1
+static char RCSid[] = "@@(#)$Header: /m/cad/burst/RCS/Tc.c,v 1.3 91/08/26 11:05:08 moss Exp Locker: jra $ (BRL)";
+d22 3
+a24 1
+/**#ifndef	TANDEM	/* USG derivatives */
+d38 2
+a39 1
+/****#ifdef	TANDEM	/* 7th Edition derivatives */
+@
+
+
+1.3
+log
+@Ported to ANSI C compiler; tested on XMP under UNICOS 5.1 and on SGI under
+IRIX 3.3.1.
+This version tests correctly using BRLCAD3.7.
+@
+text
+@d14 1
+a14 1
+static char RCSid[] = "@@(#)$Header: /vld/moss/src/burst/RCS/Tc.c,v 1.2 91/01/15 13:53:11 moss Exp $ (BRL)";
+d62 1
+a62 1
+#if _STDC_
+d88 1
+a88 1
+#if _STDC_
+d137 1
+a137 1
+#if _STDC_
+d164 1
+a164 1
+#if _STDC_
+d186 1
+a186 1
+#if _STDC_
+d208 1
+a208 1
+#if _STDC_
+d232 1
+a232 1
+#if _STDC_
+d256 1
+a256 1
+#if _STDC_
+d280 1
+a280 1
+#if _STDC_
+d303 1
+a303 1
+#if _STDC_
+d322 1
+a322 1
+#if _STDC_
+@
+
+
+1.2
+log
+@Removed author's phone number from top of file comment.  This will be
+shipped as version 2.1.
+@
+text
+@d14 1
+a14 1
+static char RCSid[] = "@@(#)$Header: /vld/moss/src/burst/RCS/Tc.c,v 1.1 91/01/15 13:46:24 moss Exp $ (BRL)";
+d27 1
+a27 1
+#endif _NFILE
+d29 1
+a29 1
+#endif SYSV
+d35 1
+a35 1
+#endif _NFILE
+d41 1
+a41 1
+#endif XTABS
+d44 1
+a44 1
+#endif BSD
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d6 5
+d14 1
+a14 1
+static char RCSid[] = "@@(#)$Header$ (BRL)";
+@

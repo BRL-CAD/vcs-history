@@ -1,0 +1,533 @@
+head	14.8;
+access;
+symbols
+	rel-7-10-4:14.8
+	STABLE:14.8.0.2
+	stable-branch:14.3
+	rel-7-10-2:14.8
+	rel-7-10-0:14.7
+	rel-7-8-4:14.4
+	rel-7-8-2:14.4
+	rel-7-8-0:14.4
+	trimnurbs-branch:14.4.0.2
+	help:14.4
+	temp_tag:14.3
+	bobWinPort-20051223-freeze:14.3
+	postmerge-20051223-bobWinPort:14.3
+	premerge-20051223-bobWinPort:14.3
+	rel-7-6-6:14.3
+	rel-7-6-4:14.3
+	rel-7-6-2:14.3
+	rel-7-6-branch:14.3.0.6
+	rel-7-6-0:14.3
+	rel-7-4-2:14.3
+	rel-7-4-branch:14.3.0.4
+	bobWinPort:14.3.0.2
+	rel-7-4-0:14.3
+	rel-7-2-6:14.3
+	rel-7-2-4:14.3
+	rel-7-2-2:14.3
+	rel-7-2-0:14.3
+	rel-7-0-4:14.2
+	rel-7-0-2:14.2
+	rel-7-0-1:14.2
+	opensource-post:14.2
+	opensource-pre:1.2
+	rel-7-0-branch:1.2.0.2
+	rel-7-0:1.2;
+locks; strict;
+comment	@ * @;
+
+
+14.8
+date	2007.05.14.21.04.32;	author brlcad;	state Exp;
+branches;
+next	14.7;
+
+14.7
+date	2007.01.27.01.41.43;	author brlcad;	state Exp;
+branches;
+next	14.6;
+
+14.6
+date	2007.01.23.01.13.41;	author brlcad;	state Exp;
+branches;
+next	14.5;
+
+14.5
+date	2007.01.20.14.36.57;	author brlcad;	state Exp;
+branches;
+next	14.4;
+
+14.4
+date	2006.01.18.06.46.19;	author brlcad;	state Exp;
+branches;
+next	14.3;
+
+14.3
+date	2005.01.30.20.31.05;	author brlcad;	state Exp;
+branches;
+next	14.2;
+
+14.2
+date	2004.12.21.04.17.27;	author butler;	state Exp;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.17;	author morrison;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2004.08.02.23.01.51;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.15.20.22;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.8
+log
+@gah, pick up where someone left off over half a decade ago.  finish updating all of the compat4 symbols throughout the code to their new names.  finally. it's done.  make the deprecated headers obsolete -- make compat4.h obsolete too so we can be sure that all of the changes are now picked up by the compiler as errors.  this change will likely impact muves if they've similarly not updated to the new names too, so the headers are kept with a #warning for now (though will likely disappear down the road entirely).
+@
+text
+@/*                  C O L O R _ S C H E M E . C
+ * BRL-CAD
+ *
+ * Copyright (c) 2004-2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@file color_scheme.c
+ *
+ * Functions -
+ *	cs_set_dirty_flag	mark any display managers using the current color_scheme as dirty
+ *	cs_update		update all colors according to the mode
+ *	cs_set_bg		tell the display manager what color to use for the background
+ *
+ * Author -
+ *	Robert G. Parker
+ *
+ * Source -
+ *	SLAD/BND/ACST
+ *	The U.S. Army Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005
+ *
+ */
+
+#include "common.h"
+
+
+#include <stdio.h>
+#include "machine.h"
+#include "bu.h"
+#include "vmath.h"
+#include "raytrace.h"
+#include "./ged.h"
+#include "./mged_dm.h"
+
+struct _color_scheme default_color_scheme = {
+/* cs_rc */			1,
+/* cs_mode */			0,
+/* cs_bg */			{ 0, 0, 0 },
+/* cs_bg_a */			{ 0, 0, 50 },
+/* cs_bg_ia */			{ 0, 0, 0 },
+/* cs_adc_line */		{ 255, 255, 0 },
+/* cs_adc_line_a */		{ 255, 255, 0 },
+/* cs_adc_line_ia */		{ 255, 255, 0 },
+/* cs_adc_tick */		{ 255, 255, 255 },
+/* cs_adc_tick_a */		{ 255, 255, 255 },
+/* cs_adc_tick_ia */		{ 255, 255, 255 },
+/* cs_geo_def */		{ 255, 0, 0 },
+/* cs_geo_def_a */		{ 255, 0, 0 },
+/* cs_geo_def_ia */		{ 255, 0, 0 },
+/* cs_geo_hl */			{ 255, 255, 255 },
+/* cs_geo_hl_a */		{ 255, 255, 255 },
+/* cs_geo_hl_ia */		{ 255, 255, 255 },
+/* cs_geo_label */		{ 255, 255, 0 },
+/* cs_geo_label_a */		{ 255, 255, 0 },
+/* cs_geo_label_ia */		{ 255, 255, 0 },
+/* cs_model_axes */		{ 100, 255, 100 },
+/* cs_model_axes_a */		{ 100, 255, 100 },
+/* cs_model_axes_ia */		{ 100, 255, 100 },
+/* cs_model_axes_label */	{ 255, 255, 0 },
+/* cs_model_axes_label_a */	{ 255, 255, 0 },
+/* cs_model_axes_label_ia */	{ 255, 255, 0 },
+/* cs_view_axes */		{ 100, 100, 255 },
+/* cs_view_axes_a */		{ 100, 100, 255 },
+/* cs_view_axes_ia */		{ 100, 100, 255 },
+/* cs_view_axes_label */	{ 255, 255, 0 },
+/* cs_view_axes_label_a */	{ 255, 255, 0 },
+/* cs_view_axes_label_ia */	{ 255, 255, 0 },
+/* cs_edit_axes1 */		{ 255, 255, 255 },
+/* cs_edit_axes1_a */		{ 255, 255, 255 },
+/* cs_edit_axes1_ia */		{ 255, 255, 255 },
+/* cs_edit_axes_label1 */	{ 255, 255, 0 },
+/* cs_edit_axes_label1_a */	{ 255, 255, 0 },
+/* cs_edit_axes_label1_ia */	{ 255, 255, 0 },
+/* cs_edit_axes2 */		{ 255, 255, 255 },
+/* cs_edit_axes2_a */		{ 255, 255, 255 },
+/* cs_edit_axes2_ia */		{ 255, 255, 255 },
+/* cs_edit_axes_label2 */	{ 255, 255, 0 },
+/* cs_edit_axes_label2_a */	{ 255, 255, 0 },
+/* cs_edit_axes_label2_ia */	{ 255, 255, 0 },
+/* cs_rubber_band */		{ 255, 255, 255 },
+/* cs_rubber_band_a */		{ 255, 255, 255 },
+/* cs_rubber_band_ia */		{ 255, 255, 255 },
+/* cs_grid */			{ 255, 255, 255 },
+/* cs_grid_a */			{ 255, 255, 255 },
+/* cs_grid_ia */		{ 255, 255, 255 },
+/* cs_predictor */		{ 255, 255, 255 },
+/* cs_predictor_a */		{ 255, 255, 255 },
+/* cs_predictor_ia */		{ 255, 255, 255 },
+/* cs_menu_line */		{ 255, 255, 0 },
+/* cs_menu_line_a */		{ 255, 255, 0 },
+/* cs_menu_line_ia */		{ 255, 255, 0 },
+/* cs_slider_line */		{ 255, 255, 0 },
+/* cs_slider_line_a */		{ 255, 255, 0 },
+/* cs_slider_line_ia */		{ 255, 255, 0 },
+/* cs_other_line */		{ 255, 255, 0 },
+/* cs_other_line_a */		{ 255, 255, 0 },
+/* cs_other_line_ia */		{ 255, 255, 0 },
+/* cs_status_text1 */		{ 255, 255, 255 },
+/* cs_status_text1_a */		{ 255, 255, 255 },
+/* cs_status_text1_ia */	{ 255, 255, 255 },
+/* cs_status_text2 */		{ 255, 255, 0 },
+/* cs_status_text2_a */		{ 255, 255, 0 },
+/* cs_status_text2_ia */	{ 255, 255, 0 },
+/* cs_slider_text1 */		{ 255, 255, 255 },
+/* cs_slider_text1_a */		{ 255, 255, 255 },
+/* cs_slider_text1_ia */	{ 255, 255, 255 },
+/* cs_slider_text2 */		{ 255, 0, 0 },
+/* cs_slider_text2_a */		{ 255, 0, 0 },
+/* cs_slider_text2_ia */	{ 255, 0, 0 },
+/* cs_menu_text1 */		{ 255, 255, 255 },
+/* cs_menu_text1_a */		{ 255, 255, 255 },
+/* cs_menu_text1_ia */		{ 255, 255, 255 },
+/* cs_menu_text2 */		{ 255, 255, 0 },
+/* cs_menu_text2_a */		{ 255, 255, 0 },
+/* cs_menu_text2_ia */		{ 255, 255, 0 },
+/* cs_menu_title */		{ 255, 0, 0 },
+/* cs_menu_title_a */		{ 255, 0, 0 },
+/* cs_menu_title_ia */		{ 255, 0, 0 },
+/* cs_menu_arrow */		{ 255, 255, 255 },
+/* cs_menu_arrow_a */		{ 255, 255, 255 },
+/* cs_menu_arrow_ia */		{ 255, 255, 255 },
+/* cs_state_text1 */		{ 255, 255, 255 },
+/* cs_state_text1_a */		{ 255, 255, 255 },
+/* cs_state_text1_ia */		{ 255, 255, 255 },
+/* cs_state_text2 */		{ 255, 255, 0 },
+/* cs_state_text2_a */		{ 255, 255, 0 },
+/* cs_state_text2_ia */		{ 255, 255, 0 },
+/* cs_edit_info */		{ 255, 255, 0 },
+/* cs_edit_info_a */		{ 255, 255, 0 },
+/* cs_edit_info_ia */		{ 255, 255, 0 },
+/* cs_center_dot */		{ 255, 255, 0 },
+/* cs_center_dot_a */		{ 255, 255, 0 },
+/* cs_center_dot_ia */		{ 255, 255, 0 }
+};
+
+#define CS_OFFSET 1	/* offset to start of colors in color_scheme_vparse */
+
+#define CS_O(_m)        bu_offsetof(struct _color_scheme, _m)
+#define CS_OA(_m)	bu_offsetofarray(struct _color_scheme, _m)
+struct bu_structparse color_scheme_vparse[] = {
+	{"%d",	1, "mode",	CS_O(cs_mode),	cs_update },
+	{"%d",  3, "bg",	CS_OA(cs_bg),	cs_set_bg },
+	{"%d",  3, "bg_a",	CS_OA(cs_bg_a),	BU_STRUCTPARSE_FUNC_NULL },
+	{"%d",  3, "bg_ia",	CS_OA(cs_bg_ia),	BU_STRUCTPARSE_FUNC_NULL },
+	{"%d",  3, "adc_line",	CS_OA(cs_adc_line),	cs_set_dirty_flag },
+	{"%d",  3, "adc_line_a",	CS_OA(cs_adc_line_a),	BU_STRUCTPARSE_FUNC_NULL },
+	{"%d",  3, "adc_line_ia",	CS_OA(cs_adc_line_ia),	BU_STRUCTPARSE_FUNC_NULL },
+	{"%d",  3, "adc_tick",	CS_OA(cs_adc_tick),	cs_set_dirty_flag },
+	{"%d",  3, "adc_tick_a",	CS_OA(cs_adc_tick_a),	BU_STRUCTPARSE_FUNC_NULL },
+	{"%d",  3, "adc_tick_ia",	CS_OA(cs_adc_tick_ia),	BU_STRUCTPARSE_FUNC_NULL },
+	{"%d",  3, "geo_def",	CS_OA(cs_geo_def),	cs_set_dirty_flag },
+	{"%d",  3, "geo_def_a",	CS_OA(cs_geo_def_a),	BU_STRUCTPARSE_FUNC_NULL },
+	{"%d",  3, "geo_def_ia",	CS_OA(cs_geo_def_ia),	BU_STRUCTPARSE_FUNC_NULL },
+	{"%d",  3, "geo_hl",	CS_OA(cs_geo_hl),	cs_set_dirty_flag },
+	{"%d",  3, "geo_hl_a",	CS_OA(cs_geo_hl_a),	BU_STRUCTPARSE_FUNC_NULL },
+	{"%d",  3, "geo_hl_ia",	CS_OA(cs_geo_hl_ia),	BU_STRUCTPARSE_FUNC_NULL },
+	{"%d",  3, "geo_label",	CS_OA(cs_geo_label),	cs_set_dirty_flag },
+	{"%d",  3, "geo_label_a",	CS_OA(cs_geo_label_a),	BU_STRUCTPARSE_FUNC_NULL },
+	{"%d",  3, "geo_label_ia",	CS_OA(cs_geo_label_ia),	BU_STRUCTPARSE_FUNC_NULL },
+	{"%d",  3, "model_axes",	CS_OA(cs_model_axes),	cs_set_dirty_flag },
+	{"%d",  3, "model_axes_a",	CS_OA(cs_model_axes_a),	BU_STRUCTPARSE_FUNC_NULL },
+	{"%d",  3, "model_axes_ia",	CS_OA(cs_model_axes_ia),	BU_STRUCTPARSE_FUNC_NULL },
+	{"%d",  3, "model_axes_label",	CS_OA(cs_model_axes_label),	cs_set_dirty_flag },
+	{"%d",  3, "model_axes_label_a",	CS_OA(cs_model_axes_label_a),	BU_STRUCTPARSE_FUNC_NULL },
+	{"%d",  3, "model_axes_label_ia",	CS_OA(cs_model_axes_label_ia),	BU_STRUCTPARSE_FUNC_NULL },
+	{"%d",  3, "view_axes",	CS_OA(cs_view_axes),	cs_set_dirty_flag },
+	{"%d",  3, "view_axes_a",	CS_OA(cs_view_axes_a),	BU_STRUCTPARSE_FUNC_NULL },
+	{"%d",  3, "view_axes_ia",	CS_OA(cs_view_axes_ia),	BU_STRUCTPARSE_FUNC_NULL },
+	{"%d",  3, "view_axes_label",	CS_OA(cs_view_axes_label),	cs_set_dirty_flag },
+	{"%d",  3, "view_axes_label_a",	CS_OA(cs_view_axes_label_a),	BU_STRUCTPARSE_FUNC_NULL },
+	{"%d",  3, "view_axes_label_ia",	CS_OA(cs_view_axes_label_ia),	BU_STRUCTPARSE_FUNC_NULL },
+	{"%d",  3, "edit_axes1",	CS_OA(cs_edit_axes1),	cs_set_dirty_flag },
+	{"%d",  3, "edit_axes1_a",	CS_OA(cs_edit_axes1_a),	BU_STRUCTPARSE_FUNC_NULL },
+	{"%d",  3, "edit_axes1_ia",	CS_OA(cs_edit_axes1_ia),	BU_STRUCTPARSE_FUNC_NULL },
+	{"%d",  3, "edit_axes2",	CS_OA(cs_edit_axes2),	cs_set_dirty_flag },
+	{"%d",  3, "edit_axes2_a",	CS_OA(cs_edit_axes2_a),	BU_STRUCTPARSE_FUNC_NULL },
+	{"%d",  3, "edit_axes2_ia",	CS_OA(cs_edit_axes2_ia),	BU_STRUCTPARSE_FUNC_NULL },
+	{"%d",  3, "edit_axes_label1",	CS_OA(cs_edit_axes_label1),	cs_set_dirty_flag },
+	{"%d",  3, "edit_axes_label1_a",	CS_OA(cs_edit_axes_label1_a),	BU_STRUCTPARSE_FUNC_NULL },
+	{"%d",  3, "edit_axes_label1_ia",	CS_OA(cs_edit_axes_label1_ia),	BU_STRUCTPARSE_FUNC_NULL },
+	{"%d",  3, "edit_axes_label2",	CS_OA(cs_edit_axes_label2),	cs_set_dirty_flag },
+	{"%d",  3, "edit_axes_label2_a",	CS_OA(cs_edit_axes_label2_a),	BU_STRUCTPARSE_FUNC_NULL },
+	{"%d",  3, "edit_axes_label2_ia",	CS_OA(cs_edit_axes_label2_ia),	BU_STRUCTPARSE_FUNC_NULL },
+	{"%d",  3, "rubber_band",	CS_OA(cs_rubber_band),	cs_set_dirty_flag },
+	{"%d",  3, "rubber_band_a",	CS_OA(cs_rubber_band_a),	BU_STRUCTPARSE_FUNC_NULL },
+	{"%d",  3, "rubber_band_ia",	CS_OA(cs_rubber_band_ia),	BU_STRUCTPARSE_FUNC_NULL },
+	{"%d",  3, "grid",	CS_OA(cs_grid),	cs_set_dirty_flag },
+	{"%d",  3, "grid_a",	CS_OA(cs_grid_a),	BU_STRUCTPARSE_FUNC_NULL },
+	{"%d",  3, "grid_ia",	CS_OA(cs_grid_ia),	BU_STRUCTPARSE_FUNC_NULL },
+	{"%d",  3, "predictor",	CS_OA(cs_predictor),	cs_set_dirty_flag },
+	{"%d",  3, "predictor_a",	CS_OA(cs_predictor_a),	BU_STRUCTPARSE_FUNC_NULL },
+	{"%d",  3, "predictor_ia",	CS_OA(cs_predictor_ia),	BU_STRUCTPARSE_FUNC_NULL },
+	{"%d",  3, "menu_line",	CS_OA(cs_menu_line),	cs_set_dirty_flag },
+	{"%d",  3, "menu_line_a",	CS_OA(cs_menu_line_a),	BU_STRUCTPARSE_FUNC_NULL },
+	{"%d",  3, "menu_line_ia",	CS_OA(cs_menu_line_ia),	BU_STRUCTPARSE_FUNC_NULL },
+	{"%d",  3, "slider_line",	CS_OA(cs_slider_line),	cs_set_dirty_flag },
+	{"%d",  3, "slider_line_a",	CS_OA(cs_slider_line_a),	BU_STRUCTPARSE_FUNC_NULL },
+	{"%d",  3, "slider_line_ia",	CS_OA(cs_slider_line_ia),	BU_STRUCTPARSE_FUNC_NULL },
+	{"%d",  3, "other_line",	CS_OA(cs_other_line),	cs_set_dirty_flag },
+	{"%d",  3, "other_line_a",	CS_OA(cs_other_line_a),	BU_STRUCTPARSE_FUNC_NULL },
+	{"%d",  3, "other_line_ia",	CS_OA(cs_other_line_ia),	BU_STRUCTPARSE_FUNC_NULL },
+	{"%d",  3, "status_text1",	CS_OA(cs_status_text1),	cs_set_dirty_flag },
+	{"%d",  3, "status_text1_a",	CS_OA(cs_status_text1_a),	BU_STRUCTPARSE_FUNC_NULL },
+	{"%d",  3, "status_text1_ia",	CS_OA(cs_status_text1_ia),	BU_STRUCTPARSE_FUNC_NULL },
+	{"%d",  3, "status_text2",	CS_OA(cs_status_text2),	cs_set_dirty_flag },
+	{"%d",  3, "status_text2_a",	CS_OA(cs_status_text2_a),	BU_STRUCTPARSE_FUNC_NULL },
+	{"%d",  3, "status_text2_ia",	CS_OA(cs_status_text2_ia),	BU_STRUCTPARSE_FUNC_NULL },
+	{"%d",  3, "slider_text1",	CS_OA(cs_slider_text1),	cs_set_dirty_flag },
+	{"%d",  3, "slider_text1_a",	CS_OA(cs_slider_text1_a),	BU_STRUCTPARSE_FUNC_NULL },
+	{"%d",  3, "slider_text1_ia",	CS_OA(cs_slider_text1_ia),	BU_STRUCTPARSE_FUNC_NULL },
+	{"%d",  3, "slider_text2",	CS_OA(cs_slider_text2),	cs_set_dirty_flag },
+	{"%d",  3, "slider_text2_a",	CS_OA(cs_slider_text2_a),	BU_STRUCTPARSE_FUNC_NULL },
+	{"%d",  3, "slider_text2_ia",	CS_OA(cs_slider_text2_ia),	BU_STRUCTPARSE_FUNC_NULL },
+	{"%d",  3, "menu_text1",	CS_OA(cs_menu_text1),	cs_set_dirty_flag },
+	{"%d",  3, "menu_text1_a",	CS_OA(cs_menu_text1_a),	BU_STRUCTPARSE_FUNC_NULL },
+	{"%d",  3, "menu_text1_ia",	CS_OA(cs_menu_text1_ia),	BU_STRUCTPARSE_FUNC_NULL },
+	{"%d",  3, "menu_text2",	CS_OA(cs_menu_text2),	cs_set_dirty_flag },
+	{"%d",  3, "menu_text2_a",	CS_OA(cs_menu_text2_a),	BU_STRUCTPARSE_FUNC_NULL },
+	{"%d",  3, "menu_text2_ia",	CS_OA(cs_menu_text2_ia),	BU_STRUCTPARSE_FUNC_NULL },
+	{"%d",  3, "menu_title",	CS_OA(cs_menu_title),	cs_set_dirty_flag },
+	{"%d",  3, "menu_title_a",	CS_OA(cs_menu_title_a),	BU_STRUCTPARSE_FUNC_NULL },
+	{"%d",  3, "menu_title_ia",	CS_OA(cs_menu_title_ia),	BU_STRUCTPARSE_FUNC_NULL },
+	{"%d",  3, "menu_arrow",	CS_OA(cs_menu_arrow),	cs_set_dirty_flag },
+	{"%d",  3, "menu_arrow_a",	CS_OA(cs_menu_arrow_a),	BU_STRUCTPARSE_FUNC_NULL },
+	{"%d",  3, "menu_arrow_ia",	CS_OA(cs_menu_arrow_ia),	BU_STRUCTPARSE_FUNC_NULL },
+	{"%d",  3, "state_text1",	CS_OA(cs_state_text1),	cs_set_dirty_flag },
+	{"%d",  3, "state_text1_a",	CS_OA(cs_state_text1_a),	BU_STRUCTPARSE_FUNC_NULL },
+	{"%d",  3, "state_text1_ia",	CS_OA(cs_state_text1_ia),	BU_STRUCTPARSE_FUNC_NULL },
+	{"%d",  3, "state_text2",	CS_OA(cs_state_text2),	cs_set_dirty_flag },
+	{"%d",  3, "state_text2_a",	CS_OA(cs_state_text2_a),	BU_STRUCTPARSE_FUNC_NULL },
+	{"%d",  3, "state_text2_ia",	CS_OA(cs_state_text2_ia),	BU_STRUCTPARSE_FUNC_NULL },
+	{"%d",  3, "edit_info",	CS_OA(cs_edit_info),	cs_set_dirty_flag },
+	{"%d",  3, "edit_info_a",	CS_OA(cs_edit_info_a),	BU_STRUCTPARSE_FUNC_NULL },
+	{"%d",  3, "edit_info_ia",	CS_OA(cs_edit_info_ia),	BU_STRUCTPARSE_FUNC_NULL },
+	{"%d",  3, "center_dot",	CS_OA(cs_center_dot),	cs_set_dirty_flag },
+	{"%d",  3, "center_dot_a",	CS_OA(cs_center_dot_a),	BU_STRUCTPARSE_FUNC_NULL },
+	{"%d",  3, "center_dot_ia",	CS_OA(cs_center_dot_ia),	BU_STRUCTPARSE_FUNC_NULL },
+	{"",	0,  (char *)0,		0,			BU_STRUCTPARSE_FUNC_NULL }
+};
+
+void
+cs_set_dirty_flag(void)
+{
+  struct dm_list *dmlp;
+
+  FOR_ALL_DISPLAYS(dmlp, &head_dm_list.l)
+    if(dmlp->dml_color_scheme == color_scheme)
+      dmlp->dml_dirty = 1;
+}
+
+void
+cs_update(void)
+{
+  register struct bu_structparse *sp;
+  struct bu_vls vls;
+  int offset;
+
+  bu_vls_init(&vls);
+
+  if (color_scheme->cs_mode)
+    offset = 1;
+  else
+    offset = 2;
+
+  for (sp = &color_scheme_vparse[CS_OFFSET]; sp->sp_name != NULL; sp += 3) {
+    bu_vls_trunc(&vls, 0);
+    bu_vls_printf(&vls, "rset cs %s [rset cs %s]", sp->sp_name, (sp+offset)->sp_name);
+    Tcl_Eval(interp, bu_vls_addr(&vls));
+  }
+
+  cs_set_bg();
+  bu_vls_free(&vls);
+}
+
+void
+cs_set_bg(void)
+{
+  struct dm_list *dmlp;
+  struct dm_list *save_curr_dmlp = curr_dm_list;
+  struct bu_vls vls;
+
+  bu_vls_init(&vls);
+  bu_vls_printf(&vls, "dm bg %d %d %d",
+		color_scheme->cs_bg[0],
+		color_scheme->cs_bg[1],
+		color_scheme->cs_bg[2]);
+
+  FOR_ALL_DISPLAYS(dmlp, &head_dm_list.l)
+    if (dmlp->dml_color_scheme == color_scheme) {
+      dmlp->dml_dirty = 1;
+      curr_dm_list = dmlp;
+      Tcl_Eval(interp, bu_vls_addr(&vls));
+    }
+
+  bu_vls_free(&vls);
+  curr_dm_list = save_curr_dmlp;
+}
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+14.7
+log
+@ws. lots and lots of ws.  see sh/ws.sh for details (cases 'abcdeg').
+@
+text
+@d151 2
+a152 2
+#define CS_O(_m)        offsetof(struct _color_scheme, _m)
+#define CS_OA(_m)	offsetofarray(struct _color_scheme, _m)
+@
+
+
+14.6
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@a39 1
+
+@
+
+
+14.5
+log
+@update copyright to 2007
+@
+text
+@d8 2
+a9 3
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+d14 1
+a14 1
+ * General Public License for more details.
+d16 2
+a17 2
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+@
+
+
+14.4
+log
+@update copyright to 2006
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 2004-2006 United States Government as represented by
+@
+
+
+14.3
+log
+@update copyright to 2005
+@
+text
+@d4 1
+a4 1
+ * Copyright (C) 2004-2005 United States Government as represented by
+@
+
+
+14.2
+log
+@GPL License changes
+@
+text
+@d4 2
+a5 2
+ * Copyright (c) 2004 United States Government as represented by the
+ * U.S. Army Research Laboratory.
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@d1 21
+a21 2
+/*
+ *			C O L O R _ S C H E M E . C
+@
+
+
+1.2
+log
+@replace the wrapped config.h block with common.h
+@
+text
+@d294 10
+@
+
+
+1.1
+log
+@Vast reorganization begins.  Sources moved from top-level directories into src/.
+@
+text
+@d19 1
+a19 3
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+@
+

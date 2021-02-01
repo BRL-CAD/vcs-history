@@ -1,0 +1,1904 @@
+head	1.20;
+access;
+symbols
+	rel-7-10-4:1.16
+	STABLE:1.16.0.2
+	rel-7-10-2:1.15
+	rel-7-10-0:1.15
+	rel-7-8-4:1.9
+	rel-7-8-2:1.9
+	rel-7-8-0:1.9
+	trimnurbs-branch:1.9.0.2
+	help:1.9
+	temp_tag:1.9
+	bobWinPort-20051223-freeze:1.2
+	postmerge-20051223-bobWinPort:1.9
+	premerge-20051223-bobWinPort:1.9
+	rel-7-6-6:1.9
+	rel-7-6-4:1.8
+	rel-7-6-2:1.2
+	rel-7-6-branch:1.2.0.6
+	rel-7-6-0:1.2
+	rel-7-4-2:1.2.4.2
+	rel-7-4-branch:1.2.0.4
+	bobWinPort:1.2.0.2;
+locks; strict;
+comment	@ * @;
+
+
+1.20
+date	2007.12.18.18.33.18;	author erikgreenwald;	state Exp;
+branches;
+next	1.19;
+
+1.19
+date	2007.12.17.20.58.43;	author erikgreenwald;	state Exp;
+branches;
+next	1.18;
+
+1.18
+date	2007.12.16.18.53.47;	author brlcad;	state Exp;
+branches;
+next	1.17;
+
+1.17
+date	2007.12.06.20.36.30;	author erikgreenwald;	state Exp;
+branches;
+next	1.16;
+
+1.16
+date	2007.08.30.19.11.29;	author brlcad;	state Exp;
+branches;
+next	1.15;
+
+1.15
+date	2007.02.08.06.49.18;	author brlcad;	state Exp;
+branches;
+next	1.14;
+
+1.14
+date	2007.02.05.18.39.01;	author erikgreenwald;	state Exp;
+branches;
+next	1.13;
+
+1.13
+date	2007.02.02.19.46.34;	author erikgreenwald;	state Exp;
+branches;
+next	1.12;
+
+1.12
+date	2007.01.27.01.41.30;	author brlcad;	state Exp;
+branches;
+next	1.11;
+
+1.11
+date	2007.01.23.01.13.21;	author brlcad;	state Exp;
+branches;
+next	1.10;
+
+1.10
+date	2007.01.21.00.53.11;	author brlcad;	state Exp;
+branches;
+next	1.9;
+
+1.9
+date	2005.11.30.20.36.31;	author brlcad;	state Exp;
+branches;
+next	1.8;
+
+1.8
+date	2005.09.21.16.16.15;	author twingy;	state Exp;
+branches;
+next	1.7;
+
+1.7
+date	2005.09.21.02.15.01;	author twingy;	state Exp;
+branches;
+next	1.6;
+
+1.6
+date	2005.09.14.05.26.46;	author twingy;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	2005.09.14.04.59.24;	author twingy;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	2005.09.12.22.39.12;	author twingy;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2005.09.12.18.13.47;	author twingy;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2005.07.20.18.37.05;	author twingy;	state Exp;
+branches
+	1.2.4.1
+	1.2.6.1;
+next	1.1;
+
+1.1
+date	2005.07.18.20.57.56;	author twingy;	state Exp;
+branches;
+next	;
+
+1.2.4.1
+date	2005.07.20.18.37.05;	author brlcad;	state dead;
+branches;
+next	1.2.4.2;
+
+1.2.4.2
+date	2005.08.16.21.03.46;	author brlcad;	state Exp;
+branches;
+next	;
+
+1.2.6.1
+date	2005.11.13.13.46.12;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.20
+log
+@ISST_OP_SHOT is now ADRT_WORK_SHOTLINE
+@
+text
+@/*                         S L A V E . C
+ * BRL-CAD / ADRT
+ *
+ * Copyright (c) 2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This library is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@file slave.c
+ *
+ * Author -
+ *   Justin Shumaker
+ *
+ * $Id: slave.c,v 1.19 2007/12/17 20:58:43 erikgreenwald Exp $
+ */
+
+#ifndef TIE_PRECISION
+# define TIE_PRECISION 0
+#endif
+
+#include "slave.h"
+#include "load.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/time.h>
+
+#include "isst.h"
+#include "adrt.h"
+#include "camera.h"
+#include "adrt.h"
+#include "tie.h"
+#include "tienet.h"
+#include "render_util.h"
+
+typedef struct isst_slave_project_s
+{
+  tie_t tie;
+  render_camera_t camera;
+  uint16_t last_frame;
+  uint8_t active;
+} isst_slave_project_t;
+
+uint32_t isst_slave_threads;
+isst_slave_project_t isst_workspace_list[ADRT_MAX_WORKSPACE_NUM];
+
+void 
+isst_slave_free() 
+{
+  uint16_t i;
+
+  for (i = 0; i < ADRT_MAX_WORKSPACE_NUM; i++)
+    if (isst_workspace_list[i].active)
+    {
+//      render_camera_free (&camera);
+    }
+}
+
+void
+isst_slave_work(tienet_buffer_t *work, tienet_buffer_t *result)
+{
+  TIE_3 pos, foc;
+  unsigned char rm, op;
+  uint32_t ind, wlen;
+  uint16_t wid;
+
+  /* Length of work data */
+  wlen = work->ind;
+  ind = 0;
+
+  /* Get work type */
+  TCOPY(uint8_t, work->data, ind, &op, 0);
+  ind += 1;
+
+  /* Workspace ID */
+  TCOPY(uint16_t, work->data, ind, &wid, 0);
+  ind += 2;
+
+  /* This will get improved later with caching */
+  TIENET_BUFFER_SIZE((*result), 3); /* Copy op and wid, 3 bytes */
+  memcpy(result->data, &work->data[0], 3);
+  result->ind = ind;
+
+  switch(op) {
+    case ADRT_WORK_INIT:
+      {
+        render_camera_init (&isst_workspace_list[wid].camera, isst_slave_threads);
+        slave_load_sql (&isst_workspace_list[wid].tie, &work->data[ind], wlen-ind);
+        render_camera_prep (&isst_workspace_list[wid].camera);
+        printf ("ready.\n");
+        result->ind = 0;
+
+        /* Mark the workspace as active so it can be cleaned up when the time comes. */
+        isst_workspace_list[wid].active = 1;
+      }
+      break;
+
+    case ADRT_WORK_STATUS:
+      {
+        double loadavg;
+
+        getloadavg (&loadavg, 1);
+        printf ("load average: %f\n", loadavg);
+      }
+      break;
+ 
+    case ADRT_WORK_SELECT:
+    {
+      uint8_t c;
+      char string[255];
+      uint32_t n, i, num;
+
+      /* reset */
+      TCOPY(uint8_t, work->data, ind, &c, 0);
+      ind += 1;
+      if (c)
+        for (i = 0; i < slave_load_mesh_num; i++)
+          slave_load_mesh_list[i].flags = 0;
+
+      /* number of strings to match */
+      TCOPY(uint32_t, work->data, ind, &num, 0);
+      ind += 4;
+
+      for (i = 0; i < num; i++)
+      {
+        /* string length */
+        TCOPY(uint8_t, work->data, ind, &c, 0);
+        ind += 1;
+
+        /* string */
+        memcpy(string, &work->data[ind], c);
+        ind += c;
+
+        /* set select flag */
+        for (n = 0; n < slave_load_mesh_num; n++)
+          if (strstr(slave_load_mesh_list[n].name, string) || c == 1)
+            slave_load_mesh_list[n].flags = (slave_load_mesh_list[n].flags & 0x1) | ((slave_load_mesh_list[n].flags & 0x2) ^ 0x2);
+      }
+
+      /* zero length result */
+      result->ind = 0;
+    }  
+    break;
+
+    case ADRT_WORK_SHOTLINE:
+      {
+        tie_ray_t ray;
+        void *mesg;
+        int dlen;
+
+        mesg = NULL;
+
+        /* coordinates */
+        TCOPY(TIE_3, work->data, ind, ray.pos.v, 0);
+        ind += sizeof (TIE_3);
+        TCOPY(TIE_3, work->data, ind, ray.dir.v, 0);
+        ind += sizeof (TIE_3);
+#if 0
+printf ("pos: %.3f %.3f %.3f ... dir %.3f %.3f %.3f\n", ray.pos.v[0], ray.pos.v[1], ray.pos.v[2], ray.dir.v[0], ray.dir.v[1], ray.dir.v[2]);
+#endif
+        /* Fire the shot */
+        ray.depth = 0;
+        render_util_shotline_list (&isst_workspace_list[wid].tie, &ray, &mesg, &dlen);
+
+        /* Make room for shot data */
+        TIENET_BUFFER_SIZE((*result), result->ind + dlen + 2*sizeof (TIE_3));
+        memcpy(&result->data[result->ind], mesg, dlen);
+        result->ind += dlen;
+
+        TCOPY(TIE_3, &ray.pos, 0, result->data, result->ind);
+        result->ind += sizeof (TIE_3);
+
+        TCOPY(TIE_3, &ray.dir, 0, result->data, result->ind);
+        result->ind += sizeof (TIE_3);
+
+        free (mesg);
+      }
+      break;
+
+    case ADRT_WORK_SPALL:
+      {
+#if 0
+        tie_ray_t ray;
+        tfloat angle;
+        void *mesg;
+        int dlen;
+
+        mesg = NULL;
+
+        /* position */
+        TCOPY(TIE_3, data, ind, &ray.pos, 0);
+        ind += sizeof (TIE_3);
+
+        /* direction */
+        TCOPY(TIE_3, data, ind, &ray.dir, 0);
+        ind += sizeof (TIE_3);
+
+        /* angle */
+        TCOPY(tfloat, data, ind, &angle, 0);
+        ind += sizeof (tfloat);
+
+        /* Fire the shot */
+        ray.depth = 0;
+        render_util_spall_list(tie, &ray, angle, &mesg, &dlen);
+
+        /* Make room for shot data */
+        *res_len = sizeof (common_work_t) + dlen;
+        *res_buf = (void *)realloc(*res_buf, *res_len);
+
+        ind = 0;
+
+        memcpy(&((char *)*res_buf)[ind], mesg, dlen);
+
+        free (mesg);
+#endif
+      }
+      break;
+
+    case ADRT_WORK_FRAME_ATTR:
+      {
+        uint16_t image_w, image_h, image_format;
+
+        /* Image Size */
+        TCOPY(uint16_t, work->data, ind, &image_w, 0);
+        ind += 2;
+        TCOPY(uint16_t, work->data, ind, &image_h, 0);
+        ind += 2;
+        TCOPY(uint16_t, work->data, ind, &image_format, 0);
+        ind += 2;
+
+        isst_workspace_list[wid].camera.w = image_w;
+        isst_workspace_list[wid].camera.h = image_h;
+        render_camera_prep (&isst_workspace_list[wid].camera);
+        result->ind = 0;
+      }
+      break;
+
+    case ADRT_WORK_FRAME:
+      {
+        camera_tile_t tile;
+        uint8_t type;
+        tfloat fov;
+
+        /* Camera type */
+        TCOPY(uint8_t, work->data, ind, &type, 0);
+        ind += 1;
+
+        /* Camera fov */
+        TCOPY(tfloat, work->data, ind, &fov, 0);
+        ind += sizeof (tfloat);
+
+        /* Camera position */
+        TCOPY(TIE_3, work->data, ind, &pos, 0);
+        ind += sizeof (TIE_3);
+
+        /* Camera Focus */
+        TCOPY(TIE_3, work->data, ind, &foc, 0);
+        ind += sizeof (TIE_3);
+
+        /* Update Rendering Method if it has Changed */
+        rm = work->data[ind];
+        ind += 1;
+
+        if (rm != isst_workspace_list[wid].camera.rm || rm & 1<<7)
+        {
+          rm = rm & ((1<<7)-1);
+
+          isst_workspace_list[wid].camera.render.free (&isst_workspace_list[wid].camera.render);
+
+          switch(rm) {
+            case RENDER_METHOD_DEPTH:
+              render_depth_init(&isst_workspace_list[wid].camera.render);
+              break;
+
+            case RENDER_METHOD_COMPONENT:
+              render_component_init(&isst_workspace_list[wid].camera.render);
+              break;
+
+            case RENDER_METHOD_FLOS:
+              {
+                TIE_3 frag_pos;
+
+                /* Extract shot position and direction */
+                TCOPY(TIE_3, work->data, ind, &frag_pos, 0);
+                ind += sizeof (TIE_3);
+                render_flos_init(&isst_workspace_list[wid].camera.render, frag_pos);
+              }
+              break;
+
+            case RENDER_METHOD_GRID:
+              render_grid_init(&isst_workspace_list[wid].camera.render);
+              break;
+
+            case RENDER_METHOD_NORMAL:
+              render_normal_init(&isst_workspace_list[wid].camera.render);
+              break;
+
+            case RENDER_METHOD_PATH:
+              render_path_init(&isst_workspace_list[wid].camera.render, 12);
+              break;
+
+            case RENDER_METHOD_PHONG:
+              render_phong_init(&isst_workspace_list[wid].camera.render);
+              break;
+
+            case RENDER_METHOD_CUT:
+              {
+                TIE_3 shot_pos, shot_dir;
+
+                /* Extract shot position and direction */
+                TCOPY(TIE_3, work->data, ind, &shot_pos, 0);
+                ind += sizeof (TIE_3);
+
+                TCOPY(TIE_3, work->data, ind, &shot_dir, 0);
+                ind += sizeof (TIE_3);
+
+                render_cut_init(&isst_workspace_list[wid].camera.render, shot_pos, shot_dir);
+              }
+              break;
+
+            case RENDER_METHOD_SPALL:
+              {
+                TIE_3 shot_pos, shot_dir;
+                tfloat angle;
+
+                /* Extract shot position and direction */
+                TCOPY(TIE_3, work->data, ind, &shot_pos, 0);
+                ind += sizeof (TIE_3);
+
+                TCOPY(TIE_3, work->data, ind, &shot_dir, 0);
+                ind += sizeof (TIE_3);
+
+                TCOPY(tfloat, work->data, ind, &angle, 0);
+                ind += sizeof (tfloat);
+
+                render_spall_init (&isst_workspace_list[wid].camera.render, shot_pos, shot_dir, angle);
+              }
+              break;
+
+            default:
+              break;
+          }
+
+          isst_workspace_list[wid].camera.rm = rm;
+        }
+
+        /* The portion of the image to be rendered */
+        ind = work->ind - sizeof (camera_tile_t);
+        TCOPY(camera_tile_t, work->data, ind, &tile, 0);
+        ind += sizeof (camera_tile_t);
+
+        /* Update camera if different frame */
+        if (tile.frame != isst_workspace_list[wid].last_frame)
+        {
+          isst_workspace_list[wid].camera.type = type;
+          isst_workspace_list[wid].camera.fov = fov;
+          isst_workspace_list[wid].camera.pos = pos;
+          isst_workspace_list[wid].camera.focus = foc;
+          render_camera_prep (&isst_workspace_list[wid].camera);
+        }
+        isst_workspace_list[wid].last_frame = tile.frame;
+
+        render_camera_render (&isst_workspace_list[wid].camera, &isst_workspace_list[wid].tie, &tile, result);
+      }
+      break;
+
+    case ADRT_WORK_MINMAX:
+      {
+        TCOPY(TIE_3, &isst_workspace_list[wid].tie.min, 0, result->data, result->ind);
+        result->ind += sizeof (TIE_3);
+
+        TCOPY(TIE_3, &isst_workspace_list[wid].tie.max, 0, result->data, result->ind);
+        result->ind += sizeof (TIE_3);
+      }
+      break;
+
+    default:
+      break;
+  }
+
+#if 0
+  gettimeofday(&tv, NULL);
+  printf("[Work Units Completed: %.6d  Rays: %.5d k/sec %lld]\r", ++isst_slave_completed, (int)((tfloat)tie->rays_fired / (tfloat)(1000 * (tv.tv_sec - isst_slave_startsec + 1))), tie->rays_fired);
+  fflush(stdout);
+#endif
+}
+
+void 
+isst_slave(int port, char *host, int threads) 
+{
+  int i;
+  isst_slave_threads = threads;
+  tienet_slave_init(port, host, isst_slave_work, isst_slave_free, ADRT_VER_KEY);
+
+  /* Initialize all workspaces as inactive */
+  for (i = 0; i < ADRT_MAX_WORKSPACE_NUM; i++)
+    isst_workspace_list[i].active = 0;
+
+/*  slave_last_frame = 0; */
+}
+
+#if 0
+void isst_slave_mesg(void *mesg, unsigned int mesg_len) 
+{
+  short		op;
+  TIE_3		foo;
+
+  memcpy(&op, mesg, sizeof(short));
+
+  switch(op) {
+    case ADRT_WORK_SHOTLINE:
+    {
+      int i, n, num, ind;
+      char name[256];
+      unsigned char c;
+
+      /* Reset all meshes hit flag */
+      for(i = 0; i < db.mesh_num; i++)
+	db.mesh_list[i]->flags &= MESH_SELECT;
+
+      /* Read the data */
+      ind = sizeof(short);
+      memcpy(&num, &((unsigned char *)mesg)[ind], sizeof(int));
+
+      ind += sizeof(int);
+
+      for(i = 0; i < num; i++) 
+      {
+	memcpy(&c, &((unsigned char *)mesg)[ind], 1);
+	ind += 1;
+
+	memcpy(name, &((unsigned char *)mesg)[ind], c);
+	ind += c;
+
+	/* set hit flag */
+	for(n = 0; n < db.mesh_num; n++) {
+	  if(!strcmp(db.mesh_list[n]->name, name)) {
+	    db.mesh_list[n]->flags |= MESH_HIT;
+	    continue;
+	  }
+	}
+      }
+    }
+    break;
+
+#if 0 /* this isn't in the new version */
+    case ISST_OP_SELECT:
+    {
+      uint8_t c, t;
+      char string[256];
+      uint32_t n;
+
+      /* select or deslect */
+      memcpy(&t, &((uint8_t *)mesg)[2], 1);
+      /* string */
+      memcpy(&c, &((uint8_t *)mesg)[3], 1);
+      memcpy(string, &((uint8_t *)mesg)[4], c);
+
+      /* set select flag */
+      for(n = 0; n < db.mesh_num; n++)
+	if(strstr(db.mesh_list[n]->name, string) || c == 1)
+	  db.mesh_list[n]->flags = (db.mesh_list[n]->flags & MESH_SELECT) | t<<1;
+    }
+    break;
+#endif ISST_OP_SELECT
+    default:
+      break;
+  }
+}
+#endif
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+1.19
+log
+@reorg to reduce prototypes
+@
+text
+@d25 1
+a25 1
+ * $Id$
+d422 1
+a422 1
+    case ISST_OP_SHOT:
+@
+
+
+1.18
+log
+@convert usages of bcopy to memcpy throughout.  although none of them should be buffers that overlap per machine.h history, all calls were individually checked regardless. new code should not use bzero/bcopy any more.
+@
+text
+@d25 1
+a46 6
+void isst_slave(int port, char *host, int threads);
+static void isst_slave_init(tie_t *tie, int socknum);
+static void isst_slave_free(void);
+static void isst_slave_work (tienet_buffer_t *work, tienet_buffer_t *result);
+static void isst_slave_mesg(void *mesg, unsigned int mesg_len);
+
+d58 2
+a59 14
+void isst_slave(int port, char *host, int threads) 
+{
+  int i;
+  isst_slave_threads = threads;
+  tienet_slave_init(port, host, isst_slave_work, isst_slave_free, ADRT_VER_KEY);
+
+  /* Initialize all workspaces as inactive */
+  for (i = 0; i < ADRT_MAX_WORKSPACE_NUM; i++)
+    isst_workspace_list[i].active = 0;
+
+/*  slave_last_frame = 0; */
+}
+
+void isst_slave_free() 
+d399 14
+@
+
+
+1.17
+log
+@bring in changes from the new adrt stuff
+@
+text
+@d109 1
+a109 1
+  bcopy (&work->data[0], result->data, 3);
+d159 1
+a159 1
+        bcopy (&work->data[ind], string, c);
+d195 1
+a195 1
+        bcopy (mesg, &result->data[result->ind], dlen);
+d240 1
+a240 1
+        bcopy(mesg, &((char *)*res_buf)[ind], dlen);
+@
+
+
+1.16
+log
+@TFLOAT changed to tfloat.  also quell a few warnings/bugs related to passing the wrong TIE_3 pointer type.
+@
+text
+@d27 4
+d32 1
+d37 3
+d41 2
+a42 2
+#include "isst.h"
+#include "cdb.h"
+a43 1
+#include "unpack.h"
+a45 1
+
+d47 19
+a65 13
+void isst_slave_init(tie_t *tie, int socknum);
+void isst_slave_free(void);
+void isst_slave_work(tie_t *tie, void *data, unsigned int size, void **res_buf, unsigned int *res_len);
+void isst_slave_mesg(void *mesg, unsigned int mesg_len);
+
+
+int isst_slave_threads;
+int isst_slave_completed;
+common_db_t db;
+util_camera_t camera;
+
+
+void isst_slave(int port, char *host, int threads) {
+d67 1
+a67 2
+  tienet_slave_init(port, host, isst_slave_init, isst_slave_work, isst_slave_free, isst_slave_mesg, ISST_VER_KEY);
+}
+d69 3
+d73 1
+a73 13
+void isst_slave_init(tie_t *tie, int socknum) {
+  printf("scene data received\n");
+
+  isst_slave_completed = 0;
+  util_camera_init(&camera, isst_slave_threads);
+
+  printf("prepping geometry... ");
+  fflush(stdout);
+  common_unpack(&db, tie, &camera, socknum);
+  common_env_prep(&db.env);
+  util_camera_prep(&camera, &db);
+
+  printf("done.\n");
+d76 3
+d80 5
+a84 3
+void isst_slave_free() {
+  util_camera_free(&camera);
+  common_unpack_free(&db);
+d87 3
+a89 4
+
+void isst_slave_work(tie_t *tie, void *data, unsigned int size, void **res_buf, unsigned int *res_len) {
+  common_work_t work;
+  int ind;
+d91 3
+a93 3
+  unsigned char rm;
+  char op;
+
+d95 2
+a97 2
+  memcpy(&work, &((char *)data)[ind], sizeof(common_work_t));
+  ind += sizeof(common_work_t);
+d99 2
+a100 1
+  memcpy(&op, &((char *)data)[ind], 1);
+d103 9
+d113 1
+a113 1
+    case ISST_OP_SHOT:
+d115 5
+a119 3
+	tie_ray_t ray;
+	void *mesg;
+	int dlen;
+d121 8
+a128 1
+	mesg = NULL;
+d130 10
+a139 3
+	/* position */
+	memcpy(&ray.pos, &((char *)data)[ind], sizeof(TIE_3));
+	ind += sizeof(TIE_3);
+d141 10
+a150 3
+	/* direction */
+	memcpy(&ray.dir, &((char *)data)[ind], sizeof(TIE_3));
+	ind += sizeof(TIE_3);
+d152 15
+a166 3
+	/* Fire the shot */
+	ray.depth = 0;
+	render_util_shotline_list(tie, &ray, &mesg, &dlen);
+d168 4
+a171 3
+	/* Make room for shot data */
+	*res_len = sizeof(common_work_t) + dlen;
+	*res_buf = (void *)realloc(*res_buf, *res_len);
+d173 24
+a196 1
+	ind = 0;
+d198 2
+a199 3
+	/* Pack work unit data and shot data */
+	memcpy(&((char *)*res_buf)[ind], &work, sizeof(common_work_t));
+	ind += sizeof(common_work_t);
+d201 2
+a202 1
+	memcpy(&((char *)*res_buf)[ind], mesg, dlen);
+d204 1
+a204 1
+	free(mesg);
+d208 1
+a208 1
+    case ISST_OP_SPALL:
+d210 5
+a214 4
+	tie_ray_t ray;
+	tfloat angle;
+	void *mesg;
+	int dlen;
+d216 1
+a216 1
+	mesg = NULL;
+d218 3
+a220 3
+	/* position */
+	memcpy(&ray.pos, &((char *)data)[ind], sizeof(TIE_3));
+	ind += sizeof(TIE_3);
+d222 3
+a224 3
+	/* direction */
+	memcpy(&ray.dir, &((char *)data)[ind], sizeof(TIE_3));
+	ind += sizeof(TIE_3);
+d226 3
+a228 3
+	/* angle */
+	memcpy(&angle, &((char *)data)[ind], sizeof(tfloat));
+	ind += sizeof(tfloat);
+d230 3
+a232 3
+	/* Fire the shot */
+	ray.depth = 0;
+	render_util_spall_list(tie, &ray, angle, &mesg, &dlen);
+d234 3
+a236 3
+	/* Make room for shot data */
+	*res_len = sizeof(common_work_t) + dlen;
+	*res_buf = (void *)realloc(*res_buf, *res_len);
+d238 1
+a238 1
+	ind = 0;
+d240 1
+a240 3
+	/* Pack work unit data and shot data */
+	memcpy(&((char *)*res_buf)[ind], &work, sizeof(common_work_t));
+	ind += sizeof(common_work_t);
+d242 2
+a243 3
+	memcpy(&((char *)*res_buf)[ind], mesg, dlen);
+
+	free(mesg);
+d247 3
+a249 8
+    case ISST_OP_RENDER:
+      /* Camera position */
+      memcpy(&pos.v, &((char *)data)[ind], sizeof(TIE_3));
+      ind += sizeof(TIE_3);
+
+      /* Camera Focus */
+      memcpy(&foc.v, &((char *)data)[ind], sizeof(TIE_3));
+      ind += sizeof(TIE_3);
+d251 14
+a264 3
+      /* Update Rendering Method if it has Changed */
+      memcpy(&rm, &((char *)data)[ind], 1);
+      ind += 1;
+d266 124
+a389 2
+      if(rm != db.env.rm) {
+	db.env.render.free(&db.env.render);
+d391 1
+a391 63
+	switch(rm) {
+	  case RENDER_METHOD_DEPTH:
+	    render_depth_init(&db.env.render);
+	    break;
+
+	  case RENDER_METHOD_COMPONENT:
+	    render_component_init(&db.env.render);
+	    break;
+
+	  case RENDER_METHOD_GRID:
+	    render_grid_init(&db.env.render);
+	    break;
+
+	  case RENDER_METHOD_NORMAL:
+	    render_normal_init(&db.env.render);
+	    break;
+
+	  case RENDER_METHOD_PATH:
+	    render_path_init(&db.env.render, 12);
+	    break;
+
+	  case RENDER_METHOD_PHONG:
+	    render_phong_init(&db.env.render);
+	    break;
+
+	  case RENDER_METHOD_PLANE:
+	    {
+	      TIE_3 shot_pos, shot_dir;
+
+	      /* Extract shot position and direction */
+	      memcpy(&shot_pos, &((char *)data)[ind], sizeof(TIE_3));
+	      ind += sizeof(TIE_3);
+
+	      memcpy(&shot_dir, &((char *)data)[ind], sizeof(TIE_3));
+	      ind += sizeof(TIE_3);
+
+	      render_plane_init(&db.env.render, shot_pos, shot_dir);
+	    }
+	    break;
+
+	  case RENDER_METHOD_SPALL:
+	    {
+	      TIE_3 shot_pos, shot_dir;
+	      tfloat angle;
+
+	      /* Extract shot position and direction */
+	      memcpy(&shot_pos, &((char *)data)[ind], sizeof(TIE_3));
+	      ind += sizeof(TIE_3);
+
+	      memcpy(&shot_dir, &((char *)data)[ind], sizeof(TIE_3));
+	      ind += sizeof(TIE_3);
+
+	      memcpy(&angle, &((char *)data)[ind], sizeof(tfloat));
+	      ind += sizeof(tfloat);
+
+	      render_spall_init(&db.env.render, shot_pos, shot_dir, angle); /* 10 degrees for now */
+	    }
+	    break;
+
+	  default:
+	    break;
+	}
+	db.env.rm = rm;
+d393 1
+d395 4
+a398 4
+      /* Update camera */
+      camera.pos = pos;
+      camera.focus = foc;
+      util_camera_prep(&camera, &db);
+d400 3
+a402 2
+      util_camera_render(&camera, &db, tie, data, size, res_buf, res_len);
+      *res_buf = (void *)realloc(*res_buf, *res_len + sizeof(short));
+d416 3
+a418 2
+
+void isst_slave_mesg(void *mesg, unsigned int mesg_len) {
+d441 2
+a442 1
+      for(i = 0; i < num; i++) {
+d445 1
+d460 1
+d479 1
+a479 1
+
+d484 1
+@
+
+
+1.15
+log
+@give adrt some distinctiveness in the header
+@
+text
+@d136 1
+a136 1
+	TFLOAT angle;
+d151 2
+a152 2
+	memcpy(&angle, &((char *)data)[ind], sizeof(TFLOAT));
+	ind += sizeof(TFLOAT);
+d233 1
+a233 1
+	      TFLOAT angle;
+d242 2
+a243 2
+	      memcpy(&angle, &((char *)data)[ind], sizeof(TFLOAT));
+	      ind += sizeof(TFLOAT);
+d270 1
+a270 1
+  printf("[Work Units Completed: %.6d  Rays: %.5d k/sec %lld]\r", ++isst_slave_completed, (int)((TFLOAT)tie->rays_fired / (TFLOAT)(1000 * (tv.tv_sec - isst_slave_startsec + 1))), tie->rays_fired);
+@
+
+
+1.14
+log
+@unmagic some numbers
+@
+text
+@d2 1
+a2 1
+ * BRL-CAD
+@
+
+
+1.13
+log
+@finish changing all #defined symbols to uppercase...
+@
+text
+@d291 1
+a291 1
+	db.mesh_list[i]->flags &= 0x2;
+d308 1
+a308 1
+	    db.mesh_list[n]->flags |= 1;
+d331 1
+a331 1
+	  db.mesh_list[n]->flags = (db.mesh_list[n]->flags & 0x1) | t<<1;
+@
+
+
+1.12
+log
+@ws. lots and lots of ws.  see sh/ws.sh for details (cases 'abcdeg').
+@
+text
+@d136 1
+a136 1
+	tfloat angle;
+d151 2
+a152 2
+	memcpy(&angle, &((char *)data)[ind], sizeof(tfloat));
+	ind += sizeof(tfloat);
+d233 1
+a233 1
+	      tfloat angle;
+d242 2
+a243 2
+	      memcpy(&angle, &((char *)data)[ind], sizeof(tfloat));
+	      ind += sizeof(tfloat);
+d270 1
+a270 1
+  printf("[Work Units Completed: %.6d  Rays: %.5d k/sec %lld]\r", ++isst_slave_completed, (int)((tfloat)tie->rays_fired / (tfloat)(1000 * (tv.tv_sec - isst_slave_startsec + 1))), tie->rays_fired);
+@
+
+
+1.11
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@d99 3
+a101 3
+        tie_ray_t ray;
+        void *mesg;
+        int dlen;
+d103 1
+a103 1
+        mesg = NULL;
+d105 3
+a107 3
+        /* position */
+        memcpy(&ray.pos, &((char *)data)[ind], sizeof(TIE_3));
+        ind += sizeof(TIE_3);
+d109 3
+a111 3
+        /* direction */
+        memcpy(&ray.dir, &((char *)data)[ind], sizeof(TIE_3));
+        ind += sizeof(TIE_3);
+d113 3
+a115 3
+        /* Fire the shot */
+        ray.depth = 0;
+        render_util_shotline_list(tie, &ray, &mesg, &dlen);
+d117 3
+a119 3
+        /* Make room for shot data */
+        *res_len = sizeof(common_work_t) + dlen;
+        *res_buf = (void *)realloc(*res_buf, *res_len);
+d121 1
+a121 1
+        ind = 0;
+d123 3
+a125 3
+        /* Pack work unit data and shot data */
+        memcpy(&((char *)*res_buf)[ind], &work, sizeof(common_work_t));
+        ind += sizeof(common_work_t);
+d127 1
+a127 1
+        memcpy(&((char *)*res_buf)[ind], mesg, dlen);
+d129 1
+a129 1
+        free(mesg);
+d135 4
+a138 4
+        tie_ray_t ray;
+        tfloat angle;
+        void *mesg;
+        int dlen;
+d140 1
+a140 1
+        mesg = NULL;
+d142 3
+a144 3
+        /* position */
+        memcpy(&ray.pos, &((char *)data)[ind], sizeof(TIE_3));
+        ind += sizeof(TIE_3);
+d146 3
+a148 3
+        /* direction */
+        memcpy(&ray.dir, &((char *)data)[ind], sizeof(TIE_3));
+        ind += sizeof(TIE_3);
+d150 3
+a152 3
+        /* angle */
+        memcpy(&angle, &((char *)data)[ind], sizeof(tfloat));
+        ind += sizeof(tfloat);
+d154 3
+a156 3
+        /* Fire the shot */
+        ray.depth = 0;
+        render_util_spall_list(tie, &ray, angle, &mesg, &dlen);
+d158 3
+a160 3
+        /* Make room for shot data */
+        *res_len = sizeof(common_work_t) + dlen;
+        *res_buf = (void *)realloc(*res_buf, *res_len);
+d162 1
+a162 1
+        ind = 0;
+d164 3
+a166 3
+        /* Pack work unit data and shot data */
+        memcpy(&((char *)*res_buf)[ind], &work, sizeof(common_work_t));
+        ind += sizeof(common_work_t);
+d168 1
+a168 1
+        memcpy(&((char *)*res_buf)[ind], mesg, dlen);
+d170 1
+a170 1
+        free(mesg);
+d188 1
+a188 1
+        db.env.render.free(&db.env.render);
+d190 63
+a252 63
+        switch(rm) {
+          case RENDER_METHOD_DEPTH:
+            render_depth_init(&db.env.render);
+            break;
+
+          case RENDER_METHOD_COMPONENT:
+            render_component_init(&db.env.render);
+            break;
+
+          case RENDER_METHOD_GRID:
+            render_grid_init(&db.env.render);
+            break;
+
+          case RENDER_METHOD_NORMAL:
+            render_normal_init(&db.env.render);
+            break;
+
+          case RENDER_METHOD_PATH:
+            render_path_init(&db.env.render, 12);
+            break;
+
+          case RENDER_METHOD_PHONG:
+            render_phong_init(&db.env.render);
+            break;
+
+          case RENDER_METHOD_PLANE:
+            {
+              TIE_3 shot_pos, shot_dir;
+
+              /* Extract shot position and direction */
+              memcpy(&shot_pos, &((char *)data)[ind], sizeof(TIE_3));
+              ind += sizeof(TIE_3);
+
+              memcpy(&shot_dir, &((char *)data)[ind], sizeof(TIE_3));
+              ind += sizeof(TIE_3);
+
+              render_plane_init(&db.env.render, shot_pos, shot_dir);
+            }
+            break;
+
+          case RENDER_METHOD_SPALL:
+            {
+              TIE_3 shot_pos, shot_dir;
+              tfloat angle;
+
+              /* Extract shot position and direction */
+              memcpy(&shot_pos, &((char *)data)[ind], sizeof(TIE_3));
+              ind += sizeof(TIE_3);
+
+              memcpy(&shot_dir, &((char *)data)[ind], sizeof(TIE_3));
+              ind += sizeof(TIE_3);
+
+              memcpy(&angle, &((char *)data)[ind], sizeof(tfloat));
+              ind += sizeof(tfloat);
+
+              render_spall_init(&db.env.render, shot_pos, shot_dir, angle); /* 10 degrees for now */
+            }
+            break;
+
+          default:
+            break;
+        }
+        db.env.rm = rm;
+d291 1
+a291 1
+        db.mesh_list[i]->flags &= 0x2;
+d300 12
+a311 12
+        memcpy(&c, &((unsigned char *)mesg)[ind], 1);
+        ind += 1;
+        memcpy(name, &((unsigned char *)mesg)[ind], c);
+        ind += c;
+
+        /* set hit flag */
+        for(n = 0; n < db.mesh_num; n++) {
+          if(!strcmp(db.mesh_list[n]->name, name)) {
+            db.mesh_list[n]->flags |= 1;
+            continue;
+          }
+        }
+d330 2
+a331 2
+        if(strstr(db.mesh_list[n]->name, string) || c == 1)
+          db.mesh_list[n]->flags = (db.mesh_list[n]->flags & 0x1) | t<<1;
+@
+
+
+1.10
+log
+@standard header and footer cleanup
+@
+text
+@d9 1
+a9 1
+ * as published by the Free Software Foundation.
+@
+
+
+1.9
+log
+@free the global db node
+@
+text
+@d1 26
+d339 10
+@
+
+
+1.8
+log
+@reverted
+@
+text
+@d51 1
+a51 1
+  common_unpack_free();
+@
+
+
+1.7
+log
+@librender is now libvis, render method terminology becomes visualization method or vis
+method for short.
+@
+text
+@d11 1
+a11 1
+#include "vis_util.h"
+d59 1
+a59 1
+  unsigned char vm;
+d89 1
+a89 1
+        vis_util_shotline_list(tie, &ray, &mesg, &dlen);
+d130 1
+a130 1
+        vis_util_spall_list(tie, &ray, angle, &mesg, &dlen);
+d158 1
+a158 1
+      memcpy(&vm, &((char *)data)[ind], 1);
+d161 2
+a162 2
+      if(vm != db.env.vm) {
+        db.env.vis.free(&db.env.vis);
+d164 3
+a166 3
+        switch(vm) {
+          case VM_DEPTH:
+            vis_depth_init(&db.env.vis);
+d169 2
+a170 2
+          case VM_COMPONENT:
+            vis_component_init(&db.env.vis);
+d173 2
+a174 2
+          case VM_GRID:
+            vis_grid_init(&db.env.vis);
+d177 2
+a178 2
+          case VM_NORMAL:
+            vis_normal_init(&db.env.vis);
+d181 2
+a182 2
+          case VM_PATH:
+            vis_path_init(&db.env.vis, 12);
+d185 2
+a186 2
+          case VM_PHONG:
+            vis_phong_init(&db.env.vis);
+d189 1
+a189 1
+          case VM_PLANE:
+d200 1
+a200 1
+              vis_plane_init(&db.env.vis, shot_pos, shot_dir);
+d204 1
+a204 1
+          case VM_SPALL:
+d219 1
+a219 1
+              vis_spall_init(&db.env.vis, shot_pos, shot_dir, angle); /* 10 degrees for now */
+d226 1
+a226 1
+        db.env.vm = vm;
+@
+
+
+1.6
+log
+@*** empty log message ***
+@
+text
+@d11 1
+a11 1
+#include "render_util.h"
+d59 1
+a59 1
+  unsigned char rm;
+d89 1
+a89 1
+        render_util_shotline_list(tie, &ray, &mesg, &dlen);
+d130 1
+a130 1
+        render_util_spall_list(tie, &ray, angle, &mesg, &dlen);
+d158 1
+a158 1
+      memcpy(&rm, &((char *)data)[ind], 1);
+d161 2
+a162 2
+      if(rm != db.env.rm) {
+        db.env.render.free(&db.env.render);
+d164 3
+a166 3
+        switch(rm) {
+          case RENDER_METHOD_DEPTH:
+            render_depth_init(&db.env.render);
+d169 2
+a170 2
+          case RENDER_METHOD_COMPONENT:
+            render_component_init(&db.env.render);
+d173 2
+a174 2
+          case RENDER_METHOD_GRID:
+            render_grid_init(&db.env.render);
+d177 2
+a178 2
+          case RENDER_METHOD_NORMAL:
+            render_normal_init(&db.env.render);
+d181 2
+a182 2
+          case RENDER_METHOD_PATH:
+            render_path_init(&db.env.render, 12);
+d185 2
+a186 2
+          case RENDER_METHOD_PHONG:
+            render_phong_init(&db.env.render);
+d189 1
+a189 1
+          case RENDER_METHOD_PLANE:
+d200 1
+a200 1
+              render_plane_init(&db.env.render, shot_pos, shot_dir);
+d204 1
+a204 1
+          case RENDER_METHOD_SPALL:
+d219 1
+a219 1
+              render_spall_init(&db.env.render, shot_pos, shot_dir, angle); /* 10 degrees for now */
+d226 1
+a226 1
+        db.env.rm = rm;
+@
+
+
+1.5
+log
+@added select and deselect commands to highlight parts from the console.
+@
+text
+@d263 1
+a263 1
+      /* Reset all meshes */
+d265 1
+a265 1
+        db.mesh_list[i]->flags = 0;
+d279 1
+a279 1
+/*        printf("trying to assign: -%s-\n", name); */
+d282 1
+a282 2
+/*            printf("  assigned[%d]: %s\n", i, name); */
+            db.mesh_list[n]->flags = 1;
+d302 2
+a303 1
+      for(n = 0; n < db.mesh_num; n++) {
+d305 1
+a305 2
+          db.mesh_list[n]->flags = t;
+      }
+@
+
+
+1.4
+log
+@screen 2x magnification for low res contexts (F1 F2).
+@
+text
+@d291 18
+@
+
+
+1.3
+log
+@camera uses threads more efficiently.
+isst master locks the frames down so observer doesn't get mid-render frames.
+@
+text
+@a57 1
+  short frame_ind;
+a148 4
+      /* Extract updated camera data */
+      memcpy(&frame_ind, &((char *)data)[ind], sizeof(short));
+      ind += sizeof(short);
+
+a235 4
+
+      /* Tack on the frame index data */
+      memcpy(&((char *)*res_buf)[*res_len], &frame_ind, sizeof(short));
+      *res_len += sizeof(short);
+@
+
+
+1.2
+log
+@* Data on demand to nodes (~20% mem savings).
+* tlist memory leak in unpack.c fixed.
+* BSP Depth Visualization rendering method.
+* Split Plane Coloring
+* Testing more efficient BSP methods.
+@
+text
+@d17 2
+a18 2
+void isst_slave_work(tie_t *tie, void *data, int size, void **res_buf, int *res_len);
+void isst_slave_mesg(void *mesg, int mesg_len);
+d55 1
+a55 1
+void isst_slave_work(tie_t *tie, void *data, int size, void **res_buf, int *res_len) {
+d259 1
+a259 1
+void isst_slave_mesg(void *mesg, int mesg_len) {
+@
+
+
+1.2.6.1
+log
+@merge changes from HEAD aka rel-7-6-4 to the rel-7-6-branch just in case someone peeks a gander or tries to continue/build the branch
+@
+text
+@d17 2
+a18 2
+void isst_slave_work(tie_t *tie, void *data, unsigned int size, void **res_buf, unsigned int *res_len);
+void isst_slave_mesg(void *mesg, unsigned int mesg_len);
+d55 1
+a55 1
+void isst_slave_work(tie_t *tie, void *data, unsigned int size, void **res_buf, unsigned int *res_len) {
+d58 1
+d150 4
+d241 4
+d259 1
+a259 1
+void isst_slave_mesg(void *mesg, unsigned int mesg_len) {
+d272 1
+a272 1
+      /* Reset all meshes hit flag */
+d274 1
+a274 1
+        db.mesh_list[i]->flags &= 0x2;
+d288 1
+a288 1
+        /* set hit flag */
+d291 2
+a292 1
+            db.mesh_list[n]->flags |= 1;
+a299 18
+    case ISST_OP_SELECT:
+    {
+      uint8_t c, t;
+      char string[256];
+      uint32_t n;
+
+      /* select or deslect */
+      memcpy(&t, &((uint8_t *)mesg)[2], 1);
+      /* string */
+      memcpy(&c, &((uint8_t *)mesg)[3], 1);
+      memcpy(string, &((uint8_t *)mesg)[4], c);
+
+      /* set select flag */
+      for(n = 0; n < db.mesh_num; n++)
+        if(strstr(db.mesh_list[n]->name, string) || c == 1)
+          db.mesh_list[n]->flags = (db.mesh_list[n]->flags & 0x1) | t<<1;
+    }
+    break;
+@
+
+
+1.2.4.1
+log
+@file slave.c was added on branch rel-7-4-branch on 2005-08-16 21:03:46 +0000
+@
+text
+@d1 304
+@
+
+
+1.2.4.2
+log
+@merge in changes through Aug10 for 7.4.2 release
+@
+text
+@a0 304
+#include "slave.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/time.h>
+#include "camera.h"
+#include "isst.h"
+#include "cdb.h"
+#include "tienet.h"
+#include "unpack.h"
+#include "render_util.h"
+
+
+void isst_slave(int port, char *host, int threads);
+void isst_slave_init(tie_t *tie, int socknum);
+void isst_slave_free(void);
+void isst_slave_work(tie_t *tie, void *data, int size, void **res_buf, int *res_len);
+void isst_slave_mesg(void *mesg, int mesg_len);
+
+
+int isst_slave_threads;
+int isst_slave_completed;
+common_db_t db;
+util_camera_t camera;
+
+
+void isst_slave(int port, char *host, int threads) {
+  isst_slave_threads = threads;
+  tienet_slave_init(port, host, isst_slave_init, isst_slave_work, isst_slave_free, isst_slave_mesg, ISST_VER_KEY);
+}
+
+
+void isst_slave_init(tie_t *tie, int socknum) {
+  printf("scene data received\n");
+
+  isst_slave_completed = 0;
+  util_camera_init(&camera, isst_slave_threads);
+
+  printf("prepping geometry... ");
+  fflush(stdout);
+  common_unpack(&db, tie, &camera, socknum);
+  common_env_prep(&db.env);
+  util_camera_prep(&camera, &db);
+
+  printf("done.\n");
+}
+
+
+void isst_slave_free() {
+  util_camera_free(&camera);
+  common_unpack_free();
+}
+
+
+void isst_slave_work(tie_t *tie, void *data, int size, void **res_buf, int *res_len) {
+  common_work_t work;
+  int ind;
+  short frame_ind;
+  TIE_3 pos, foc;
+  unsigned char rm;
+  char op;
+
+
+  ind = 0;
+  memcpy(&work, &((char *)data)[ind], sizeof(common_work_t));
+  ind += sizeof(common_work_t);
+
+  memcpy(&op, &((char *)data)[ind], 1);
+  ind += 1;
+
+  switch(op) {
+    case ISST_OP_SHOT:
+      {
+        tie_ray_t ray;
+        void *mesg;
+        int dlen;
+
+        mesg = NULL;
+
+        /* position */
+        memcpy(&ray.pos, &((char *)data)[ind], sizeof(TIE_3));
+        ind += sizeof(TIE_3);
+
+        /* direction */
+        memcpy(&ray.dir, &((char *)data)[ind], sizeof(TIE_3));
+        ind += sizeof(TIE_3);
+
+        /* Fire the shot */
+        ray.depth = 0;
+        render_util_shotline_list(tie, &ray, &mesg, &dlen);
+
+        /* Make room for shot data */
+        *res_len = sizeof(common_work_t) + dlen;
+        *res_buf = (void *)realloc(*res_buf, *res_len);
+
+        ind = 0;
+
+        /* Pack work unit data and shot data */
+        memcpy(&((char *)*res_buf)[ind], &work, sizeof(common_work_t));
+        ind += sizeof(common_work_t);
+
+        memcpy(&((char *)*res_buf)[ind], mesg, dlen);
+
+        free(mesg);
+      }
+      break;
+
+    case ISST_OP_SPALL:
+      {
+        tie_ray_t ray;
+        tfloat angle;
+        void *mesg;
+        int dlen;
+
+        mesg = NULL;
+
+        /* position */
+        memcpy(&ray.pos, &((char *)data)[ind], sizeof(TIE_3));
+        ind += sizeof(TIE_3);
+
+        /* direction */
+        memcpy(&ray.dir, &((char *)data)[ind], sizeof(TIE_3));
+        ind += sizeof(TIE_3);
+
+        /* angle */
+        memcpy(&angle, &((char *)data)[ind], sizeof(tfloat));
+        ind += sizeof(tfloat);
+
+        /* Fire the shot */
+        ray.depth = 0;
+        render_util_spall_list(tie, &ray, angle, &mesg, &dlen);
+
+        /* Make room for shot data */
+        *res_len = sizeof(common_work_t) + dlen;
+        *res_buf = (void *)realloc(*res_buf, *res_len);
+
+        ind = 0;
+
+        /* Pack work unit data and shot data */
+        memcpy(&((char *)*res_buf)[ind], &work, sizeof(common_work_t));
+        ind += sizeof(common_work_t);
+
+        memcpy(&((char *)*res_buf)[ind], mesg, dlen);
+
+        free(mesg);
+      }
+      break;
+
+    case ISST_OP_RENDER:
+      /* Extract updated camera data */
+      memcpy(&frame_ind, &((char *)data)[ind], sizeof(short));
+      ind += sizeof(short);
+
+      /* Camera position */
+      memcpy(&pos.v, &((char *)data)[ind], sizeof(TIE_3));
+      ind += sizeof(TIE_3);
+
+      /* Camera Focus */
+      memcpy(&foc.v, &((char *)data)[ind], sizeof(TIE_3));
+      ind += sizeof(TIE_3);
+
+      /* Update Rendering Method if it has Changed */
+      memcpy(&rm, &((char *)data)[ind], 1);
+      ind += 1;
+
+      if(rm != db.env.rm) {
+        db.env.render.free(&db.env.render);
+
+        switch(rm) {
+          case RENDER_METHOD_DEPTH:
+            render_depth_init(&db.env.render);
+            break;
+
+          case RENDER_METHOD_COMPONENT:
+            render_component_init(&db.env.render);
+            break;
+
+          case RENDER_METHOD_GRID:
+            render_grid_init(&db.env.render);
+            break;
+
+          case RENDER_METHOD_NORMAL:
+            render_normal_init(&db.env.render);
+            break;
+
+          case RENDER_METHOD_PATH:
+            render_path_init(&db.env.render, 12);
+            break;
+
+          case RENDER_METHOD_PHONG:
+            render_phong_init(&db.env.render);
+            break;
+
+          case RENDER_METHOD_PLANE:
+            {
+              TIE_3 shot_pos, shot_dir;
+
+              /* Extract shot position and direction */
+              memcpy(&shot_pos, &((char *)data)[ind], sizeof(TIE_3));
+              ind += sizeof(TIE_3);
+
+              memcpy(&shot_dir, &((char *)data)[ind], sizeof(TIE_3));
+              ind += sizeof(TIE_3);
+
+              render_plane_init(&db.env.render, shot_pos, shot_dir);
+            }
+            break;
+
+          case RENDER_METHOD_SPALL:
+            {
+              TIE_3 shot_pos, shot_dir;
+              tfloat angle;
+
+              /* Extract shot position and direction */
+              memcpy(&shot_pos, &((char *)data)[ind], sizeof(TIE_3));
+              ind += sizeof(TIE_3);
+
+              memcpy(&shot_dir, &((char *)data)[ind], sizeof(TIE_3));
+              ind += sizeof(TIE_3);
+
+              memcpy(&angle, &((char *)data)[ind], sizeof(tfloat));
+              ind += sizeof(tfloat);
+
+              render_spall_init(&db.env.render, shot_pos, shot_dir, angle); /* 10 degrees for now */
+            }
+            break;
+
+          default:
+            break;
+        }
+        db.env.rm = rm;
+      }
+
+      /* Update camera */
+      camera.pos = pos;
+      camera.focus = foc;
+      util_camera_prep(&camera, &db);
+
+      util_camera_render(&camera, &db, tie, data, size, res_buf, res_len);
+      *res_buf = (void *)realloc(*res_buf, *res_len + sizeof(short));
+
+      /* Tack on the frame index data */
+      memcpy(&((char *)*res_buf)[*res_len], &frame_ind, sizeof(short));
+      *res_len += sizeof(short);
+      break;
+
+    default:
+      break;
+  }
+
+#if 0
+  gettimeofday(&tv, NULL);
+  printf("[Work Units Completed: %.6d  Rays: %.5d k/sec %lld]\r", ++isst_slave_completed, (int)((tfloat)tie->rays_fired / (tfloat)(1000 * (tv.tv_sec - isst_slave_startsec + 1))), tie->rays_fired);
+  fflush(stdout);
+#endif
+}
+
+
+void isst_slave_mesg(void *mesg, int mesg_len) {
+  short		op;
+  TIE_3		foo;
+
+  memcpy(&op, mesg, sizeof(short));
+
+  switch(op) {
+    case ISST_OP_SHOT:
+    {
+      int i, n, num, ind;
+      char name[256];
+      unsigned char c;
+
+      /* Reset all meshes */
+      for(i = 0; i < db.mesh_num; i++)
+        db.mesh_list[i]->flags = 0;
+
+      /* Read the data */
+      ind = sizeof(short);
+      memcpy(&num, &((unsigned char *)mesg)[ind], sizeof(int));
+
+      ind += sizeof(int);
+
+      for(i = 0; i < num; i++) {
+        memcpy(&c, &((unsigned char *)mesg)[ind], 1);
+        ind += 1;
+        memcpy(name, &((unsigned char *)mesg)[ind], c);
+        ind += c;
+
+/*        printf("trying to assign: -%s-\n", name); */
+        for(n = 0; n < db.mesh_num; n++) {
+          if(!strcmp(db.mesh_list[n]->name, name)) {
+/*            printf("  assigned[%d]: %s\n", i, name); */
+            db.mesh_list[n]->flags = 1;
+            continue;
+          }
+        }
+      }
+    }
+    break;
+
+
+    default:
+      break;
+  }
+}
+@
+
+
+1.1
+log
+@IVAT is now ISST (Interactive Shot Selection Tool).
+@
+text
+@d15 1
+a15 1
+void isst_slave_init(tie_t *tie, void *app_data, int app_size);
+d33 1
+a33 1
+void isst_slave_init(tie_t *tie, void *app_data, int app_size) {
+d39 3
+a41 1
+  common_unpack(&db, tie, &camera, COMMON_PACK_ALL, app_data, app_size);
+d44 2
+a45 1
+  printf("prepping geometry\n");
+d170 4
+@
+

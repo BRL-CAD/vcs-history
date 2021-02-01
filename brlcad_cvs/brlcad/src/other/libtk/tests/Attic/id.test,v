@@ -1,0 +1,195 @@
+head	14.2;
+access;
+symbols
+	stable-branch:14.1
+	rel-7-8-4:14.1
+	rel-7-8-2:14.1
+	rel-7-8-0:14.1
+	trimnurbs-branch:14.1.0.8
+	help:14.1
+	temp_tag:14.1
+	bobWinPort-20051223-freeze:14.1
+	postmerge-20051223-bobWinPort:14.1
+	premerge-20051223-bobWinPort:14.1
+	rel-7-6-6:14.1
+	rel-7-6-4:14.1
+	rel-7-6-2:14.1
+	rel-7-6-branch:14.1.0.6
+	rel-7-6-0:14.1
+	rel-7-4-2:14.1
+	rel-7-4-branch:14.1.0.4
+	bobWinPort:14.1.0.2
+	rel-7-4-0:14.1
+	rel-7-2-6:14.1
+	rel-7-2-4:14.1
+	rel-7-2-2:14.1
+	rel-7-2-0:14.1
+	rel-7-0-4:14.1
+	rel-7-0-2:14.1
+	rel-7-0-1:14.1
+	opensource-post:14.1
+	opensource-pre:1.1
+	rel-7-0-branch:1.1.0.2
+	rel-7-0:1.1;
+locks; strict;
+comment	@# @;
+
+
+14.2
+date	2007.03.02.21.47.46;	author brlcad;	state dead;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.28;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.14.53.34;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.2
+log
+@upgrade tcl/tk from 8.4.6 to 8.5a5; also move to a recursive configure, using AC_CONFIG_SUBDIRS to call upon tcl, tk, and enigma's configure scripts as needed instead of redoing their build systems for our purpose.  this has a rather drastic impact on the way the libraries are linked together, including the need to compile tcl/tk static so as to avoid libtool portability issues as well as letting us take advantage of their build system for reduced maintenance and easing future upgrades.  undoubtedly more build issues to be worked out with other platforms given the extent of this change.  this does move us one step closer towards correctly linking against system tcl/tk installations too.
+@
+text
+@# This file is a Tcl script to test out the procedures in the file
+# tkId.c, which recycle X resource identifiers.  It is organized in
+# the standard fashion for Tcl tests.
+#
+# Copyright (c) 1995 Sun Microsystems, Inc.
+# Copyright (c) 1998-1999 by Scriptics Corporation.
+# All rights reserved.
+#
+# RCS: @@(#) $Id: id.test,v 14.1 2004/11/16 19:42:28 morrison Exp $
+
+package require tcltest 2.1
+namespace import -force tcltest::configure
+namespace import -force tcltest::testsDirectory
+configure -testdir [file join [pwd] [file dirname [info script]]]
+configure -loadfile [file join [testsDirectory] constraints.tcl]
+tcltest::loadTestedCommands
+
+test id-1.1 {WindowIdCleanup, delaying window release} {unixOnly testwrapper} {
+    bind all <Destroy> {lappend x %W}
+    catch {unset map}
+    frame .f
+    set j 0
+    foreach i {a b c d e f g h i j k l m n o p q} {
+	toplevel .f.$i -height 50 -width 100
+	wm geometry .f.$i +$j+$j
+	incr j 10
+	update
+	set map([winfo id .f.$i]) .f.$i
+	set map([testwrapper .f.$i]) wrapper.f.$i
+    }
+    set x {}
+    destroy .f
+
+    # Destroy events should have occurred for all windows.
+    set result [list [lsort $x]]
+
+    set x {}
+    update idletasks
+    set reused {}
+    foreach i {a b c d e} {
+	set w .${i}2
+	frame $w -height 20 -width 100 -bd 2 -relief raised
+	pack $w
+	if [info exists map([winfo id $w])] {
+	    lappend reused $map([winfo id $w])
+	}
+	set map([winfo id $w]) $w
+    }
+
+    # No window ids should have been reused: stale Destroy events still
+    # pending in queue.
+    lappend result [lsort $reused]
+
+    # Wait a few seconds, then try again;  ids should still not have
+    # been re-used.
+
+    set y 0
+    after 2000 {set y 1}
+    tkwait variable y
+    foreach i {a b c} {
+	set w .${i}3
+	frame $w -height 20 -width 100 -bd 2 -relief raised
+	pack $w
+	if [info exists map([winfo id $w])] {
+	    lappend reused $map([winfo id $w])
+	}
+	set map([winfo id $w])] $w
+    }
+
+    # Ids should not yet have been reused.
+    lappend result [lsort $reused]
+
+
+    # Wait a few more seconds, to give ids enough time to be recycled.
+    set y 0
+    after 6000 {set y 1}
+    tkwait variable y
+    foreach i {a b c d e f} {
+	set w .${i}4
+	frame $w -height 20 -width 100 -bd 2 -relief raised
+	pack $w
+	if [info exists map([winfo id $w])] {
+	    lappend reused $map([winfo id $w])
+	}
+	set map([winfo id $w])] $w
+    }
+
+    # Ids should be reused now, due to time delay.  Destroy events should
+    # have been discarded.
+    lappend result [lsort $reused] [lsort $x]
+} {{.f .f.a .f.b .f.c .f.d .f.e .f.f .f.g .f.h .f.i .f.j .f.k .f.l .f.m .f.n .f.o .f.p .f.q} {} {} {.f.o .f.p .f.q wrapper.f.p wrapper.f.q} {}}
+bind all <Destroy> {}
+
+# cleanup
+::tcltest::cleanupTests
+return
+
+
+
+
+
+
+
+
+
+
+
+
+
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@d9 1
+a9 1
+# RCS: @@(#) $Id: id.test,v 1.1 2004/05/20 14:53:34 morrison Exp $
+@
+
+
+1.1
+log
+@Sources that are external to BRL-CAD are moved from the top level to src/other/.
+@
+text
+@d9 1
+a9 1
+# RCS: @@(#) $Id: id.test,v 1.3 2004/03/04 19:49:27 morrison Exp $
+@
+

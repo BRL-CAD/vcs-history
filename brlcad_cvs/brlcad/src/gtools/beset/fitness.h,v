@@ -1,0 +1,455 @@
+head	1.16;
+access;
+symbols
+	rel-7-10-4:1.15
+	STABLE:1.15.0.2
+	rel-7-10-2:1.15;
+locks; strict;
+comment	@ * @;
+
+
+1.16
+date	2007.09.14.15.21.06;	author erikgreenwald;	state Exp;
+branches;
+next	1.15;
+
+1.15
+date	2007.08.08.23.38.09;	author poolio;	state Exp;
+branches;
+next	1.14;
+
+1.14
+date	2007.08.02.19.23.47;	author poolio;	state Exp;
+branches;
+next	1.13;
+
+1.13
+date	2007.08.02.00.15.10;	author poolio;	state Exp;
+branches;
+next	1.12;
+
+1.12
+date	2007.07.31.21.54.36;	author poolio;	state Exp;
+branches;
+next	1.11;
+
+1.11
+date	2007.07.30.01.21.06;	author poolio;	state Exp;
+branches;
+next	1.10;
+
+1.10
+date	2007.07.28.07.14.56;	author poolio;	state Exp;
+branches;
+next	1.9;
+
+1.9
+date	2007.07.24.19.41.44;	author poolio;	state Exp;
+branches;
+next	1.8;
+
+1.8
+date	2007.07.20.17.55.52;	author poolio;	state Exp;
+branches;
+next	1.7;
+
+1.7
+date	2007.07.10.15.55.42;	author poolio;	state Exp;
+branches;
+next	1.6;
+
+1.6
+date	2007.06.29.04.36.14;	author poolio;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	2007.06.29.02.20.00;	author poolio;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	2007.06.29.00.38.43;	author brlcad;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2007.06.28.18.58.51;	author poolio;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2007.06.28.12.58.37;	author brlcad;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2007.06.21.19.50.58;	author poolio;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.16
+log
+@removed trailing whitespace
+@
+text
+@/*                       F I T N E S S . H
+ * BRL-CAD
+ *
+ * Copyright (c) 2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This library is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@file fitness.h
+ *
+ * fitness prototypes and structures
+ *
+ * Author -
+ *   Ben Poole
+ */
+
+#ifndef __FITNESS_H__
+#define __FITNESS_H__
+
+#define U_AXIS 0
+#define V_AXIS 1
+#define I_AXIS 2
+
+/* Used for comparing rays */
+#define STATUS_PP 1
+#define STATUS_MP 2
+#define STATUS_EMPTY 0
+
+#define SEM_WORK RT_SEM_LAST
+#define SEM_DIFF RT_SEM_LAST+1
+#define SEM_SAME RT_SEM_LAST+2
+#define TOTAL_SEMAPHORES SEM_SAME+1
+
+
+struct part {
+    struct bu_list  l;
+    fastf_t	    inhit_dist;
+    fastf_t	    outhit_dist;
+};
+
+struct fitness_state {
+    char *name;
+    struct part **ray; /* internal representation of raytraced source */
+    struct rt_i *rtip; /* current objects to be raytraced */
+
+    struct resource resource[MAX_PSW]; /* memory resource for multi-cpu processing */
+    int ncpu;
+    int max_cpus;
+    int nodes;
+    fastf_t a_len;
+
+    int res[2]; /*  ray resolution on u and v axes */
+    double gridSpacing[2]; /* grid spacing on u and v axes */
+    int row; /* current v axis index */
+
+    int capture; /* flags whether to store the object */
+    fastf_t diff; /* linear difference between source and object */
+    fastf_t same;
+
+    fastf_t mdl_min[3];
+    fastf_t min[3];
+    fastf_t max[3];
+    fastf_t fitness;
+    fastf_t volume;
+};
+
+/* store a ray that hit */
+int capture_hit(register struct application *ap, struct partition *partHeadp, struct seg *segs);
+
+/* store a ray that missed */
+int capture_miss(register struct application *ap);
+
+/* compare a ray that hit to the same ray from source */
+int compare_hit(register struct application *ap, struct partition *partHeadp, struct seg *segs);
+
+/* compare a ray that missed to the same ray from source */
+int compare_miss(register struct application *ap);
+
+/* grab the next row of rays to be evaluated */
+int get_next_row(struct fitness_state *fstate);
+
+/* raytrace an object stored in fstate  either storing the rays or comparing them to the source */
+void rt_worker(int cpu, genptr_t g);
+
+/* prep for raytracing object, and call rt_worker for parallel processing */
+void fit_rt (char *obj, struct db_i *db, struct fitness_state *fstate);
+
+/* load database and prepare fstate for work */
+void fit_prep(struct fitness_state *fstate, int rows, int cols);
+
+/* cleanup */
+void fit_clean(struct fitness_state *fstate);
+
+/* store a given object as the source  */
+void fit_store(char *obj, char *dbname, struct fitness_state *fstate);
+
+/* update grid resolution */
+void fit_updateRes(int rows, int cols, struct fitness_state *fstate);
+
+/* calculates difference between object and source */
+void fit_diff(char *obj, struct db_i *db, struct fitness_state *fstate);
+
+/* clear the stored rays */
+void free_rays (struct fitness_state *fstate);
+
+#endif /* __FITNESS_H__ */
+
+/*
+ * Local Variables:
+ * tab-width: 8
+ * mode: C
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+1.15
+log
+@fitness now scales to union of bounding boxes. other slight modifications
+@
+text
+@d66 1
+a66 1
+    
+@
+
+
+1.14
+log
+@now conforms to C89
+@
+text
+@d72 2
+@
+
+
+1.13
+log
+@fixed some bugs recently introduced. fstate no longer malloc'd
+@
+text
+@a54 1
+    //struct db_i *db; /* the database the source and population are a part of */
+d65 1
+a65 1
+    int row; /* current v axis index *///IS IT?
+@
+
+
+1.12
+log
+@now able to keep an upper % of population and kill a lower %. general code cleanup.
+@
+text
+@d99 1
+a99 1
+struct fitness_state * fit_prep(int rows, int cols);
+@
+
+
+1.11
+log
+@final bug fixed in fitness. crossover and reproduction are stable and functional
+@
+text
+@d40 5
+a44 2
+#define DB_OPEN_FAILURE -1
+#define DB_DIRBUILD_FAILURE -2
+d54 1
+a54 1
+    struct part **rays; /* internal representation of raytraced source */
+a71 1
+    fastf_t bbox[3]; /* z-min/max bounding line */
+d74 1
+a74 1
+    fastf_t norm;
+d110 2
+a111 2
+/* returns total linear difference between object and source */
+fastf_t fit_linDiff(char *obj, struct db_i *db, struct fitness_state *fstate);
+d114 1
+a114 1
+void rays_clean (struct fitness_state *fstate);
+@
+
+
+1.10
+log
+@fitness function should be working, so selection must be broken
+@
+text
+@d72 1
+@
+
+
+1.9
+log
+@minor tweaks. still struggling on two spheres. i have my doubts as to whether the whole project will work...
+@
+text
+@d59 1
+d71 1
+@
+
+
+1.8
+log
+@memory leak finally fixed. updated fitness function, much better results.
+@
+text
+@d58 1
+d66 1
+@
+
+
+1.7
+log
+@partially working tree implementation. still some bugs to work out...
+@
+text
+@d67 1
+@
+
+
+1.6
+log
+@fixed bug where spheres with non-whole radii produced odd results
+@
+text
+@d52 1
+a52 1
+    struct db_i *db; /* the database the source and population are a part of */
+d88 1
+a88 1
+void fit_rt (char *obj, struct fitness_state *fstate);
+d91 1
+a91 1
+struct fitness_state * fit_prep(char *db, int rows, int cols);
+d97 1
+a97 1
+void fit_store(char *obj, struct fitness_state *fstate);
+d103 1
+a103 1
+fastf_t fit_linDiff(char *obj, struct fitness_state *fstate);
+@
+
+
+1.5
+log
+@quell more warnings, exit instead of returning in fit_prep()
+@
+text
+@d65 2
+@
+
+
+1.4
+log
+@petty cosmetics while browsing, mostly ws
+@
+text
+@d86 1
+a86 1
+int fit_rt (char *obj, struct fitness_state *fstate);
+@
+
+
+1.3
+log
+@single sphere partially working
+@
+text
+@a27 1
+
+d69 1
+d72 1
+d75 1
+d78 1
+d81 1
+d84 1
+d87 1
+d90 1
+d93 1
+d96 1
+d99 1
+d102 1
+d106 1
+a106 5
+
+
+#endif
+
+
+@
+
+
+1.2
+log
+@add headers/footers as needed
+@
+text
+@d22 1
+a22 1
+ * Brief description
+d77 1
+a77 1
+int get_next_row(void);
+d81 1
+a81 1
+int fit_rt (char *obj);
+d83 1
+a83 1
+int fit_prep(char *db, int rows, int cols);
+d85 1
+a85 1
+void fit_clean(void);
+d87 1
+a87 1
+void fit_store(char *obj);
+d89 1
+a89 1
+void fit_updateRes(int rows, int cols);
+d91 1
+a91 1
+fastf_t fit_linDiff(char *obj);
+d93 1
+a93 1
+void rays_clean(void);
+@
+
+
+1.1
+log
+@modularized fitness functions
+@
+text
+@d1 28
+d100 10
+@
+

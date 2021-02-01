@@ -1,0 +1,633 @@
+head	11.7;
+access;
+symbols
+	ansi-20040405-merged:11.4.2.1
+	postmerge-20040405-ansi:11.5
+	premerge-20040404-ansi:11.4
+	postmerge-autoconf:11.4
+	autoconf-freeze:11.4
+	premerge-autoconf:11.4
+	ansi-20040316-freeze:11.4.2.1
+	postmerge-20040315-windows:11.4
+	premerge-20040315-windows:11.4
+	windows-20040315-freeze:11.4
+	autoconf-20031203:11.4
+	autoconf-20031202:11.4
+	autoconf-branch:11.4.0.10
+	phong-branch:11.4.0.8
+	photonmap-branch:11.4.0.6
+	rel-6-1-DP:11.4
+	windows-branch:11.4.0.4
+	rel-6-0-2:11.2
+	ansi-branch:11.4.0.2
+	rel-6-0-1-branch:11.2.0.2
+	hartley-6-0-post:11.3
+	hartley-6-0-pre:11.2
+	rel-6-0-1:11.2
+	rel-6-0:11.2
+	rel-5-4:11.1
+	offsite-5-3-pre:11.2
+	rel-5-3:11.1
+	rel-5-2:11.1
+	rel-5-1-branch:11.1.0.2
+	rel-5-1:11.1
+	rel-5-0:11.1
+	rel-5-0-beta:11.1
+	rel-4-5:11.1
+	ctj-4-5-post:11.1
+	ctj-4-5-pre:11.1
+	rel-4-4:11.1
+	rel-4-0:10.1;
+locks; strict;
+comment	@ * @;
+
+
+11.7
+date	2004.05.24.04.01.40;	author morrison;	state dead;
+branches;
+next	11.6;
+
+11.6
+date	2004.05.10.15.30.42;	author erikg;	state Exp;
+branches;
+next	11.5;
+
+11.5
+date	2004.04.05.07.47.59;	author morrison;	state Exp;
+branches;
+next	11.4;
+
+11.4
+date	2002.08.20.17.07.31;	author jra;	state Exp;
+branches
+	11.4.2.1;
+next	11.3;
+
+11.3
+date	2002.08.15.20.54.43;	author hartley;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	2000.08.24.23.07.42;	author mike;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	95.01.04.10.21.53;	author mike;	state Rel4_4;
+branches;
+next	10.2;
+
+10.2
+date	94.08.23.17.56.52;	author gdurf;	state Exp;
+branches;
+next	10.1;
+
+10.1
+date	91.10.12.06.53.21;	author mike;	state Rel4_0;
+branches;
+next	2.4;
+
+2.4
+date	91.07.26.21.16.54;	author mike;	state Exp;
+branches;
+next	2.3;
+
+2.3
+date	91.06.22.05.41.08;	author cjohnson;	state Exp;
+branches;
+next	2.2;
+
+2.2
+date	90.04.13.01.46.20;	author cjohnson;	state Exp;
+branches;
+next	2.1;
+
+2.1
+date	90.04.13.01.23.18;	author cjohnson;	state Rel;
+branches;
+next	1.4;
+
+1.4
+date	90.04.13.00.56.25;	author cjohnson;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	90.04.12.17.36.57;	author cjohnson;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	90.04.10.16.46.25;	author cjohnson;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	90.04.10.05.23.24;	author cjohnson;	state Exp;
+branches;
+next	;
+
+11.4.2.1
+date	2002.09.19.18.00.58;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@Simple Floyd-Steinburg dither.
+@
+
+
+11.7
+log
+@moved to src/halftone/
+@
+text
+@/*
+ *			T O N E _ F L O Y D . C
+ *
+ *  Author -
+ *	Christopher T. Johnson	- 90/03/21
+ *  
+ *  Source -
+ *	SECAD/VLD Computing Consortium, Bldg 394
+ *	The U. S. Army Ballistic Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005-5066
+ *  
+ *  Distribution Status -
+ *	Public Domain, Distribution Unlimitied.
+ */
+#ifndef lint
+static const char RCSid[] = "@@(#)$Header: /n/xoff/cvs/brlcad/halftone/tone_floyd.c,v 11.6 2004/05/10 15:30:42 erikg Exp $ (BRL)";
+#endif
+
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+
+#include <stdio.h>
+
+#include "machine.h"
+#include "externs.h"			/* For malloc */
+#include "vmath.h"
+#include "raytrace.h"
+#include "msr.h"
+
+extern int Debug;
+extern int Levels;
+extern int width;
+extern struct msr_unif *RandomFlag;
+
+/*	tone_floyd	floyd-steinberg dispersed error method.
+ *
+ * Entry:
+ *	pix	Pixel value	0-255
+ *	x	Current column
+ *	y	Current row
+ *	nx	Next column
+ *	ny	Next row
+ *	new	New row flag.
+ *
+ * Exit:
+ *	returns	0 - Levels
+ *
+ * Uses:
+ *	Debug	- Current debug level
+ *	Levels	- Number of intensity levels.
+ *	width	- width of bw file.
+ *	RandomFlag - Should we toss random numbers?
+ *
+ * Calls:
+ *	MSR_UNIF_DOUBLE()	Returns a random double between -0.5 and 0.5.
+ *
+ * Author:
+ *	Christopher T. Johnson	- 90/03/21
+ */
+int
+tone_floyd(int pix, int x, int y, int nx, int ny, int new)
+{
+	static int *error = 0;
+	static int *thisline;
+	register int diff,value;
+	int Dir = nx-x;
+	register double w1,w3,w5,w7;
+
+	if (RandomFlag) {
+		register double val;
+		val = MSR_UNIF_DOUBLE(RandomFlag)*1.0/16.0; /* slowest */
+		w1 = 1.0/16.0 + val;
+		w3 = 3.0/16.0 - val;
+		val = MSR_UNIF_DOUBLE(RandomFlag)*5.0/16.0; /* slowest */
+		w5 = 5.0/16.0 + val;
+		w7 = 7.0/16.0 - val;
+	} else {
+		w1 = 1.0/16.0;
+		w3 = 3.0/16.0;
+		w5 = 5.0/16.0;
+		w7 = 7.0/16.0;
+	}
+
+/*
+ *	is this the first time through?
+ */
+	if (!error) {
+		register int i;
+		error = (int *) malloc(width*sizeof(int));
+		thisline = (int *) malloc(width*sizeof(int));
+		for (i=0; i<width; i++) {
+			error[i] = 0;
+			thisline[i] = 0;
+		}
+	}
+/*
+ *	if this is a new line then trade error for thisline.
+ */
+	if (new) {
+		int *p;
+		p = error;
+		error = thisline;
+		thisline = p;
+	}
+
+	pix += thisline[x];
+	thisline[x] = 0;
+
+	value = (pix*Levels + 127) / 255;
+	diff =  pix - (value * 255 /Levels);
+
+	if (x+Dir < width && x+Dir >= 0) {
+		thisline[x+Dir] += diff*w7;	/* slow */
+		error[x+Dir] += diff*w1;
+	}
+	error[x] += diff*w5;			/* slow */
+	if (x-Dir < width && x-Dir >= 0) {
+		error[x-Dir] += diff*w3;
+	}
+	return(value);
+}
+@
+
+
+11.6
+log
+@change conf.h to a wrapped config.h
+@
+text
+@d16 1
+a16 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/halftone/tone_floyd.c,v 11.5 2004/04/05 07:47:59 morrison Exp $ (BRL)";
+@
+
+
+11.5
+log
+@merge of ansi-6-0-branch into HEAD
+@
+text
+@d16 1
+a16 1
+static const char RCSid[] = "@@(#)$Header$ (BRL)";
+d19 5
+a23 1
+#include "conf.h"
+@
+
+
+11.4
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d16 1
+a16 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/halftone/tone_floyd.c,v 11.2 2000/08/24 23:07:42 mike Exp $ (BRL)";
+d60 1
+a60 4
+tone_floyd(pix,x,y,nx,ny,new)
+int	pix;
+int	x, y, nx, ny;
+int	new;
+@
+
+
+11.4.2.1
+log
+@Initial ANSIfication
+@
+text
+@d16 1
+a16 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/halftone/tone_floyd.c,v 11.4 2002/08/20 17:07:31 jra Exp $ (BRL)";
+d60 4
+a63 1
+tone_floyd(int pix, int x, int y, int nx, int ny, int new)
+@
+
+
+11.3
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d60 4
+a63 1
+tone_floyd(int pix, int x, int y, int nx, int ny, int new)
+@
+
+
+11.2
+log
+@
+lint
+@
+text
+@d16 1
+a16 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/halftone/tone_floyd.c,v 11.1 1995/01/04 10:21:53 mike Rel4_4 $ (BRL)";
+d60 1
+a60 4
+tone_floyd(pix,x,y,nx,ny,new)
+int	pix;
+int	x, y, nx, ny;
+int	new;
+@
+
+
+11.1
+log
+@Release_4.4
+@
+text
+@d16 1
+a16 1
+static char RCSid[] = "@@(#)$Header: /m/cad/halftone/RCS/tone_floyd.c,v 10.2 94/08/23 17:56:52 gdurf Exp $ (BRL)";
+@
+
+
+10.2
+log
+@Made includes explicit
+@
+text
+@d16 1
+a16 1
+static char RCSid[] = "@@(#)$Header: /m/cad/halftone/RCS/tone_floyd.c,v 10.1 1991/10/12 06:53:21 mike Rel4_0 gdurf $ (BRL)";
+@
+
+
+10.1
+log
+@Release_4.0
+@
+text
+@d16 1
+a16 1
+static char RCSid[] = "@@(#)$Header: /m/cad/halftone/RCS/tone_floyd.c,v 2.4 91/07/26 21:16:54 mike Exp $ (BRL)";
+d19 2
+d22 5
+@
+
+
+2.4
+log
+@Formal parameters to a subroutine should be all lower case.
+The upper case parameters used here conflicted with pre-defined
+macros in vmath.h
+@
+text
+@d16 1
+a16 1
+static char RCSid[] = "@@(#)$Header$ (BRL)";
+@
+
+
+2.3
+log
+@Change from local Random number to msr_* code from librt
+@
+text
+@d1 14
+d16 1
+a16 1
+static char rcsid[] = "$Header: /m/cad/halftone/RCS/tone_floyd.c,v 2.2 90/04/13 01:46:20 cjohnson Exp $";
+d18 1
+d21 1
+d30 6
+a35 6
+ *	Pix	Pixel value	0-255
+ *	X	Current column
+ *	Y	Current row
+ *	NX	Next column
+ *	NY	Next row
+ *	New	New row flag.
+a48 3
+ * Method:
+ *	straight-forward.
+ *
+a50 21
+ *
+ * $Log:	tone_floyd.c,v $
+ * Revision 2.2  90/04/13  01:46:20  cjohnson
+ * Change include "*.h" to "./*.h"
+ * 
+ * Revision 2.1  90/04/13  01:23:18  cjohnson
+ * First Relese.
+ * 
+ * Revision 1.4  90/04/13  00:56:25  cjohnson
+ * Comment clean up.
+ * Change some variables to registers.
+ * 
+ * Revision 1.3  90/04/12  17:36:57  cjohnson
+ * Add Random number processing.
+ * 
+ * Revision 1.2  90/04/10  16:46:25  cjohnson
+ * Fix Intensity methods 
+ * 
+ * Revision 1.1  90/04/10  05:23:24  cjohnson
+ * Initial revision
+ * 
+d52 5
+a56 4
+tone_floyd(Pix,X,Y,NX,NY,New)
+int	Pix;
+int	X, Y, NX, NY;
+int	New;
+d61 1
+a61 1
+	int Dir = NX-X;
+d94 1
+a94 1
+	if (New) {
+d101 2
+a102 2
+	Pix += thisline[X];
+	thisline[X] = 0;
+d104 2
+a105 2
+	value = (Pix*Levels + 127) / 255;
+	diff =  Pix - (value * 255 /Levels);
+d107 3
+a109 3
+	if (X+Dir < width && X+Dir >= 0) {
+		thisline[X+Dir] += diff*w7;	/* slow */
+		error[X+Dir] += diff*w1;
+d111 3
+a113 3
+	error[X] += diff*w5;			/* slow */
+	if (X-Dir < width && X-Dir >= 0) {
+		error[X-Dir] += diff*w3;
+@
+
+
+2.2
+log
+@Change include "*.h" to "./*.h"
+@
+text
+@d2 1
+a2 1
+static char rcsid[] = "$Header: tone_floyd.c,v 2.1 90/04/13 01:23:18 cjohnson Locked $";
+d5 1
+a5 1
+#include "./rndnum.h"
+d9 1
+a9 1
+extern int RandomFlag;
+d31 1
+a31 1
+ *	Random()	Returns a random double between -0.5 and 0.5.
+d40 3
+d73 1
+a73 1
+		val = Random(0)*1.0/16.0; /* slowest */
+d76 1
+a76 1
+		val = Random(0)*5.0/16.0; /* slowest */
+@
+
+
+2.1
+log
+@First Relese.
+@
+text
+@d2 1
+a2 1
+static char rcsid[] = "$Header: tone_floyd.c,v 1.4 90/04/13 00:56:25 cjohnson Locked $";
+d5 1
+a5 1
+#include "rndnum.h"
+d40 3
+@
+
+
+1.4
+log
+@Comment clean up.
+Change some variables to registers.
+@
+text
+@d2 1
+a2 1
+static char rcsid[] = "$Header: tone_floyd.c,v 1.3 90/04/12 17:36:57 cjohnson Locked $";
+d40 4
+@
+
+
+1.3
+log
+@Add Random number processing.
+@
+text
+@d2 1
+a2 1
+static char rcsid[] = "$Header: tone_floyd.c,v 1.2 90/04/10 16:46:25 cjohnson Locked $";
+d40 3
+d57 1
+a57 1
+	int diff,value;
+d59 1
+a59 1
+	double w1,w3,w5,w7,val;
+d62 2
+a63 1
+		val = Random(0)*1.0/16.0;
+d66 1
+a66 1
+		val = Random(0)*5.0/16.0;
+d76 3
+d88 3
+d100 1
+d105 1
+a105 1
+		thisline[X+Dir] += diff*w7;
+d108 1
+a108 1
+	error[X] += diff*w5;
+@
+
+
+1.2
+log
+@Fix Intensity methods 
+@
+text
+@d2 1
+a2 1
+static char rcsid[] = "$Header: tone_floyd.c,v 1.1 90/04/10 05:23:24 cjohnson Locked $";
+d5 1
+d9 1
+d22 1
+a22 1
+ *	returns	0 or 1
+d25 4
+a28 1
+ *	None.
+d31 1
+a31 1
+ *	None.
+d40 3
+d56 1
+d58 14
+d92 1
+a92 8
+/*	if (Pix > 127) {
+		value=Levels;
+		diff = Pix - 255;
+	} else {
+		value = 0;
+		diff = Pix;
+	}
+*/
+d94 2
+a95 2
+		thisline[X+Dir] += diff*7/16;
+		error[X+Dir] += diff/16;
+d97 1
+a97 1
+	error[X] += diff*5/16;
+d99 1
+a99 1
+		error[X-Dir] += diff*3/16;
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d2 1
+a2 1
+static char rcsid[] = "$Header: tone_folly.c,v 1.2 90/04/10 03:30:45 cjohnson Exp $";
+d34 4
+a37 1
+ * $Log$
+d67 3
+a69 1
+	if (Pix > 127) {
+d76 1
+@

@@ -1,0 +1,371 @@
+head	11.6;
+access;
+symbols
+	ansi-20040405-merged:11.3.2.1
+	postmerge-20040405-ansi:11.4
+	premerge-20040404-ansi:11.3
+	postmerge-autoconf:11.3
+	autoconf-freeze:11.3
+	premerge-autoconf:11.3
+	postmerge-20040315-windows:11.3
+	premerge-20040315-windows:11.3
+	windows-20040315-freeze:11.3
+	autoconf-20031203:11.3
+	autoconf-20031202:11.3
+	autoconf-branch:11.3.0.10
+	phong-branch:11.3.0.8
+	photonmap-branch:11.3.0.6
+	rel-6-1-DP:11.3
+	windows-branch:11.3.0.4
+	rel-6-0-2:11.1
+	ansi-branch:11.3.0.2
+	rel-6-0-1-branch:11.1.0.4
+	hartley-6-0-post:11.2
+	hartley-6-0-pre:11.1
+	rel-6-0-1:11.1
+	rel-6-0:11.1
+	rel-5-4:11.1
+	offsite-5-3-pre:11.1
+	rel-5-3:11.1
+	rel-5-2:11.1
+	rel-5-1-branch:11.1.0.2
+	rel-5-1:11.1
+	rel-5-0:11.1
+	rel-5-0-beta:11.1
+	rel-4-5:11.1
+	ctj-4-5-post:11.1
+	ctj-4-5-pre:11.1
+	rel-4-4:11.1
+	rel-4-0:10.1;
+locks; strict;
+comment	@ * @;
+
+
+11.6
+date	2004.05.21.16.38.56;	author morrison;	state dead;
+branches;
+next	11.5;
+
+11.5
+date	2004.05.10.15.30.50;	author erikg;	state Exp;
+branches;
+next	11.4;
+
+11.4
+date	2004.04.05.05.46.01;	author morrison;	state Exp;
+branches;
+next	11.3;
+
+11.3
+date	2002.08.20.17.08.50;	author jra;	state Exp;
+branches
+	11.3.2.1;
+next	11.2;
+
+11.2
+date	2002.08.15.20.56.02;	author hartley;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	95.01.04.10.21.12;	author mike;	state Rel4_4;
+branches;
+next	10.2;
+
+10.2
+date	94.08.11.20.09.12;	author gdurf;	state Exp;
+branches;
+next	10.1;
+
+10.1
+date	91.10.12.06.52.49;	author mike;	state Rel4_0;
+branches;
+next	1.1;
+
+1.1
+date	91.01.03.20.45.30;	author butler;	state Exp;
+branches;
+next	;
+
+11.3.2.1
+date	2002.09.19.18.02.29;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@dist
+@
+
+
+11.6
+log
+@moved to src/tools/
+@
+text
+@/*
+ * This software is copyrighted as noted below.  It may be freely copied,
+ * modified, and redistributed, provided that the copyright notice is 
+ * preserved on all copies.
+ * 
+ * There is no warranty or other guarantee of fitness for this software,
+ * it is provided solely "as is".  Bug reports or fixes may be sent
+ * to the author, who may or may not act on them as he desires.
+ *
+ * You may not include this software in a program or other software product
+ * without supplying the source, or without informing the end-user that the 
+ * source is available for no extra charge.
+ *
+ * If you modify this software, you should include a notice giving the
+ * name of the person performing the modification, the date of modification,
+ * and the reason for such modification.
+ */
+/* 
+ * rleskel.c - Skeleton RLE tool.
+ * 
+ * Author:	Spencer W. Thomas
+ * 		EECS Dept.
+ * 		University of Michigan
+ * Date:	Tue Jun 12 1990
+ * Copyright (c) 1990, University of Michigan
+ */
+
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+
+#include <stdio.h>
+
+#include "machine.h"
+#include "externs.h"		/* For malloc and free */
+#include "rle.h"
+
+/*****************************************************************
+ * TAG( main )
+ * 
+ * A skeleton RLE tool.  Demonstrates argument parsing, opening,
+ * reading, and writing RLE files.  Includes support for files
+ * consisting of concatenated images.
+ * Usage:
+ * 	rleskel [-o outfile] [infile]
+ * Inputs:
+ * 	infile:		The input RLE file.  Default stdin.
+ * 			"-" means stdin.
+ * Outputs:
+ * 	-o outfile:	The output RLE file.  Default stdout.
+ * 			"-" means stdout.
+ * Assumptions:
+ *	[None]
+ * Algorithm:
+ * 	Repeatedly read from the input until the file EOF or an
+ * 	error is encountered.
+ */
+main(int argc, char **argv)
+{
+    char       *infname = NULL,
+    	       *outfname = NULL;
+    int 	oflag = 0;
+    int		rle_cnt, rle_err, width, y;
+    FILE       *outfile;
+    rle_hdr in_hdr, out_hdr;	/* Headers for input and output files. */
+    rle_pixel **rows;		/* Will be used for scanline storage. */
+    
+    if ( scanargs( argc, argv, "% o%-outfile!s infile%s",
+		   &oflag, &outfname, &infname ) == 0 )
+	exit( 1 );
+
+    /* Open the input file.
+     * The output file won't be opened until the first image header
+     * has been read.  This avoids unnecessarily wiping out a
+     * pre-existing file if the input is garbage.
+     */
+    in_hdr.rle_file = rle_open_f( cmd_name( argv ), infname, "r" );
+
+    /* Read images from the input file until the end of file is
+     * encountered or an error occurs.
+     */
+    rle_cnt = 0;
+    while ( (rle_err = rle_get_setup( &in_hdr )) == RLE_SUCCESS )
+    {
+	/* Open the output file when the first header is successfully read. */
+	if ( rle_cnt == 0 )
+	    outfile = rle_open_f( cmd_name( argv ), outfname, "w" );
+
+	/* Count the input images. */
+	rle_cnt++;
+
+	/* The output header is a copy of the input header.  The only
+	 * difference is the FILE pointer.
+	 */
+	out_hdr = in_hdr;
+	out_hdr.rle_file = outfile;
+
+	/* Add to the history comment. */
+	rle_addhist( argv, &in_hdr, &out_hdr );
+
+	/* Write the output image header. */
+	rle_put_setup( &out_hdr );
+
+	/* Since rle_getrow and rle_putrow use different array origins,
+	 * we will compensate by adjusting the xmin and xmax values in
+	 * the input header.  [rle_getrow assumes that the scanline
+	 * array starts at pixel 0, while rle_putrow assumes that the
+	 * scanline array starts at pixel xmin.  This is a botch, but
+	 * it's too late to change it now.]
+	 */
+	in_hdr.xmax -= in_hdr.xmin;
+	in_hdr.xmin = 0;
+	width = in_hdr.xmax + 1;	/* Width of a scanline. */
+
+	/* Allocate memory into which the image scanlines can be read.
+	 * This should happen after the above adjustment, to minimize
+	 * the amount of memory allocated.
+	 */
+	if ( rle_row_alloc( &in_hdr, &rows ) < 0 )
+	{
+	    fprintf( stderr, "rleskel: Unable to allocate image memory.\n" );
+	    exit( RLE_NO_SPACE );
+	}
+	
+	/* Read the input image and copy it to the output file. */
+	for ( y = in_hdr.ymin; y <= in_hdr.ymax; y++ )
+	{
+	    /* Read a scanline. */
+	    rle_getrow( &in_hdr, rows );
+	    
+	    /* Process the scanline as desired here. */
+
+	    /* Write the processed scanline. */
+	    rle_putrow( rows, width, &out_hdr );
+	}
+
+	/* Protect from bad input. */
+	while ( rle_getskip( &in_hdr ) != 32768 )
+	    ;
+
+	/* Free memory. */
+	rle_row_free( &in_hdr, rows );
+
+	/* Write an end-of-image code. */
+	rle_puteof( &out_hdr );
+    }
+    
+    /* Check for an error.  EOF or EMPTY is ok if at least one image
+     * has been read.  Otherwise, print an error message.
+     */
+    if ( rle_cnt == 0 || (rle_err != RLE_EOF && rle_err != RLE_EMPTY) )
+	rle_get_error( rle_err, cmd_name( argv ), infname );
+
+    exit( 0 );
+}
+@
+
+
+11.5
+log
+@change conf.h to a wrapped config.h
+@
+text
+@@
+
+
+11.4
+log
+@merge of ansi-6-0-branch into head
+@
+text
+@d28 5
+a32 1
+#include "conf.h"
+@
+
+
+11.3
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d56 1
+a56 3
+main( argc, argv )
+int argc;
+char **argv;
+@
+
+
+11.3.2.1
+log
+@Initial ANSIfication
+@
+text
+@d56 3
+a58 1
+main(int argc, char **argv)
+@
+
+
+11.2
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d56 3
+a58 1
+main(int argc, char **argv)
+@
+
+
+11.1
+log
+@Release_4.4
+@
+text
+@d56 1
+a56 3
+main( argc, argv )
+int argc;
+char **argv;
+@
+
+
+10.2
+log
+@Altered #defines and #includes to conform to BRL-CAD standards
+@
+text
+@@
+
+
+10.1
+log
+@Release_4.0
+@
+text
+@d28 2
+a30 12
+#include <rle.h>
+
+#ifdef USE_STDLIB_H
+#include <stdlib.h>
+#else
+
+#ifdef VOID_STAR
+extern void *malloc();
+#else
+extern char *malloc();
+#endif
+extern void free();
+d32 3
+a34 1
+#endif /* USE_STDLIB_H */
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@@

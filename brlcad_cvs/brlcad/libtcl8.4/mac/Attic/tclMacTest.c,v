@@ -1,0 +1,392 @@
+head	1.4;
+access;
+symbols
+	ansi-20040405-merged:1.3.4.1
+	postmerge-20040405-ansi:1.3
+	premerge-20040404-ansi:1.3
+	postmerge-autoconf:1.3
+	autoconf-freeze:1.1.6.4
+	premerge-autoconf:1.3
+	postmerge-20040315-windows:1.3
+	premerge-20040315-windows:1.3
+	windows-20040315-freeze:1.3.2.1
+	autoconf-20031203:1.1.6.1
+	autoconf-20031202:1.1
+	autoconf-branch:1.1.0.6
+	phong-branch:1.1.0.4
+	photonmap-branch:1.1.0.2
+	windows-branch:1.3.0.2
+	ansi-branch:1.3.0.4;
+locks; strict;
+comment	@ * @;
+
+
+1.4
+date	2004.05.21.18.04.33;	author morrison;	state dead;
+branches;
+next	1.3;
+
+1.3
+date	2004.03.04.19.47.13;	author morrison;	state Exp;
+branches
+	1.3.2.1
+	1.3.4.1;
+next	1.2;
+
+1.2
+date	2003.11.07.14.54.38;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2003.03.13.19.18.23;	author jra;	state Exp;
+branches
+	1.1.6.1;
+next	;
+
+1.1.6.1
+date	2003.12.03.16.24.41;	author erikg;	state Exp;
+branches;
+next	1.1.6.2;
+
+1.1.6.2
+date	2004.02.12.18.56.34;	author erikg;	state Exp;
+branches;
+next	1.1.6.3;
+
+1.1.6.3
+date	2004.03.15.12.07.55;	author erikg;	state Exp;
+branches;
+next	1.1.6.4;
+
+1.1.6.4
+date	2004.03.15.14.01.20;	author erikg;	state Exp;
+branches;
+next	;
+
+1.3.2.1
+date	2004.03.12.09.59.07;	author morrison;	state Exp;
+branches;
+next	;
+
+1.3.4.1
+date	2004.03.17.21.19.51;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.4
+log
+@moved from top-level to src/other/.
+@
+text
+@/* 
+ * tclMacTest.c --
+ *
+ *	Contains commands for platform specific tests for
+ *	the Macintosh platform.
+ *
+ * Copyright (c) 1996 Sun Microsystems, Inc.
+ *
+ * See the file "license.terms" for information on usage and redistribution
+ * of this file, and for a DISCLAIMER OF ALL WARRANTIES.
+ *
+ * RCS: @@(#) $Id: tclMacTest.c,v 1.3 2004/03/04 19:47:13 morrison Exp $
+ */
+
+#define TCL_TEST
+#define USE_COMPAT_CONST
+#include "tclInt.h"
+#include "tclMacInt.h"
+#include "tclMacPort.h"
+#include "Files.h"
+#include <Errors.h>
+#include <Resources.h>
+#include <Script.h>
+#include <Strings.h>
+#include <FSpCompat.h>
+
+/*
+ * Forward declarations of procedures defined later in this file:
+ */
+
+int			TclplatformtestInit _ANSI_ARGS_((Tcl_Interp *interp));
+static int		DebuggerCmd _ANSI_ARGS_((ClientData dummy,
+			    Tcl_Interp *interp, int argc, CONST char **argv));
+static int		WriteTextResource _ANSI_ARGS_((ClientData dummy,
+			    Tcl_Interp *interp, int argc, CONST char **argv));
+			    
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * TclplatformtestInit --
+ *
+ *	Defines commands that test platform specific functionality for
+ *	Unix platforms.
+ *
+ * Results:
+ *	A standard Tcl result.
+ *
+ * Side effects:
+ *	Defines new commands.
+ *
+ *----------------------------------------------------------------------
+ */
+
+int
+TclplatformtestInit(
+    Tcl_Interp *interp)		/* Interpreter to add commands to. */
+{
+    /*
+     * Add commands for platform specific tests on MacOS here.
+     */
+    
+    Tcl_CreateCommand(interp, "debugger", DebuggerCmd,
+            (ClientData) 0, (Tcl_CmdDeleteProc *) NULL);
+    Tcl_CreateCommand(interp, "testWriteTextResource", WriteTextResource,
+            (ClientData) 0, (Tcl_CmdDeleteProc *) NULL);
+
+    return TCL_OK;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * DebuggerCmd --
+ *
+ *	This procedure simply calls the low level debugger.
+ *
+ * Results:
+ *	A standard Tcl result.
+ *
+ * Side effects:
+ *	None.
+ *
+ *----------------------------------------------------------------------
+ */
+
+static int
+DebuggerCmd(
+    ClientData clientData,		/* Not used. */
+    Tcl_Interp *interp,			/* Not used. */
+    int argc,				/* Not used. */
+    CONST char **argv)			/* Not used. */
+{
+    Debugger();
+    return TCL_OK;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * WriteTextResource --
+ *
+ *	This procedure will write a text resource out to the 
+ *	application or a given file.  The format for this command is
+ *	textwriteresource 
+ *
+ * Results:
+ *	A standard Tcl result.
+ *
+ * Side effects:
+ *	None.
+ *
+ *----------------------------------------------------------------------
+ */
+
+static int
+WriteTextResource(
+    ClientData clientData,		/* Not used. */
+    Tcl_Interp *interp,			/* Current interpreter. */
+    int argc,				/* Number of arguments. */
+    CONST char **argv)			/* Argument strings. */
+{
+    char *errNum = "wrong # args: ";
+    char *errBad = "bad argument: ";
+    char *errStr;
+    CONST char *fileName = NULL, *rsrcName = NULL;
+    CONST char *data = NULL;
+    int rsrcID = -1, i, protectIt = 0;
+    short fileRef = -1;
+    OSErr err;
+    Handle dataHandle;
+    Str255 resourceName;
+    FSSpec fileSpec;
+
+    /*
+     * Process the arguments.
+     */
+    for (i = 1 ; i < argc ; i++) {
+	if (!strcmp(argv[i], "-rsrc")) {
+	    rsrcName = argv[i + 1];
+	    i++;
+	} else if (!strcmp(argv[i], "-rsrcid")) {
+	    rsrcID = atoi(argv[i + 1]);
+	    i++;
+	} else if (!strcmp(argv[i], "-file")) {
+	    fileName = argv[i + 1];
+	    i++;
+	} else if (!strcmp(argv[i], "-protected")) {
+	    protectIt = 1;
+	} else {
+	    data = argv[i];
+	}
+    }
+	
+    if ((rsrcName == NULL && rsrcID < 0) ||
+	    (fileName == NULL) || (data == NULL)) {
+    	errStr = errBad;
+    	goto sourceFmtErr;
+    }
+
+    /*
+     * Open the resource file.
+     */
+    err = FSpLocationFromPath(strlen(fileName), fileName, &fileSpec);
+    if (!(err == noErr || err == fnfErr)) {
+	Tcl_AppendResult(interp, "couldn't validate file name", (char *) NULL);
+	return TCL_ERROR;
+    }
+    
+    if (err == fnfErr) {
+	FSpCreateResFile(&fileSpec, 'WIsH', 'rsrc', smSystemScript);
+    }
+    fileRef = FSpOpenResFile(&fileSpec, fsRdWrPerm);
+    if (fileRef == -1) {
+	Tcl_AppendResult(interp, "couldn't open resource file", (char *) NULL);
+	return TCL_ERROR;
+    }
+		
+    UseResFile(fileRef);
+
+    /*
+     * Prepare data needed to create resource.
+     */
+    if (rsrcID < 0) {
+	rsrcID = UniqueID('TEXT');
+    }
+    
+    strcpy((char *) resourceName, rsrcName);
+    c2pstr((char *) resourceName);
+    
+    dataHandle = NewHandle(strlen(data));
+    HLock(dataHandle);
+    strcpy(*dataHandle, data);
+    HUnlock(dataHandle);
+     
+    /*
+     * Add the resource to the file and close it.
+     */
+    AddResource(dataHandle, 'TEXT', rsrcID, resourceName);
+    
+    UpdateResFile(fileRef);
+    if (protectIt) {
+        SetResAttrs(Get1Resource('TEXT', rsrcID), resProtected);
+    }
+    
+    CloseResFile(fileRef);
+    return TCL_OK;
+    
+    sourceFmtErr:
+    Tcl_AppendResult(interp, errStr, "error in \"", argv[0], "\"",
+	    (char *) NULL);
+    return TCL_ERROR;
+}
+@
+
+
+1.3
+log
+@Updated to tcl 8.4.6
+@
+text
+@d12 1
+a12 1
+ * RCS: @@(#) $Id: tclMacTest.c,v 1.6 2002/10/09 11:54:42 das Exp $
+@
+
+
+1.3.4.1
+log
+@sync branch with HEAD
+@
+text
+@d12 1
+a12 1
+ * RCS: @@(#) $Id$
+@
+
+
+1.3.2.1
+log
+@merge from HEAD
+@
+text
+@d12 1
+a12 1
+ * RCS: @@(#) $Id$
+@
+
+
+1.2
+log
+@updated tcl to 8.4.4
+@
+text
+@@
+
+
+1.1
+log
+@*** empty log message ***
+@
+text
+@@
+
+
+1.1.6.1
+log
+@updates from HEAD, part 1
+@
+text
+@d12 1
+a12 1
+ * RCS: @@(#) $Id: tclMacTest.c,v 1.2 2003/11/07 14:54:38 morrison Exp $
+@
+
+
+1.1.6.2
+log
+@merge from HEAD
+@
+text
+@@
+
+
+1.1.6.3
+log
+@merge from head
+@
+text
+@d12 1
+a12 1
+ * RCS: @@(#) $Id: tclMacTest.c,v 1.3 2004/03/04 19:47:13 morrison Exp $
+@
+
+
+1.1.6.4
+log
+@merge from head...
+@
+text
+@d12 1
+a12 1
+ * RCS: @@(#) $Id: tclMacTest.c,v 1.1.6.3 2004/03/15 12:07:55 erikg Exp $
+@
+
+

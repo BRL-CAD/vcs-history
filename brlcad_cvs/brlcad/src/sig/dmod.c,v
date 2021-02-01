@@ -1,0 +1,702 @@
+head	14.11;
+access;
+symbols
+	rel-7-10-4:14.10
+	STABLE:14.10.0.2
+	stable-branch:14.3
+	rel-7-10-2:14.10
+	rel-7-10-0:14.10
+	rel-7-8-4:14.7
+	rel-7-8-2:14.6
+	rel-7-8-0:14.6
+	trimnurbs-branch:14.6.0.2
+	help:14.6
+	temp_tag:14.4
+	bobWinPort-20051223-freeze:14.3
+	postmerge-20051223-bobWinPort:14.4
+	premerge-20051223-bobWinPort:14.4
+	rel-7-6-6:14.4
+	rel-7-6-4:14.4
+	rel-7-6-2:14.3
+	rel-7-6-branch:14.3.0.6
+	rel-7-6-0:14.3
+	rel-7-4-2:14.3
+	rel-7-4-branch:14.3.0.4
+	bobWinPort:14.3.0.2
+	rel-7-4-0:14.3
+	rel-7-2-6:14.3
+	rel-7-2-4:14.3
+	rel-7-2-2:14.3
+	rel-7-2-0:14.3
+	rel-7-0-4:14.2
+	rel-7-0-2:14.2
+	rel-7-0-1:14.2
+	opensource-post:14.2
+	opensource-pre:1.6
+	rel-7-0-branch:1.6.0.2
+	rel-7-0:1.6;
+locks; strict;
+comment	@ * @;
+
+
+14.11
+date	2007.09.15.16.23.21;	author brlcad;	state Exp;
+branches;
+next	14.10;
+
+14.10
+date	2007.02.02.08.48.30;	author brlcad;	state Exp;
+branches;
+next	14.9;
+
+14.9
+date	2007.01.23.01.13.47;	author brlcad;	state Exp;
+branches;
+next	14.8;
+
+14.8
+date	2007.01.20.14.37.00;	author brlcad;	state Exp;
+branches;
+next	14.7;
+
+14.7
+date	2006.07.09.19.17.16;	author brlcad;	state Exp;
+branches;
+next	14.6;
+
+14.6
+date	2006.01.28.00.36.29;	author brlcad;	state Exp;
+branches;
+next	14.5;
+
+14.5
+date	2006.01.18.06.46.24;	author brlcad;	state Exp;
+branches;
+next	14.4;
+
+14.4
+date	2005.10.23.04.44.38;	author brlcad;	state Exp;
+branches;
+next	14.3;
+
+14.3
+date	2005.01.30.20.31.12;	author brlcad;	state Exp;
+branches
+	14.3.6.1;
+next	14.2;
+
+14.2
+date	2004.12.21.03.11.57;	author morrison;	state Exp;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.31;	author morrison;	state Exp;
+branches;
+next	1.6;
+
+1.6
+date	2004.10.14.21.30.17;	author butler;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	2004.09.03.23.30.59;	author morrison;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	2004.08.02.23.01.52;	author morrison;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2004.06.09.18.12.54;	author erikg;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2004.06.08.22.04.36;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.15.20.52;	author morrison;	state Exp;
+branches;
+next	;
+
+14.3.6.1
+date	2005.11.13.13.46.19;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.11
+log
+@more c89 embracing.  c89 provides string.h for all of the various str*() and mem*() functions, so remove the check for its presence.  there is still likely to be work required for strict c89 conformance for the various bsd strings.h functions that may be in use.
+@
+text
+@/*                          D M O D . C
+ * BRL-CAD
+ *
+ * Copyright (c) 2004-2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@file dmod.c
+ *
+ *  Modify a stream of doubles.
+ *
+ *  Allows any number of add, subtract, multiply, divide, or
+ *  exponentiation operations to be performed on a stream of values.
+ *
+ *  Author -
+ *	Phillip Dykstra
+ *	17 Apr 1987
+ */
+#include "common.h"
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <math.h>
+#include <string.h>
+
+#ifdef HAVE_UNISTD_H
+#  include <unistd.h>
+#endif
+
+#include "machine.h"
+#include "bu.h"
+
+
+char	*file_name = NULL;
+FILE	*infp = NULL;
+
+static char usage[] = "\
+Usage: dmod {-a add -s sub -m mult -d div -A(abs) -e exp -r root} [doubles]\n";
+
+#define	ADD	1
+#define MULT	2
+#define	ABS	3
+#define	POW	4
+
+#define	BUFLEN	4096
+
+int	numop = 0;		/* number of operations */
+int	op[256] = {0};		/* operations */
+double	val[256] = {0.0};		/* arguments to operations */
+double	buf[BUFLEN] = {0.0};		/* working buffer */
+
+int
+get_args(int argc, register char **argv)
+{
+    register int c;
+    double	d;
+
+    while ( (c = bu_getopt( argc, argv, "a:s:m:d:Ae:r:" )) != EOF )  {
+	switch( c )  {
+	    case 'a':
+		op[ numop ] = ADD;
+		val[ numop++ ] = atof(bu_optarg);
+		break;
+	    case 's':
+		op[ numop ] = ADD;
+		val[ numop++ ] = - atof(bu_optarg);
+		break;
+	    case 'm':
+		op[ numop ] = MULT;
+		val[ numop++ ] = atof(bu_optarg);
+		break;
+	    case 'd':
+		op[ numop ] = MULT;
+		d = atof(bu_optarg);
+		if( d == 0.0 ) {
+		    fprintf( stderr, "dmod: divide by zero!\n" );
+		    exit( 2 );
+		}
+		val[ numop++ ] = 1.0 / d;
+		break;
+	    case 'A':
+		op[ numop ] = ABS;
+		val[ numop++ ] = 0;
+		break;
+	    case 'e':
+		op[ numop ] = POW;
+		val[ numop++ ] = atof(bu_optarg);
+		break;
+	    case 'r':
+		op[ numop ] = POW;
+		d = atof(bu_optarg);
+		if( d == 0.0 ) {
+		    fprintf( stderr, "dmod: zero root!\n" );
+		    exit( 2 );
+		}
+		val[ numop++ ] = 1.0 / d;
+		break;
+
+	    default:		/* '?' */
+		return(0);
+	}
+    }
+
+    if( bu_optind >= argc )  {
+	if( isatty(fileno(stdin)) )
+	    return(0);
+	file_name = "-";
+	infp = stdin;
+    } else {
+	file_name = argv[bu_optind];
+	if( (infp = fopen(file_name, "r")) == NULL )  {
+	    (void)fprintf( stderr,
+			   "dmod: cannot open \"%s\" for reading\n",
+			   file_name );
+	    return(0);
+	}
+    }
+
+    if ( argc > ++bu_optind )
+	(void)fprintf( stderr, "dmod: excess argument(s) ignored\n" );
+
+    return(1);		/* OK */
+}
+
+int main(int argc, char **argv)
+{
+    int	i, n;
+#ifdef sgi
+    double	*bp;		/* avoid SGI -Zf reg pointer ++ problem */
+#else
+    register double	*bp;
+#endif
+    register double	arg;
+    register int j;
+
+    if( !get_args( argc, argv ) || isatty(fileno(infp))
+	|| isatty(fileno(stdout)) ) {
+	(void)fputs(usage, stderr);
+	exit( 1 );
+    }
+
+    while( (n = fread(buf, sizeof(*buf), BUFLEN, infp)) > 0 ) {
+	for( i = 0; i < numop; i++ ) {
+	    arg = val[ i ];
+	    switch( op[i] ) {
+		case ADD:
+		    bp = &buf[0];
+		    for( j = n; j > 0; j-- ) {
+			*bp++ += arg;
+		    }
+		    break;
+		case MULT:
+		    bp = &buf[0];
+		    for( j = n; j > 0; j-- ) {
+			*bp++ *= arg;
+		    }
+		    break;
+		case POW:
+		    bp = &buf[0];
+		    for( j = n; j > 0; j-- ) {
+			*bp++ = pow( *bp, arg );
+		    }
+		    break;
+		case ABS:
+		    bp = &buf[0];
+		    for( j = n; j > 0; j-- ) {
+			if( *bp < 0.0 )
+			    *bp = - *bp;
+			bp++;
+		    }
+		    break;
+		default:
+		    break;
+	    }
+	}
+	fwrite( buf, sizeof(*buf), n, stdout );
+    }
+
+    return 0;
+}
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+14.10
+log
+@convert all of the lingering getopt calls to bu_getopt (as well as the related getopt globals optind, opterr, optarg) -- libbu's getopt has the benefit of being re-entrant and is portable to environments where getopt() may not be available.
+@
+text
+@d36 2
+a40 5
+#ifdef HAVE_STRING_H
+#  include <string.h>
+#else
+#  include <strings.h>
+#endif
+@
+
+
+14.9
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@d46 1
+d48 3
+a50 2
+char	*file_name;
+FILE	*infp;
+d70 2
+a71 2
+	register int c;
+	double	d;
+d73 40
+a112 40
+	while ( (c = getopt( argc, argv, "a:s:m:d:Ae:r:" )) != EOF )  {
+		switch( c )  {
+		case 'a':
+			op[ numop ] = ADD;
+			val[ numop++ ] = atof(optarg);
+			break;
+		case 's':
+			op[ numop ] = ADD;
+			val[ numop++ ] = - atof(optarg);
+			break;
+		case 'm':
+			op[ numop ] = MULT;
+			val[ numop++ ] = atof(optarg);
+			break;
+		case 'd':
+			op[ numop ] = MULT;
+			d = atof(optarg);
+			if( d == 0.0 ) {
+				fprintf( stderr, "dmod: divide by zero!\n" );
+				exit( 2 );
+			}
+			val[ numop++ ] = 1.0 / d;
+			break;
+		case 'A':
+			op[ numop ] = ABS;
+			val[ numop++ ] = 0;
+			break;
+		case 'e':
+			op[ numop ] = POW;
+			val[ numop++ ] = atof(optarg);
+			break;
+		case 'r':
+			op[ numop ] = POW;
+			d = atof(optarg);
+			if( d == 0.0 ) {
+				fprintf( stderr, "dmod: zero root!\n" );
+				exit( 2 );
+			}
+			val[ numop++ ] = 1.0 / d;
+			break;
+d114 2
+a115 3
+		default:		/* '?' */
+			return(0);
+		}
+d117 1
+d119 12
+a130 13
+	if( optind >= argc )  {
+		if( isatty(fileno(stdin)) )
+			return(0);
+		file_name = "-";
+		infp = stdin;
+	} else {
+		file_name = argv[optind];
+		if( (infp = fopen(file_name, "r")) == NULL )  {
+			(void)fprintf( stderr,
+				"dmod: cannot open \"%s\" for reading\n",
+				file_name );
+			return(0);
+		}
+d132 1
+d134 2
+a135 2
+	if ( argc > ++optind )
+		(void)fprintf( stderr, "dmod: excess argument(s) ignored\n" );
+d137 1
+a137 1
+	return(1);		/* OK */
+d142 1
+a142 1
+	int	i, n;
+d144 1
+a144 1
+	double	*bp;		/* avoid SGI -Zf reg pointer ++ problem */
+d146 1
+a146 1
+	register double	*bp;
+d148 2
+a149 8
+	register double	arg;
+	register int j;
+
+	if( !get_args( argc, argv ) || isatty(fileno(infp))
+	    || isatty(fileno(stdout)) ) {
+		(void)fputs(usage, stderr);
+		exit( 1 );
+	}
+d151 39
+a189 35
+	while( (n = fread(buf, sizeof(*buf), BUFLEN, infp)) > 0 ) {
+		for( i = 0; i < numop; i++ ) {
+			arg = val[ i ];
+			switch( op[i] ) {
+			case ADD:
+				bp = &buf[0];
+				for( j = n; j > 0; j-- ) {
+					*bp++ += arg;
+				}
+				break;
+			case MULT:
+				bp = &buf[0];
+				for( j = n; j > 0; j-- ) {
+					*bp++ *= arg;
+				}
+				break;
+			case POW:
+				bp = &buf[0];
+				for( j = n; j > 0; j-- ) {
+					*bp++ = pow( *bp, arg );
+				}
+				break;
+			case ABS:
+				bp = &buf[0];
+				for( j = n; j > 0; j-- ) {
+					if( *bp < 0.0 )
+						*bp = - *bp;
+					bp++;
+				}
+				break;
+			default:
+				break;
+			}
+		}
+		fwrite( buf, sizeof(*buf), n, stdout );
+d191 2
+d194 1
+a194 1
+	return 0;
+@
+
+
+14.8
+log
+@update copyright to 2007
+@
+text
+@d8 2
+a9 3
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+d14 1
+a14 1
+ * General Public License for more details.
+d16 2
+a17 2
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+@
+
+
+14.7
+log
+@increase and initialize some buffer sizes to something larger in order to minimize hitting buffer limits while processing.
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 2004-2006 United States Government as represented by
+@
+
+
+14.6
+log
+@header cleanup, atof() requires stdlib.h on altix/posix, fix 64-bitness
+@
+text
+@d59 1
+a59 1
+#define	BUFLEN	1024
+d62 3
+a64 3
+int	op[256];		/* operations */
+double	val[256];		/* arguments to operations */
+double	buf[BUFLEN];		/* working buffer */
+@
+
+
+14.5
+log
+@update copyright to 2006
+@
+text
+@d34 3
+d38 1
+a38 1
+# include <unistd.h>
+a39 1
+
+d41 1
+a41 1
+#include <string.h>
+d43 1
+a43 1
+#include <strings.h>
+a45 4
+#include <stdio.h>
+#include <stdlib.h>
+#include <math.h>
+
+@
+
+
+14.4
+log
+@trailing ws
+@
+text
+@d4 1
+a4 1
+ * Copyright (C) 2004-2005 United States Government as represented by
+@
+
+
+14.3
+log
+@update copyright to 2005
+@
+text
+@d37 1
+a37 1
+                                                                                                                                                                            
+@
+
+
+14.3.6.1
+log
+@merge changes from HEAD aka rel-7-6-4 to the rel-7-6-branch just in case someone peeks a gander or tries to continue/build the branch
+@
+text
+@d37 1
+a37 1
+
+@
+
+
+14.2
+log
+@assign copyright and GPL
+@
+text
+@d4 2
+a5 2
+ * Copyright (c) 2004 United States Government as represented by the
+ * U.S. Army Research Laboratory.
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@d1 21
+a21 2
+/*
+ *		D M O D . C
+@
+
+
+1.6
+log
+@added #include <stdlib.h> to get declaration of atof()
+@
+text
+@d178 10
+@
+
+
+1.5
+log
+@USE_STRING_H is no more.. it's HAVE_STRING_H
+@
+text
+@d26 1
+@
+
+
+1.4
+log
+@replace the wrapped config.h block with common.h
+@
+text
+@d19 1
+a19 1
+#ifdef USE_STRING_H
+@
+
+
+1.3
+log
+@include unistd.h for getopt stuff
+@
+text
+@d13 1
+a13 3
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+@
+
+
+1.2
+log
+@obliterate externs.h
+@
+text
+@d17 4
+a20 2
+
+
+@
+
+
+1.1
+log
+@Vast reorganization begins.  Sources moved from top-level directories into src/.
+@
+text
+@a28 1
+#include "externs.h"
+@
+

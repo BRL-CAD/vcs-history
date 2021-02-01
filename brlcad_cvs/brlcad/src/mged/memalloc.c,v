@@ -1,0 +1,552 @@
+head	14.7;
+access;
+symbols
+	rel-7-10-4:14.7
+	STABLE:14.7.0.2
+	stable-branch:14.3
+	rel-7-10-2:14.7
+	rel-7-10-0:14.7
+	rel-7-8-4:14.4
+	rel-7-8-2:14.4
+	rel-7-8-0:14.4
+	trimnurbs-branch:14.4.0.2
+	help:14.4
+	temp_tag:14.3
+	bobWinPort-20051223-freeze:14.3
+	postmerge-20051223-bobWinPort:14.3
+	premerge-20051223-bobWinPort:14.3
+	rel-7-6-6:14.3
+	rel-7-6-4:14.3
+	rel-7-6-2:14.3
+	rel-7-6-branch:14.3.0.6
+	rel-7-6-0:14.3
+	rel-7-4-2:14.3
+	rel-7-4-branch:14.3.0.4
+	bobWinPort:14.3.0.2
+	rel-7-4-0:14.3
+	rel-7-2-6:14.3
+	rel-7-2-4:14.3
+	rel-7-2-2:14.3
+	rel-7-2-0:14.3
+	rel-7-0-4:14.2
+	rel-7-0-2:14.2
+	rel-7-0-1:14.2
+	opensource-post:14.2
+	opensource-pre:1.2
+	rel-7-0-branch:1.2.0.2
+	rel-7-0:1.2;
+locks; strict;
+comment	@ * @;
+
+
+14.7
+date	2007.01.27.01.41.43;	author brlcad;	state Exp;
+branches;
+next	14.6;
+
+14.6
+date	2007.01.23.01.13.42;	author brlcad;	state Exp;
+branches;
+next	14.5;
+
+14.5
+date	2007.01.20.14.36.57;	author brlcad;	state Exp;
+branches;
+next	14.4;
+
+14.4
+date	2006.01.18.06.46.19;	author brlcad;	state Exp;
+branches;
+next	14.3;
+
+14.3
+date	2005.01.30.20.31.06;	author brlcad;	state Exp;
+branches;
+next	14.2;
+
+14.2
+date	2004.12.21.04.17.27;	author butler;	state Exp;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.17;	author morrison;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2004.10.04.14.49.22;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.15.20.25;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.7
+log
+@ws. lots and lots of ws.  see sh/ws.sh for details (cases 'abcdeg').
+@
+text
+@/*                      M E M A L L O C . C
+ * BRL-CAD
+ *
+ * Copyright (c) 1985-2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@file memalloc.c
+ *
+ * Functions -
+ *	memalloc	allocate 'size' of memory from a given map
+ *	memget		allocate 'size' of memory from map at 'place'
+ *	memfree		return 'size' of memory to map at 'place'
+ *	mempurge	free everything on current memory chain
+ *	memprint	print a map
+ *
+ * The structure of the displaylist memory map chains
+ * consists of non-zero count and base address of that many contiguous units.
+ * The addresses are increasing and the list is terminated with the
+ * first zero link.
+ *
+ * memalloc() and memfree() use these tables to allocate displaylist memory.
+ *
+ *	For each Memory Map there exists a queue (coremap).
+ *	There also exists a queue of free buffers which are enqueued
+ *	on to either of the previous queues.  Initially all of the buffers
+ *	are placed on the `freemap' queue.  Whenever a buffer is freed
+ *	because of coallescing ends in memfree() or zero size in memalloc()
+ *	the mapping buffer is taken off from the respective queue and
+ *	returned to the `freemap' queue.
+ *
+ *  Authors -
+ *	George E. Toth
+ *	Michael John Muuss
+ *
+ *  Source -
+ *	SECAD/VLD Computing Consortium, Bldg 394
+ *	The U. S. Army Ballistic Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005
+ */
+#ifndef lint
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/mged/memalloc.c,v 14.6 2007/01/23 01:13:42 brlcad Exp $ (BRL)";
+#endif
+
+#include "common.h"
+
+#include <stdio.h>
+#include "machine.h"
+#include "vmath.h"
+#include "./mged_dm.h"		/* for struct mem_map */
+
+extern char	*malloc();
+
+/* Allocation/Free spaces */
+static struct mem_map *freemap = MAP_NULL;	/* Freelist of buffers */
+
+/* Flags used by `type' in memfree() */
+#define	M_TMTCH	00001	/* Top match */
+#define	M_BMTCH	00002	/* Bottom match */
+#define	M_TOVFL	00004	/* Top overflow */
+#define	M_BOVFL	00010	/* Bottom overflow */
+
+/*
+ *			M E M A L L O C
+ *
+ *	Takes:		& pointer of map,
+ *			size.
+ *
+ *	Returns:	NULL	Error
+ *			<addr>	Othewise
+ *
+ *	Comments:
+ *	Algorithm is first fit.
+ */
+unsigned long
+memalloc( pp, size )
+struct mem_map **pp;
+register unsigned size;
+{
+	register struct mem_map *prevp = MAP_NULL;
+	register struct mem_map *curp;
+	unsigned long	addr;
+
+	if( size == 0 )
+		return( 0L );	/* fail */
+
+	for( curp = *pp; curp; curp = (prevp=curp)->m_nxtp )  {
+		if( curp->m_size >= size )
+			break;
+	}
+
+	if( curp == MAP_NULL )  {
+		return(0L);		/* No more space */
+	}
+
+	addr = curp->m_addr;
+	curp->m_addr += size;
+
+	/* If the element size goes to zero, put it on the freelist */
+
+	if( (curp->m_size -= size) == 0 )  {
+		if( prevp )
+			prevp->m_nxtp = curp->m_nxtp;
+		else
+			*pp = curp->m_nxtp;	/* Click list down at start */
+		curp->m_nxtp = freemap;		/* Link it in */
+		freemap = curp;			/* Make it the start */
+	}
+
+	return( addr );
+}
+
+/*
+ *			M E M G E T
+ *
+ *	Returns:	NULL	Error
+ *			-1	Zero Request
+ *			<addr>	Othewise
+ *
+ *	Comments:
+ *	Algorithm is first fit.
+ */
+unsigned long
+memget( pp, size, place )
+struct mem_map **pp;
+register unsigned int size;
+unsigned int place;
+{
+	register struct mem_map *prevp, *curp;
+	unsigned int addr;
+
+	prevp = MAP_NULL;		/* special for first pass through */
+	if( size == 0 )
+		return( -1 );	/* Anything non-zero */
+
+	curp = *pp;
+	while( curp )  {
+		/*
+		 * Assumption:  We will always be APPENDING to an existing
+		 * memory allocation, so we search for a free piece of memory
+		 * which begins at 'place', without worrying about ones which
+		 * could begin earlier but be long enough to satisfy this
+		 * request.
+		 */
+		if( curp->m_addr == place && curp->m_size >= size )
+			break;
+		curp = (prevp=curp)->m_nxtp;
+	}
+
+	if( curp == MAP_NULL )
+		return(0L);		/* No space here */
+
+	addr = curp->m_addr;
+	curp->m_addr += size;
+
+	/* If the element size goes to zero, put it on the freelist */
+	if( (curp->m_size -= size) == 0 )  {
+		if( prevp )
+			prevp->m_nxtp = curp->m_nxtp;
+		else
+			*pp = curp->m_nxtp;	/* Click list down at start */
+		curp->m_nxtp = freemap;		/* Link it in */
+		freemap = curp;			/* Make it the start */
+	}
+	return( addr );
+}
+
+/*
+ *			M E M F R E E
+ *
+ *	Takes:
+ *			size,
+ *			address.
+ *
+ *	Comments:
+ *	The routine does not check for wrap around when increasing sizes
+ *	or changing addresses.  Other wrap-around conditions are flagged.
+ */
+void
+memfree( pp, size, addr )
+struct mem_map **pp;
+unsigned size;
+unsigned long addr;
+{
+	register int type = 0;
+	register struct mem_map *prevp = MAP_NULL;
+	register struct mem_map *curp;
+	long il;
+	struct mem_map *tmap;
+
+	if( size == 0 )
+		return;		/* Nothing to free */
+
+	/* Find the position in the list such that (prevp)<(addr)<(curp) */
+	for( curp = *pp; curp; curp = (prevp=curp)->m_nxtp )
+		if( addr < curp->m_addr )
+			break;
+
+	/* Make up the `type' variable */
+
+	if( prevp )  {
+		if( (il=prevp->m_addr+prevp->m_size) > addr )
+			type |= M_BOVFL;
+		if( il == addr )
+			type |= M_BMTCH;
+	}
+	if( curp )  {
+		if( (il=addr+size) > curp->m_addr )
+			type |= M_TOVFL;
+		if( il == curp->m_addr )
+			type |= M_TMTCH;
+	}
+
+	if( type & (M_TOVFL|M_BOVFL) )  {
+		(void)printf("mfree(addr=%d,size=%d)  error type=0%o\n",
+			addr, size, type );
+		if( prevp )
+			(void)printf("prevp: m_addr=%d, m_size=%d\n",
+				prevp->m_addr, prevp->m_size );
+		if( curp )
+			(void)printf("curp: m_addr=%d, m_size=%d\n",
+				curp->m_addr, curp->m_size );
+		(void)printf("display memory dropped, continuing\n");
+		return;
+	}
+
+	/*
+	 * Now we do the surgery:
+	 * If there are no matches on boundaries we allocate a buffer
+	 * If there is one match we expand the appropriate buffer
+	 * If there are two matches we will have a free buffer returned.
+	 */
+
+	switch( type & (M_BMTCH|M_TMTCH) )  {
+	case M_TMTCH|M_BMTCH:	/* Deallocate top element and expand bottom */
+		prevp->m_size += size + curp->m_size;
+		prevp->m_nxtp = curp->m_nxtp;
+		curp->m_nxtp = freemap;		/* Link into freemap */
+		freemap = curp;
+		break;
+
+	case M_BMTCH:		/* Expand bottom element */
+		prevp->m_size += size;
+		break;
+
+	case M_TMTCH:		/* Expand top element downward */
+		curp->m_size += size;
+		curp->m_addr -= size;
+		break;
+
+	default:		/* No matches; allocate and insert */
+		if( (tmap=freemap) == MAP_NULL )
+			tmap = (struct mem_map *)malloc(sizeof(struct mem_map));
+		else
+			freemap = freemap->m_nxtp;	/* Click one off */
+
+		if( prevp )
+			prevp->m_nxtp = tmap;
+		else
+			*pp = tmap;
+
+		tmap->m_size = size;
+		tmap->m_addr = addr;
+		tmap->m_nxtp = curp;
+	}
+}
+
+/*
+ *			M E M P U R G E
+ *
+ *  Take everything on the current memory chain, and place it on
+ *  the freelist.
+ */
+void
+mempurge( pp )
+struct mem_map **pp;
+{
+	register struct mem_map *prevp = MAP_NULL;
+	register struct mem_map *curp;
+
+	if( *pp == MAP_NULL )
+		return;
+
+	/* Find the end of the (busy) list */
+	for( curp = *pp; curp; curp = (prevp=curp)->m_nxtp )
+		;
+
+	/* Put the whole busy list onto the free list */
+	prevp->m_nxtp = freemap;
+	freemap = *pp;
+
+	*pp = MAP_NULL;
+}
+
+/*
+ *			M E M P R I N T
+ *
+ *  Print a memory chain.
+ */
+void
+memprint( pp )
+struct mem_map **pp;
+{
+	register struct mem_map *curp;
+
+	curp = *pp;
+	for( curp = *pp; curp; curp = curp->m_nxtp )
+		(void)printf(" %ld, len=%d\n", curp->m_addr, curp->m_size );
+}
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+14.6
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@d54 1
+a54 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/mged/memalloc.c,v 14.5 2007/01/20 14:36:57 brlcad Exp $ (BRL)";
+d240 1
+a240 1
+ 	 * Now we do the surgery:
+@
+
+
+14.5
+log
+@update copyright to 2007
+@
+text
+@d8 2
+a9 3
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+d14 1
+a14 1
+ * General Public License for more details.
+d16 2
+a17 2
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+d54 1
+a54 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/mged/memalloc.c,v 14.4 2006/01/18 06:46:19 brlcad Exp $ (BRL)";
+@
+
+
+14.4
+log
+@update copyright to 2006
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 1985-2006 United States Government as represented by
+d55 1
+a55 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/mged/memalloc.c,v 14.3 2005/01/30 20:31:06 brlcad Exp $ (BRL)";
+@
+
+
+14.3
+log
+@update copyright to 2005
+@
+text
+@d4 1
+a4 1
+ * Copyright (C) 1985-2005 United States Government as represented by
+d55 1
+a55 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/mged/memalloc.c,v 14.2 2004/12/21 04:17:27 butler Exp $ (BRL)";
+@
+
+
+14.2
+log
+@GPL License changes
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 1985-2004 United States Government as represented by
+d55 1
+a55 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/mged/memalloc.c,v 14.1 2004/11/16 19:42:17 morrison Exp $ (BRL)";
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@d1 21
+a21 2
+/*
+ *			M E M A L L O C . C
+a52 4
+ *  
+ *  Copyright Notice -
+ *	This software is Copyright (C) 1985-2004 by the United States Army.
+ *	All rights reserved.
+d55 1
+a55 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/mged/memalloc.c,v 1.2 2004/10/04 14:49:22 morrison Exp $ (BRL)";
+@
+
+
+1.2
+log
+@ws
+@
+text
+@d40 1
+a40 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/mged/memalloc.c,v 1.1 2004/05/20 15:20:25 morrison Exp $ (BRL)";
+d308 10
+@
+
+
+1.1
+log
+@Vast reorganization begins.  Sources moved from top-level directories into src/.
+@
+text
+@d40 1
+a40 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/mged/memalloc.c,v 11.4 2004/02/02 17:39:33 morrison Exp $ (BRL)";
+d42 2
+@
+

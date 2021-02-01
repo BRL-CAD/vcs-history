@@ -1,0 +1,158 @@
+head	1.3;
+access;
+symbols
+	rel-7-10-4:1.2
+	STABLE:1.2.0.2
+	rel-7-10-2:1.2
+	rel-7-10-0:1.1;
+locks; strict;
+comment	@# @;
+
+
+1.3
+date	2007.11.06.21.38.51;	author erikgreenwald;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2007.05.07.04.17.47;	author brlcad;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2007.03.02.21.49.58;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.3
+log
+@tk 8.5a6->8.5b1
+@
+text
+@# This file contains tests for the tkMain.c file.
+#
+# This file contains a collection of tests for one or more of the Tcl
+# built-in commands.  Sourcing this file into Tcl runs the tests and
+# generates output for errors.  No output means no errors were found.
+#
+# Copyright (c) 1997 by Sun Microsystems, Inc.
+# Copyright (c) 1998-1999 by Scriptics Corporation.
+# All rights reserved.
+#
+# RCS: @@(#) $Id: main.test,v 1.10 2004/12/08 03:03:06 dgp Exp $
+
+package require tcltest 2.1
+eval tcltest::configure $argv
+tcltest::loadTestedCommands
+
+test main-1.1 {StdinProc} -constraints stdio -setup {
+    set script [makeFile {
+	close stdin; exit
+    } script]
+} -body {
+    list [catch {exec [interpreter] <$script} msg] $msg
+} -cleanup {
+    removeFile script
+} -result {0 {}}
+
+test main-2.1 {Tk_MainEx: -encoding option} -constraints {
+        stdio
+    } -setup {
+        set script [makeFile {} script]
+        file delete $script
+        set f [open $script w]
+        fconfigure $f -encoding utf-8
+        puts $f {puts [list $argv0 $argv $tcl_interactive]}
+        puts -nonewline $f {puts [string equal \u20ac }
+        puts $f "\u20ac]; exit"
+        close $f
+        catch {set f [open "|[list [interpreter] -encoding utf-8 script]" r]}
+    } -body {
+        read $f
+    } -cleanup {
+        close $f
+        removeFile script
+    } -result [list script {} 0]\n1\n
+
+test main-2.2 {Tk_MainEx: -encoding option} -constraints {
+        stdio
+    } -setup {
+        set script [makeFile {} script]
+        file delete $script
+        set f [open $script w]
+        fconfigure $f -encoding utf-8
+        puts $f {puts [list $argv0 $argv $tcl_interactive]}
+        puts -nonewline $f {puts [string equal \u20ac }
+        puts $f "\u20ac]; exit"
+        close $f
+        catch {set f [open "|[list [interpreter] -encoding ascii script]" r]}
+    } -body {
+        read $f
+    } -cleanup {
+        close $f
+        removeFile script
+    } -result [list script {} 0]\n0\n
+
+    # Procedure to simulate interactive typing of commands, line by line
+    proc type {chan script} {
+        foreach line [split $script \n] {
+            if {[catch {
+                puts $chan $line
+                flush $chan
+            }]} {
+                return
+            }
+            # Grrr... Behavior depends on this value.
+            after 1000
+        }
+    }
+
+test main-2.3 {Tk_MainEx: -encoding option} -constraints {
+        stdio
+    } -setup {
+        set script [makeFile {} script]
+        file delete $script
+        set f [open $script w]
+        fconfigure $f -encoding utf-8
+        puts $f {puts [list $argv0 $argv $tcl_interactive]}
+        puts -nonewline $f {puts [string equal \u20ac }
+        puts $f "\u20ac]"
+        close $f
+        catch {set f [open "|[list [interpreter] -enc utf-8 script]" r+]}
+    } -body {
+        type $f {
+            puts $argv
+	    exit
+        }
+        list [catch {gets $f} line] $line
+    } -cleanup {
+        close $f
+        removeFile script
+    } -result {0 {-enc utf-8 script}}
+
+# cleanup
+cleanupTests
+return
+@
+
+
+1.2
+log
+@upgrade to tcl/tk 8.5a6 (from 8.5a5) .. includes even more (extensive) aquatk fixes/enhancements
+@
+text
+@@
+
+
+1.1
+log
+@upgrade tcl/tk from 8.4.6 to 8.5a5; also move to a recursive configure, using AC_CONFIG_SUBDIRS to call upon tcl, tk, and enigma's configure scripts as needed instead of redoing their build systems for our purpose.  this has a rather drastic impact on the way the libraries are linked together, including the need to compile tcl/tk static so as to avoid libtool portability issues as well as letting us take advantage of their build system for reduced maintenance and easing future upgrades.  undoubtedly more build issues to be worked out with other platforms given the extent of this change.  this does move us one step closer towards correctly linking against system tcl/tk installations too.
+@
+text
+@@
+

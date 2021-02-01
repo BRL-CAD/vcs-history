@@ -1,0 +1,601 @@
+head	11.11;
+access;
+symbols
+	ansi-20040405-merged:11.7.2.2
+	postmerge-20040405-ansi:11.9
+	premerge-20040404-ansi:11.8
+	postmerge-autoconf:11.8
+	autoconf-freeze:11.7.10.1
+	premerge-autoconf:11.8
+	ansi-20040316-freeze:11.7.2.1
+	postmerge-20040315-windows:11.8
+	premerge-20040315-windows:11.8
+	windows-20040315-freeze:11.7.4.1
+	autoconf-20031203:11.7
+	autoconf-20031202:11.7
+	autoconf-branch:11.7.0.10
+	phong-branch:11.7.0.8
+	photonmap-branch:11.7.0.6
+	rel-6-1-DP:11.7
+	windows-branch:11.7.0.4
+	rel-6-0-2:11.5
+	ansi-branch:11.7.0.2
+	rel-6-0-1-branch:11.5.0.2
+	hartley-6-0-post:11.6
+	hartley-6-0-pre:11.5
+	rel-6-0-1:11.5
+	rel-6-0:11.5
+	rel-5-4:11.4
+	offsite-5-3-pre:11.4
+	rel-5-3:11.4
+	rel-5-2:11.4
+	rel-5-1-branch:11.4.0.2
+	rel-5-1:11.4
+	rel-5-0:11.4
+	rel-5-0-beta:11.4
+	rel-4-5:11.4
+	ctj-4-5-post:11.2
+	ctj-4-5-pre:11.2
+	rel-4-4:11.1;
+locks; strict;
+comment	@ * @;
+
+
+11.11
+date	2004.05.24.04.17.00;	author morrison;	state dead;
+branches;
+next	11.10;
+
+11.10
+date	2004.05.10.15.30.41;	author erikg;	state Exp;
+branches;
+next	11.9;
+
+11.9
+date	2004.04.05.07.50.19;	author morrison;	state Exp;
+branches;
+next	11.8;
+
+11.8
+date	2004.02.02.17.38.58;	author morrison;	state Exp;
+branches;
+next	11.7;
+
+11.7
+date	2002.08.20.17.07.18;	author jra;	state Exp;
+branches
+	11.7.2.1
+	11.7.4.1
+	11.7.10.1;
+next	11.6;
+
+11.6
+date	2002.08.15.20.54.06;	author hartley;	state Exp;
+branches;
+next	11.5;
+
+11.5
+date	2001.08.21.20.35.45;	author jra;	state Exp;
+branches;
+next	11.4;
+
+11.4
+date	97.12.03.07.22.32;	author mike;	state Exp;
+branches;
+next	11.3;
+
+11.3
+date	97.08.22.22.48.24;	author mike;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	96.01.17.13.26.22;	author cnuzman;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	95.01.04.10.34.08;	author mike;	state Rel4_4;
+branches;
+next	1.2;
+
+1.2
+date	94.11.30.09.32.02;	author jra;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	94.08.04.21.37.29;	author cnuzman;	state Exp;
+branches;
+next	;
+
+11.7.2.1
+date	2002.09.19.18.00.31;	author morrison;	state Exp;
+branches;
+next	11.7.2.2;
+
+11.7.2.2
+date	2004.03.17.21.15.48;	author morrison;	state Exp;
+branches;
+next	;
+
+11.7.4.1
+date	2004.03.11.23.40.25;	author morrison;	state Exp;
+branches;
+next	;
+
+11.7.10.1
+date	2004.02.12.19.40.40;	author erikg;	state Exp;
+branches;
+next	;
+
+
+desc
+@combine concatenated animation scripts into a single script
+@
+
+
+11.11
+log
+@moved to src/anim/
+@
+text
+@/*			A N I M _ S O R T . C
+ *
+ *	Combine multiple animation scripts on standard input into a 
+ *  single script on standard output. The output can be in natural order
+ *  or in a scrambled order for incrementally increasing time 
+ *  resolution (-i option).
+ * 
+ *
+ *  Author -
+ *	Carl J. Nuzman
+ *  
+ *  Source -
+ *      The U. S. Army Research Laboratory
+ *      Aberdeen Proving Ground, Maryland  21005-5068  USA
+ *  
+ *  Distribution Notice -
+ *      Re-distribution of this software is restricted, as described in
+ *      your "Statement of Terms and Conditions for the Release of
+ *      The BRL-CAD Pacakge" agreement.
+ *
+ *  Copyright Notice -
+ *      This software is Copyright (C) 1993-2004 by the United States Army
+ *      in all countries except the USA.  All rights reserved.
+ */
+
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+
+#include "machine.h"
+#include "externs.h"
+#include "bu.h"
+
+#define MAXLEN	50		/*maximum length of lines to be read */
+#define MAXLINES 30		/* maximum length of lines to be stored*/
+
+int suppressed;		/* flag: suppress printing of 'clean;' commands */
+int incremental;	/* flag: order for incremental time resolution */
+
+int get_args(int argc, char **argv);
+
+int
+main(int argc, char **argv)
+{
+	int	length,frame_number, number, success, maxnum; 
+	int 	first_frame,spread,reserve; 
+	long	last_pos;
+	char	line[MAXLEN];
+	char    pbuffer[MAXLEN*MAXLINES];
+
+
+        if (!get_args(argc,argv))
+		fprintf(stderr,"Get_args error\n");
+
+	/* copy any lines preceeding the first "start" command */
+	last_pos = ftell(stdin);
+	while (fgets(line,MAXLEN,stdin)!=NULL){
+		if (strncmp(line,"start",5)){
+			printf("%s",line);
+			last_pos = ftell(stdin);
+		}
+		else
+			break;
+	}
+
+	/* read the frame number of the first "start" command */
+	sscanf( strpbrk(line,"0123456789"),"%d", &frame_number);
+
+	/* find the highest frame number in the file */
+	maxnum = 0;
+	while(fgets(line,MAXLEN,stdin)!=NULL){
+		if(!strncmp(line,"start",5)){
+			sscanf(strpbrk(line,"0123456789"),"%d",&number);
+			maxnum = (maxnum>number)?maxnum:number;
+		}
+	}
+
+	length = maxnum - frame_number + 1;
+	/* spread should initially be the smallest power of two larger than
+	 * or equal to length */
+	spread = 2;
+	while (spread < length)
+		spread = spread<<1;
+
+	first_frame = frame_number;
+	success = 1;
+	while (length--){
+		number = -1;
+		success = 0; /* tells whether or not any frames have been found  which have the current frame number*/
+		if (incremental){
+			fseek(stdin, 0L, 0);
+		} else {
+			fseek(stdin, last_pos, 0);
+		}
+
+		reserve = MAXLEN*MAXLINES;
+		pbuffer[0] = '\0'; /* delete old pbuffer */
+
+		/* inner loop: search through the entire file for frames */
+		/*  which have the current frame number */
+		while (!feof(stdin)){
+
+			/*read to next "start" command*/
+			while (fgets(line,MAXLEN,stdin)!=NULL){
+				if (!strncmp(line,"start",5)){
+					sscanf( strpbrk(line,"0123456789"),"%d", &number);
+					break;
+				}
+			}
+			if (number==frame_number){
+				if (!success){ /*first successful match*/
+					printf("%s",line);
+					if (!suppressed) printf("clean;\n");
+					success = 1;
+					last_pos = ftell(stdin);
+				}
+				/* print contents until next "end" */
+				while (fgets(line,MAXLEN,stdin)!=NULL){
+					if (!strncmp(line,"end;",4))
+						break;
+					else if (strncmp(line,"clean",5))
+						printf("%s",line);
+				}
+				/* save contents until next "start" */
+				while (fgets(line,MAXLEN,stdin)!=NULL){
+					if(!strncmp(line,"start",5))
+						break;
+					else {
+						reserve -= strlen(line);
+						reserve -= 1;
+						if (reserve > 0){
+							strncat(pbuffer,line,MAXLEN);
+							strcat(pbuffer,"\n");
+						}
+					}
+				}
+			}
+		}
+		if (success)
+			printf("end;\n");
+		/* print saved-up post-raytracing commands, if any */
+		printf("%s",pbuffer);
+
+		/* get next frame number */
+		if (incremental){
+			frame_number = frame_number + 2*spread;
+			while (frame_number > maxnum){
+				spread = spread>>1;
+				frame_number = first_frame + spread;
+			}
+		} else {
+			frame_number += 1;
+		}
+	}
+	return( 0 );
+}
+
+#define OPT_STR "ci"
+
+int get_args(int argc, char **argv)
+{
+
+        int c;
+	suppressed = 0;
+
+        while ( (c=bu_getopt(argc,argv,OPT_STR)) != EOF) {
+                switch(c){
+                case 'c':
+                	suppressed = 1;
+                        break;
+                case 'i':
+                	incremental = 1;
+                	break;
+                default:
+                        fprintf(stderr,"Unknown option: -%c\n",c);
+                        return(0);
+                }
+        }
+        return(1);
+}
+
+		
+@
+
+
+11.10
+log
+@change conf.h to a wrapped config.h
+@
+text
+@@
+
+
+11.9
+log
+@merge of ansi-6-0-branch into HEAD
+@
+text
+@d26 5
+a30 1
+#include "conf.h"
+@
+
+
+11.8
+log
+@update copyright to include span through 2003
+@
+text
+@d42 1
+a42 1
+int get_args();
+d45 1
+a45 3
+main(argc, argv)
+int argc;
+char **argv;
+d162 1
+a162 3
+int get_args(argc,argv)
+int argc;
+char **argv;
+@
+
+
+11.7
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d22 1
+a22 1
+ *      This software is Copyright (C) 1993 by the United States Army
+@
+
+
+11.7.4.1
+log
+@sync to HEAD...
+@
+text
+@d22 1
+a22 1
+ *      This software is Copyright (C) 1993-2004 by the United States Army
+@
+
+
+11.7.10.1
+log
+@merge from HEAD
+@
+text
+@d22 1
+a22 1
+ *      This software is Copyright (C) 1993-2004 by the United States Army
+@
+
+
+11.7.2.1
+log
+@Initial ANSIfication
+@
+text
+@d42 1
+a42 1
+int get_args(int argc, char **argv);
+d45 3
+a47 1
+main(int argc, char **argv)
+d164 3
+a166 1
+int get_args(int argc, char **argv)
+@
+
+
+11.7.2.2
+log
+@sync branch with HEAD
+@
+text
+@d22 1
+a22 1
+ *      This software is Copyright (C) 1993-2004 by the United States Army
+@
+
+
+11.6
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d42 1
+a42 1
+int get_args(int argc, char **argv);
+d45 3
+a47 1
+main(int argc, char **argv)
+d164 3
+a166 1
+int get_args(int argc, char **argv)
+@
+
+
+11.5
+log
+@lint
+@
+text
+@d42 1
+a42 1
+int get_args();
+d45 1
+a45 3
+main(argc, argv)
+int argc;
+char **argv;
+d162 1
+a162 3
+int get_args(argc,argv)
+int argc;
+char **argv;
+@
+
+
+11.4
+log
+@Included proper header files.
+@
+text
+@d42 3
+d159 1
+@
+
+
+11.3
+log
+@Made dependence on bu_getopt() explicit.
+@
+text
+@d26 2
+d31 4
+@
+
+
+11.2
+log
+@added -i option for incremental ordering
+@
+text
+@d162 1
+a162 1
+        while ( (c=getopt(argc,argv,OPT_STR)) != EOF) {
+@
+
+
+11.1
+log
+@Release_4.4
+@
+text
+@d4 3
+a6 1
+ *  single script on standard output.
+d31 1
+a32 5
+typedef struct list {		/* linked list of post-raytracing commands */
+	struct list *next;
+	char 	line[MAXLEN];
+} LINE_LIST;
+
+d34 1
+d40 2
+a41 1
+	int	frame_number, number, success; 
+d44 1
+a45 2
+	LINE_LIST *buf_start=NULL, *buf_end=NULL;
+	void do_free();
+d51 1
+d64 17
+a80 3
+	/* main loop: repeat for every integer, beginning with the first */
+	/*  frame number, until reaching a frame number not found anywhere*/
+	/*  in the file */
+d82 1
+a82 1
+	while (success > 0){
+d85 8
+a92 1
+		fseek(stdin, last_pos, 0);
+a93 2
+		do_free(buf_start);
+		buf_start = buf_end = NULL;
+d97 1
+d124 5
+a128 7
+						if (buf_start==NULL){
+							buf_start = (LINE_LIST *) malloc(sizeof(LINE_LIST));
+							buf_end = buf_start;
+						}
+						else {
+							buf_end->next = (LINE_LIST *) malloc(sizeof(LINE_LIST));
+							buf_end = buf_end->next;
+a129 2
+						buf_end->next = NULL;
+						strcpy(buf_end->line,line);
+d137 11
+a147 4
+		buf_end = buf_start;
+		while(buf_end != NULL){
+			printf("%s",buf_end->line);
+			buf_end = buf_end->next;
+a148 15
+
+		frame_number += 1;
+	}
+	do_free(buf_start);
+}
+
+void do_free(pl)
+LINE_LIST *pl;
+{
+	LINE_LIST *px;
+
+	while (pl != NULL){
+		px = pl->next;
+		free(pl);
+		pl = px;
+d152 1
+a152 1
+#define OPT_STR "c"
+d167 3
+@
+
+
+1.2
+log
+@initialized variables, added #include <stdlib.h>.
+@
+text
+@@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d26 1
+d45 1
+a45 1
+	LINE_LIST *buf_start, *buf_end;
+@

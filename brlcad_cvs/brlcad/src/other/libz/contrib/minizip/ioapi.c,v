@@ -1,0 +1,247 @@
+head	1.2;
+access;
+symbols
+	rel-7-10-4:1.2
+	STABLE:1.2.0.2
+	stable-branch:1.1
+	rel-7-10-2:1.2
+	rel-7-10-0:1.2
+	rel-7-8-4:1.1
+	rel-7-8-2:1.1
+	rel-7-8-0:1.1
+	trimnurbs-branch:1.1.0.8
+	help:1.1
+	temp_tag:1.1
+	bobWinPort-20051223-freeze:1.1
+	postmerge-20051223-bobWinPort:1.1
+	premerge-20051223-bobWinPort:1.1
+	rel-7-6-6:1.1
+	rel-7-6-4:1.1
+	rel-7-6-2:1.1
+	rel-7-6-branch:1.1.0.6
+	rel-7-6-0:1.1
+	rel-7-4-2:1.1
+	rel-7-4-branch:1.1.0.4
+	bobWinPort:1.1.0.2
+	rel-7-4-0:1.1
+	rel-7-2-6:1.1
+	rel-7-2-4:1.1
+	rel-7-2-2:1.1
+	rel-7-2-0:1.1;
+locks; strict;
+comment	@ * @;
+
+
+1.2
+date	2007.02.03.00.29.31;	author brlcad;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2005.01.27.15.53.12;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.2
+log
+@update of the bundled zlib from version 1.2.2 to 1.2.3; per the zlib website, this eliminates a potential security vulnerability when decoding invalid compressed data (VU#238678 / SA11129) as well as eliminates a potential security vulnerability when decoding specially crafted compressed data (VU#680620 / SA15949). other updates included, see the zlib release notes for details.
+@
+text
+@/* ioapi.c -- IO base function header for compress/uncompress .zip
+   files using zlib + zip or unzip API
+
+   Version 1.01e, February 12th, 2005
+
+   Copyright (C) 1998-2005 Gilles Vollant
+*/
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include "zlib.h"
+#include "ioapi.h"
+
+
+
+/* I've found an old Unix (a SunOS 4.1.3_U1) without all SEEK_* defined.... */
+
+#ifndef SEEK_CUR
+#define SEEK_CUR    1
+#endif
+
+#ifndef SEEK_END
+#define SEEK_END    2
+#endif
+
+#ifndef SEEK_SET
+#define SEEK_SET    0
+#endif
+
+voidpf ZCALLBACK fopen_file_func OF((
+   voidpf opaque,
+   const char* filename,
+   int mode));
+
+uLong ZCALLBACK fread_file_func OF((
+   voidpf opaque,
+   voidpf stream,
+   void* buf,
+   uLong size));
+
+uLong ZCALLBACK fwrite_file_func OF((
+   voidpf opaque,
+   voidpf stream,
+   const void* buf,
+   uLong size));
+
+long ZCALLBACK ftell_file_func OF((
+   voidpf opaque,
+   voidpf stream));
+
+long ZCALLBACK fseek_file_func OF((
+   voidpf opaque,
+   voidpf stream,
+   uLong offset,
+   int origin));
+
+int ZCALLBACK fclose_file_func OF((
+   voidpf opaque,
+   voidpf stream));
+
+int ZCALLBACK ferror_file_func OF((
+   voidpf opaque,
+   voidpf stream));
+
+
+voidpf ZCALLBACK fopen_file_func (opaque, filename, mode)
+   voidpf opaque;
+   const char* filename;
+   int mode;
+{
+    FILE* file = NULL;
+    const char* mode_fopen = NULL;
+    if ((mode & ZLIB_FILEFUNC_MODE_READWRITEFILTER)==ZLIB_FILEFUNC_MODE_READ)
+        mode_fopen = "rb";
+    else
+    if (mode & ZLIB_FILEFUNC_MODE_EXISTING)
+        mode_fopen = "r+b";
+    else
+    if (mode & ZLIB_FILEFUNC_MODE_CREATE)
+        mode_fopen = "wb";
+
+    if ((filename!=NULL) && (mode_fopen != NULL))
+        file = fopen(filename, mode_fopen);
+    return file;
+}
+
+
+uLong ZCALLBACK fread_file_func (opaque, stream, buf, size)
+   voidpf opaque;
+   voidpf stream;
+   void* buf;
+   uLong size;
+{
+    uLong ret;
+    ret = (uLong)fread(buf, 1, (size_t)size, (FILE *)stream);
+    return ret;
+}
+
+
+uLong ZCALLBACK fwrite_file_func (opaque, stream, buf, size)
+   voidpf opaque;
+   voidpf stream;
+   const void* buf;
+   uLong size;
+{
+    uLong ret;
+    ret = (uLong)fwrite(buf, 1, (size_t)size, (FILE *)stream);
+    return ret;
+}
+
+long ZCALLBACK ftell_file_func (opaque, stream)
+   voidpf opaque;
+   voidpf stream;
+{
+    long ret;
+    ret = ftell((FILE *)stream);
+    return ret;
+}
+
+long ZCALLBACK fseek_file_func (opaque, stream, offset, origin)
+   voidpf opaque;
+   voidpf stream;
+   uLong offset;
+   int origin;
+{
+    int fseek_origin=0;
+    long ret;
+    switch (origin)
+    {
+    case ZLIB_FILEFUNC_SEEK_CUR :
+        fseek_origin = SEEK_CUR;
+        break;
+    case ZLIB_FILEFUNC_SEEK_END :
+        fseek_origin = SEEK_END;
+        break;
+    case ZLIB_FILEFUNC_SEEK_SET :
+        fseek_origin = SEEK_SET;
+        break;
+    default: return -1;
+    }
+    ret = 0;
+    fseek((FILE *)stream, offset, fseek_origin);
+    return ret;
+}
+
+int ZCALLBACK fclose_file_func (opaque, stream)
+   voidpf opaque;
+   voidpf stream;
+{
+    int ret;
+    ret = fclose((FILE *)stream);
+    return ret;
+}
+
+int ZCALLBACK ferror_file_func (opaque, stream)
+   voidpf opaque;
+   voidpf stream;
+{
+    int ret;
+    ret = ferror((FILE *)stream);
+    return ret;
+}
+
+void fill_fopen_filefunc (pzlib_filefunc_def)
+  zlib_filefunc_def* pzlib_filefunc_def;
+{
+    pzlib_filefunc_def->zopen_file = fopen_file_func;
+    pzlib_filefunc_def->zread_file = fread_file_func;
+    pzlib_filefunc_def->zwrite_file = fwrite_file_func;
+    pzlib_filefunc_def->ztell_file = ftell_file_func;
+    pzlib_filefunc_def->zseek_file = fseek_file_func;
+    pzlib_filefunc_def->zclose_file = fclose_file_func;
+    pzlib_filefunc_def->zerror_file = ferror_file_func;
+    pzlib_filefunc_def->opaque = NULL;
+}
+@
+
+
+1.1
+log
+@update to zlib 1.2.2, contrib additions
+@
+text
+@d4 1
+a4 1
+   Version 1.01, May 8th, 2004
+d6 1
+a6 1
+   Copyright (C) 1998-2004 Gilles Vollant
+@
+

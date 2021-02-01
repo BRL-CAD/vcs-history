@@ -1,0 +1,727 @@
+head	1.18;
+access;
+symbols
+	rel-7-10-4:1.15
+	STABLE:1.15.0.2
+	rel-7-10-2:1.15
+	rel-7-10-0:1.14
+	rel-7-8-4:1.7
+	rel-7-8-2:1.7
+	rel-7-8-0:1.7
+	trimnurbs-branch:1.6.0.2
+	help:1.6
+	temp_tag:1.2
+	postmerge-20051223-bobWinPort:1.2
+	premerge-20051223-bobWinPort:1.1
+	rel-7-6-6:1.1;
+locks; strict;
+comment	@ * @;
+
+
+1.18
+date	2007.11.15.03.08.17;	author brlcad;	state Exp;
+branches;
+next	1.17;
+
+1.17
+date	2007.11.10.15.48.05;	author brlcad;	state Exp;
+branches;
+next	1.16;
+
+1.16
+date	2007.11.10.15.36.36;	author brlcad;	state Exp;
+branches;
+next	1.15;
+
+1.15
+date	2007.06.16.21.17.25;	author johnranderson;	state Exp;
+branches;
+next	1.14;
+
+1.14
+date	2007.04.09.13.01.46;	author brlcad;	state Exp;
+branches;
+next	1.13;
+
+1.13
+date	2007.03.06.23.02.49;	author brlcad;	state Exp;
+branches;
+next	1.12;
+
+1.12
+date	2007.03.02.21.17.14;	author brlcad;	state Exp;
+branches;
+next	1.11;
+
+1.11
+date	2007.02.20.08.55.54;	author brlcad;	state Exp;
+branches;
+next	1.10;
+
+1.10
+date	2007.01.27.01.41.44;	author brlcad;	state Exp;
+branches;
+next	1.9;
+
+1.9
+date	2007.01.23.01.13.42;	author brlcad;	state Exp;
+branches;
+next	1.8;
+
+1.8
+date	2007.01.20.14.36.58;	author brlcad;	state Exp;
+branches;
+next	1.7;
+
+1.7
+date	2006.04.06.20.50.03;	author brlcad;	state Exp;
+branches;
+next	1.6;
+
+1.6
+date	2006.02.27.04.42.42;	author brlcad;	state Exp;
+branches
+	1.6.2.1;
+next	1.5;
+
+1.5
+date	2006.02.03.02.07.53;	author brlcad;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	2006.01.23.06.32.37;	author brlcad;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2006.01.18.06.46.19;	author brlcad;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2005.12.23.21.26.31;	author bob1961;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2005.12.13.03.44.52;	author brlcad;	state Exp;
+branches;
+next	;
+
+1.6.2.1
+date	2006.04.07.19.30.28;	author jlowenz;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.18
+log
+@AHA! I had added the final tclcad_auto_path() call... just not to the mged init routine.  it was only added to bwish (those two really should syncronize their init routines into tclcad or something).  this "should" fix the "gui" error.
+@
+text
+@/*                         S E T U P . C
+ * BRL-CAD
+ *
+ * Copyright (c) 1985-2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@file setup.c
+ *
+ *  routines to initialize mged
+ *
+ *  Source -
+ *	SECAD/VLD Computing Consortium, Bldg 394
+ *	The U. S. Army Ballistic Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005
+ */
+
+#include "common.h"
+
+/* system headers */
+#include <stdlib.h>
+#include <tcl.h>
+#include <itcl.h>
+#include <string.h>
+
+/* common headers */
+#include "machine.h"
+#include "bu.h"
+#include "bn.h"
+#include "raytrace.h"
+#include "vmath.h"
+#include "tclcad.h"
+
+/* local headers */
+#include "./ged.h"
+
+
+extern void cmd_setup(void);
+extern void init_qray(void);
+
+/*
+ * Initialize mged, configure the path, set up the tcl interpreter.
+ */
+void
+mged_setup(void)
+{
+    int try_auto_path = 0;
+
+    int init_tcl = 1;
+    int init_itcl = 1;
+    struct bu_vls str;
+    const char *name = bu_getprogname();
+
+    /* locate our run-time binary (must be called before Tcl_CreateInterp()) */
+    if (name) {
+	Tcl_FindExecutable(name);
+    } else {
+	Tcl_FindExecutable("mged");
+    }
+
+    /* Create the interpreter */
+    interp = Tcl_CreateInterp();
+
+    /* a two-pass init loop.  the first pass just tries default init
+     * routines while the second calls tclcad_auto_path() to help it
+     * find other, potentially uninstalled, resources.
+     */
+    while (1) {
+
+	/* not called first time through, give Tcl_Init() a chance */
+	if (try_auto_path) {
+	    /* Locate the BRL-CAD-specific Tcl scripts, set the auto_path */
+	    tclcad_auto_path(interp);
+	}
+
+	/* Initialize Tcl */
+	Tcl_ResetResult(interp);
+	if (init_tcl && Tcl_Init(interp) == TCL_ERROR) {
+	    if (!try_auto_path) {
+		try_auto_path=1;
+		continue;
+	    }
+	    bu_log("Tcl_Init ERROR:\n%s\n", Tcl_GetStringResult(interp));
+	    break;
+	}
+	init_tcl=0;
+
+	/* warn if tcl_library isn't set by now */
+	if (try_auto_path) {
+	    tclcad_tcl_library(interp);
+	}
+
+	/* Initialize [incr Tcl] */
+	Tcl_ResetResult(interp);
+	if (init_itcl && Itcl_Init(interp) == TCL_ERROR) {
+	    if (!try_auto_path) {
+		try_auto_path=1;
+		continue;
+	    }
+	    bu_log("Itcl_Init ERROR:\n%s\n", Tcl_GetStringResult(interp));
+	    break;
+	}
+	Tcl_StaticPackage(interp, "Itcl", Itcl_Init, Itcl_SafeInit);
+	init_itcl=0;
+
+	/* don't actually want to loop forever */
+	break;
+
+    } /* end iteration over Init() routines that need auto_path */
+    Tcl_ResetResult(interp);
+
+    /* if we haven't loaded by now, load auto_path so we find our tclscripts */
+    if (!try_auto_path) {
+	/* Locate the BRL-CAD-specific Tcl scripts */
+	tclcad_auto_path(interp);
+    }
+
+    /* Import [incr Tcl] commands into the global namespace. */
+    if (Tcl_Import(interp, Tcl_GetGlobalNamespace(interp), "::itcl::*", /* allowOverwrite */ 1) != TCL_OK) {
+	bu_log("Tcl_Import ERROR: %s\n", Tcl_GetStringResult(interp));
+	Tcl_ResetResult(interp);
+    }
+
+#ifdef BRLCAD_DEBUG
+    /* Initialize libbu */
+    if (Bu_d_Init(interp) == TCL_ERROR) {
+	bu_log("Bu_Init ERROR:\n%s\n", Tcl_GetStringResult(interp));
+	Tcl_ResetResult(interp);
+    }
+
+    /* Initialize libbn */
+    if (Bn_d_Init(interp) == TCL_ERROR) {
+	bu_log("Bn_Init ERROR:\n%s\n", Tcl_GetStringResult(interp));
+	Tcl_ResetResult(interp);
+    }
+
+    /* Initialize librt */
+    if (Rt_d_Init(interp) == TCL_ERROR) {
+	bu_log("Rt_Init ERROR:\n%s\n", Tcl_GetStringResult(interp));
+	Tcl_ResetResult(interp);
+    }
+    Tcl_StaticPackage(interp, "Rt", Rt_d_Init, (Tcl_PackageInitProc *) NULL);
+#else
+    /* Initialize libbu */
+    if (Bu_Init(interp) == TCL_ERROR) {
+	bu_log("Bu_Init ERROR:\n%s\n", Tcl_GetStringResult(interp));
+	Tcl_ResetResult(interp);
+    }
+
+    /* Initialize libbn */
+    if (Bn_Init(interp) == TCL_ERROR) {
+	bu_log("Bn_Init ERROR:\n%s\n", Tcl_GetStringResult(interp));
+	Tcl_ResetResult(interp);
+    }
+
+    /* Initialize librt */
+    if (Rt_Init(interp) == TCL_ERROR) {
+	bu_log("Rt_Init ERROR:\n%s\n", Tcl_GetStringResult(interp));
+	Tcl_ResetResult(interp);
+    }
+    Tcl_StaticPackage(interp, "Rt", Rt_Init, (Tcl_PackageInitProc *) NULL);
+#endif
+
+    /* initialize MGED's drawable geometry object */
+    dgop = dgo_open_cmd("mged", wdbp);
+
+    view_state->vs_vop = vo_open_cmd("");
+    view_state->vs_vop->vo_callback = mged_view_obj_callback;
+    view_state->vs_vop->vo_clientData = view_state;
+    view_state->vs_vop->vo_scale = 500;
+    view_state->vs_vop->vo_size = 2.0 * view_state->vs_vop->vo_scale;
+    view_state->vs_vop->vo_invSize = 1.0 / view_state->vs_vop->vo_size;
+    MAT_DELTAS_GET_NEG(view_state->vs_orig_pos, view_state->vs_vop->vo_center);
+
+    /* register commands */
+    cmd_setup();
+
+    history_setup();
+    mged_global_variable_setup(interp);
+#if !TRY_NEW_MGED_VARS
+    mged_variable_setup(interp);
+#endif
+
+    /* Tcl needs to write nulls onto subscripted variable names */
+    bu_vls_init(&str);
+    bu_vls_printf( &str, "%s(state)", MGED_DISPLAY_VAR );
+    Tcl_SetVar(interp, bu_vls_addr(&str), state_str[state], TCL_GLOBAL_ONLY);
+
+    /* initialize "Query Ray" variables */
+    init_qray();
+
+    Tcl_ResetResult(interp);
+
+    bu_vls_free(&str);
+}
+
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+1.17
+log
+@add a similar new two-pass initialization approach that bwish/btclsh are now using such that tclcad_auto_path is only called if one of the init routines actually fails.  this helps ensure that we can use a system tcl (though doesn't take care of itcl loading/version problems).  make the error printing a little more consistent as well.
+@
+text
+@d124 6
+d138 4
+a141 1
+    Bu_d_Init(interp);
+d144 4
+a147 1
+    Bn_d_Init(interp);
+d149 1
+a149 1
+    /* Initialize librt (includes database, drawable geometry and view objects) */
+d151 1
+a151 1
+	bu_log("Rt_d_Init ERROR: %s\n", Tcl_GetStringResult(interp));
+d154 1
+d157 4
+a160 1
+    Bu_Init(interp);
+d163 4
+a166 1
+    Bn_Init(interp);
+d168 1
+a168 1
+    /* Initialize librt (includes database, drawable geometry and view objects) */
+d170 1
+a170 1
+	bu_log("Rt_Init ERROR: %s\n", Tcl_GetStringResult(interp));
+d173 1
+@
+
+
+1.16
+log
+@drop the disabled code for setting PATH.  we can/should now locate execable items individually via bu_brlcad_root instead of relying on PATH.
+@
+text
+@d59 4
+d76 44
+a119 2
+    /* Locate the BRL-CAD-specific Tcl scripts, set the auto_path */
+    tclcad_auto_path(interp);
+d121 2
+a122 7
+    /* This runs the init.tcl script */
+    if( Tcl_Init(interp) == TCL_ERROR )
+	bu_log("Tcl_Init error %s\n", Tcl_GetStringResult(interp));
+
+    /* Initialize [incr Tcl] */
+    if (Itcl_Init(interp) == TCL_ERROR)
+	bu_log("Itcl_Init error %s\n", Tcl_GetStringResult(interp));
+d125 4
+a128 3
+    if (Tcl_Import(interp, Tcl_GetGlobalNamespace(interp),
+		   "::itcl::*", /* allowOverwrite */ 1) != TCL_OK)
+	bu_log("Tcl_Import error %s\n", Tcl_GetStringResult(interp));
+d139 2
+a140 1
+	bu_log("Rt_d_Init error %s\n", Tcl_GetStringResult(interp));
+d151 2
+a152 1
+	bu_log("Rt_Init error %s\n", Tcl_GetStringResult(interp));
+@
+
+
+1.15
+log
+@Eliminated direct access of interp->result (Not reliable since tcl 8.0).
+See the comment in tcl.h.
+This also fixes the "units" command.
+@
+text
+@a87 46
+#if 0 /* FIXME: disabled.  defined(HAVE_GETENV) */
+    /* append our own bin dir to (the end of) our search path.
+     * this must be performed before the Tcl interpreter is
+     * created, or we'll need to use Tcl_PutEnv() instead of
+     * setenv().
+     */
+    {
+	struct bu_vls newpath;
+	const char *path = getenv("PATH");
+	const char *binpath = bu_brlcad_root("bin", 1);
+	int set = 0;
+
+	if (binpath) {
+
+	    bu_vls_init(&newpath);
+
+	    if (path) {
+		if (path[strlen(path)-1] == ':') {
+		    bu_vls_printf(&newpath, "PATH=%s%s", path, binpath);
+		} else {
+		    bu_vls_printf(&newpath, "PATH=%s:%s", path, binpath);
+		}
+	    } else {
+		bu_vls_printf(&newpath, "PATH=%s", binpath);
+	    }
+
+#  ifdef HAVE_PUTENV
+	    set = putenv(bu_vls_addr(&newpath));
+#  else
+#    ifdef HAVE_SETENV
+	    /* skip the "PATH=" in the newpath */
+	    set = setenv("PATH", bu_vls_addr(&newpath)+5, 1);
+#    else
+#      error "No putenv or setenv available.. don't know how to set environment variables."
+#    endif
+#  endif
+	    Tcl_PutEnv(bu_vls_addr(&newpath));
+
+	    if (set != 0) {
+		perror("unable to modify PATH");
+	    }
+	    bu_vls_free(&newpath);
+	}
+    }
+#endif
+
+@
+
+
+1.14
+log
+@remove the call to the private TclInitEncodingSubsystem() call that worked around a 8.4/8.5 race-condition bug inside Tcl_FindExecutable() whereby mged would crash.  it's not reproduced on a simple test case any more for unknown reasons.
+@
+text
+@d77 1
+a77 1
+	bu_log("Tcl_Init error %s\n", interp->result);
+d81 1
+a81 1
+	bu_log("Itcl_Init error %s\n", interp->result);
+d86 1
+a86 1
+	bu_log("Tcl_Import error %s\n", interp->result);
+d143 1
+a143 1
+	bu_log("Rt_d_Init error %s\n", interp->result);
+d154 1
+a154 1
+	bu_log("Rt_Init error %s\n", interp->result);
+@
+
+
+1.13
+log
+@should no longer need the tcl-private tclInt.h header... (definitely needs more testing, but progress towards NOT using it)
+@
+text
+@a61 5
+    /* necessary in 8.4 and 8.5 to avoid a race-condition inside
+     * Tcl_FindExecutable() that can lead to a crash
+     */
+    TclInitEncodingSubsystem();
+
+@
+
+
+1.12
+log
+@call TclInitEncodingSubsystem() before Tcl_FindExecutable() in order to avoid what seems to be a race-condition bug inside Tcl_FindExecutable() (bizarre and unknown cause, but this works around the issue)
+@
+text
+@a34 1
+#include <tclInt.h>
+@
+
+
+1.11
+log
+@bu_getprogname seems to be behaving now, so use it for selection of the executable name unless it does return null for some reason -- then default back to just 'mged'. try (again?) to set auto_path before Tcl_Init since we need to set up auto_path before init so the scripts, including init.tcl, can be found.
+@
+text
+@d63 6
+a68 1
+    /* locate our run-time binary */
+@
+
+
+1.10
+log
+@ws. lots and lots of ws.  see sh/ws.sh for details (cases 'abcdeg').
+@
+text
+@d61 1
+d63 4
+a66 6
+#if 1
+    /* use old for now until bu_getprogname() is verified */
+#ifdef _WIN32
+#  ifdef _DEBUG
+	Tcl_FindExecutable("mged_d");
+#  else
+d68 1
+a68 7
+#  endif
+#else
+	Tcl_FindExecutable("mged");
+#endif
+#else
+    Tcl_FindExecutable(bu_getprogname());
+#endif
+d73 3
+a178 3
+    /* Locate the BRL-CAD-specific Tcl scripts, set the auto_path */
+    tclcad_auto_path(interp);
+
+@
+
+
+1.9
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@d104 1
+a104 1
+ 
+d106 1
+a106 1
+ 
+d108 1
+a108 1
+ 
+d118 1
+a118 1
+	    
+@
+
+
+1.8
+log
+@update copyright to 2007
+@
+text
+@d8 2
+a9 3
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+d14 1
+a14 1
+ * General Public License for more details.
+d16 2
+a17 2
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+@
+
+
+1.7
+log
+@quell/fix issues raised by the Intel compiler on Altix
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 1985-2006 United States Government as represented by
+@
+
+
+1.6
+log
+@tried to move the PATH modifying block to after Tcl is initialized, but it still seems to be causing problems for people compiling on ubuntu for some unknown reason.  disable the block for now until it can be investigated more fully, maybe have to resort to a configure test.
+@
+text
+@d36 1
+d46 1
+@
+
+
+1.6.2.1
+log
+@update from HEAD
+@
+text
+@a35 1
+#include <tclInt.h>
+a44 1
+#include "tclcad.h"
+@
+
+
+1.5
+log
+@use bu_getprogname/bu_setprogname instead of bu_argv0
+@
+text
+@d61 32
+a92 1
+#if defined(HAVE_GETENV)
+d95 1
+a95 1
+     * created, or we'll need to use TclSetEnv() instead of
+d117 1
+a117 1
+ 
+d128 2
+a137 31
+#if 1
+#ifdef _WIN32
+#  ifdef _DEBUG
+	Tcl_FindExecutable("mged_d");
+#  else
+	Tcl_FindExecutable("mged");
+#  endif
+#else
+	Tcl_FindExecutable("mged");
+#endif
+#else
+    Tcl_FindExecutable(bu_getprogname());
+#endif
+
+    /* Create the interpreter */
+    interp = Tcl_CreateInterp();
+
+    /* This runs the init.tcl script */
+    if( Tcl_Init(interp) == TCL_ERROR )
+	bu_log("Tcl_Init error %s\n", interp->result);
+
+    /* Initialize [incr Tcl] */
+    if (Itcl_Init(interp) == TCL_ERROR)
+	bu_log("Itcl_Init error %s\n", interp->result);
+
+    /* Import [incr Tcl] commands into the global namespace. */
+    if (Tcl_Import(interp, Tcl_GetGlobalNamespace(interp),
+		   "::itcl::*", /* allowOverwrite */ 1) != TCL_OK)
+	bu_log("Tcl_Import error %s\n", interp->result);
+
+
+@
+
+
+1.4
+log
+@stdlib.h for alloc/getenv funcs
+@
+text
+@d116 1
+a116 1
+    Tcl_FindExecutable(bu_argv0(NULL));
+@
+
+
+1.3
+log
+@update copyright to 2006
+@
+text
+@d34 1
+@
+
+
+1.2
+log
+@Merge of bobWinPort
+@
+text
+@d4 1
+a4 1
+ * Copyright (C) 1985-2005 United States Government as represented by
+@
+
+
+1.1
+log
+@separate mged_setup() into it's own file, adding/fixing the block for modifying the PATH for finding brl-cad resources that match the running mged -- it must come before the tcl init routines for it to match tcl's internal env tracking
+@
+text
+@d49 3
+d104 11
+d116 1
+d135 12
+d157 1
+@
+

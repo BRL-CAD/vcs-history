@@ -1,0 +1,526 @@
+head	11.9;
+access;
+symbols
+	ansi-20040405-merged:11.6.2.1
+	postmerge-20040405-ansi:11.7
+	premerge-20040404-ansi:11.6
+	postmerge-autoconf:11.6
+	autoconf-freeze:11.6
+	premerge-autoconf:11.6
+	postmerge-20040315-windows:11.6
+	premerge-20040315-windows:11.6
+	windows-20040315-freeze:11.6
+	autoconf-20031203:11.6
+	autoconf-20031202:11.6
+	autoconf-branch:11.6.0.10
+	phong-branch:11.6.0.8
+	photonmap-branch:11.6.0.6
+	rel-6-1-DP:11.6
+	windows-branch:11.6.0.4
+	rel-6-0-2:11.4
+	ansi-branch:11.6.0.2
+	rel-6-0-1-branch:11.4.0.2
+	hartley-6-0-post:11.5
+	hartley-6-0-pre:11.4
+	rel-6-0-1:11.4
+	rel-6-0:11.4
+	rel-5-4:11.1
+	offsite-5-3-pre:11.2
+	rel-5-3:11.1
+	rel-5-2:11.1
+	rel-5-1-branch:11.1.0.2
+	rel-5-1:11.1
+	rel-5-0:11.1
+	rel-5-0-beta:11.1
+	rel-4-5:11.1
+	ctj-4-5-post:11.1
+	ctj-4-5-pre:11.1
+	rel-4-4:11.1
+	rel-4-0:10.1
+	rel-3-5:9.1;
+locks; strict;
+comment	@ * @;
+
+
+11.9
+date	2004.05.21.14.57.44;	author morrison;	state dead;
+branches;
+next	11.8;
+
+11.8
+date	2004.05.10.15.30.50;	author erikg;	state Exp;
+branches;
+next	11.7;
+
+11.7
+date	2004.04.05.05.46.02;	author morrison;	state Exp;
+branches;
+next	11.6;
+
+11.6
+date	2002.08.20.17.08.59;	author jra;	state Exp;
+branches
+	11.6.2.1;
+next	11.5;
+
+11.5
+date	2002.08.15.20.56.11;	author hartley;	state Exp;
+branches;
+next	11.4;
+
+11.4
+date	2001.08.10.20.57.06;	author butler;	state Exp;
+branches;
+next	11.3;
+
+11.3
+date	2001.08.08.03.28.15;	author butler;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	2000.09.01.03.23.51;	author mike;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	95.01.04.10.12.15;	author mike;	state Rel4_4;
+branches;
+next	10.2;
+
+10.2
+date	94.08.23.15.05.43;	author gdurf;	state Exp;
+branches;
+next	10.1;
+
+10.1
+date	91.10.12.06.48.21;	author mike;	state Rel4_0;
+branches;
+next	9.1;
+
+9.1
+date	89.05.19.06.09.49;	author mike;	state Rel3_5;
+branches;
+next	1.2;
+
+1.2
+date	89.04.21.00.41.32;	author butler;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	89.04.20.21.41.38;	author butler;	state Exp;
+branches;
+next	;
+
+11.6.2.1
+date	2002.09.19.18.02.38;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@Man page for pix-alias.c
+@
+
+
+11.9
+log
+@moved to src/util/
+@
+text
+@/*			P I X - A L I A S
+ *
+ * 	Convert BRL PIX format image files to ALIAS(tm) PIX fomat files.
+ *
+ *	Author
+ *	Lee A. Butler	butler@@stsci.edu
+ *
+ *	Options
+ *	x	set x dimension
+ *	y	set y dimension
+ *	s	set size of image (square)
+ *	h	help
+ *
+ *
+ *	Format of a BRL PIX file:
+ *	RGB RGB RGB RGB .... RGB
+ *	--------------------------------------------------
+ *	Format of an ALIAS(tm) PIX file:
+ *	16bit-x-dimension
+ *	16bit-y-dimension
+ *	16bit-x-offset (usually 0)
+ *	16bit-y-offset (usually y-1)
+ *	16bit-depth-count (a 16 bit int containing the number of bits per pixel)
+ *	run-length encoded pixel data.  Each entry of the form:
+ *	1byte run length, B, G, R
+ *	
+ *	Run length of 0 seems to be meaningless.
+ */
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+
+#include <stdio.h>
+#ifdef HAVE_STRING_H
+#include <string.h>
+#else
+#include <strings.h>
+#endif
+
+#include "machine.h"
+#include "externs.h"			/* For getopt */
+
+/* declarations to support use of getopt() system call */
+char *options = "hs:w:n:";
+char optflags[sizeof(options)];
+char *progname = "(noname)";
+
+int x=512;
+int y=512;
+
+struct aliashead {
+	short	x, y;		/* dimensions of this image in X and Y */
+	short	xoff, yoff;	/* offsets of pixels */
+	short	bitplanes;	/* the number of bits per pixel */
+};
+
+/*
+ *	D O I T --- Main function of program
+ */
+void doit(void)
+{
+	struct aliashead ah;
+	char *image;
+	unsigned bufsize, idx, cpix, cnt;
+	int n;
+
+	bufsize=(x*y*3);
+
+	/* allocate a buffer for the image */
+	if ((image = malloc(bufsize)) == (char *)NULL) {
+		(void) fprintf(stderr, "Error: Insufficient memory for image buffer\n");
+		exit(-2);
+	}
+	/* read in the image (reverse the order of the scanlines) */
+	for (n=y-1 ; n >= 0 ; --n)
+		if (fread(&image[n*x*3], x*3, 1, stdin) != 1) {
+			(void) fprintf(stderr, "Error reading image at scanline %u\n", n);
+			exit(-2);
+		}
+
+	/* create & write the alias pix file header */
+	ah.x = x;
+	ah.y = y;
+	ah.xoff = 0;
+	ah.yoff = y - 1;
+	ah.bitplanes = 24;
+
+	/* the weird output style is to circumvent differences in
+	 * machine architectures
+	 */
+	
+	(void) putchar( (x & 0x0ff00) >> 8);
+	(void) putchar( (x & 0x0ff));
+	(void) putchar( (y & 0x0ff00) >> 8);
+	(void) putchar( (y & 0x0ff));
+	(void) putchar(0);
+	(void) putchar(0);
+	(void) putchar( (ah.yoff & 0x0ff00) >> 8);
+	(void) putchar( (ah.yoff & 0x0ff));
+	(void) putchar(0);
+	(void) putchar(24);
+
+	for (idx=0 ; idx < bufsize ; ) {
+		cpix = idx; cnt=0;
+		while (cnt < 0x0ff && idx < bufsize-2 &&
+			image[idx] == image[cpix] &&
+			image[idx+1] == image[cpix+1] &&
+			image[idx+2] == image[cpix+2] ) {
+
+			idx += 3; ++cnt;
+		}
+		/* Alias files are count, B, G, R */
+		(void) putchar((char) cnt);
+		(void) putchar(image[cpix+2]);
+		(void) putchar(image[cpix+1]);
+		(void) putchar(image[cpix]);
+	}
+}
+
+void usage(void)
+{
+	(void)fprintf(stderr,"Usage: %s [ -s squaresize ] [-w file_width ] [-n file_height ]\n", progname);
+	(void)fprintf(stderr,"\t< BRLpixfile > ALIASpixfile\n");
+	exit(1);
+}
+
+
+int
+main(int ac, char **av)
+{
+	int  c, optlen;
+
+	progname = *av;
+	if (isatty(fileno(stdin))) usage();
+	
+	/* Get # of options & turn all the option flags off
+	 */
+	optlen = strlen(options);
+
+	for (c=0 ; c < optlen ; optflags[c++] = '\0');
+	
+	/* Turn off getopt's error messages */
+	opterr = 0;
+
+	/* get all the option flags from the command line
+	 */
+	while ((c=getopt(ac,av,options)) != EOF)
+		switch (c) {
+		case 'w' : x = atoi(optarg); break;
+		case 'n' : y = atoi(optarg); break;
+		case 's' : x = atoi(optarg); y = atoi(optarg); break;
+		default	: usage(); break;
+		}
+
+	if (optind >= ac) doit();
+	else usage();
+
+	return 0;
+}
+@
+
+
+11.8
+log
+@change conf.h to a wrapped config.h
+@
+text
+@@
+
+
+11.7
+log
+@merge of ansi-6-0-branch into head
+@
+text
+@d29 5
+a33 1
+#include "conf.h"
+@
+
+
+11.6
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d58 1
+a58 1
+void doit()
+d118 1
+a118 1
+void usage()
+d127 1
+a127 3
+main(ac,av)
+int ac;
+char *av[];
+@
+
+
+11.6.2.1
+log
+@Initial ANSIfication
+@
+text
+@d58 1
+a58 1
+void doit(void)
+d118 1
+a118 1
+void usage(void)
+d127 3
+a129 1
+main(int ac, char **av)
+@
+
+
+11.5
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d58 1
+a58 1
+void doit(void)
+d118 1
+a118 1
+void usage(void)
+d127 3
+a129 1
+main(int ac, char **av)
+@
+
+
+11.4
+log
+@Misc compiler warnings eliminated
+@
+text
+@d58 1
+a58 1
+void doit()
+d118 1
+a118 1
+void usage()
+d127 1
+a127 3
+main(ac,av)
+int ac;
+char *av[];
+@
+
+
+11.3
+log
+@Misc compiler warnings eliminated
+@
+text
+@d32 5
+@
+
+
+11.2
+log
+@
+Lint fix
+@
+text
+@d152 2
+@
+
+
+11.1
+log
+@Release_4.4
+@
+text
+@d121 1
+@
+
+
+10.2
+log
+@Factored ifdefs
+@
+text
+@@
+
+
+10.1
+log
+@Release_4.0
+@
+text
+@d29 2
+d33 3
+a38 2
+extern char *optarg;
+extern int optind, opterr, getopt();
+d56 1
+a56 1
+	char *image, *malloc();
+@
+
+
+9.1
+log
+@Release_3.5
+@
+text
+@@
+
+
+1.2
+log
+@*** empty log message ***
+@
+text
+@@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d50 1
+a50 2
+void doit(fd)
+FILE *fd;
+d61 1
+a61 1
+		fprintf(stderr, "Error: Insufficient memory for image buffer\n");
+d67 1
+a67 1
+			fprintf(stderr, "Error reading image at scanline %u\n", n);
+d82 10
+a91 10
+	putchar( (x & 0x0ff00) >> 8);
+	putchar( (x & 0x0ff));
+	putchar( (y & 0x0ff00) >> 8);
+	putchar( (y & 0x0ff));
+	putchar(0);
+	putchar(0);
+	putchar( (ah.yoff & 0x0ff00) >> 8);
+	putchar( (ah.yoff & 0x0ff));
+	putchar(0);
+	putchar(24);
+d103 4
+a106 4
+		putchar((char) cnt);
+		putchar(image[cpix+2]);
+		putchar(image[cpix+1]);
+		putchar(image[cpix]);
+d110 1
+a110 6
+/*	O F F S E T
+ *
+ *	return offset of character c in string s, or strlen(s) if c not in s
+ */
+int offset(s, c)
+char s[], c;
+d112 2
+a113 10
+	register unsigned int i=0;
+	while (s[i] != '\0' && s[i] != c) i++;
+	return(i);
+}
+
+void usage(s)
+char *s;
+{
+	fprintf(stderr,"Usage: %s [ -s squaresize ] [-w file_width ] [-n file_height ]\n", progname);
+	fprintf(stderr,"\t< BRLpixfile > ALIASpixfile\n");
+a122 1
+	FILE *fd, *fopen();
+d125 1
+a125 1
+	if (isatty(fileno(stdin))) usage(*av);
+a139 1
+		case '?' : usage(*av); break;
+d143 1
+a143 1
+		default	: usage(*av); break;
+d146 2
+a147 6
+	/* If someone called for help, give it to them! */
+	if (optflags[ offset(options, 'h') ]) usage(*av);
+
+	if (optind >= ac)
+		doit(stdin);
+	else usage(*av);
+@

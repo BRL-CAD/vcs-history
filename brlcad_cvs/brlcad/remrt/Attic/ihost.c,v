@@ -1,0 +1,800 @@
+head	1.18;
+access;
+symbols
+	ansi-20040405-merged:1.14.2.2
+	postmerge-20040405-ansi:1.16
+	premerge-20040404-ansi:1.15
+	postmerge-autoconf:1.15
+	autoconf-freeze:1.15
+	premerge-autoconf:1.15
+	postmerge-20040315-windows:1.15
+	premerge-20040315-windows:1.15
+	windows-20040315-freeze:1.14.4.1
+	autoconf-20031203:1.15
+	autoconf-20031202:1.15
+	autoconf-branch:1.15.0.6
+	phong-branch:1.15.0.4
+	photonmap-branch:1.15.0.2
+	rel-6-1-DP:1.15
+	windows-branch:1.14.0.4
+	rel-6-0-2:1.12
+	ansi-branch:1.14.0.2
+	rel-6-0-1-branch:1.12.0.2
+	hartley-6-0-post:1.13
+	hartley-6-0-pre:1.12
+	rel-6-0-1:1.12
+	rel-6-0:1.12
+	rel-5-4:1.8
+	offsite-5-3-pre:1.10
+	rel-5-3:1.8
+	rel-5-2:1.8
+	rel-5-1-branch:1.8.0.2
+	rel-5-1:1.8
+	rel-5-0:1.7
+	rel-5-0-beta:1.7
+	rel-4-5:1.6
+	ctj-4-5-post:1.6
+	ctj-4-5-pre:1.6;
+locks; strict;
+comment	@ * @;
+
+
+1.18
+date	2004.05.21.17.33.30;	author morrison;	state dead;
+branches;
+next	1.17;
+
+1.17
+date	2004.05.10.15.30.49;	author erikg;	state Exp;
+branches;
+next	1.16;
+
+1.16
+date	2004.04.05.05.45.58;	author morrison;	state Exp;
+branches;
+next	1.15;
+
+1.15
+date	2002.10.25.02.31.25;	author morrison;	state Exp;
+branches;
+next	1.14;
+
+1.14
+date	2002.08.20.17.08.37;	author jra;	state Exp;
+branches
+	1.14.2.1
+	1.14.4.1;
+next	1.13;
+
+1.13
+date	2002.08.15.20.55.48;	author hartley;	state Exp;
+branches;
+next	1.12;
+
+1.12
+date	2001.10.24.00.50.21;	author morrison;	state Exp;
+branches;
+next	1.11;
+
+1.11
+date	2001.10.17.07.40.05;	author morrison;	state Exp;
+branches;
+next	1.10;
+
+1.10
+date	2000.09.01.02.57.27;	author mike;	state Exp;
+branches;
+next	1.9;
+
+1.9
+date	2000.08.24.22.23.57;	author mike;	state Exp;
+branches;
+next	1.8;
+
+1.8
+date	2000.01.31.15.12.49;	author jra;	state Exp;
+branches;
+next	1.7;
+
+1.7
+date	98.09.14.15.59.21;	author bparker;	state Exp;
+branches;
+next	1.6;
+
+1.6
+date	97.05.23.20.33.35;	author mike;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	97.01.04.03.24.30;	author mike;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	95.08.24.03.54.54;	author mike;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	95.07.15.01.53.35;	author mike;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	95.07.15.00.05.18;	author mike;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	95.07.14.00.40.51;	author mike;	state Exp;
+branches;
+next	;
+
+1.14.2.1
+date	2002.09.19.18.02.14;	author morrison;	state Exp;
+branches;
+next	1.14.2.2;
+
+1.14.2.2
+date	2003.02.14.19.35.21;	author morrison;	state Exp;
+branches;
+next	;
+
+1.14.4.1
+date	2004.03.11.23.48.00;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@Internal host table routines
+@
+
+
+1.18
+log
+@moved to src/remrt/
+@
+text
+@/*
+ *			I H O S T . C
+ *
+ *  Internal host table routines.
+ *
+ *  Author -
+ *	Michael John Muuss
+ *  
+ *  Source -
+ *	The U. S. Army Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005-5068  USA
+ *  
+ *  Distribution Status -
+ *	Public Domain, Distribution Unlimited.
+ */
+#ifndef lint
+static const char RCSid[] = "@@(#)$Header: /n/xoff/cvs/brlcad/remrt/ihost.c,v 1.17 2004/05/10 15:30:49 erikg Exp $ (ARL)";
+#endif
+
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+
+#include <stdio.h>
+#include <ctype.h>
+#include <signal.h>
+#include <errno.h>
+#include <math.h>
+#ifdef USE_STRING_H
+
+# include <string.h>
+#else
+# include <strings.h>
+#endif
+
+#include <netdb.h>
+
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+
+#include "machine.h"
+#include "vmath.h"
+#include "rtstring.h"
+#include "rtlist.h"
+#include "raytrace.h"
+#include "externs.h"
+
+#include "./ihost.h"
+
+struct bu_list	HostHead;
+
+/*
+ *			G E T _ O U R _ H O S T N A M E
+ *
+ * There is a problem in some hosts that gethostname() will only
+ * return the host name and *not* the fully qualified host name
+ * with domain name.
+ *
+ * gethostbyname() will return a host table (nameserver) entry
+ * where h_name is the "offical name", i.e. fully qualified.
+ * Therefore the following piece of code.
+ */
+char *
+get_our_hostname(void)
+{
+	char temp[512];
+	struct hostent *hp;
+
+	/* Init list head here */
+	BU_LIST_INIT( &HostHead );
+
+	gethostname(temp, sizeof(temp));
+
+	hp = gethostbyname(temp);
+
+	return bu_strdup(hp->h_name);
+}
+
+/*
+ *			H O S T _ L O O K U P _ B Y _ H O S T E N T
+ *
+ *  We have a hostent structure, of which, the only thing of interest is
+ *  the host name.  Go from name to address back to name, to get formal name.
+ *
+ *  Used by host_lookup_by_addr, too.
+ */
+struct ihost *
+host_lookup_by_hostent(struct hostent *addr, int enter)
+{
+	register struct ihost	*ihp;
+	struct hostent	*addr2;
+	struct hostent	*addr3;
+
+	addr2 = gethostbyname(addr->h_name);
+	if( addr != addr2 )  {
+		bu_log("host_lookup_by_hostent(%s) got %s?\n",
+			addr->h_name, addr2 ? addr2->h_name : "NULL" );
+		return IHOST_NULL;
+	}
+	addr3 = gethostbyaddr(addr2->h_addr_list[0],
+	    sizeof(struct in_addr), addr2->h_addrtype);
+	if( addr != addr3 )  {
+		bu_log("host_lookup_by_hostent(%s) got %s?\n",
+			addr->h_name, addr3 ? addr3->h_name : "NULL" );
+		return IHOST_NULL;
+	}
+	/* Now addr->h_name points to the "formal" name of the host */
+
+	/* Search list for existing instance */
+	for( BU_LIST_FOR( ihp, ihost, &HostHead ) )  {
+		CK_IHOST(ihp);
+
+		if( strcmp( ihp->ht_name, addr->h_name ) != 0 )
+			continue;
+		return( ihp );
+	}
+	if( enter == 0 )
+		return( IHOST_NULL );
+
+	/* If not found and enter==1, enter in host table w/defaults */
+	/* Note: gethostbyxxx() routines keep stuff in a static buffer */
+	return( make_default_host( addr->h_name ) );
+}
+
+/*
+ *			M A K E _ D E F A U L T _ H O S T
+ *
+ *  Add a new host entry to the list of known hosts, with
+ *  default parameters.
+ *  This routine is used to handle unexpected volunteers.
+ */
+struct ihost *
+make_default_host(char *name)
+{
+	register struct ihost	*ihp;
+
+	BU_GETSTRUCT( ihp, ihost );
+	ihp->l.magic = IHOST_MAGIC;
+
+	/* Make private copy of host name -- callers have static buffers */
+	ihp->ht_name = bu_strdup( name );
+
+	/* Default host parameters */
+	ihp->ht_flags = 0x0;
+	ihp->ht_when = HT_PASSIVE;
+	ihp->ht_where = HT_CONVERT;
+	ihp->ht_path = "/tmp";
+
+	/* Add to linked list of known hosts */
+	BU_LIST_INSERT( &HostHead, &ihp->l );
+
+	return(ihp);
+}
+
+/*
+ *			H O S T _ L O O K U P _ B Y _ A D D R
+ */
+struct ihost *
+host_lookup_by_addr(struct sockaddr_in *from, int enter)
+{
+	register struct ihost	*ihp;
+	struct hostent	*addr;
+	unsigned long	addr_tmp;
+	char		name[64];
+
+	addr_tmp = from->sin_addr.s_addr;
+	addr = gethostbyaddr( (char *)&from->sin_addr, sizeof (struct in_addr),
+		from->sin_family);
+	if( addr != NULL )  {
+		ihp = host_lookup_by_hostent( addr, enter );
+		if( ihp )  return ihp;
+	}
+
+	/* Host name is not known */
+	addr_tmp = ntohl(addr_tmp);
+	sprintf( name, "%ld.%ld.%ld.%ld",
+		(addr_tmp>>24) & 0xff,
+		(addr_tmp>>16) & 0xff,
+		(addr_tmp>> 8) & 0xff,
+		(addr_tmp    ) & 0xff );
+	if( enter == 0 )  {
+		bu_log("%s: unknown host\n", name);
+		return( IHOST_NULL );
+	}
+
+	/* See if this host has been previously entered by number */
+	for( BU_LIST_FOR( ihp, ihost, &HostHead ) )  {
+		CK_IHOST(ihp);
+		if( strcmp( ihp->ht_name, name ) == 0 )
+			return( ihp );
+	}
+
+	/* Create a new hostent structure */
+	return( make_default_host( name ) );
+}
+
+/*
+ *			H O S T _ L O O K U P _ B Y _ N A M E
+ */
+struct ihost *
+host_lookup_by_name(char *name, int enter)
+{
+	struct sockaddr_in	sockhim;
+	struct hostent		*addr;
+
+	/* Determine name to be found */
+	if( isdigit( *name ) )  {
+		/* Numeric */
+		sockhim.sin_family = AF_INET;
+		sockhim.sin_addr.s_addr = inet_addr(name);
+		return( host_lookup_by_addr( &sockhim, enter ) );
+	} else {
+		addr = gethostbyname(name);
+	}
+	if( addr == NULL )  {
+		bu_log("%s:  bad host\n", name);
+		return( IHOST_NULL );
+	}
+	return( host_lookup_by_hostent( addr, enter ) );
+}
+
+/*
+ *			H O S T _ L O O K U P _ O F _ F D
+ */
+struct ihost *
+host_lookup_of_fd(int fd)
+{
+	auto int	fromlen;
+	struct sockaddr_in from;
+
+	fromlen = sizeof (from);
+	if (getpeername(fd, (struct sockaddr *)&from, &fromlen) < 0) {
+		perror("getpeername");
+		return IHOST_NULL;
+	}
+
+	return host_lookup_by_addr( &from, 1 );
+}
+@
+
+
+1.17
+log
+@change conf.h to a wrapped config.h
+@
+text
+@d17 1
+a17 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/remrt/ihost.c,v 1.16 2004/04/05 05:45:58 morrison Exp $ (ARL)";
+@
+
+
+1.16
+log
+@merge of ansi-6-0-branch into head
+@
+text
+@d17 1
+a17 1
+static const char RCSid[] = "@@(#)$Header$ (ARL)";
+d20 5
+a24 1
+#include "conf.h"
+@
+
+
+1.15
+log
+@No longer need to undefine BSD hack (and it caused errors on OS X 10.2
+@
+text
+@d17 1
+a17 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/remrt/ihost.c,v 1.14 2002/08/20 17:08:37 jra Exp $ (ARL)";
+d65 1
+a65 1
+get_our_hostname()
+d89 1
+a89 3
+host_lookup_by_hostent( addr, enter )
+struct hostent	*addr;
+int		enter;
+d134 1
+a134 2
+make_default_host( name )
+char	*name;
+d160 1
+a160 3
+host_lookup_by_addr( from, enter )
+struct sockaddr_in	*from;
+int	enter;
+d202 1
+a202 3
+host_lookup_by_name( name, enter )
+char	*name;
+int	enter;
+d227 1
+a227 2
+host_lookup_of_fd(fd)
+int	fd;
+@
+
+
+1.14
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d17 1
+a17 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/remrt/ihost.c,v 1.12 2001/10/24 00:50:21 morrison Exp $ (ARL)";
+a33 4
+#ifdef BSD
+#  define __BSDbackup BSD
+#  undef BSD
+#endif
+a34 4
+#ifdef __BSDbackup
+#  define BSD __BSDbackup
+#  undef __BSDbackup
+#endif
+@
+
+
+1.14.4.1
+log
+@sync to HEAD...
+@
+text
+@d17 1
+a17 1
+static const char RCSid[] = "@@(#)$Header: /n/cad/c/CVS/brlcad/remrt/ihost.c,v 1.15 2002/10/25 02:31:25 morrison Exp $ (ARL)";
+d34 4
+d39 4
+@
+
+
+1.14.2.1
+log
+@Initial ANSIfication
+@
+text
+@d17 1
+a17 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/remrt/ihost.c,v 1.14 2002/08/20 17:08:37 jra Exp $ (ARL)";
+d73 1
+a73 1
+get_our_hostname(void)
+d97 3
+a99 1
+host_lookup_by_hostent(struct hostent *addr, int enter)
+d144 2
+a145 1
+make_default_host(char *name)
+d171 3
+a173 1
+host_lookup_by_addr(struct sockaddr_in *from, int enter)
+d215 3
+a217 1
+host_lookup_by_name(char *name, int enter)
+d242 2
+a243 1
+host_lookup_of_fd(int fd)
+@
+
+
+1.14.2.2
+log
+@removed the os x BSD temp undefine blocks
+@
+text
+@d17 1
+a17 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/remrt/ihost.c,v 1.14.2.1 2002/09/19 18:02:14 morrison Exp $ (ARL)";
+d34 4
+d39 4
+@
+
+
+1.13
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d73 1
+a73 1
+get_our_hostname(void)
+d97 3
+a99 1
+host_lookup_by_hostent(struct hostent *addr, int enter)
+d144 2
+a145 1
+make_default_host(char *name)
+d171 3
+a173 1
+host_lookup_by_addr(struct sockaddr_in *from, int enter)
+d215 3
+a217 1
+host_lookup_by_name(char *name, int enter)
+d242 2
+a243 1
+host_lookup_of_fd(int fd)
+@
+
+
+1.12
+log
+@*** empty log message ***
+@
+text
+@d17 1
+a17 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/remrt/ihost.c,v 1.11 2001/10/17 07:40:05 morrison Exp $ (ARL)";
+d73 1
+a73 1
+get_our_hostname()
+d97 1
+a97 3
+host_lookup_by_hostent( addr, enter )
+struct hostent	*addr;
+int		enter;
+d142 1
+a142 2
+make_default_host( name )
+char	*name;
+d168 1
+a168 3
+host_lookup_by_addr( from, enter )
+struct sockaddr_in	*from;
+int	enter;
+d210 1
+a210 3
+host_lookup_by_name( name, enter )
+char	*name;
+int	enter;
+d235 1
+a235 2
+host_lookup_of_fd(fd)
+int	fd;
+@
+
+
+1.11
+log
+@Mac OS X warning and error fixes for non-production build
+@
+text
+@d17 1
+a17 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/remrt/ihost.c,v 1.10 2000/09/01 02:57:27 mike Exp $ (ARL)";
+a39 1
+#  undef BSD
+@
+
+
+1.10
+log
+@
+Missing header file
+@
+text
+@d17 1
+a17 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/remrt/ihost.c,v 1.9 2000/08/24 22:23:57 mike Exp $ (ARL)";
+a25 1
+#include <netdb.h>
+d28 1
+d32 11
+@
+
+
+1.9
+log
+@
+RCSid
+@
+text
+@d17 1
+a17 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/remrt/ihost.c,v 1.8 2000/01/31 15:12:49 jra Exp $ (ARL)";
+d38 1
+@
+
+
+1.8
+log
+@Eliminated some unused variables
+@
+text
+@d17 1
+a17 1
+static char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/remrt/ihost.c,v 1.7 1998/09/14 15:59:21 bparker Exp $ (ARL)";
+@
+
+
+1.7
+log
+@*- fix typos
+@
+text
+@d17 1
+a17 1
+static char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/remrt/ihost.c,v 1.6 1997/05/23 20:33:35 mike Exp $ (ARL)";
+a233 2
+	struct ihost	*ihp;
+	int		on = 1;
+@
+
+
+1.6
+log
+@Prevent dumping core in presence of non-symmetrical DNS mappings.
+@
+text
+@d17 1
+a17 1
+static char RCSid[] = "@@(#)$Header: /m/cad/remrt/RCS/ihost.c,v 1.5 1997/01/04 03:24:30 mike Exp mike $ (ARL)";
+d179 1
+a179 1
+	sprintf( name, "%d.%d.%d.%d",
+@
+
+
+1.5
+log
+@libbu/libbn
+@
+text
+@d17 1
+a17 1
+static char RCSid[] = "@@(#)$Header: /m/cad/remrt/RCS/ihost.c,v 1.4 1995/08/24 03:54:54 mike Exp mike $ (ARL)";
+d97 1
+a97 1
+			addr->h_name, addr2->h_name );
+d104 1
+a104 1
+			addr->h_name, addr3->h_name );
+@
+
+
+1.4
+log
+@More conservative in handling of hosts with bad DNS entries.
+@
+text
+@d17 1
+a17 1
+static char RCSid[] = "@@(#)$Header: /m/cad/remrt/RCS/ihost.c,v 1.3 1995/07/15 01:53:35 mike Exp mike $ (ARL)";
+d48 1
+a48 1
+struct rt_list	HostHead;
+d68 1
+a68 1
+	RT_LIST_INIT( &HostHead );
+d74 1
+a74 1
+	return rt_strdup(hp->h_name);
+d96 1
+a96 1
+		rt_log("host_lookup_by_hostent(%s) got %s?\n",
+d103 1
+a103 1
+		rt_log("host_lookup_by_hostent(%s) got %s?\n",
+d110 1
+a110 1
+	for( RT_LIST_FOR( ihp, ihost, &HostHead ) )  {
+d138 1
+a138 1
+	GETSTRUCT( ihp, ihost );
+d142 1
+a142 1
+	ihp->ht_name = rt_strdup( name );
+d151 1
+a151 1
+	RT_LIST_INSERT( &HostHead, &ihp->l );
+d185 1
+a185 1
+		rt_log("%s: unknown host\n", name);
+d190 1
+a190 1
+	for( RT_LIST_FOR( ihp, ihost, &HostHead ) )  {
+d221 1
+a221 1
+		rt_log("%s:  bad host\n", name);
+@
+
+
+1.3
+log
+@Added host_lookup_of_fd()
+@
+text
+@d17 1
+a17 1
+static char RCSid[] = "@@(#)$Header: /m/cad/remrt/RCS/ihost.c,v 1.2 1995/07/15 00:05:18 mike Exp mike $ (ARL)";
+d91 2
+d94 4
+a97 1
+	if( !(addr == gethostbyname(addr->h_name)) )
+d99 6
+a104 2
+	if( !(addr == gethostbyaddr(addr->h_addr_list[0],
+	    sizeof(struct in_addr), addr->h_addrtype)) )
+d106 1
+d172 4
+a175 2
+	if( addr != NULL )
+		return( host_lookup_by_hostent( addr, enter ) );
+@
+
+
+1.2
+log
+@Missing arg.
+@
+text
+@d17 1
+a17 1
+static char RCSid[] = "@@(#)$Header: /m/cad/remrt/RCS/ihost.c,v 1.1 1995/07/14 00:40:51 mike Exp mike $ (ARL)";
+d129 1
+d213 21
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d17 1
+a17 1
+static char RCSid[] = "@@(#)$Header$ (ARL)";
+d172 1
+a172 1
+		rt_log("%s: unknown host\n");
+@

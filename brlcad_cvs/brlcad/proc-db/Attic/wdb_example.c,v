@@ -1,0 +1,411 @@
+head	11.12;
+access;
+symbols
+	ansi-20040405-merged:11.9.2.1
+	postmerge-20040405-ansi:11.10
+	premerge-20040404-ansi:11.9
+	postmerge-autoconf:11.9
+	autoconf-freeze:11.9
+	premerge-autoconf:11.9
+	postmerge-20040315-windows:11.9
+	premerge-20040315-windows:11.9
+	windows-20040315-freeze:11.9
+	autoconf-20031203:11.9
+	autoconf-20031202:11.9
+	autoconf-branch:11.9.0.10
+	phong-branch:11.9.0.8
+	photonmap-branch:11.9.0.6
+	rel-6-1-DP:11.9
+	windows-branch:11.9.0.4
+	rel-6-0-2:11.7
+	ansi-branch:11.9.0.2
+	rel-6-0-1-branch:11.7.0.2
+	hartley-6-0-post:11.8
+	hartley-6-0-pre:11.7
+	rel-6-0-1:11.7
+	rel-6-0:11.6
+	rel-5-4:11.2
+	offsite-5-3-pre:11.6
+	rel-5-3:11.2
+	rel-5-2:11.2
+	rel-5-1-branch:11.2.0.2
+	rel-5-1:11.2;
+locks; strict;
+comment	@ * @;
+
+
+11.12
+date	2004.05.21.17.33.48;	author morrison;	state dead;
+branches;
+next	11.11;
+
+11.11
+date	2004.05.10.15.30.49;	author erikg;	state Exp;
+branches;
+next	11.10;
+
+11.10
+date	2004.04.05.05.45.58;	author morrison;	state Exp;
+branches;
+next	11.9;
+
+11.9
+date	2002.08.20.17.08.35;	author jra;	state Exp;
+branches
+	11.9.2.1;
+next	11.8;
+
+11.8
+date	2002.08.15.20.55.47;	author hartley;	state Exp;
+branches;
+next	11.7;
+
+11.7
+date	2002.05.17.12.42.25;	author morrison;	state Exp;
+branches;
+next	11.6;
+
+11.6
+date	2000.08.24.04.48.37;	author mike;	state Exp;
+branches;
+next	11.5;
+
+11.5
+date	2000.07.12.21.59.08;	author mike;	state Exp;
+branches;
+next	11.4;
+
+11.4
+date	2000.07.10.23.35.41;	author mike;	state Exp;
+branches;
+next	11.3;
+
+11.3
+date	2000.06.30.14.54.19;	author mike;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	2000.06.23.03.28.58;	author butler;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	2000.06.23.02.26.35;	author butler;	state Exp;
+branches;
+next	;
+
+11.9.2.1
+date	2002.09.19.18.02.13;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+11.12
+log
+@moved to src/proc-db/
+@
+text
+@/*	W D B _ E X A M P L E . C
+ *
+ *  Create a BRL-CAD geometry database from C code.
+ * 
+ *  Note that this is for writing (creating/appending) a database.  
+ *  There is currently no API for modifying a database.
+ *
+ *  Note that since the values in the database are stored in millimeters.
+ *  This constrains the arguments to the mk_* routines to also be in 
+ *  millimeters.
+ */
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+
+#include <stdio.h>
+#include <math.h>
+#include "machine.h"
+#include "bu.h"
+#include "vmath.h"
+#include "bn.h"
+#include "raytrace.h"
+#include "rtgeom.h"
+#include "wdb.h"
+
+char *progname ="(noname)";
+
+void usage(void)
+{
+	fprintf(stderr, "Usage: %s db_file.g\n", progname);
+	exit(-1);
+}
+
+int
+main(int ac, char *av[])
+{
+	struct rt_wdb *db_fp;
+	point_t p1, p2;
+	int is_region;
+	unsigned char rgb[3];
+	struct wmember wm_hd; /* defined in wdb.h */
+
+	progname = *av;
+
+	if (ac < 2) usage();
+
+	if ((db_fp = wdb_fopen(av[1])) == NULL) {
+		perror(av[1]);
+		exit(-1);
+	}
+
+	mk_id(db_fp, "My Database"); /* create the database header record */
+
+	/* all units in the database file are stored in millimeters.
+	 * This constrains the arguments to the mk_* routines to also be
+	 * in millimeters
+	 */
+
+
+	/* make a sphere centered at 1.0, 2.0, 3.0 with radius .75 */
+	VSET(p1, 1.0, 2.0, 3.0);
+	mk_sph(db_fp, "ball.s", p1, 0.75);
+
+
+	/* make an rpp under the sphere (partly overlapping).
+	 * Note that this really makes an arb8, but gives us a
+	 * shortcut for specifying the parameters.
+	 */
+	VSET(p1, 0.0, 0.0, 0.0);
+	VSET(p2, 2.0, 4.0, 2.5);
+	mk_rpp(db_fp, "box.s", p1, p2);
+
+	/* make a region that is the union of these two objects
+	 * To accomplish this, we need to create a linked list of the
+	 * items that make up the combination.  The wm_hd structure serves
+	 * as the head of the list of items.
+	 */
+	BU_LIST_INIT(&wm_hd.l);
+
+	/* Create a wmember structure for each of the items that we want
+	 * in the combination.  The return from mk_addmember is a pointer
+	 * to the wmember structure 
+	 */
+	(void)mk_addmember( "box.s", &wm_hd.l, NULL, WMOP_UNION );
+
+	/* If we wanted a transformation matrix for this arc, we could
+	 * have passed the matrix in to mk_addmember as an argument or
+	 * we could add the following code:
+	 *
+	 memcpy( wm_hd->wm_mat, trans_matrix, sizeof(mat_t));
+	 *
+	 * Remember that values in the database are stored in millimeters.
+	 * so the values in the matrix must take this into account.
+	 */
+
+	/* add the second member to the database
+	 *   Note that there is nothing which checks to make
+	 * sure that "ball.s" exists in the database when you create the
+	 * wmember structure OR when you create the combination.  So
+	 * mis-typing the name of a sub-element for a region/combination
+	 * can be a problem.
+	 */
+
+	(void)mk_addmember( "ball.s", &wm_hd.l, NULL, WMOP_UNION );
+
+	/* Create the combination
+	 * In this case we are going to make it a region (hence the
+	 * is_region flag is set, and we provide shader parameter information.
+	 *
+	 * When making a combination that is NOT a region, the region flag
+	 * argument is 0, and the strings for optical shader, and shader
+	 * parameters should (in general) be null pointers.
+	 */
+	is_region = 1;
+	VSET(rgb, 64, 180, 96); /* a nice green */
+	mk_lcomb(db_fp,
+		"box_n_ball.r",	/* Name of the db element created */
+		&wm_hd,		/* list of elements & boolean operations */
+		is_region,	/* Flag:  This is a region */
+		 "plastic",	/* optical shader */
+		 "di=.8 sp=.2", /* shader parameters */
+		 rgb,		/* item color */
+		 0);		/* inherit (override) flag */
+
+	wdb_close(db_fp);
+	return 0;
+}
+@
+
+
+11.11
+log
+@change conf.h to a wrapped config.h
+@
+text
+@@
+
+
+11.10
+log
+@merge of ansi-6-0-branch into head
+@
+text
+@d12 5
+a16 1
+#include "conf.h"
+@
+
+
+11.9
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d26 1
+a26 1
+void usage()
+@
+
+
+11.9.2.1
+log
+@Initial ANSIfication
+@
+text
+@d26 1
+a26 1
+void usage(void)
+@
+
+
+11.8
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d26 1
+a26 1
+void usage(void)
+@
+
+
+11.7
+log
+@added matrix parameter to mk_addmember()
+@
+text
+@d26 1
+a26 1
+void usage()
+@
+
+
+11.6
+log
+@
+mk_addmember
+@
+text
+@d82 1
+a82 1
+	(void)mk_addmember( "box.s", &wm_hd.l, WMOP_UNION );
+d84 3
+a86 2
+	/* If we wanted a transformation matrix for this arc, we would
+	 * add the following code:
+d88 1
+a88 1
+	memcpy( wm->wm_mat, trans_matrix, sizeof(mat_t));
+d102 1
+a102 1
+	(void)mk_addmember( "ball.s", &wm_hd.l, WMOP_UNION );
+@
+
+
+11.5
+log
+@
+Converted to use new version of LIBWDB.
+@
+text
+@d82 1
+a82 1
+	(void)mk_addmember( "box.s", &wm_hd, WMOP_UNION );
+d101 1
+a101 1
+	(void)mk_addmember( "ball.s", &wm_hd, WMOP_UNION );
+@
+
+
+11.4
+log
+@
+raytrace.h before wdb.h
+Eliminated use of db.h
+@
+text
+@d21 1
+d32 1
+d35 1
+a35 1
+	FILE *db_fp;
+a36 1
+	fastf_t radius;
+d45 1
+a45 1
+	if ((db_fp = fopen(av[1], "w")) == (FILE *)NULL) {
+d122 2
+a123 1
+	fclose(db_fp);
+@
+
+
+11.3
+log
+@
+Fixed lint
+@
+text
+@a16 1
+#include "db.h"
+d20 1
+a21 1
+/* #include "raytrace.h" */
+@
+
+
+11.2
+log
+@Irix compilation tweaks
+@
+text
+@d39 1
+a39 1
+	struct wmember wm_hd, *wm; /* defined in wdb.h */
+d82 1
+a82 1
+	wm = mk_addmember( "box.s", &wm_hd, WMOP_UNION );
+d101 1
+a101 1
+	wm = mk_addmember( "ball.s", &wm_hd, WMOP_UNION );
+@
+
+
+11.1
+log
+@Chages to add wdb_example.c
+@
+text
+@d38 1
+a38 1
+	char rgb[3];
+d94 1
+a94 1
+	/*   Note that there is nothing which checks to make
+@
+

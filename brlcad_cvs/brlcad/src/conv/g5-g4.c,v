@@ -1,0 +1,676 @@
+head	14.14;
+access;
+symbols
+	rel-7-10-4:14.11
+	STABLE:14.11.0.2
+	stable-branch:14.5
+	rel-7-10-2:14.11
+	rel-7-10-0:14.9
+	rel-7-8-4:14.6
+	rel-7-8-2:14.6
+	rel-7-8-0:14.6
+	trimnurbs-branch:14.6.0.2
+	help:14.6
+	temp_tag:14.5
+	bobWinPort-20051223-freeze:14.5
+	postmerge-20051223-bobWinPort:14.5
+	premerge-20051223-bobWinPort:14.5
+	rel-7-6-6:14.5
+	rel-7-6-4:14.5
+	rel-7-6-2:14.5
+	rel-7-6-branch:14.5.0.6
+	rel-7-6-0:14.5
+	rel-7-4-2:14.5
+	rel-7-4-branch:14.5.0.4
+	bobWinPort:14.5.0.2
+	rel-7-4-0:14.5
+	rel-7-2-6:14.5
+	rel-7-2-4:14.5
+	rel-7-2-2:14.5
+	rel-7-2-0:14.5
+	rel-7-0-4:14.4
+	rel-7-0-2:14.4
+	rel-7-0-1:14.4
+	opensource-post:14.4
+	opensource-pre:1.4
+	rel-7-0-branch:1.4.0.2
+	rel-7-0:1.4;
+locks; strict;
+comment	@ * @;
+
+
+14.14
+date	2007.11.21.20.38.21;	author erikgreenwald;	state Exp;
+branches;
+next	14.13;
+
+14.13
+date	2007.11.21.19.05.59;	author erikgreenwald;	state Exp;
+branches;
+next	14.12;
+
+14.12
+date	2007.09.15.16.23.04;	author brlcad;	state Exp;
+branches;
+next	14.11;
+
+14.11
+date	2007.07.10.03.08.00;	author brlcad;	state Exp;
+branches;
+next	14.10;
+
+14.10
+date	2007.04.29.02.05.02;	author johnranderson;	state Exp;
+branches;
+next	14.9;
+
+14.9
+date	2007.01.27.01.41.32;	author brlcad;	state Exp;
+branches;
+next	14.8;
+
+14.8
+date	2007.01.23.01.13.25;	author brlcad;	state Exp;
+branches;
+next	14.7;
+
+14.7
+date	2007.01.20.14.36.43;	author brlcad;	state Exp;
+branches;
+next	14.6;
+
+14.6
+date	2006.01.18.06.46.13;	author brlcad;	state Exp;
+branches;
+next	14.5;
+
+14.5
+date	2005.01.30.20.30.20;	author brlcad;	state Exp;
+branches;
+next	14.4;
+
+14.4
+date	2004.12.21.01.07.59;	author butler;	state Exp;
+branches;
+next	14.3;
+
+14.3
+date	2004.12.18.06.50.50;	author morrison;	state Exp;
+branches;
+next	14.2;
+
+14.2
+date	2004.12.18.02.38.10;	author morrison;	state Exp;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.13;	author morrison;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	2004.10.04.14.03.43;	author morrison;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2004.09.03.23.30.56;	author morrison;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2004.08.02.23.01.47;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.15.18.54;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.14
+log
+@collapse bu_log();bu_exit(#,""); as much as possible
+@
+text
+@/* BRL-CAD	G 5 - G 4 . C
+ *
+ * Copyright (c) 2004-2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ *
+ */
+/** @@file conv/g5-g4.c
+ *               g5-g4: program to convert version 5 databases to version 4
+ *
+ * USAGE
+ * 	g5-g4 v5_input_database v4_output_database
+ *
+ * DESCRIPTION
+ *	Imports version 5 database objects and writes out the equivalent v4 database
+ *	objects as best it can. Note that some v5 objects cannot be represented in a
+ *	version 4 database.
+ *
+ * AUTHOR
+ *	John R. Anderson
+ *
+ * EXAMPLE
+ *	g5-g4 model_v5.g model_v4.g
+ */
+
+#include "common.h"
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include "machine.h"
+#include "bu.h"
+#include "vmath.h"
+#include "bn.h"
+#include "raytrace.h"
+#include "rtgeom.h"
+#include "wdb.h"
+
+
+int
+main(int argc, char **argv)
+{
+	struct rt_wdb	*fp;
+	struct db_i	*dbip, *dbip4;
+	struct directory	*dp;
+	long	errors = 0, skipped = 0;
+	struct bn_tol tol;
+
+	/* XXX These need to be improved */
+	tol.magic = BN_TOL_MAGIC;
+	tol.dist = 0.005;
+	tol.dist_sq = tol.dist * tol.dist;
+	tol.perp = 1e-6;
+	tol.para = 1 - tol.perp;
+
+	bu_debug = BU_DEBUG_COREDUMP;
+
+	rt_init_resource( &rt_uniresource, 0, NULL );
+
+	if( argc != 3 )  {
+		bu_log( "Usage: %s v5.g v4.g\n", argv[0]);
+		return 1;
+	}
+
+	if( (dbip = db_open( argv[1], "r" )) == DBI_NULL )  {
+		perror( argv[1] );
+		return 2;
+	}
+
+	if( rt_uniresource.re_magic != RESOURCE_MAGIC )
+		rt_init_resource( &rt_uniresource, 0, NULL );
+
+	if( (dbip4 = db_create( argv[2], 4 )) == DBI_NULL ) {
+		bu_log( "Failed to create output database (%s)\n", argv[2] );
+		return 3;
+	}
+
+	if( (fp = wdb_dbopen( dbip4, RT_WDB_TYPE_DB_DISK )) == RT_WDB_NULL ) {
+		bu_log( "db_dbopen() failed for %s\n", argv[2] );
+		return 4;
+	}
+
+	if( dbip->dbi_version != 5 ) {
+		bu_log( "Input database must be a version 5 database!!!!\n" );
+		return 5;
+	}
+
+	RT_CK_DBI(dbip);
+	if( db_dirbuild( dbip ) )
+	    bu_exit(1, "db_dirbuild failed\n" );
+
+	mk_id_units( fp, dbip->dbi_title, bu_units_string( dbip->dbi_local2base ) );
+
+	/* Retrieve every item in the input database */
+	FOR_ALL_DIRECTORY_START(dp, dbip)  {
+		struct rt_db_internal	intern;
+		int id;
+		int ret;
+
+		bu_log( "%s\n", dp->d_namep );
+		if( dp->d_major_type != DB5_MAJORTYPE_BRLCAD ) {
+			bu_log( "\tThis object not supported in version4 databases, not converted\n" );
+			skipped++;
+			continue;
+		}
+
+		id = rt_db_get_internal( &intern, dp, dbip, NULL, &rt_uniresource );
+		if( id < 0 )  {
+			bu_log(
+				"%s: rt_db_get_internal(%s) failure, skipping\n",
+				argv[0], dp->d_namep);
+			errors++;
+			continue;
+		}
+		if( id == ID_COMBINATION ) {
+			struct rt_comb_internal *comb;
+			char *ptr;
+
+			comb = (struct rt_comb_internal *)intern.idb_ptr;
+			RT_CK_COMB( comb );
+
+			/* Convert "plastic" to "phong" in the shader string */
+			while( (ptr=strstr( bu_vls_addr( &comb->shader), "plastic" )) != NULL ) {
+				strncpy( ptr, "phong  ", 7 );
+			}
+		}
+		if ( id == ID_HF ) {
+			if (rt_hf_to_dsp( &intern, &rt_uniresource )) {
+				bu_log(
+					"%s: Conversion from HF to DSP failed for solid %s\n",
+					argv[0], dp->d_namep );
+				errors++;
+				continue;
+			}
+		}
+		if( id == ID_POLY)
+		{
+			if( rt_pg_to_bot( &intern, &tol, &rt_uniresource ) )
+			{
+				bu_log( "%s: Conversion from polysolid to BOT failed for solid %s\n",
+					argv[0], dp->d_namep );
+				errors++;
+				continue;
+			}
+		}
+		ret = wdb_put_internal( fp, dp->d_namep, &intern, 1.0 );
+		if( ret < 0 )  {
+			bu_log(
+				"%s: wdb_put_internal(%s) failure, skipping\n",
+				argv[0], dp->d_namep);
+			rt_db_free_internal( &intern, &rt_uniresource );
+			errors++;
+			continue;
+		}
+		rt_db_free_internal( &intern, &rt_uniresource );
+	} FOR_ALL_DIRECTORY_END
+
+	wdb_close( fp );
+	db_close( dbip );
+
+	bu_log( "%ld database version 5 specific objects not attempted to convert\n", skipped );
+	bu_log( "%ld attempted objects failed to convert\n", errors);
+	return 0;
+}
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+14.13
+log
+@exit->bu_exit where applicable
+@
+text
+@d102 2
+a103 4
+	if( db_dirbuild( dbip ) ) {
+	    bu_log( "db_dirbuild failed\n" );
+	    bu_exit(1, "");
+	}
+@
+
+
+14.12
+log
+@more c89 embracing.  c89 provides string.h for all of the various str*() and mem*() functions, so remove the check for its presence.  there is still likely to be work required for strict c89 conformance for the various bsd strings.h functions that may be in use.
+@
+text
+@d104 1
+a104 1
+	    exit(1);
+@
+
+
+14.11
+log
+@quell exit decl warning
+@
+text
+@d42 1
+a42 5
+#ifdef HAVE_STRING_H
+#  include <string.h>
+#else
+#  include <strings.h>
+#endif
+@
+
+
+14.10
+log
+@Added check of return value from db_dirbuild()
+@
+text
+@d40 2
+a47 2
+#include <stdio.h>
+
+@
+
+
+14.9
+log
+@ws. lots and lots of ws.  see sh/ws.sh for details (cases 'abcdeg').
+@
+text
+@d106 4
+a109 1
+	db_dirbuild( dbip );
+@
+
+
+14.8
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@d66 6
+a71 6
+        /* XXX These need to be improved */
+        tol.magic = BN_TOL_MAGIC;
+        tol.dist = 0.005;
+        tol.dist_sq = tol.dist * tol.dist;
+        tol.perp = 1e-6;
+        tol.para = 1 - tol.perp;
+@
+
+
+14.7
+log
+@update copyright to 2007
+@
+text
+@d7 2
+a8 3
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+d13 1
+a13 1
+ * General Public License for more details.
+d15 2
+a16 2
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+@
+
+
+14.6
+log
+@update copyright to 2006
+@
+text
+@d3 1
+a3 1
+ * Copyright (c) 2004-2006 United States Government as represented by
+@
+
+
+14.5
+log
+@update copyright to 2005
+@
+text
+@d3 1
+a3 1
+ * Copyright (C) 2004-2005 United States Government as represented by
+@
+
+
+14.4
+log
+@Changes to move to the GPL license
+@
+text
+@d3 2
+a4 2
+ * Copyright (c) 2004 United States Government as represented by the
+ * U.S. Army Research Laboratory.
+@
+
+
+14.3
+log
+@break up the doxygen marker to appease emacs M-x indent-region'ing
+@
+text
+@d1 1
+a1 2
+/*                         G 5 - G 4 . C
+ * BRL-CAD
+d21 1
+a21 2
+/** @@file g5-g4.c
+ *
+d24 2
+a25 2
+ *       USAGE
+ *               g5-g4 v5_input_database v4_output_database
+d27 4
+a30 4
+ *       DESCRIPTION
+ *               Imports version 5 database objects and writes out the equivalent v4 database
+ *               objects as best it can. Note that some v5 objects cannot be represented in a
+ *		version 4 database.
+d32 2
+a33 2
+ *       AUTHOR
+ *               John R. Anderson
+d35 2
+a36 2
+ *       EXAMPLE
+ *               g5-g4 model_v5.g model_v4.g
+@
+
+
+14.2
+log
+@acquire copyright and GPL license
+@
+text
+@d21 2
+a22 1
+ **//** @@file g5-g4.c
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@d1 38
+a38 50
+/****** conv/g5-g4.c
+*
+*       NAME
+*               g5-g4: program to convert version 5 databases to version 4
+*
+*       COPYRIGHT
+*               Re-distribution of this software is restricted, as described in your
+*               "Statement of Terms and Conditions for the Release of The BRL-CAD
+*               Package" agreement.
+*
+*               Portions of this software and the associated databases and images are
+*               Copyright (C) 1985, 1986, 1987, 1988, 1989, 1991, 1994, 1995, 2000, 2001
+*               by the United States Army in all countries except the USA. Unauthorized
+*               redistribution in any form is prohibited. Recipients of this
+*               distribution are authorized unlimited use within their corporation,
+*               organization, or agency.
+*
+*               The mark "BRL-CAD" is a Registered Trademark of the United States Army.
+*               All rights reserved.
+*
+*               There is no warranty or other guarantee of fitness for this software,
+*               it is provided solely "as is".  Bug reports or fixes must be sent
+*               to ARL, which may or may not act on them.
+*
+*               This software was developed by and is proprietary to the United States
+*               Government, and any use of the software without the written permission
+*               of the US Army Research Laboratory is strictly prohibited. Any
+*               unauthorized use of the software will be construed as an infringement of
+*               the Government's rights and will subject the unauthorized user to
+*               action(s) for infringement damages. (BRL MFR 380-15, Feb-88)
+*
+*               The software in the "contributed" directory is Public Domain, Distribution
+*               Unlimited.  In addition, certain other modules in the BRL-CAD package
+*               bear this designation.  Files so marked are available for unlimited use.
+*       USAGE
+*               g5-g4 v5_input_database v4_output_database
+*
+*       DESCRIPTION
+*               Imports version 5 database objects and writes out the equivalent v4 database
+*               objects as best it can. Note that some v5 objects cannot be represented in a
+*		version 4 database.
+*
+*       AUTHOR
+*               John R. Anderson
+*
+*       EXAMPLE
+*               g5-g4 model_v5.g model_v4.g
+*
+******
+*/
+@
+
+
+1.4
+log
+@cleanup loads of trailing whitespace and headers
+@
+text
+@d195 10
+@
+
+
+1.3
+log
+@USE_STRING_H is no more.. it's HAVE_STRING_H
+@
+text
+@a53 2
+
+
+d55 1
+a55 1
+#include <string.h>
+d57 1
+a57 1
+#include <strings.h>
+a194 57
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+@
+
+
+1.2
+log
+@replace the wrapped config.h block with common.h
+@
+text
+@d56 1
+a56 1
+#ifdef USE_STRING_H
+@
+
+
+1.1
+log
+@Vast reorganization begins.  Sources moved from top-level directories into src/.
+@
+text
+@d52 1
+a52 3
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+@
+

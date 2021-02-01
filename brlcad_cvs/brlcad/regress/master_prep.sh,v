@@ -1,0 +1,373 @@
+head	1.5;
+access;
+symbols
+	rel-7-10-4:1.4
+	STABLE:1.4.0.2
+	rel-7-10-2:1.4
+	rel-7-10-0:1.4
+	rel-7-8-4:1.4
+	rel-7-8-2:1.4
+	rel-7-8-0:1.4
+	trimnurbs-branch:1.2.0.4
+	help:1.2
+	temp_tag:1.2
+	postmerge-20051223-bobWinPort:1.2
+	premerge-20051223-bobWinPort:1.2
+	rel-7-6-6:1.2
+	rel-7-6-branch:1.2.0.2
+	rel-7-6-4:1.2;
+locks; strict;
+comment	@# @;
+
+
+1.5
+date	2007.10.22.04.36.20;	author brlcad;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	2006.03.28.20.11.50;	author lbutler;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2006.03.28.15.40.40;	author lbutler;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2005.09.12.16.11.39;	author lbutler;	state Exp;
+branches
+	1.2.2.1
+	1.2.4.1;
+next	1.1;
+
+1.1
+date	2005.09.12.14.53.12;	author lbutler;	state Exp;
+branches;
+next	;
+
+1.2.2.1
+date	2005.09.12.16.11.39;	author brlcad;	state dead;
+branches;
+next	1.2.2.2;
+
+1.2.2.2
+date	2005.11.13.13.46.10;	author brlcad;	state Exp;
+branches;
+next	;
+
+1.2.4.1
+date	2006.04.07.19.26.25;	author jlowenz;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.5
+log
+@more consistent echo output
+@
+text
+@#!/bin/sh
+
+#
+# If the user specified a working directory, we cd into it.
+#
+if [ $# = 1 ] ; then
+    if [ -d $1 ] ; then
+	cd $1
+    else
+	echo $1 is not a directory
+    fi
+fi
+
+export MYNAME=`hostname | awk -F '.' '{print $1}'`
+export START_TIME=`date "+%y%m%d%H%M"`
+export LOG_FILE=`pwd`/${MYNAME}_prep_${START_TIME}.log
+
+# Process the checkout we just got
+cd brlcad
+
+# extract New release numbers from README
+eval `awk '/Release/ {print $2}' < README | \
+	awk -F. '{print "export MAJOR=" $1  "\nexport MINOR=" $2 "\nexport PATCH=" $3}'`
+
+
+# Update configure.ac with the release we found in README
+echo configure
+if [ ! -f configure.ac.orig ] ; then
+    mv configure.ac configure.ac.orig
+fi
+
+# Extract old release numbers from configure.ac.orig
+OLD_MAJOR=`awk -F\= '/^MAJOR_VERSION/ {print $2}' < configure.ac.orig`
+OLD_MINOR=`awk -F\= '/^MINOR_VERSION/ {print $2}' < configure.ac.orig`
+OLD_PATCH=`awk -F\= '/^PATCH_VERSION/ {print $2}' < configure.ac.orig`
+
+
+sed -e "s/$OLD_MAJOR\.$OLD_MINOR\.$OLD_PATCH/$MAJOR\.$MINOR\.$PATCH/" \
+    -e "s/MAJOR_VERSION=$OLD_MAJOR/MAJOR_VERSION=$MAJOR/" \
+    -e "s/MINOR_VERSION=$OLD_MINOR/MINOR_VERSION=$MINOR/" \
+    -e "s/^PATCH_VERSION=$OLD_PATCH/PATCH_VERSION=$PATCH/" \
+    < configure.ac.orig > configure.ac
+
+
+# check to make sure it worked.
+NEW_MAJOR=`grep '^MAJOR_VERSION=' configure.ac | awk -F \= '{print $2}'`
+NEW_MINOR=`grep '^MINOR_VERSION=' configure.ac | awk -F \= '{print $2}'`
+NEW_PATCH=`grep '^PATCH_VERSION=' configure.ac | awk -F \= '{print $2}'`
+
+echo "checkout configure.ac version $OLD_MAJOR $OLD_MINOR $OLD_PATCH"
+echo "Version from README           $MAJOR $MINOR $PATCH"
+echo "New configure version         $NEW_MAJOR $NEW_MINOR $NEW_PATCH"
+
+if [ X$NEW_PATCH != X$PATCH -o \
+      X$NEW_MINOR != X$MINOR -o \
+      X$NEW_MAJOR != X$MAJOR ] ; then
+    echo "did not set new version number properly"
+    exit -1
+fi
+
+# get a build environment so we can "make dist"
+echo autogen
+echo autogen >> $LOG_FILE 2>&1
+sh ./autogen.sh >> $LOG_FILE 2>&1
+
+echo configure
+./configure --enable-everything >> $LOG_FILE 2>&1
+
+# Prepare a source distribution
+echo making dist
+make dist >> $LOG_FILE 2>&1
+cd ..
+
+if [ ! -d hosts ] ; then
+    mkdir hosts
+fi
+
+cd hosts
+
+echo $MAJOR $MINOR $PATCH
+# create the source tree that all machine will build from
+tar xzf ../brlcad/brlcad-$MAJOR.$MINOR.$PATCH.tar.gz
+
+# Let the other regression hosts start doing their work
+echo semaphores
+HOSTS="wopr liu amdws2 vast cocoa"
+for i in $HOSTS ; do
+    echo $MAJOR.$MINOR.$PATCH > $i
+done
+@
+
+
+1.4
+log
+@Fixed bug where master_prep.sh was being run multiple times and
+alternating between release numbers.  Now gets consistent release
+number from README file
+@
+text
+@d10 1
+a10 1
+	/bin/echo $1 is not a directory
+d27 1
+a27 1
+/bin/echo configure
+d50 3
+a52 3
+/bin/echo "checkout configure.ac version $OLD_MAJOR $OLD_MINOR $OLD_PATCH"
+/bin/echo "Version from README           $MAJOR $MINOR $PATCH"
+/bin/echo "New configure version         $NEW_MAJOR $NEW_MINOR $NEW_PATCH"
+d57 1
+a57 1
+    /bin/echo "did not set new version number properly"
+d62 3
+a64 3
+/bin/echo autogen
+/bin/echo autogen >> $LOG_FILE 2>&1
+/bin/sh ./autogen.sh >> $LOG_FILE 2>&1
+d66 1
+a66 1
+/bin/echo configure
+d70 1
+a70 1
+/bin/echo making dist
+d85 1
+a85 1
+/bin/echo semaphores
+@
+
+
+1.3
+log
+@Added --enable-everything to the configure line
+Printing old and new version numbers for confirmation
+@
+text
+@a24 5
+# Extract old release numbers from configure.ac
+OLD_MAJOR=`awk -F\= '/^MAJOR_VERSION/ {print $2}' < configure.ac`
+OLD_MINOR=`awk -F\= '/^MINOR_VERSION/ {print $2}' < configure.ac`
+OLD_PATCH=`awk -F\= '/^PATCH_VERSION/ {print $2}' < configure.ac`
+
+d32 6
+d50 10
+a59 3
+/bin/echo "$OLD_MAJOR $OLD_MINOR $OLD_PATCH"
+/bin/echo "$NEW_MAJOR $NEW_MINOR $NEW_PATCH"
+/bin/echo "$MAJOR $MINOR $PATCH"
+@
+
+
+1.2
+log
+@fixed typo in if block
+@
+text
+@d43 10
+d59 1
+a59 1
+./configure >> $LOG_FILE 2>&1
+@
+
+
+1.2.4.1
+log
+@update from HEAD
+@
+text
+@d25 5
+a36 6
+# Extract old release numbers from configure.ac.orig
+OLD_MAJOR=`awk -F\= '/^MAJOR_VERSION/ {print $2}' < configure.ac.orig`
+OLD_MINOR=`awk -F\= '/^MINOR_VERSION/ {print $2}' < configure.ac.orig`
+OLD_PATCH=`awk -F\= '/^PATCH_VERSION/ {print $2}' < configure.ac.orig`
+
+
+a42 17
+
+# check to make sure it worked.
+NEW_MAJOR=`grep '^MAJOR_VERSION=' configure.ac | awk -F \= '{print $2}'`
+NEW_MINOR=`grep '^MINOR_VERSION=' configure.ac | awk -F \= '{print $2}'`
+NEW_PATCH=`grep '^PATCH_VERSION=' configure.ac | awk -F \= '{print $2}'`
+
+/bin/echo "checkout configure.ac version $OLD_MAJOR $OLD_MINOR $OLD_PATCH"
+/bin/echo "Version from README           $MAJOR $MINOR $PATCH"
+/bin/echo "New configure version         $NEW_MAJOR $NEW_MINOR $NEW_PATCH"
+
+if [ X$NEW_PATCH != X$PATCH -o \
+      X$NEW_MINOR != X$MINOR -o \
+      X$NEW_MAJOR != X$MAJOR ] ; then
+    /bin/echo "did not set new version number properly"
+    exit -1
+fi
+
+d49 1
+a49 1
+./configure --enable-everything >> $LOG_FILE 2>&1
+@
+
+
+1.2.2.1
+log
+@file master_prep.sh was added on branch rel-7-6-branch on 2005-11-13 13:46:10 +0000
+@
+text
+@d1 71
+@
+
+
+1.2.2.2
+log
+@merge changes from HEAD aka rel-7-6-4 to the rel-7-6-branch just in case someone peeks a gander or tries to continue/build the branch
+@
+text
+@a0 71
+#!/bin/sh
+
+#
+# If the user specified a working directory, we cd into it.
+#
+if [ $# = 1 ] ; then
+    if [ -d $1 ] ; then
+	cd $1
+    else
+	/bin/echo $1 is not a directory
+    fi
+fi
+
+export MYNAME=`hostname | awk -F '.' '{print $1}'`
+export START_TIME=`date "+%y%m%d%H%M"`
+export LOG_FILE=`pwd`/${MYNAME}_prep_${START_TIME}.log
+
+# Process the checkout we just got
+cd brlcad
+
+# extract New release numbers from README
+eval `awk '/Release/ {print $2}' < README | \
+	awk -F. '{print "export MAJOR=" $1  "\nexport MINOR=" $2 "\nexport PATCH=" $3}'`
+
+# Extract old release numbers from configure.ac
+OLD_MAJOR=`awk -F\= '/^MAJOR_VERSION/ {print $2}' < configure.ac`
+OLD_MINOR=`awk -F\= '/^MINOR_VERSION/ {print $2}' < configure.ac`
+OLD_PATCH=`awk -F\= '/^PATCH_VERSION/ {print $2}' < configure.ac`
+
+
+# Update configure.ac with the release we found in README
+/bin/echo configure
+if [ ! -f configure.ac.orig ] ; then
+    mv configure.ac configure.ac.orig
+fi
+
+sed -e "s/$OLD_MAJOR\.$OLD_MINOR\.$OLD_PATCH/$MAJOR\.$MINOR\.$PATCH/" \
+    -e "s/MAJOR_VERSION=$OLD_MAJOR/MAJOR_VERSION=$MAJOR/" \
+    -e "s/MINOR_VERSION=$OLD_MINOR/MINOR_VERSION=$MINOR/" \
+    -e "s/^PATCH_VERSION=$OLD_PATCH/PATCH_VERSION=$PATCH/" \
+    < configure.ac.orig > configure.ac
+
+# get a build environment so we can "make dist"
+/bin/echo autogen
+/bin/echo autogen >> $LOG_FILE 2>&1
+/bin/sh ./autogen.sh >> $LOG_FILE 2>&1
+
+/bin/echo configure
+./configure >> $LOG_FILE 2>&1
+
+# Prepare a source distribution
+/bin/echo making dist
+make dist >> $LOG_FILE 2>&1
+cd ..
+
+if [ ! -d hosts ] ; then
+    mkdir hosts
+fi
+
+cd hosts
+
+echo $MAJOR $MINOR $PATCH
+# create the source tree that all machine will build from
+tar xzf ../brlcad/brlcad-$MAJOR.$MINOR.$PATCH.tar.gz
+
+# Let the other regression hosts start doing their work
+/bin/echo semaphores
+HOSTS="wopr liu amdws2 vast cocoa"
+for i in $HOSTS ; do
+    echo $MAJOR.$MINOR.$PATCH > $i
+done
+@
+
+
+1.1
+log
+@Scripts to support new architecture for nightly regression tests
+@
+text
+@d56 1
+a56 1
+if [ ! -d hosts] ; then
+@
+

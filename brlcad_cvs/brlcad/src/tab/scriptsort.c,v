@@ -1,0 +1,834 @@
+head	14.10;
+access;
+symbols
+	rel-7-10-4:14.6
+	STABLE:14.6.0.2
+	stable-branch:14.1
+	rel-7-10-2:14.6
+	rel-7-10-0:14.5
+	rel-7-8-4:14.4
+	rel-7-8-2:14.4
+	rel-7-8-0:14.4
+	trimnurbs-branch:14.3.0.2
+	help:14.3
+	temp_tag:14.2
+	bobWinPort-20051223-freeze:14.1
+	postmerge-20051223-bobWinPort:14.2
+	premerge-20051223-bobWinPort:14.2
+	rel-7-6-6:14.2
+	rel-7-6-4:14.2
+	rel-7-6-2:14.1
+	rel-7-6-branch:14.1.0.6
+	rel-7-6-0:14.1
+	rel-7-4-2:14.1
+	rel-7-4-branch:14.1.0.4
+	bobWinPort:14.1.0.2
+	rel-7-4-0:14.1
+	rel-7-2-6:14.1
+	rel-7-2-4:14.1
+	rel-7-2-2:14.1
+	rel-7-2-0:14.1
+	rel-7-0-4:14.1
+	rel-7-0-2:14.1
+	rel-7-0-1:14.1
+	opensource-post:14.1
+	opensource-pre:1.4
+	rel-7-0-branch:1.4.0.2
+	rel-7-0:1.4;
+locks; strict;
+comment	@ * @;
+
+
+14.10
+date	2007.12.19.22.32.38;	author brlcad;	state Exp;
+branches;
+next	14.9;
+
+14.9
+date	2007.12.02.22.34.24;	author brlcad;	state Exp;
+branches;
+next	14.8;
+
+14.8
+date	2007.10.02.22.07.58;	author brlcad;	state Exp;
+branches;
+next	14.7;
+
+14.7
+date	2007.09.15.16.23.23;	author brlcad;	state Exp;
+branches;
+next	14.6;
+
+14.6
+date	2007.05.14.21.04.33;	author brlcad;	state Exp;
+branches;
+next	14.5;
+
+14.5
+date	2007.02.02.08.48.30;	author brlcad;	state Exp;
+branches;
+next	14.4;
+
+14.4
+date	2006.04.05.18.19.55;	author brlcad;	state Exp;
+branches;
+next	14.3;
+
+14.3
+date	2006.02.27.10.08.41;	author brlcad;	state Exp;
+branches
+	14.3.2.1;
+next	14.2;
+
+14.2
+date	2005.10.23.04.44.38;	author brlcad;	state Exp;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.31;	author morrison;	state Exp;
+branches
+	14.1.6.1;
+next	1.4;
+
+1.4
+date	2004.09.03.23.31.00;	author morrison;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2004.08.02.23.01.52;	author morrison;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2004.06.08.22.04.37;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.15.20.54;	author morrison;	state Exp;
+branches;
+next	;
+
+14.1.6.1
+date	2005.11.13.13.46.19;	author brlcad;	state Exp;
+branches;
+next	;
+
+14.3.2.1
+date	2006.04.07.19.34.23;	author jlowenz;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.10
+log
+@manuallly null-terminate buffers after a strncat for sanity
+@
+text
+@/*
+ *			S C R I P T S O R T . C
+ *
+ * read an rt/mged animation script and sort it.
+ *
+ * Author -
+ *	Christopher T. Johnson
+ *	Geometric Solutions, Inc.
+ *	100 Custis St., Suite 2
+ *	Aberdeen, MD, 21001
+ *
+ * Copyright Notice -
+ *	This software is Copyright (C) 1994 Geometric Solutions, Inc.
+ *	Contributed to the US Army for unlimited distribution.
+ *
+ */
+#ifndef lint
+static const char RCSid[] = "$Id: scriptsort.c,v 14.9 2007/12/02 22:34:24 brlcad Exp $";
+#endif
+#undef DEBUG
+
+#include "common.h"
+
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+
+#ifdef HAVE_UNISTD_H
+#  include <unistd.h>
+#endif
+
+#include "machine.h"
+#include "bu.h"
+
+#include "./tokens.h"
+
+
+struct  frame {
+	struct bu_list	l;
+
+	int	number;
+	long	flags;
+	long	location;
+	long	length;
+	char	*text;
+	int	tp;
+	int	tl;
+};
+#define MAGIC	0x0deadbefL
+#define FLAG_CLEAN	0x1
+#define FLAG_SCRIPT	0x2
+
+struct bu_list head = {MAGIC, &head, &head};
+struct frame globals;
+
+extern FILE *yyin;
+extern int yylex(void);
+
+extern int bu_optind;
+extern char *bu_optarg;
+int get_args(int argc, char **argv);
+int verbose;		/* print status on stderr */
+int specify_base;	/* user specified a base */
+int user_base;		/* value of user-specified base */
+int force_shell;	/* force shell script for each frame */
+int suppress_shell;	/* suppress shell script for each frame */
+int frame_offset;	/* offset added to frame numbers */
+
+void squirtframes(int base);
+static void sf(int start, int skip);
+
+void addtext(struct frame *fp, char *tp)
+{
+	char *p;
+	int length;
+#ifdef DEBUG
+	fprintf(stderr,"addtext: %s\n", tp);
+#endif
+	if (fp->l.magic != MAGIC) abort();
+	length = strlen(tp) + 1;	/* length of text string and NULL */
+	length += 1;			/* For the Space or newline */
+	if (fp->text) {
+		length += fp->tp;
+	}
+	if (length > fp->tl || !fp->text) {
+		fp->tl = (length/1024)*1024 + 1024;
+		p = (char *) bu_malloc(fp->tl, "text area");
+		*p = '\0';
+
+		if (fp->text) {
+			strncpy(p,fp->text, fp->tl-1);
+			bu_free(fp->text,"text area");
+		}
+		fp->text = p;
+	}
+	strncat(&fp->text[fp->tp], tp, fp->tl-strlen(p)-1);
+
+	if (*tp == ';') {
+		strcat(&fp->text[fp->tp], "\n");
+	} else {
+		strcat(&fp->text[fp->tp], " ");
+	}
+
+	fp->tp += strlen(tp)+1;
+
+	fp->text[fp->tl-1] = '\0'; /* sanity */
+}
+int token = SHELL;
+
+struct frame *getframe(FILE *in)
+{
+	extern FILE *yyin;
+	extern char yytext[];
+	struct frame *new;
+
+	yyin = in;
+
+/*
+ * If we are not IN a frame, then every thing is part of the globals
+ * and gets attached to the head.
+ */
+	if (token == SHELL) token = yylex();
+	while (token != START && (token != 0)) {
+		addtext(&globals, yytext);
+		token = yylex();
+	}
+	if (!token) return NULL;
+/*
+ * The next token MUST be a frame number!
+ */
+	token = yylex();
+	if (!token) return NULL;
+	if (token != INT) {
+		fprintf(stderr,"getframe: BAD start format. Skipping.\n");
+		while ((token=yylex()) != END);
+		token = yylex();	/* the semi-colon. */
+		return NULL;
+	}
+/*
+ * get a frame and set it up.
+ */
+	new = (struct frame *) bu_calloc(1, sizeof(struct frame), "struct frame");
+	BU_LIST_INIT(&(new->l));
+	BU_LIST_MAGIC_SET(&(new->l),MAGIC);
+	new->number = atoi(yytext);
+	new->number += frame_offset;
+/*
+ * The next token should be SEMI COLON;
+ */
+	token = yylex();
+	if (!token) {
+		new->l.magic = -1;
+		bu_free(new,"struct frame");
+		return NULL;
+	}
+
+	if (token != SEMI) {
+		fprintf(stderr,"getframe: Missing semi colon after start %%d.\n");
+		fprintf(stderr,"getframe: Inserting semi colon.\n");
+	}
+/*
+ * Now comes the the rest.
+ */
+	while ((token = yylex()) != END && (token)) {
+		if (token == CLEAN) {
+			(void) yylex(); /* skip semi-colon */
+			new->flags |= FLAG_CLEAN;
+		} else {
+			addtext(new, yytext);
+			/* Can't concatenate commands to comments. */
+			if (token == COMMENT) {
+				addtext(new, "\n");
+			}
+		}
+	}
+	token = yylex();	/* scarf the semi-colon */
+	token = yylex();	/* Get the next token.  It could be shell */
+	if (token == SHELL) {
+		new->flags |= FLAG_SCRIPT;
+	}
+	if (verbose) {
+fprintf(stderr,"scriptsort: Frame %d(%d)\n",new->number, new->tp);
+	}
+	return(new);
+}
+
+#ifdef never
+void
+bubblesort()
+{
+	register struct frame *a, *b, *hold;
+
+	for (a = head.forw; a->forw != &head; a = a->forw) {
+		for (b= a->forw; b != &head; b = b->forw) {
+			if (a->number > b->number) {
+				hold = b->back;
+				REMOVE(b);
+				INSERT(a,b)	/* put b after a */
+				if (a != hold) {
+					REMOVE(a);
+					APPEND(hold,a);	/* but a where b was */
+				}
+#if 0
+				a=b;
+				b=hold->forw;
+#else
+				a=&head;
+				break;
+#endif
+			}
+		}
+	}
+}
+#else /* never */
+void
+bubblesort(void)
+{
+	struct frame *a, *b;
+
+	a = (struct frame *)head.forw;
+	while (a->l.forw != &head ) {
+		b = (struct frame *)a->l.forw;
+		if (a->number > b->number) {
+			BU_LIST_DEQUEUE(&b->l);
+			BU_LIST_INSERT(&a->l,&b->l);
+			if (b->l.back != &head) {
+				a = (struct frame *)b->l.back;
+			};
+		} else {
+			a=(struct frame *)a->l.forw;
+		}
+	}
+}
+#endif /* never */
+void
+printframe(struct frame *fp)
+{
+	fprintf(stdout, "start %d;%s\n", fp->number,
+	    (fp->flags & FLAG_CLEAN) ? "clean ;" : "");
+	if (fp->text) {
+		fprintf(stdout,"%s", fp->text);
+	}
+	fprintf(stdout,"end;\n");
+	if ((force_shell || (fp->flags & FLAG_SCRIPT)) && !suppress_shell) {
+		fprintf(stdout,"!end_of_frame.sh %d\n", fp->number);
+	}
+}
+void merge(void)
+{
+	register struct frame *cur, *next;
+
+	for (BU_LIST_FOR(cur, frame, &head)) {
+		next = BU_LIST_NEXT(frame,&cur->l);
+		if (BU_LIST_IS_HEAD(next, &head)) break;
+		if (cur->number == next->number) {
+			if (next->text) addtext(cur, next->text);
+			cur->flags |= next->flags;
+			BU_LIST_DEQUEUE(&next->l);
+			if (next->text) bu_free(next->text,"text area");
+			next->text = NULL;
+			next->l.magic = -1;
+			bu_free(next, "struct frame");
+			cur = BU_LIST_PREV(frame,&cur->l);
+		}
+	}
+}
+
+/*
+ *			M A I N
+ */
+int
+main(int argc, char **argv)
+{
+	struct frame *new, *lp;
+
+	int base, count;
+
+	if (!get_args(argc,argv)) {
+	    return 1;
+	}
+	if (verbose) fprintf(stderr,"scriptsort: starting.\n");
+
+	BU_LIST_INIT(&head);
+	globals.text=NULL;
+	globals.tp=globals.tl=0;
+	globals.flags=globals.location=globals.length = 0;
+	globals.l.magic = MAGIC;
+
+	if (verbose) fprintf(stderr,"scriptsort: reading.\n");
+
+	while((new=getframe(stdin)) != NULL) {
+		BU_LIST_INSERT(&head,&new->l);
+	}
+	if (verbose) fprintf(stderr,"scriptsort: sorting.\n");
+	bubblesort();
+	if (verbose) fprintf(stderr,"scriptsort: merging.\n");
+	merge();
+
+	if (verbose) fprintf(stderr,"scriptsort: squirting.\n");
+	if (specify_base) {
+		base = user_base;
+	} else {
+		base = 1; /* prints frames in natural order */
+	}
+	if (base <= 0) {
+		/*compute base as largest power of 2 less than num of frames*/
+		base = 1;
+		count = 2;
+		for ( BU_LIST_FOR( lp, frame, &head ) ) {
+			if (count-- <= 0) {
+				base *= 2;
+				count = base - 1;
+			}
+		}
+	} else {
+		register unsigned int left,right,mask,bits;
+		bits = sizeof(int)*4;		/* assumes 8 bit byte */
+		mask = (1<<bits)-1;		/* Makes a low bit mask */
+						/* assumes power 2 bytes/int */
+		right = base;
+
+		while (bits) {
+			left = (right >> bits) & mask;
+			right = right&mask;
+			if (left && right) {
+				fprintf(stderr,"scriptsort: base(%d) not power of two.\n",
+				    base);
+				fprintf(stderr,"left=0x%x, right=0x%x, mask=0x%x, bits=%d\n",left,right,mask, bits);
+				base = 1;
+				fprintf(stderr,"setting base to %d.", base);
+				break;
+			}
+			if (left) right = left;
+			bits = bits >> 1;
+			mask = mask >> bits;
+		}
+	}
+
+	if (globals.text) {
+		fprintf(stdout,"%s", globals.text);
+	}
+	squirtframes(base);	/* must be a power of 2 */
+
+	return 0;
+}
+
+int
+yywrap(void) {
+	return 1;
+}
+
+void
+squirtframes(int base)
+{
+
+	sf(0, base);	/* start by outputing every base entries at one */
+
+	while (base > 1 ) {
+		sf(base/2, base);
+		base /= 2;
+	}
+}
+
+static void
+sf(int start, int skip)
+{
+	int i;
+	struct frame *runner;
+
+/*
+ * skip to staring point.
+ */
+	i = 0;
+	runner = (struct frame *)head.forw;
+	while (&runner->l != &head && i<start) {
+		runner = (struct frame *)runner->l.forw;
+		i++;
+	}
+	if (&runner->l == &head) return;
+/*
+ * now start the main loop.
+ */
+	while (&runner->l != &head) {
+		printframe(runner);
+		for (i=0; i<skip; i++) {
+			runner = (struct frame *)runner->l.forw;
+			if (&runner->l == &head) return;
+		}
+	}
+}
+
+#define OPT_STR "qb:fso:"
+int get_args (int argc, char **argv)
+{
+	int c;
+	verbose = 1;
+	specify_base = force_shell = suppress_shell = 0;
+	frame_offset = 0;
+	while ( (c=bu_getopt(argc,argv,OPT_STR)) != EOF) {
+		switch(c){
+		case 'q':
+			verbose = 0;
+			break;
+		case 'b':
+			specify_base = 1;
+			user_base = atoi(bu_optarg);
+			break;
+		case 'f':
+			force_shell = 1;
+			suppress_shell = 0;
+			break;
+		case 's':
+			suppress_shell = 1;
+			force_shell = 0;
+			break;
+		case 'o':
+			frame_offset = atoi(bu_optarg);
+			break;
+		default:
+			fprintf(stderr,"Unknown option: -%c\n",c);
+			return(0);
+		}
+	}
+	return(1);
+}
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+14.9
+log
+@woo hoo, finally got through most of the flawfinder level 4 issues related to string buffer limits (leaving issues that can probably/mostly be ignored).  these changes mostly invovlved using the n-variants of the various string processing functions so that the buffers being written to are properly clamped.
+@
+text
+@d18 1
+a18 1
+static const char RCSid[] = "$Id: scriptsort.c,v 14.8 2007/10/02 22:07:58 brlcad Exp $";
+d85 1
+a85 1
+	if (length > fp->tl) {
+d97 1
+d103 1
+d105 2
+@
+
+
+14.8
+log
+@declare yyin
+@
+text
+@d18 1
+a18 1
+static const char RCSid[] = "$Id: scriptsort.c,v 14.7 2007/09/15 16:23:23 brlcad Exp $";
+d91 1
+a91 1
+			strcpy(p,fp->text);
+d96 1
+a96 1
+	strcat(&fp->text[fp->tp], tp);
+@
+
+
+14.7
+log
+@more c89 embracing.  c89 provides string.h for all of the various str*() and mem*() functions, so remove the check for its presence.  there is still likely to be work required for strict c89 conformance for the various bsd strings.h functions that may be in use.
+@
+text
+@d18 1
+a18 1
+static const char RCSid[] = "$Id: scriptsort.c,v 14.6 2007/05/14 21:04:33 brlcad Exp $";
+d56 1
+@
+
+
+14.6
+log
+@gah, pick up where someone left off over half a decade ago.  finish updating all of the compat4 symbols throughout the code to their new names.  finally. it's done.  make the deprecated headers obsolete -- make compat4.h obsolete too so we can be sure that all of the changes are now picked up by the compiler as errors.  this change will likely impact muves if they've similarly not updated to the new names too, so the headers are kept with a #warning for now (though will likely disappear down the road entirely).
+@
+text
+@d18 1
+a18 1
+static const char RCSid[] = "$Id: scriptsort.c,v 14.5 2007/02/02 08:48:30 brlcad Exp $";
+d26 2
+a27 5
+#ifdef HAVE_STRING_H
+#  include <string.h>
+#else
+#  include <strings.h>
+#endif
+@
+
+
+14.5
+log
+@convert all of the lingering getopt calls to bu_getopt (as well as the related getopt globals optind, opterr, optarg) -- libbu's getopt has the benefit of being re-entrant and is portable to environments where getopt() may not be available.
+@
+text
+@d18 1
+a18 1
+static const char RCSid[] = "$Id: scriptsort.c,v 14.4 2006/04/05 18:19:55 brlcad Exp $";
+a35 1
+#include "rtlist.h"
+a36 1
+#include "compat4.h"
+@
+
+
+14.4
+log
+@more header/warning cleanup from Intel compiler warnings on Altix
+@
+text
+@d18 1
+a18 1
+static const char RCSid[] = "$Id: scriptsort.c,v 14.3 2006/02/27 10:08:41 brlcad Exp $";
+d63 2
+a64 2
+extern int optind;
+extern char *optarg;
+d399 1
+a399 1
+	while ( (c=getopt(argc,argv,OPT_STR)) != EOF) {
+d406 1
+a406 1
+			user_base = atoi(optarg);
+d417 1
+a417 1
+			frame_offset = atoi(optarg);
+@
+
+
+14.3
+log
+@stdlib.h and exit()
+@
+text
+@d18 1
+a18 1
+static const char RCSid[] = "$Id: scriptsort.c,v 14.2 2005/10/23 04:44:38 brlcad Exp $";
+d31 3
+@
+
+
+14.3.2.1
+log
+@update from HEAD
+@
+text
+@d18 1
+a18 1
+static const char RCSid[] = "$Id: scriptsort.c,v 14.3 2006/02/27 10:08:41 brlcad Exp $";
+a30 3
+#ifdef HAVE_UNISTD_H
+#  include <unistd.h>
+#endif
+@
+
+
+14.2
+log
+@trailing ws
+@
+text
+@d18 1
+a18 1
+static const char RCSid[] = "$Id: scriptsort.c,v 14.1 2004/11/16 19:42:31 morrison Exp $";
+d24 1
+a24 2
+
+
+d27 1
+a27 1
+#include <string.h>
+d29 1
+a29 1
+#include <strings.h>
+d39 1
+d276 1
+a276 1
+		exit(1);
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@d18 1
+a18 1
+static const char RCSid[] = "$Id: scriptsort.c,v 1.4 2004/09/03 23:31:00 morrison Exp $";
+d20 1
+a20 1
+#undef DEBUG 
+d264 2
+a265 2
+			
+/* 
+d272 1
+a272 1
+	
+d335 1
+a335 1
+		
+d354 1
+a354 1
+	
+@
+
+
+14.1.6.1
+log
+@merge changes from HEAD aka rel-7-6-4 to the rel-7-6-branch just in case someone peeks a gander or tries to continue/build the branch
+@
+text
+@d18 1
+a18 1
+static const char RCSid[] = "$Id$";
+d20 1
+a20 1
+#undef DEBUG
+d264 2
+a265 2
+
+/*
+d272 1
+a272 1
+
+d335 1
+a335 1
+
+d354 1
+a354 1
+
+@
+
+
+1.4
+log
+@USE_STRING_H is no more.. it's HAVE_STRING_H
+@
+text
+@d18 1
+a18 1
+static const char RCSid[] = "$Id: scriptsort.c,v 1.3 2004/08/02 23:01:52 morrison Exp $";
+d423 10
+@
+
+
+1.3
+log
+@replace the wrapped config.h block with common.h
+@
+text
+@d18 1
+a18 1
+static const char RCSid[] = "$Id: scriptsort.c,v 1.2 2004/06/08 22:04:37 morrison Exp $";
+d27 1
+a27 1
+#ifdef USE_STRING_H
+@
+
+
+1.2
+log
+@obliterate externs.h
+@
+text
+@d18 1
+a18 1
+static const char RCSid[] = "$Id$";
+d22 1
+a22 3
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+@
+
+
+1.1
+log
+@Vast reorganization begins.  Sources moved from top-level directories into src/.
+@
+text
+@d18 1
+a18 1
+static const char RCSid[] = "$Id: scriptsort.c,v 11.16 2004/05/10 15:30:50 erikg Exp $";
+a35 1
+#include "externs.h"
+@
+

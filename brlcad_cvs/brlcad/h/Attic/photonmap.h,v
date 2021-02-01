@@ -1,0 +1,519 @@
+head	11.4;
+access;
+symbols
+	ansi-20040405-merged:11.2.4.1
+	postmerge-20040405-ansi:11.2
+	premerge-20040404-ansi:11.2
+	postmerge-autoconf:11.2
+	autoconf-freeze:11.1.4.1
+	premerge-autoconf:11.2
+	postmerge-20040315-windows:11.2
+	premerge-20040315-windows:11.2
+	windows-20040315-freeze:11.2.2.1
+	autoconf-20031203:11.1
+	autoconf-20031202:11.1
+	autoconf-branch:11.1.0.4
+	phong-branch:11.1.0.2
+	photonmap-branch:1.1.0.2
+	windows-branch:11.2.0.2
+	ansi-branch:11.2.0.4;
+locks; strict;
+comment	@ * @;
+
+
+11.4
+date	2004.05.24.04.11.53;	author morrison;	state dead;
+branches;
+next	11.3;
+
+11.3
+date	2004.05.10.15.30.42;	author erikg;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	2004.02.02.17.39.02;	author morrison;	state Exp;
+branches
+	11.2.2.1
+	11.2.4.1;
+next	11.1;
+
+11.1
+date	2003.08.27.19.17.32;	author justin;	state Exp;
+branches
+	11.1.2.1
+	11.1.4.1;
+next	1.1;
+
+1.1
+date	2003.08.07.22.17.26;	author justin;	state dead;
+branches
+	1.1.2.1;
+next	;
+
+1.1.2.1
+date	2003.08.07.22.17.26;	author justin;	state Exp;
+branches;
+next	1.1.2.2;
+
+1.1.2.2
+date	2003.08.12.23.12.51;	author justin;	state Exp;
+branches;
+next	1.1.2.3;
+
+1.1.2.3
+date	2003.08.13.22.09.56;	author justin;	state Exp;
+branches;
+next	1.1.2.4;
+
+1.1.2.4
+date	2003.08.15.04.19.44;	author justin;	state Exp;
+branches;
+next	1.1.2.5;
+
+1.1.2.5
+date	2003.08.24.23.30.58;	author justin;	state Exp;
+branches;
+next	;
+
+11.1.2.1
+date	2003.09.10.22.05.17;	author butler;	state Exp;
+branches;
+next	;
+
+11.1.4.1
+date	2004.02.12.18.32.35;	author erikg;	state Exp;
+branches;
+next	;
+
+11.2.2.1
+date	2004.03.11.23.40.46;	author morrison;	state Exp;
+branches;
+next	;
+
+11.2.4.1
+date	2004.03.17.21.16.13;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+11.4
+log
+@moved/renamed from top-level h/ to top-level include/
+@
+text
+@/*
+ *			P H O T O N M A P. H
+ *
+ *  Declarations related to Photon Mapping
+ *
+ *  Source -
+ *	Bldg 238
+ *	The U. S. Army Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005-5066
+ *  
+ *  Copyright Notice -
+ *	This software is Copyright (C) 2002-2004 by the United States Army.
+ *	All rights reserved.
+ *
+ *  @@(#)$Header:
+ */
+
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+#ifdef USE_STRING_H     /* OPTIONAL, for strcmp() etc. */
+#  include <string.h>
+#else
+#  include <strings.h>
+#endif
+#include <stdio.h>
+#include <stdlib.h>
+#include <math.h>
+#include "machine.h"
+#include "externs.h"
+#include "bu.h"
+#include "vmath.h"
+#include "bn.h"
+#include "db.h"
+#include "nmg.h"
+#include "raytrace.h"
+#include "shadework.h"
+
+
+#define	PM_MAPS		4
+
+#define	PM_GLOBAL	0
+#define	PM_CAUSTIC	1
+#define	PM_SHADOW	2	/* Current not used */
+#define	PM_IMPORTANCE	3
+
+#define	PM_SEM		RT_SEM_LAST-1
+#define	PM_SEM_INIT	RT_SEM_LAST
+
+/*
+ *  Photon Map Data Structure
+ */
+struct Photon {
+  int			Axis;		/* Splitting Plane */
+  point_t		Pos;		/* Photon Position */
+  vect_t		Dir;		/* Photon Direction */
+  vect_t		Normal;		/* Normal at Intersection */
+  vect_t		Power;		/* Photon Power */
+  vect_t		Irrad;		/* Irradiance */
+};
+
+
+struct PSN {
+  struct	Photon	P;
+  fastf_t		Dist;
+};
+
+
+/*
+ *  Photon Search Structure
+ */
+struct PhotonSearch {
+  int			Max;		/* Max Number of Photons */
+  int			Found;		/* Number of Photons Found */
+  vect_t		Normal;		/* Normal */
+  fastf_t		RadSq;		/* Search Radius Sq */
+  point_t		Pos;		/* Search Position */
+  struct	PSN	*List;		/* Located Photon List */
+};
+
+
+struct NearestPhotons {
+  int			Max;		/* Max Number of Photons */
+  int			Found;		/* Number of Photons Found */
+  vect_t		Normal;		/* Normal */
+  fastf_t		RadSq;		/* Search Radius Sq */
+  point_t		Pos;		/* Search Position */
+  struct	Photon	*List;		/* Located Photon List */
+};
+
+
+struct PNode {
+  struct	Photon	P;
+  struct	PNode	*L;
+  struct	PNode	*R;
+  int			C;		/* For Threading Purposes to see if it's been computed yet */
+};
+
+
+struct PhotonMap {
+  int			StoredPhotons;
+  int			MaxPhotons;
+  struct	PNode	*Root;
+};
+
+
+struct IrradNode {
+  point_t		Pos;
+  vect_t		RGB;
+};
+
+
+struct IrradCache {
+  int				Num;
+  struct	IrradNode	*List;
+};
+
+
+extern	int	PM_Activated;	/* Photon Mapping Activated, 0=off, 1=on */
+extern	int	PM_Visualize;	/* Photon Mapping Visualization of Irradiance Cache */
+
+BU_EXTERN(void BuildPhotonMap, (struct application *ap, point_t eye_pos, int cpus, int width, int height, int Hypersample, int GlobalPhotons, double CausticsPercent, int Rays, double AngularTolerance, int RandomSeed, int ImportanceMapping, int IrradianceHypersampling, int VisualizeIrradiance, double LightIntensity, char pmfile[255]));
+BU_EXTERN(void IrradianceEstimate, (struct application *ap, vect_t irrad, point_t pos, vect_t normal, fastf_t rad, int np));
+@
+
+
+11.3
+log
+@change conf.h to a wrapped config.h
+@
+text
+@@
+
+
+11.2
+log
+@update copyright to include span through 2003
+@
+text
+@d18 4
+a21 1
+#include "conf.h"
+@
+
+
+11.2.4.1
+log
+@sync branch with HEAD
+@
+text
+@@
+
+
+11.2.2.1
+log
+@sync to HEAD...
+@
+text
+@@
+
+
+11.1
+log
+@Photonmap.h header and New Plastic.h header.
+@
+text
+@d12 1
+a12 1
+ *	This software is Copyright (C) 2002 by the United States Army.
+@
+
+
+11.1.4.1
+log
+@merge from HEAD
+@
+text
+@d12 1
+a12 1
+ *	This software is Copyright (C) 2002-2004 by the United States Army.
+@
+
+
+11.1.2.1
+log
+@Added attenuation to the light.  Sphere invalidation parameters in photonmap.h
+@
+text
+@d120 2
+a121 27
+BU_EXTERN(void BuildPhotonMap, (struct application *ap,
+				point_t eye_pos,
+				int cpus,
+				int width,
+				int height,
+				int Hypersample,
+				int GlobalPhotons,
+				double CausticsPercent,
+				int Rays,
+				double AngularTolerance,
+				int RandomSeed,
+				int ImportanceMapping,
+				int IrradianceHypersampling,
+				int VisualizeIrradiance,
+				double LightIntensity,
+				double SphPX,
+				double SphPY,
+				double SphPZ,
+				double SphRad,
+				double SphEmitRad,
+				char pmfile[255]));
+BU_EXTERN(void IrradianceEstimate, (struct application *ap,
+				    vect_t irrad,
+				    point_t pos,
+				    vect_t normal,
+				    fastf_t rad,
+				    int np));
+@
+
+
+1.1
+log
+@file photonmap.h was initially added on branch photonmap-branch.
+@
+text
+@d1 121
+@
+
+
+1.1.2.1
+log
+@photon mapping header
+@
+text
+@a0 117
+/*
+ *			P H O T O N M A P. H
+ *
+ *  Declarations related to Photon Mapping
+ *
+ *  Source -
+ *	Bldg 238
+ *	The U. S. Army Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005-5066
+ *  
+ *  Copyright Notice -
+ *	This software is Copyright (C) 2002 by the United States Army.
+ *	All rights reserved.
+ *
+ *  @@(#)$Header:
+ */
+
+#include "conf.h"
+#ifdef USE_STRING_H     /* OPTIONAL, for strcmp() etc. */
+#  include <string.h>
+#else
+#  include <strings.h>
+#endif
+#include <stdio.h>
+#include <stdlib.h>
+#include <math.h>
+#include "machine.h"
+#include "externs.h"
+#include "bu.h"
+#include "vmath.h"
+#include "bn.h"
+#include "db.h"
+#include "nmg.h"
+#include "raytrace.h"
+#include "shadework.h"
+
+
+#define	PM_GLOBAL	0
+#define	PM_CAUSTIC	1
+#define	PM_SHADOW	2
+
+#define	PM_SEM		RT_SEM_LAST-1
+#define	PM_SEM_INIT	RT_SEM_LAST
+
+/*
+ *  Photon Map Data Structure
+ */
+struct Photon {
+  int			Axis;		/* Splitting Plane */
+  point_t		Pos;		/* Photon Position */
+  vect_t		Dir;		/* Photon Direction */
+  vect_t		Normal;		/* Normal at Intersection */
+  vect_t		Power;		/* Photon Power */
+  vect_t		Irrad;		/* Irradiance */
+};
+
+
+struct PSN {
+  struct	Photon	P;
+  fastf_t		Dist;
+};
+
+
+/*
+ *  Photon Search Structure
+ */
+struct PhotonSearch {
+  int			Max;		/* Max Number of Photons */
+  int			Found;		/* Number of Photons Found */
+  vect_t		Normal;		/* Normal */
+  fastf_t		RadSq;		/* Search Radius Sq */
+  point_t		Pos;		/* Search Position */
+  struct	PSN	*List;		/* Located Photon List */
+};
+
+
+struct NearestPhotons {
+  int			Max;		/* Max Number of Photons */
+  int			Found;		/* Number of Photons Found */
+  vect_t		Normal;		/* Normal */
+  fastf_t		RadSq;		/* Search Radius Sq */
+  point_t		Pos;		/* Search Position */
+  struct	Photon	*List;		/* Located Photon List */
+};
+
+
+struct PNode {
+  struct	Photon	P;
+  struct	PNode	*L;
+  struct	PNode	*R;
+  int			C;		/* For Threading Purposes to see if it's been computed yet */
+};
+
+
+struct PhotonMap {
+  int			StoredPhotons;
+  int			MaxPhotons;
+  struct	PNode	*Root;
+};
+
+
+struct IrradNode {
+  point_t		Pos;
+  vect_t		RGB;
+};
+
+
+struct IrradCache {
+  int				Num;
+  struct	IrradNode	*List;
+};
+
+
+extern	int	PM_Activated;	/* Photon Mapping Activated, 0=off, 1=on */
+
+BU_EXTERN(void BuildPhotonMap, (struct application *ap, int cpus, int width, int height, int Hypersample, int GlobalPhotons, double CausticsPercent, int Rays, double AngularTolerance, int RandomSeed, int IrradianceHypersampling));
+BU_EXTERN(void IrradianceEstimate, (struct application *ap, vect_t irrad, point_t pos, vect_t normal, fastf_t rad, int np));
+@
+
+
+1.1.2.2
+log
+@Visualization of Irradiance
+@
+text
+@a114 2
+extern	double	PM_Intensity;	/* Photon Mapping Intensity applied to all Light Sources, a coefficient to lt_fraction */
+extern	int	PM_Visualize;	/* Photon Mapping Visualization of Irradiance Cache */
+d116 1
+a116 1
+BU_EXTERN(void BuildPhotonMap, (struct application *ap, int cpus, int width, int height, int Hypersample, int GlobalPhotons, double CausticsPercent, int Rays, double AngularTolerance, int RandomSeed, int IrradianceHypersampling, int VisualizeIrradiance, double LightIntensity));
+@
+
+
+1.1.2.3
+log
+@more updates
+@
+text
+@a37 2
+#define	PM_MAPS		3
+
+d40 1
+a40 2
+#define	PM_SHADOW	2	/* Current not used */
+#define	PM_IMPORTANCE	3
+d118 1
+a118 1
+BU_EXTERN(void BuildPhotonMap, (struct application *ap, point_t eye_pos, int cpus, int width, int height, int Hypersample, int GlobalPhotons, double CausticsPercent, int Rays, double AngularTolerance, int RandomSeed, int ImportanceMapping, int IrradianceHypersampling, int VisualizeIrradiance, double LightIntensity));
+@
+
+
+1.1.2.4
+log
+@house keeping
+@
+text
+@d38 1
+a38 1
+#define	PM_MAPS		4
+@
+
+
+1.1.2.5
+log
+@updated
+@
+text
+@d118 1
+d121 1
+a121 1
+BU_EXTERN(void BuildPhotonMap, (struct application *ap, point_t eye_pos, int cpus, int width, int height, int Hypersample, int GlobalPhotons, double CausticsPercent, int Rays, double AngularTolerance, int RandomSeed, int ImportanceMapping, int IrradianceHypersampling, int VisualizeIrradiance, double LightIntensity, char pmfile[255]));
+@
+
+

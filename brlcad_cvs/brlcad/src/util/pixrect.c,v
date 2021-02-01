@@ -1,0 +1,827 @@
+head	14.14;
+access;
+symbols
+	rel-7-10-4:14.11
+	STABLE:14.11.0.2
+	rel-7-10-2:14.11
+	rel-7-10-0:14.10
+	rel-7-8-4:14.7
+	rel-7-8-2:14.7
+	rel-7-8-0:14.7
+	trimnurbs-branch:14.7.0.2
+	help:14.7
+	temp_tag:14.6
+	bobWinPort-20051223-freeze:14.3
+	postmerge-20051223-bobWinPort:14.6
+	premerge-20051223-bobWinPort:14.6
+	rel-7-6-6:14.6
+	rel-7-6-4:14.6
+	rel-7-6-2:14.3
+	rel-7-6-branch:14.3.0.6
+	rel-7-6-0:14.3
+	rel-7-4-2:14.3
+	rel-7-4-branch:14.3.0.4
+	bobWinPort:14.3.0.2
+	rel-7-4-0:14.3
+	rel-7-2-6:14.3
+	rel-7-2-4:14.3
+	rel-7-2-2:14.3
+	rel-7-2-0:14.3
+	rel-7-0-4:14.2
+	rel-7-0-2:14.2
+	rel-7-0-1:14.2
+	opensource-post:14.2
+	opensource-pre:1.6
+	rel-7-0-branch:1.6.0.2
+	rel-7-0:1.6;
+locks; strict;
+comment	@ * @;
+
+
+14.14
+date	2007.12.02.22.34.25;	author brlcad;	state Exp;
+branches;
+next	14.13;
+
+14.13
+date	2007.11.21.20.49.14;	author erikgreenwald;	state Exp;
+branches;
+next	14.12;
+
+14.12
+date	2007.11.21.18.55.37;	author erikgreenwald;	state Exp;
+branches;
+next	14.11;
+
+14.11
+date	2007.07.26.01.14.00;	author brlcad;	state Exp;
+branches;
+next	14.10;
+
+14.10
+date	2007.01.27.01.41.54;	author brlcad;	state Exp;
+branches;
+next	14.9;
+
+14.9
+date	2007.01.23.01.13.56;	author brlcad;	state Exp;
+branches;
+next	14.8;
+
+14.8
+date	2007.01.20.14.37.06;	author brlcad;	state Exp;
+branches;
+next	14.7;
+
+14.7
+date	2006.01.18.06.46.28;	author brlcad;	state Exp;
+branches;
+next	14.6;
+
+14.6
+date	2005.10.23.04.44.39;	author brlcad;	state Exp;
+branches;
+next	14.5;
+
+14.5
+date	2005.09.22.00.21.51;	author brlcad;	state Exp;
+branches;
+next	14.4;
+
+14.4
+date	2005.09.21.19.05.37;	author brlcad;	state Exp;
+branches;
+next	14.3;
+
+14.3
+date	2005.01.30.20.31.33;	author brlcad;	state Exp;
+branches
+	14.3.6.1;
+next	14.2;
+
+14.2
+date	2004.12.21.03.45.41;	author butler;	state Exp;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.32;	author morrison;	state Exp;
+branches;
+next	1.6;
+
+1.6
+date	2004.09.09.04.53.00;	author kermit;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	2004.08.02.23.01.53;	author morrison;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	2004.06.09.20.10.55;	author erikg;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2004.06.09.18.21.39;	author erikg;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2004.06.08.22.04.46;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.15.21.53;	author morrison;	state Exp;
+branches;
+next	;
+
+14.3.6.1
+date	2005.11.13.13.46.21;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.14
+log
+@woo hoo, finally got through most of the flawfinder level 4 issues related to string buffer limits (leaving issues that can probably/mostly be ignored).  these changes mostly invovlved using the n-variants of the various string processing functions so that the buffers being written to are properly clamped.
+@
+text
+@/*                       P I X R E C T . C
+ * BRL-CAD
+ *
+ * Copyright (c) 1986-2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@file pixrect.c
+ *
+ *  Remove a portion of a potentially huge pix file.
+ *
+ *  Authors -
+ *	Phillip Dykstra
+ *	2 Oct 1985
+ *
+ *      Further additions by John Grosh, 1 April 1990
+ *
+ */
+#ifndef lint
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/pixrect.c,v 14.13 2007/11/21 20:49:14 erikgreenwald Exp $ (BRL)";
+#endif
+
+#include "common.h"
+
+#ifdef HAVE_UNISTD_H
+# include <unistd.h>
+#endif
+
+#include <stdlib.h>
+#include <stdio.h>
+#include <ctype.h>
+
+#include "machine.h"
+#include "bu.h"
+
+
+#define	INTERACTIVE	0
+#define	COMMAND_LINE	1
+
+FILE		*ifp, *ofp;		/* input and output file pointers */
+
+static char	*file_name;
+
+static int 	linelen;		/* input width input file */
+static int 	xorig = 0;     		/* Bottom left corner to extract from */
+static int 	yorig = 0;		/* Default at (0,0) pixels     */
+static int 	xnum  = 0;
+static int 	ynum  = 0;
+static int 	bytes_per_pixel = 3;	/* Default for RGB */
+
+static const char usage[] = "\
+Usage: pixrect -w in_width -n in_height -W out_width -N out_height\n\
+	       [-x xoffset] [-y yoffset] [-# bytes] [infile.pix]\n\
+  or   pixrect [-# bytes] infile outfile (I prompt!)\n";
+
+
+int
+get_args(register int argc, register char **argv)
+{
+	register int c;
+	register int inputmode = INTERACTIVE;
+
+	/* Get info from command line arguments */
+	while ((c = bu_getopt(argc, argv, "s:w:n:x:y:X:Y:S:W:N:#:")) != EOF) {
+		switch(c) {
+		case 's':
+			linelen   = atoi(bu_optarg);
+			inputmode = COMMAND_LINE;
+			break;
+		case 'w':
+			linelen   = atoi(bu_optarg);
+			inputmode = COMMAND_LINE;
+			break;
+		case 'n':
+			inputmode = COMMAND_LINE;
+			break;
+		case 'x':
+			xorig     = atoi(bu_optarg);
+			inputmode = COMMAND_LINE;
+			break;
+		case 'y':
+			yorig     = atoi(bu_optarg);
+			inputmode = COMMAND_LINE;
+			break;
+		case 'X':
+			inputmode = COMMAND_LINE;
+			break;
+		case 'Y':
+			inputmode = COMMAND_LINE;
+			break;
+		case 'S':
+			xnum = ynum = atoi(bu_optarg);
+			inputmode = COMMAND_LINE;
+			break;
+		case 'W':
+			xnum      = atoi(bu_optarg);
+			inputmode = COMMAND_LINE;
+			break;
+		case 'N':
+			ynum      = atoi(bu_optarg);
+			inputmode = COMMAND_LINE;
+			break;
+		case '#':
+			bytes_per_pixel = atoi(bu_optarg);
+			break;
+		default:		/* '?' */
+			return(0);
+		}
+	}
+
+	/* If parameters (i.e. xnum, etc.) are not entered on */
+	/*    command line, obtain input in the same style as */
+	/*    the original version of pixrect.c               */
+
+	if (inputmode == INTERACTIVE) {
+		if (argc != 4 && argc != 3)
+			return(0);
+
+		/* Obtain file pointers */
+		if ((ifp = fopen(argv[argc-2], "r")) == NULL) {
+			fprintf(stderr, "%s", usage);
+			bu_exit(2,"pixrect: can't open %s\n", argv[argc-1]);
+		}
+		if ((ofp = fopen(argv[argc-1], "w")) == NULL) {
+			fprintf(stderr, "%s", usage);
+			bu_exit(3, "pixrect: can't open %s\n", argv[argc]);
+		}
+
+		/* Get info */
+		printf( "Area to extract (x, y) in pixels " );
+		scanf( "%d%d", &xnum, &ynum );
+		printf( "Origin to extract from (0,0 is lower left) " );
+		scanf( "%d%d", &xorig, &yorig );
+		printf( "Scan line length of input file " );
+		scanf( "%d", &linelen );
+	}
+
+	/* Make sure nessecary variables set */
+	if (linelen <= 0 || xnum <= 0 || ynum <= 0) {
+		fprintf(stderr, "%s", usage);
+		bu_exit(1, "pixrect: args for -w -W -N [-S] must be > 0\n");
+	}
+
+	if (inputmode == COMMAND_LINE) {
+		/* Obtain file pointers */
+		ofp = stdout;
+		if (bu_optind >= argc) {
+			if (isatty(fileno(stdin))) {
+				fprintf(stderr,
+					"pixrect: input from sdtin\n");
+				return(0);
+			}
+			ifp = stdin;
+		} else {
+			file_name = argv[bu_optind];
+			if ((ifp = fopen(file_name, "r")) == NULL) {
+				fprintf(stderr,
+					"pixrect: cannot open \"%s\" for reading\n",
+					file_name);
+				return(0);
+			}
+		}
+
+		if (isatty(fileno(stdout))) {
+			fprintf(stderr, "pixrect: output to stdout\n\n");
+			return(0);
+		}
+	}
+
+#if 0
+	if (argc > ++bu_optind)
+		fprintf(stderr,"pixrect: excess argument(s) ignored\n");
+#endif
+
+	return(1);		/* OK */
+}
+
+/* ======================================================================= */
+
+char	*buf;			/* output scanline buffer, malloc'd */
+int	outbytes;
+
+int
+main(register int argc, register char **argv)
+{
+	int	row;
+	long	offset;
+
+	if (!get_args(argc,argv)) {
+		bu_exit(1, "%s", usage);
+	}
+
+	outbytes = xnum * bytes_per_pixel;
+
+	if ((buf = (char *)malloc(outbytes)) == NULL) {
+		fprintf(stderr, "pixrect: malloc failed!\n");
+		bu_exit (1, NULL);
+	}
+
+	/* Move all points */
+	for (row = 0 + yorig; row < ynum + yorig; row++) {
+		offset = (row * linelen + xorig) * bytes_per_pixel;
+		fseek(ifp, offset, 0);
+		fread(buf, sizeof(*buf), outbytes, ifp);
+		fwrite(buf, sizeof(*buf), outbytes, ofp);
+	}
+
+	bu_exit (0, NULL);
+}
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+14.13
+log
+@pass bu_exit a NULL instead of an empty string
+@
+text
+@d32 1
+a32 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/pixrect.c,v 14.12 2007/11/21 18:55:37 erikgreenwald Exp $ (BRL)";
+d63 1
+a63 1
+static char usage[] = "\
+d133 2
+a134 3
+			fprintf(stderr,"pixrect: can't open %s\n", argv[argc-1]);
+			fprintf(stderr,usage);
+			bu_exit (2, NULL);
+d137 2
+a138 3
+			fprintf(stderr,"pixrect: can't open %s\n", argv[argc]);
+			fprintf(stderr, usage);
+			bu_exit (3, NULL);
+d152 2
+a153 3
+		fprintf(stderr, "pixrect: args for -w -W -N [-S] must be > 0\n");
+		fprintf(stderr, usage);
+		bu_exit (1, NULL);
+d202 1
+a202 2
+		fprintf(stderr, usage);
+		bu_exit (1, NULL);
+@
+
+
+14.12
+log
+@exit->bu_exit where applicable
+@
+text
+@d32 1
+a32 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/pixrect.c,v 14.11 2007/07/26 01:14:00 brlcad Exp $ (BRL)";
+d135 1
+a135 1
+			bu_exit (2, "");
+d140 1
+a140 1
+			bu_exit (3, "");
+d156 1
+a156 1
+		bu_exit (1, "");
+d206 1
+a206 1
+		bu_exit (1, "");
+d213 1
+a213 1
+		bu_exit (1, "");
+d224 1
+a224 1
+	bu_exit (0, "");
+@
+
+
+14.11
+log
+@remove ephemeral data like phone numbers and addresses, including the misleading 'source' statements on code that is continually evolving and receiving contributions from many many sources
+@
+text
+@d32 1
+a32 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/pixrect.c,v 14.10 2007/01/27 01:41:54 brlcad Exp $ (BRL)";
+d135 1
+a135 1
+			exit(2);
+d140 1
+a140 1
+			exit(3);
+d156 1
+a156 1
+		exit(1);
+d206 1
+a206 1
+		exit(1);
+d213 1
+a213 1
+		exit(1);
+d224 1
+a224 1
+	exit(0);
+@
+
+
+14.10
+log
+@ws. lots and lots of ws.  see sh/ws.sh for details (cases 'abcdeg').
+@
+text
+@a29 4
+ *  Source -
+ *	SECAD/VLD Computing Consortium, Bldg 394
+ *	The U. S. Army Ballistic Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005-5066
+d32 1
+a32 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/pixrect.c,v 14.9 2007/01/23 01:13:56 brlcad Exp $ (BRL)";
+@
+
+
+14.9
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@d36 1
+a36 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/pixrect.c,v 14.8 2007/01/20 14:37:06 brlcad Exp $ (BRL)";
+d69 1
+a69 1
+               [-x xoffset] [-y yoffset] [-# bytes] [infile.pix]\n\
+d128 2
+a129 2
+        /*    command line, obtain input in the same style as */
+        /*    the original version of pixrect.c               */
+@
+
+
+14.8
+log
+@update copyright to 2007
+@
+text
+@d8 2
+a9 3
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+d14 1
+a14 1
+ * General Public License for more details.
+d16 2
+a17 2
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+d36 1
+a36 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/pixrect.c,v 14.7 2006/01/18 06:46:28 brlcad Exp $ (BRL)";
+@
+
+
+14.7
+log
+@update copyright to 2006
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 1986-2006 United States Government as represented by
+d37 1
+a37 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/pixrect.c,v 14.6 2005/10/23 04:44:39 brlcad Exp $ (BRL)";
+@
+
+
+14.6
+log
+@trailing ws
+@
+text
+@d4 1
+a4 1
+ * Copyright (C) 1986-2005 United States Government as represented by
+d37 1
+a37 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/pixrect.c,v 14.5 2005/09/22 00:21:51 brlcad Exp $ (BRL)";
+@
+
+
+14.5
+log
+@add bu.h for bu_getopt stuff
+@
+text
+@d28 1
+a28 1
+ *  
+d37 1
+a37 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/pixrect.c,v 14.4 2005/09/21 19:05:37 brlcad Exp $ (BRL)";
+d61 1
+a61 1
+static int 	linelen;		/* input width input file */ 
+d131 1
+a131 1
+	
+d133 1
+a133 1
+		if (argc != 4 && argc != 3) 
+@
+
+
+14.4
+log
+@needs bu.h for bu_getopt
+@
+text
+@d37 1
+a37 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/pixrect.c,v 14.3 2005/01/30 20:31:33 brlcad Exp $ (BRL)";
+d51 1
+@
+
+
+14.3
+log
+@update copyright to 2005
+@
+text
+@d37 1
+a37 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/pixrect.c,v 14.2 2004/12/21 03:45:41 butler Exp $ (BRL)";
+d80 1
+a80 1
+	while ((c = getopt(argc, argv, "s:w:n:x:y:X:Y:S:W:N:#:")) != EOF) {
+d83 1
+a83 1
+			linelen   = atoi(optarg);
+d87 1
+a87 1
+			linelen   = atoi(optarg);
+d94 1
+a94 1
+			xorig     = atoi(optarg);
+d98 1
+a98 1
+			yorig     = atoi(optarg);
+d108 1
+a108 1
+			xnum = ynum = atoi(optarg);
+d112 1
+a112 1
+			xnum      = atoi(optarg);
+d116 1
+a116 1
+			ynum      = atoi(optarg);
+d120 1
+a120 1
+			bytes_per_pixel = atoi(optarg);
+d166 1
+a166 1
+		if (optind >= argc) {
+d174 1
+a174 1
+			file_name = argv[optind];
+d190 1
+a190 1
+	if (argc > ++optind)
+@
+
+
+14.3.6.1
+log
+@merge changes from HEAD aka rel-7-6-4 to the rel-7-6-branch just in case someone peeks a gander or tries to continue/build the branch
+@
+text
+@d28 1
+a28 1
+ *
+d37 1
+a37 1
+static const char RCSid[] = "@@(#)$Header$ (BRL)";
+a50 1
+#include "bu.h"
+d60 1
+a60 1
+static int 	linelen;		/* input width input file */
+d80 1
+a80 1
+	while ((c = bu_getopt(argc, argv, "s:w:n:x:y:X:Y:S:W:N:#:")) != EOF) {
+d83 1
+a83 1
+			linelen   = atoi(bu_optarg);
+d87 1
+a87 1
+			linelen   = atoi(bu_optarg);
+d94 1
+a94 1
+			xorig     = atoi(bu_optarg);
+d98 1
+a98 1
+			yorig     = atoi(bu_optarg);
+d108 1
+a108 1
+			xnum = ynum = atoi(bu_optarg);
+d112 1
+a112 1
+			xnum      = atoi(bu_optarg);
+d116 1
+a116 1
+			ynum      = atoi(bu_optarg);
+d120 1
+a120 1
+			bytes_per_pixel = atoi(bu_optarg);
+d130 1
+a130 1
+
+d132 1
+a132 1
+		if (argc != 4 && argc != 3)
+d166 1
+a166 1
+		if (bu_optind >= argc) {
+d174 1
+a174 1
+			file_name = argv[bu_optind];
+d190 1
+a190 1
+	if (argc > ++bu_optind)
+@
+
+
+14.2
+log
+@GPL license changes
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 1986-2004 United States Government as represented by
+d37 1
+a37 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/util/pixrect.c,v 14.1 2004/11/16 19:42:32 morrison Exp $ (BRL)";
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@d1 21
+a21 2
+/*
+ *		P I X R E C T . C
+a34 4
+ *  
+ *  Copyright Notice -
+ *	This software is Copyright (C) 1986-2004 by the United States Army.
+ *	All rights reserved.
+d37 1
+a37 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/util/pixrect.c,v 1.6 2004/09/09 04:53:00 kermit Exp $ (BRL)";
+@
+
+
+1.6
+log
+@Added <stdlib.h> to fix implicit cast (for IA64 architecture).
+@
+text
+@d22 1
+a22 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/util/pixrect.c,v 1.5 2004/08/02 23:01:53 morrison Exp $ (BRL)";
+d215 10
+@
+
+
+1.5
+log
+@replace the wrapped config.h block with common.h
+@
+text
+@d22 1
+a22 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/util/pixrect.c,v 1.4 2004/06/09 20:10:55 erikg Exp $ (BRL)";
+a29 1
+                                                                                                                                                                            
+d31 1
+d36 1
+@
+
+
+1.4
+log
+@fixing warnings
+@
+text
+@d22 1
+a22 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/util/pixrect.c,v 1.3 2004/06/09 18:21:39 erikg Exp $ (BRL)";
+d25 1
+a25 3
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+@
+
+
+1.3
+log
+@include unistd.h for getopt stuff
+@
+text
+@d22 1
+a22 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/util/pixrect.c,v 1.2 2004/06/08 22:04:46 morrison Exp $ (BRL)";
+d201 1
+a201 1
+	if ((buf = malloc(outbytes)) == NULL) {
+@
+
+
+1.2
+log
+@obliterate externs.h
+@
+text
+@d22 1
+a22 1
+static const char RCSid[] = "@@(#)$Header$ (BRL)";
+d28 5
+@
+
+
+1.1
+log
+@Vast reorganization begins.  Sources moved from top-level directories into src/.
+@
+text
+@d22 1
+a22 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/util/pixrect.c,v 11.12 2004/05/10 15:30:51 erikg Exp $ (BRL)";
+a28 2
+
+
+a32 1
+#include "externs.h"		/* For getopt */
+@
+

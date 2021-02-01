@@ -1,0 +1,367 @@
+head	1.7;
+access;
+symbols
+	rel-4-5:1.6;
+locks; strict;
+comment	@# @;
+
+
+1.7
+date	98.11.10.04.54.43;	author mike;	state dead;
+branches;
+next	1.6;
+
+1.6
+date	97.08.19.04.49.15;	author mike;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	97.07.30.05.28.42;	author mike;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	97.07.30.05.03.00;	author mike;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	97.07.29.23.00.46;	author mike;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	97.07.29.22.33.56;	author mike;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	97.07.23.00.46.46;	author mike;	state Exp;
+branches;
+next	;
+
+
+desc
+@monitor available server nodes
+@
+
+
+1.7
+log
+@Moved real-time ray-tracer over into "SWISS" directory
+@
+text
+@#!/m/cad/.tk.6d/wish mon.tcl
+#!/bin/sh
+# The next line restarts the shell script using best WISH in $PATH
+# exec wish "$0" "$@@"
+# demo.tcl
+#	setenv LD_LIBRARY_PATH /usr/lib/X11:/usr/X11/lib
+#
+# A GUI to monitor the status of available servers.
+# -Mike Muuss, ARL, July 97.
+
+puts "running mon.tcl"
+
+# Create main interaction widget
+frame .cmd_fr; pack .cmd_fr -side top
+frame .rtnode_fr; pack .rtnode_fr -side top
+
+# "Sense" button
+button .sense_button -text "SENSE" -command sense_servers
+button .reconnect_button -text "RECONNECT" -command reconnect
+button .find_button -text "FIND_DB" -command find_db
+pack .sense_button .reconnect_button .find_button -side left -in .cmd_fr
+
+proc find_db {} {
+	global nodes
+	global	fds
+	global db_path
+	global status
+
+	# loop through list of nodes selected, starting each one.
+	set j [array startsearch nodes]
+	while { [array anymore nodes $j] } {
+		set host [array nextelement nodes $j]
+		if { $fds($host) == "dead" } continue
+		puts "Finding $host"
+		set code "!error?"
+		if { [ catch {
+			puts $fds($host) "find .db.6d/moss.g"
+			flush $fds($host)
+		} code ] } {
+			# error condition on write
+			puts "$host error $code"
+
+			close $fds($host)
+			set fds($host) "dead"
+			set status($host) "$host -died-"
+			continue
+		}
+		if { [gets $fds($host) reply] <= 0 } {
+			puts "EOF from $host"
+			close $fds($host)
+			set fds($host) "dead"
+			set status($host) "$host -died-"
+			set code "eof"
+			continue
+		}
+		# First word should be OK or FAIL, 2nd word is path.
+		puts "First word is [lindex $reply 0]"
+		if { [lindex $reply 0] != "OK" }  {
+			continue
+		}
+		set db_path($host) [lindex $reply 1]
+	}
+	array donesearch nodes $j
+}
+
+proc server_sense {host} {
+	global nodes
+	global	fds
+	global db_path
+	global status
+
+	if { $fds($host) == "dead" } continue
+	puts "Sensing $host"
+	set code "!error?"
+	if { [ catch {
+		puts $fds($host) "status"
+		flush $fds($host)
+	} code ] } {
+		# error condition on write
+		puts "$host error $code"
+
+		close $fds($host)
+		set fds($host) "dead"
+		set status($host) "$host -died-"
+		return
+	}
+	if { [gets $fds($host) status($host)] <= 0 } {
+		puts "EOF from $host"
+		close $fds($host)
+		set fds($host) "dead"
+		set status($host) "$host -died-"
+		set code "eof"
+		return
+	}
+}
+
+proc sense_servers {} {
+	global nodes
+	global	fds
+	global db_path
+	global status
+
+	# loop through list of nodes selected, starting each one.
+	set j [array startsearch nodes]
+	while { [array anymore nodes $j] } {
+		set host [array nextelement nodes $j]
+		if { $fds($host) == "dead" } continue
+		server_sense $host
+		##.title_$shost configure -text "$status($host)"
+	}
+	array donesearch nodes $j
+}
+
+proc reconnect {} {
+	global nodes
+	global	fds
+	global db_path
+	global status
+
+	set j [array startsearch nodes]
+	while { [array anymore nodes $j] } {
+		set host [array nextelement nodes $j]
+		if { $fds($host) != "dead" }  continue
+
+		puts "Connecting to $host"
+		set code "!error?"
+		if { [ catch { set fds($host) [socket $host 5353] } code ] }  {
+			set fds($host) dead
+			set status($host) "$host not-responding"
+			puts "  $host : $code, skipping"
+			continue
+		}
+		# fds($host) is now set non-dead, to the actual fd.
+		# establish per-connection state
+		set db_path($host) "unknown"
+
+		server_sense $host
+	}
+	array donesearch nodes $j
+}
+
+proc register {informal_name formalname _cmd_ dir} {
+	global nodes
+	global	fds
+	global db_path
+	global status
+
+	# Establish connection-invarient state
+	set nodes($formalname) $informal_name
+	set fds($formalname) "dead"
+	set status($formalname) "$formalname : pre-natal"
+
+	frame .fr_$informal_name
+	checkbutton .button_$informal_name -variable nodes($formalname)
+	label .title_$informal_name -textvariable status($formalname)
+	entry .entry_$informal_name -width 20 -relief sunken -bd 2 -textvariable db_path($formalname)
+	pack .button_$informal_name .title_$informal_name .entry_$informal_name -side left -in .fr_$informal_name
+	pack .fr_$informal_name -side top -in .rtnode_fr
+}
+
+register "vapor" "vapor.arl.mil" ssh /m/cad/remrt
+register "wax" "wax.arl.mil" ssh /n/vapor/m/cad/remrt
+register "eckert" "eckert.arl.hpc.mil" ssh /n/vapor/m/cad/remrt
+reconnect
+@
+
+
+1.6
+log
+@error
+@
+text
+@@
+
+
+1.5
+log
+@Small bugs
+@
+text
+@d135 1
+a135 1
+		set db_path($name) "unknown"
+@
+
+
+1.4
+log
+@Separated out registry from connecting from status sensing.
+@
+text
+@d63 1
+d111 1
+d135 1
+a135 1
+		set db_path($formalname) "unknown"
+d139 1
+@
+
+
+1.3
+log
+@Added check for EOF
+@
+text
+@d18 4
+a21 2
+button .sense_button -text "SENSE" -command server_sense
+pack .sense_button -side top -in .cmd_fr
+d23 1
+a23 1
+proc server_sense {} {
+d26 1
+a26 1
+	global dirs
+a28 1
+	puts "start server_sense"
+d33 2
+a34 1
+		puts "Sensing $host"
+a35 1
+		set status($host) "unknown"
+d37 1
+a37 1
+			puts $fds($host) "status"
+a38 7
+			if { [gets $fds($host) status($host)] <= 0 } {
+				puts "EOF from $host"
+				unset nodes($host)
+				set status($host) "$host -dead-"
+				destroy .button_$nodes($host)
+				continue
+			}
+d40 1
+a40 1
+			# error condition
+d42 4
+a45 3
+			unset nodes($host)
+			set status($host) "$host -error-"
+			destroy .button_$nodes($host)
+d48 14
+a61 4
+		##puts "status=$status($host)"
+		##set shost $nodes($host)
+		##puts "cget=[.title_$shost configure]"
+		##.title_$shost configure -text "$status($host)"
+a62 1
+	puts "done"
+d65 1
+a65 1
+proc register {host formalname _cmd_ dir} {
+d68 1
+a68 1
+	global dirs
+d71 2
+a72 1
+	puts "Connecting to $host"
+d74 10
+a83 2
+	if { [ catch { set fds($formalname) [socket $formalname 5353] } code ] }  {
+		puts "  $formalname : $code, skipping"
+d86 9
+d96 14
+a109 9
+	set dirs($formalname) $dir
+	set nodes($formalname) $host
+	set status($formalname) "???"
+	frame .fr_$host
+	checkbutton .button_$host -variable nodes($formalname)
+	label .title_$host -textvariable status($formalname)
+	entry .entry_$host -width 20 -relief sunken -bd 2 -textvariable dirs($formalname)
+	pack .button_$host .title_$host .entry_$host -side left -in .fr_$host
+	pack .fr_$host -side top -in .rtnode_fr
+d112 46
+d160 2
+a161 1
+server_sense
+@
+
+
+1.2
+log
+@Working
+@
+text
+@d38 7
+a44 1
+			gets $fds($host) status($host)
+d49 2
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d25 1
+d45 2
+a46 2
+		puts "status=$status($host)"
+		set shost $nodes($host)
+d48 1
+a48 1
+		.title_$shost configure -text "$host $status($host)"
+d57 1
+d68 1
+d71 1
+a71 1
+	label .title_$host -text "$formalname ???"
+d79 1
+@

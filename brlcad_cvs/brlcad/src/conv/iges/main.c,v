@@ -1,0 +1,1104 @@
+head	1.14;
+access;
+symbols
+	rel-7-10-4:1.9
+	STABLE:1.9.0.2
+	rel-7-10-2:1.9
+	rel-7-10-0:1.6
+	rel-7-8-4:1.4
+	rel-7-8-2:1.4
+	rel-7-8-0:1.4
+	trimnurbs-branch:1.4.0.2
+	help:1.4
+	temp_tag:1.3
+	postmerge-20051223-bobWinPort:1.3
+	premerge-20051223-bobWinPort:1.2
+	rel-7-6-6:1.2
+	rel-7-6-branch:1.2.0.2
+	rel-7-6-4:1.2;
+locks; strict;
+comment	@ * @;
+
+
+1.14
+date	2007.12.31.20.25.13;	author brlcad;	state Exp;
+branches;
+next	1.13;
+
+1.13
+date	2007.11.21.20.49.06;	author erikgreenwald;	state Exp;
+branches;
+next	1.12;
+
+1.12
+date	2007.11.21.20.38.22;	author erikgreenwald;	state Exp;
+branches;
+next	1.11;
+
+1.11
+date	2007.11.21.19.05.59;	author erikgreenwald;	state Exp;
+branches;
+next	1.10;
+
+1.10
+date	2007.10.14.22.15.54;	author brlcad;	state Exp;
+branches;
+next	1.9;
+
+1.9
+date	2007.04.18.04.03.53;	author brlcad;	state Exp;
+branches;
+next	1.8;
+
+1.8
+date	2007.04.16.22.45.45;	author brlcad;	state Exp;
+branches;
+next	1.7;
+
+1.7
+date	2007.04.14.01.16.02;	author brlcad;	state Exp;
+branches;
+next	1.6;
+
+1.6
+date	2007.01.23.01.13.26;	author brlcad;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	2007.01.20.14.36.47;	author brlcad;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	2006.01.18.06.46.14;	author brlcad;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2005.12.23.21.26.29;	author bob1961;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2005.10.29.04.20.52;	author brlcad;	state Exp;
+branches
+	1.2.2.1;
+next	1.1;
+
+1.1
+date	2005.10.27.03.44.49;	author brlcad;	state Exp;
+branches;
+next	;
+
+1.2.2.1
+date	2005.10.29.04.20.52;	author brlcad;	state dead;
+branches;
+next	1.2.2.2;
+
+1.2.2.2
+date	2005.11.13.17.45.00;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.14
+log
+@header cleanup, more address removal
+@
+text
+@/*                          M A I N . C
+ * BRL-CAD
+ *
+ * Copyright (c) 1990-2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@file main.c
+ *
+ *  Authors -
+ *	John R. Anderson
+ *	Susanne L. Muuss
+ *	Earl P. Weaver
+ *
+ */
+
+#include "common.h"
+
+/* private */
+#include "./iges_struct.h"
+#include "./iges_types.h"
+#include "../../librt/debug.h"
+#include "brlcad_version.h"
+
+
+int do_projection=1;
+char eor,eof,card[256];
+fastf_t scale,inv_scale,conv_factor;
+int units,counter,pstart,dstart,totentities,dirarraylen;
+FILE *fd;
+struct rt_wdb *fdout;
+char brlcad_file[256];
+int reclen,currec,ntypes;
+int brlcad_att_de=0;
+struct iges_directory **dir;
+struct reglist *regroot;
+struct iges_edge_list *edge_root;
+struct iges_vertex_list *vertex_root;
+struct bn_tol tol;
+char *solid_name=(char *)NULL;
+struct file_list iges_list;
+struct file_list *curr_file;
+struct name_list *name_root;
+
+char operator[]={
+	' ',
+	'u',
+	'+',
+	'-' };
+
+mat_t *identity;
+
+
+static int do_splines=0;
+static int do_drawings=0;
+static int trimmed_surf=0;
+int do_bots=1;
+
+static char *iges_file;
+
+static char *msg1=
+"\nThis IGES file contains solid model entities, but your options do not permit\n\
+converting them to BRL-CAD. You may want to try 'iges-g -o file.g %s' to\n\
+convert the solid model elements\n";
+
+static char *msg2=
+"\nThis IGES file contains drawing entities, but no solid model entities. You may\n\
+convert the drawing to BRL-CAD by 'iges-g -d -o file.g %s'. Note that the resulting\n\
+BRL-CAD object will be a 2D drawing, not a solid object. You might also try the\n\
+'-3' option to get 3D drawings\n";
+
+static char *msg3=
+"\nThis IGES file contains spline surfaces, but no solid model entities. All the spline\n\
+surfaces in the IGES file may be combined into a single BRL-CAD spline solid by\n\
+'iges-g -n -o file.g %s'\n";
+
+static char *msg4=
+"\nThis IGES file contains trimmed surfaces, but no solid model entities.\n\
+Try the '-t' option to convert all the trimmed surfaces into one BRL-CAD solid.\n\
+'iges-g -t -o file.g %s'\n";
+
+void
+Suggestions()
+{
+	int i;
+	int csg=0;
+	int brep=0;
+	int splines=0;
+	int tsurfs=0;
+	int drawing=0;
+
+	/* categorize the elements in the IGES file as to whether they are
+	 * CSG, BREP, Trimmed surfaces, Spline surfaces, or drawing elements
+	 */
+	for( i=0 ; i<NTYPES ; i++ )
+	{
+		if( (typecount[i].type >= 150 && typecount[i].type <= 184) ||
+		    typecount[i].type == 430 )
+			csg += typecount[i].count;
+		else if( typecount[i].type == 186 ||
+			 (typecount[i].type >= 502 && typecount[i].type <=514) )
+			brep += typecount[i].count;
+		else if( typecount[i].type == 128 )
+			splines += typecount[i].count;
+		else if( typecount[i].type == 144 )
+			tsurfs += typecount[i].count;
+		else if( (typecount[i].type >= 100 && typecount[i].type <= 112) ||
+			 typecount[i].type == 126 ||
+			 (typecount[i].type >= 202 && typecount[i].type <= 230) ||
+			 typecount[i].type == 404 || typecount[i].type == 410 )
+			drawing += typecount[i].count;
+	}
+
+	if( (csg || brep) && (do_splines || do_drawings || trimmed_surf ) )
+		bu_log( msg1 , iges_file );
+
+	if( drawing && csg == 0 && brep == 0 && !do_drawings )
+		bu_log( msg2 , iges_file );
+
+	if( splines && csg == 0 && brep == 0 && !do_splines )
+		bu_log( msg3 , iges_file );
+
+	if( tsurfs && csg == 0 && brep == 0 && !trimmed_surf )
+		bu_log( msg4 , iges_file );
+}
+
+int
+main( argc , argv )
+int argc;
+char *argv[];
+{
+	int i;
+	int c;
+	int file_count=0;
+	char *output_file=(char *)NULL;
+
+
+	while( (c=bu_getopt( argc , argv , "3dntpo:x:X:N:" )) != EOF )
+	{
+		switch( c )
+		{
+			case '3':
+				do_drawings = 1;
+				do_projection = 0;
+				break;
+			case 'd':
+				do_drawings = 1;
+				break;
+			case 'n':
+				do_splines = 1;
+				break;
+			case 'o':
+				output_file = bu_optarg;
+				break;
+			case 't':
+				trimmed_surf = 1;
+				break;
+			case 'p':
+				do_bots = 0;
+				break;
+			case 'N':
+				solid_name = bu_optarg;
+				break;
+			case 'x':
+				sscanf( bu_optarg, "%x", (unsigned int *)&rt_g.debug );
+				if( RT_G_DEBUG & DEBUG_MEM )
+					bu_debug |= BU_DEBUG_MEM_LOG;
+				if( RT_G_DEBUG & DEBUG_MEM_FULL )
+					bu_debug |= BU_DEBUG_MEM_CHECK;
+				break;
+			case 'X':
+				sscanf( bu_optarg, "%x", (unsigned int *)&rt_g.NMG_debug );
+				break;
+			default:
+				usage();
+				bu_exit(1, NULL);
+				break;
+		}
+	}
+
+	if (bu_optind >= argc || output_file == (char *)NULL || do_drawings+do_splines+trimmed_surf > 1) {
+		usage();
+		bu_exit(1, NULL);
+	}
+
+	if( bu_debug & BU_DEBUG_MEM_CHECK )
+	{
+		bu_log( "Memory checking enabled\n" );
+		bu_mem_barriercheck();
+	}
+
+	bu_log( "%s", brlcad_ident("IGES to BRL-CAD Translator"));
+	bu_log( "Please direct bug reports to <bugs@@brlcad.org>\n\n" );
+
+	/* Initialize some variables */
+	ntypes = NTYPES;
+	regroot = NULL;
+	edge_root = NULL;
+	vertex_root = NULL;
+	name_root = NULL;
+	tol.magic = BN_TOL_MAGIC;
+	tol.dist = 0.005;
+	tol.dist_sq = tol.dist * tol.dist;
+	tol.perp = 1e-6;
+	tol.para = 1 - tol.perp;
+
+	Initstack();	/* Initialize node stack */
+
+	identity = (mat_t *)bu_malloc( sizeof( mat_t ), "main: identity" );
+	for( i=0 ; i<16 ; i++ )
+	{
+		if( !(i%5) )
+			(*identity)[i] = 1.0;
+		else
+			(*identity)[i] = 0.0;
+	}
+
+	if( (fdout = wdb_fopen( output_file )) == NULL )
+	{
+		bu_log( "Cannot open %s\n" , output_file );
+		perror( "iges-g" );
+		usage();
+		bu_exit( 1, NULL );
+	}
+	strncpy( brlcad_file ,  output_file, 256 );
+
+	argc -= bu_optind;
+	argv += bu_optind;
+
+	BU_LIST_INIT( &iges_list.l );
+	curr_file = (struct file_list *)bu_malloc( sizeof( struct file_list ), "iges-g: curr_file" );
+	if( solid_name )
+		strncpy( curr_file->obj_name, Make_unique_brl_name( solid_name ), NAMESIZE );
+	else
+		strncpy( curr_file->obj_name, Make_unique_brl_name( "all" ), NAMESIZE );
+
+	curr_file->file_name = (char *)bu_malloc( strlen( argv[0] ) + 1, "iges-g: curr_file->file_name" );
+	strncpy( curr_file->file_name, argv[0], strlen(argv[0])+1 );
+	BU_LIST_APPEND( &iges_list.l, &curr_file->l );
+
+	while( BU_LIST_NON_EMPTY( &iges_list.l ) )
+	{
+		if( RT_G_DEBUG & DEBUG_MEM_FULL )
+			bu_mem_barriercheck();
+
+		curr_file = BU_LIST_FIRST( file_list, &iges_list.l );
+		iges_file = curr_file->file_name;
+
+		fd = fopen( iges_file , "rb" );	/* open IGES file */
+		if( fd == NULL )
+		{
+			bu_log( "Cannot open %s\n" , iges_file );
+			perror( "iges-g" );
+			usage();
+			bu_exit( 1, NULL );
+		}
+
+		bu_log( "\n\n\nIGES FILE: %s\n", iges_file );
+
+		reclen = Recsize() * sizeof( char ); /* Check length of records */
+		if( reclen == 0 )
+			bu_exit(1, "File (%s) not in IGES ASCII format\n", iges_file );
+
+		Freestack();	/* Set node stack to empty */
+
+		Zero_counts();	/* Set summary information to all zeros */
+
+		Readstart();	/* Read start section */
+
+		Readglobal( file_count);	/* Read global section */
+
+		pstart = Findp();	/* Find start of parameter section */
+
+		Makedir();	/* Read directory section and build a linked list of entries */
+
+		Summary();	/* Print a summary of what is in the IGES file */
+
+		Docolor();	/* Get color info from color definition entities */
+
+		Get_att();	/* Look for a BRL-CAD attribute definition */
+
+		Evalxform();	/* Accumulate the transformation matrices */
+
+		Check_names();	/* Look for name entities */
+
+		if( do_drawings )
+			Conv_drawings();	/* convert drawings to wire edges */
+		else if( trimmed_surf )
+		{
+			Do_subfigs();		/* Look for Singular Subfigure Instances */
+
+			Convtrimsurfs();	/* try to convert trimmed surfaces to a single solid */
+		}
+		else if( do_splines )
+			Convsurfs();		/* Convert NURBS to a single solid */
+		else
+		{
+			Convinst();	/* Handle Instances */
+
+			Convsolids();	/* Convert solid entities */
+
+			Convtree();	/* Convert Boolean Trees */
+
+			Convassem();	/* Convert solid assemblies */
+		}
+
+		if( RT_G_DEBUG & DEBUG_MEM_FULL )
+			bu_mem_barriercheck();
+
+		Free_dir();
+
+		if( RT_G_DEBUG & DEBUG_MEM_FULL )
+			bu_mem_barriercheck();
+
+		BU_LIST_DEQUEUE( &curr_file->l );
+		bu_free( (char *)curr_file->file_name, "iges-g: curr_file->file_name" );
+		bu_free( (char *)curr_file, "iges-g: curr_file" );
+		file_count++;
+
+		if( RT_G_DEBUG & DEBUG_MEM_FULL )
+			bu_mem_barriercheck();
+
+	}
+
+	iges_file = argv[0];
+	Suggestions();
+	return 0;
+}
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+1.13
+log
+@pass bu_exit a NULL instead of an empty string
+@
+text
+@a26 5
+ *  Source -
+ *	VLD/ASB Building 1065
+ *	The U. S. Army Ballistic Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005
+ *
+a27 3
+#ifndef lint
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/conv/iges/main.c,v 1.12 2007/11/21 20:38:22 erikgreenwald Exp $ (BRL)";
+#endif
+@
+
+
+1.12
+log
+@collapse bu_log();bu_exit(#,""); as much as possible
+@
+text
+@d34 1
+a34 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/conv/iges/main.c,v 1.11 2007/11/21 19:05:59 erikgreenwald Exp $ (BRL)";
+d196 1
+a196 1
+				bu_exit(1, "");
+d203 1
+a203 1
+		bu_exit(1, "");
+d243 1
+a243 1
+		bu_exit( 1, "" );
+d275 1
+a275 1
+			bu_exit( 1, "" );
+@
+
+
+1.11
+log
+@exit->bu_exit where applicable
+@
+text
+@d34 1
+a34 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/conv/iges/main.c,v 1.10 2007/10/14 22:15:54 brlcad Exp $ (BRL)";
+d282 1
+a282 4
+		{
+			bu_log( "File (%s) not in IGES ASCII format\n", iges_file );
+			bu_exit(1, "");
+		}
+@
+
+
+1.10
+log
+@more level 4 flawfinder issues.  mostly string length clampages.
+@
+text
+@d34 1
+a34 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/conv/iges/main.c,v 1.9 2007/04/18 04:03:53 brlcad Exp $ (BRL)";
+d196 1
+a196 1
+				exit(1);
+d203 1
+a203 1
+		exit(1);
+d243 1
+a243 1
+		exit( 1 );
+d275 1
+a275 1
+			exit( 1 );
+d284 1
+a284 1
+			exit(1);
+@
+
+
+1.9
+log
+@brlcad_version() name changed to brlcad_ident()
+@
+text
+@d34 1
+a34 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/conv/iges/main.c,v 1.8 2007/04/16 22:45:45 brlcad Exp $ (BRL)";
+d245 1
+a245 1
+	strcpy( brlcad_file ,  output_file );
+d253 1
+a253 1
+		strcpy( curr_file->obj_name, Make_unique_brl_name( solid_name ) );
+d255 1
+a255 1
+		strcpy( curr_file->obj_name, Make_unique_brl_name( "all" ) );
+d258 1
+a258 1
+	strcpy( curr_file->file_name, argv[0] );
+@
+
+
+1.8
+log
+@use the new brlcad_version() routine instead of vers.sh approach, removes need need for vers.c files
+@
+text
+@d34 1
+a34 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/conv/iges/main.c,v 1.7 2007/04/14 01:16:02 brlcad Exp $ (BRL)";
+d212 1
+a212 1
+	bu_log( "%s", brlcad_version("IGES to BRL-CAD Translator"));
+@
+
+
+1.7
+log
+@remove the WIN32 conditionals relating to the binary mode specifier on file opens.  just keep the rb/wb mode since ISO/IEC 9899:1990 does specify it.
+@
+text
+@d34 1
+a34 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/conv/iges/main.c,v 1.6 2007/01/23 01:13:26 brlcad Exp $ (BRL)";
+d37 3
+d43 2
+a72 1
+extern char	version[];
+d212 1
+a212 1
+	bu_log( "%s", version+5);
+@
+
+
+1.6
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@d34 1
+a34 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/conv/iges/main.c,v 1.5 2007/01/20 14:36:47 brlcad Exp $ (BRL)";
+a264 1
+#ifdef _WIN32
+a265 3
+#else
+		fd = fopen( iges_file , "r" );	/* open IGES file */
+#endif
+@
+
+
+1.5
+log
+@update copyright to 2007
+@
+text
+@d8 2
+a9 3
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+d14 1
+a14 1
+ * General Public License for more details.
+d16 2
+a17 2
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+d34 1
+a34 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/conv/iges/main.c,v 1.4 2006/01/18 06:46:14 brlcad Exp $ (BRL)";
+@
+
+
+1.4
+log
+@update copyright to 2006
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 1990-2006 United States Government as represented by
+d35 1
+a35 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/conv/iges/main.c,v 1.3 2005/12/23 21:26:29 bob1961 Exp $ (BRL)";
+@
+
+
+1.3
+log
+@Merge of bobWinPort
+@
+text
+@d4 1
+a4 1
+ * Copyright (C) 1990-2005 United States Government as represented by
+d35 1
+a35 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/conv/iges/main.c,v 1.2 2005/10/29 04:20:52 brlcad Exp $ (BRL)";
+@
+
+
+1.2
+log
+@fix relative include paths after the move to src/conv (thanks dtr)
+@
+text
+@d35 1
+a35 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/conv/iges/main.c,v 1.1 2005/10/27 03:44:49 brlcad Exp $ (BRL)";
+a41 3
+extern char *optarg;
+extern int optind, opterr, optopt;
+
+d155 1
+a155 1
+	while( (c=getopt( argc , argv , "3dntpo:x:X:N:" )) != EOF )
+d170 1
+a170 1
+				output_file = optarg;
+d179 1
+a179 1
+				solid_name = optarg;
+d182 1
+a182 1
+				sscanf( optarg, "%x", (unsigned int *)&rt_g.debug );
+d189 1
+a189 1
+				sscanf( optarg, "%x", (unsigned int *)&rt_g.NMG_debug );
+d198 1
+a198 1
+	if (optind >= argc || output_file == (char *)NULL || do_drawings+do_splines+trimmed_surf > 1) {
+d244 2
+a245 2
+	argc -= optind;
+	argv += optind;
+d266 3
+d270 1
+@
+
+
+1.2.2.1
+log
+@file main.c was added on branch rel-7-6-branch on 2005-11-13 17:45:00 +0000
+@
+text
+@d1 361
+@
+
+
+1.2.2.2
+log
+@more merging changes from HEAD aka rel-7-6-4 to the rel-7-6-branch, adding the items that were moved and resolving rcs keyword conflicts
+@
+text
+@a0 361
+/*                          M A I N . C
+ * BRL-CAD
+ *
+ * Copyright (C) 1990-2005 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@file main.c
+ *
+ *  Authors -
+ *	John R. Anderson
+ *	Susanne L. Muuss
+ *	Earl P. Weaver
+ *
+ *  Source -
+ *	VLD/ASB Building 1065
+ *	The U. S. Army Ballistic Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005
+ *
+ */
+#ifndef lint
+static const char RCSid[] = "@@(#)$Header$ (BRL)";
+#endif
+
+#include "./iges_struct.h"
+#include "./iges_types.h"
+#include "../../librt/debug.h"
+
+extern char *optarg;
+extern int optind, opterr, optopt;
+
+int do_projection=1;
+char eor,eof,card[256];
+fastf_t scale,inv_scale,conv_factor;
+int units,counter,pstart,dstart,totentities,dirarraylen;
+FILE *fd;
+struct rt_wdb *fdout;
+char brlcad_file[256];
+int reclen,currec,ntypes;
+int brlcad_att_de=0;
+struct iges_directory **dir;
+struct reglist *regroot;
+struct iges_edge_list *edge_root;
+struct iges_vertex_list *vertex_root;
+struct bn_tol tol;
+char *solid_name=(char *)NULL;
+struct file_list iges_list;
+struct file_list *curr_file;
+struct name_list *name_root;
+
+char operator[]={
+	' ',
+	'u',
+	'+',
+	'-' };
+
+mat_t *identity;
+
+extern char	version[];
+
+static int do_splines=0;
+static int do_drawings=0;
+static int trimmed_surf=0;
+int do_bots=1;
+
+static char *iges_file;
+
+static char *msg1=
+"\nThis IGES file contains solid model entities, but your options do not permit\n\
+converting them to BRL-CAD. You may want to try 'iges-g -o file.g %s' to\n\
+convert the solid model elements\n";
+
+static char *msg2=
+"\nThis IGES file contains drawing entities, but no solid model entities. You may\n\
+convert the drawing to BRL-CAD by 'iges-g -d -o file.g %s'. Note that the resulting\n\
+BRL-CAD object will be a 2D drawing, not a solid object. You might also try the\n\
+'-3' option to get 3D drawings\n";
+
+static char *msg3=
+"\nThis IGES file contains spline surfaces, but no solid model entities. All the spline\n\
+surfaces in the IGES file may be combined into a single BRL-CAD spline solid by\n\
+'iges-g -n -o file.g %s'\n";
+
+static char *msg4=
+"\nThis IGES file contains trimmed surfaces, but no solid model entities.\n\
+Try the '-t' option to convert all the trimmed surfaces into one BRL-CAD solid.\n\
+'iges-g -t -o file.g %s'\n";
+
+void
+Suggestions()
+{
+	int i;
+	int csg=0;
+	int brep=0;
+	int splines=0;
+	int tsurfs=0;
+	int drawing=0;
+
+	/* categorize the elements in the IGES file as to whether they are
+	 * CSG, BREP, Trimmed surfaces, Spline surfaces, or drawing elements
+	 */
+	for( i=0 ; i<NTYPES ; i++ )
+	{
+		if( (typecount[i].type >= 150 && typecount[i].type <= 184) ||
+		    typecount[i].type == 430 )
+			csg += typecount[i].count;
+		else if( typecount[i].type == 186 ||
+			 (typecount[i].type >= 502 && typecount[i].type <=514) )
+			brep += typecount[i].count;
+		else if( typecount[i].type == 128 )
+			splines += typecount[i].count;
+		else if( typecount[i].type == 144 )
+			tsurfs += typecount[i].count;
+		else if( (typecount[i].type >= 100 && typecount[i].type <= 112) ||
+			 typecount[i].type == 126 ||
+			 (typecount[i].type >= 202 && typecount[i].type <= 230) ||
+			 typecount[i].type == 404 || typecount[i].type == 410 )
+			drawing += typecount[i].count;
+	}
+
+	if( (csg || brep) && (do_splines || do_drawings || trimmed_surf ) )
+		bu_log( msg1 , iges_file );
+
+	if( drawing && csg == 0 && brep == 0 && !do_drawings )
+		bu_log( msg2 , iges_file );
+
+	if( splines && csg == 0 && brep == 0 && !do_splines )
+		bu_log( msg3 , iges_file );
+
+	if( tsurfs && csg == 0 && brep == 0 && !trimmed_surf )
+		bu_log( msg4 , iges_file );
+}
+
+int
+main( argc , argv )
+int argc;
+char *argv[];
+{
+	int i;
+	int c;
+	int file_count=0;
+	char *output_file=(char *)NULL;
+
+
+	while( (c=getopt( argc , argv , "3dntpo:x:X:N:" )) != EOF )
+	{
+		switch( c )
+		{
+			case '3':
+				do_drawings = 1;
+				do_projection = 0;
+				break;
+			case 'd':
+				do_drawings = 1;
+				break;
+			case 'n':
+				do_splines = 1;
+				break;
+			case 'o':
+				output_file = optarg;
+				break;
+			case 't':
+				trimmed_surf = 1;
+				break;
+			case 'p':
+				do_bots = 0;
+				break;
+			case 'N':
+				solid_name = optarg;
+				break;
+			case 'x':
+				sscanf( optarg, "%x", (unsigned int *)&rt_g.debug );
+				if( RT_G_DEBUG & DEBUG_MEM )
+					bu_debug |= BU_DEBUG_MEM_LOG;
+				if( RT_G_DEBUG & DEBUG_MEM_FULL )
+					bu_debug |= BU_DEBUG_MEM_CHECK;
+				break;
+			case 'X':
+				sscanf( optarg, "%x", (unsigned int *)&rt_g.NMG_debug );
+				break;
+			default:
+				usage();
+				exit(1);
+				break;
+		}
+	}
+
+	if (optind >= argc || output_file == (char *)NULL || do_drawings+do_splines+trimmed_surf > 1) {
+		usage();
+		exit(1);
+	}
+
+	if( bu_debug & BU_DEBUG_MEM_CHECK )
+	{
+		bu_log( "Memory checking enabled\n" );
+		bu_mem_barriercheck();
+	}
+
+	bu_log( "%s", version+5);
+	bu_log( "Please direct bug reports to <bugs@@brlcad.org>\n\n" );
+
+	/* Initialize some variables */
+	ntypes = NTYPES;
+	regroot = NULL;
+	edge_root = NULL;
+	vertex_root = NULL;
+	name_root = NULL;
+	tol.magic = BN_TOL_MAGIC;
+	tol.dist = 0.005;
+	tol.dist_sq = tol.dist * tol.dist;
+	tol.perp = 1e-6;
+	tol.para = 1 - tol.perp;
+
+	Initstack();	/* Initialize node stack */
+
+	identity = (mat_t *)bu_malloc( sizeof( mat_t ), "main: identity" );
+	for( i=0 ; i<16 ; i++ )
+	{
+		if( !(i%5) )
+			(*identity)[i] = 1.0;
+		else
+			(*identity)[i] = 0.0;
+	}
+
+	if( (fdout = wdb_fopen( output_file )) == NULL )
+	{
+		bu_log( "Cannot open %s\n" , output_file );
+		perror( "iges-g" );
+		usage();
+		exit( 1 );
+	}
+	strcpy( brlcad_file ,  output_file );
+
+	argc -= optind;
+	argv += optind;
+
+	BU_LIST_INIT( &iges_list.l );
+	curr_file = (struct file_list *)bu_malloc( sizeof( struct file_list ), "iges-g: curr_file" );
+	if( solid_name )
+		strcpy( curr_file->obj_name, Make_unique_brl_name( solid_name ) );
+	else
+		strcpy( curr_file->obj_name, Make_unique_brl_name( "all" ) );
+
+	curr_file->file_name = (char *)bu_malloc( strlen( argv[0] ) + 1, "iges-g: curr_file->file_name" );
+	strcpy( curr_file->file_name, argv[0] );
+	BU_LIST_APPEND( &iges_list.l, &curr_file->l );
+
+	while( BU_LIST_NON_EMPTY( &iges_list.l ) )
+	{
+		if( RT_G_DEBUG & DEBUG_MEM_FULL )
+			bu_mem_barriercheck();
+
+		curr_file = BU_LIST_FIRST( file_list, &iges_list.l );
+		iges_file = curr_file->file_name;
+
+		fd = fopen( iges_file , "r" );	/* open IGES file */
+		if( fd == NULL )
+		{
+			bu_log( "Cannot open %s\n" , iges_file );
+			perror( "iges-g" );
+			usage();
+			exit( 1 );
+		}
+
+		bu_log( "\n\n\nIGES FILE: %s\n", iges_file );
+
+		reclen = Recsize() * sizeof( char ); /* Check length of records */
+		if( reclen == 0 )
+		{
+			bu_log( "File (%s) not in IGES ASCII format\n", iges_file );
+			exit(1);
+		}
+
+		Freestack();	/* Set node stack to empty */
+
+		Zero_counts();	/* Set summary information to all zeros */
+
+		Readstart();	/* Read start section */
+
+		Readglobal( file_count);	/* Read global section */
+
+		pstart = Findp();	/* Find start of parameter section */
+
+		Makedir();	/* Read directory section and build a linked list of entries */
+
+		Summary();	/* Print a summary of what is in the IGES file */
+
+		Docolor();	/* Get color info from color definition entities */
+
+		Get_att();	/* Look for a BRL-CAD attribute definition */
+
+		Evalxform();	/* Accumulate the transformation matrices */
+
+		Check_names();	/* Look for name entities */
+
+		if( do_drawings )
+			Conv_drawings();	/* convert drawings to wire edges */
+		else if( trimmed_surf )
+		{
+			Do_subfigs();		/* Look for Singular Subfigure Instances */
+
+			Convtrimsurfs();	/* try to convert trimmed surfaces to a single solid */
+		}
+		else if( do_splines )
+			Convsurfs();		/* Convert NURBS to a single solid */
+		else
+		{
+			Convinst();	/* Handle Instances */
+
+			Convsolids();	/* Convert solid entities */
+
+			Convtree();	/* Convert Boolean Trees */
+
+			Convassem();	/* Convert solid assemblies */
+		}
+
+		if( RT_G_DEBUG & DEBUG_MEM_FULL )
+			bu_mem_barriercheck();
+
+		Free_dir();
+
+		if( RT_G_DEBUG & DEBUG_MEM_FULL )
+			bu_mem_barriercheck();
+
+		BU_LIST_DEQUEUE( &curr_file->l );
+		bu_free( (char *)curr_file->file_name, "iges-g: curr_file->file_name" );
+		bu_free( (char *)curr_file, "iges-g: curr_file" );
+		file_count++;
+
+		if( RT_G_DEBUG & DEBUG_MEM_FULL )
+			bu_mem_barriercheck();
+
+	}
+
+	iges_file = argv[0];
+	Suggestions();
+	return 0;
+}
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+1.1
+log
+@moved all the geometry converter directories from src/. to src/conv/.
+@
+text
+@d35 1
+a35 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/iges/main.c,v 14.7 2005/10/23 04:44:31 brlcad Exp $ (BRL)";
+d40 1
+a40 1
+#include "../librt/debug.h"
+@
+

@@ -1,0 +1,587 @@
+head	1.14;
+access;
+symbols
+	rel-7-10-4:1.12
+	STABLE:1.12.0.2
+	rel-7-10-2:1.11
+	rel-7-10-0:1.11
+	rel-7-8-4:1.4
+	rel-7-8-2:1.4
+	rel-7-8-0:1.4
+	trimnurbs-branch:1.4.0.2
+	help:1.4
+	temp_tag:1.3
+	bobWinPort-20051223-freeze:1.2
+	postmerge-20051223-bobWinPort:1.3
+	premerge-20051223-bobWinPort:1.3
+	rel-7-6-6:1.3
+	rel-7-6-4:1.3
+	rel-7-6-2:1.2
+	rel-7-6-branch:1.2.0.6
+	rel-7-6-0:1.2
+	rel-7-4-2:1.2
+	rel-7-4-branch:1.2.0.4
+	bobWinPort:1.2.0.2
+	rel-7-4-0:1.2;
+locks; strict;
+comment	@ * @;
+
+
+1.14
+date	2007.12.05.19.14.58;	author erikgreenwald;	state Exp;
+branches;
+next	1.13;
+
+1.13
+date	2007.12.05.18.53.05;	author erikgreenwald;	state Exp;
+branches;
+next	1.12;
+
+1.12
+date	2007.08.30.19.11.29;	author brlcad;	state Exp;
+branches;
+next	1.11;
+
+1.11
+date	2007.03.20.20.05.07;	author brlcad;	state Exp;
+branches;
+next	1.10;
+
+1.10
+date	2007.02.08.06.49.18;	author brlcad;	state Exp;
+branches;
+next	1.9;
+
+1.9
+date	2007.02.02.19.46.34;	author erikgreenwald;	state Exp;
+branches;
+next	1.8;
+
+1.8
+date	2007.01.23.01.13.22;	author brlcad;	state Exp;
+branches;
+next	1.7;
+
+1.7
+date	2007.01.21.00.51.05;	author brlcad;	state Exp;
+branches;
+next	1.6;
+
+1.6
+date	2007.01.20.14.36.41;	author brlcad;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	2007.01.18.22.17.57;	author erikgreenwald;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	2006.01.18.06.46.11;	author brlcad;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2005.10.23.04.44.28;	author brlcad;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2005.06.18.21.58.58;	author twingy;	state Exp;
+branches
+	1.2.6.1;
+next	1.1;
+
+1.1
+date	2005.06.17.15.09.27;	author lbutler;	state Exp;
+branches;
+next	;
+
+1.2.6.1
+date	2005.11.13.13.46.12;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.14
+log
+@util_math.h -> umath.h
+@
+text
+@/*                     T E X T U R E _ P E R L I N . C
+ * BRL-CAD / ADRT
+ *
+ * Copyright (c) 2002-2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This library is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@file texture_perlin.c
+ *
+ *  Comments -
+ *      Texture Library - Perlin Utility
+ *
+ *  Author -
+ *      Kenneth Perlin
+ *
+ *  Source -
+ *      The U. S. Army Research Laboratory
+ *      Aberdeen Proving Ground, Maryland  21005-5068  USA
+ *
+ * $Id: texture_perlin.c,v 1.13 2007/12/05 18:53:05 erikgreenwald Exp $
+ */
+
+#include "texture_perlin.h"
+#include <stdlib.h>
+#include "umath.h"
+
+
+#define	B	0x100
+#define	BM	0xff
+#define	N	0x1000
+
+
+#define	PRAND (int)(math_rand()*16384)
+#define	S_CURVE(t) (t * t * (3.0 - 2.0 * t))
+#define	AT3(rx,ry,rz) (rx*q.v[0] + ry*q.v[1] + rz*q.v[2]);
+#define	LERP(t, a, b) (a+t*(b-a))
+
+
+void	texture_perlin_init(texture_perlin_t *P);
+void	texture_perlin_free(texture_perlin_t *P);
+tfloat	texture_perlin_noise3(texture_perlin_t *P, TIE_3 V, tfloat Size, int Depth);
+tfloat	texture_perlin_omega(texture_perlin_t *P, TIE_3 V);
+
+
+void texture_perlin_init(texture_perlin_t *P) {
+  int i, j, k;
+
+  P->PV = (int *)malloc(sizeof(int)*(2*B+2));
+  if (!P->PV) {
+      perror("P->PV");
+      exit(1);
+  }
+  P->RV = (TIE_3 *)malloc(sizeof(TIE_3)*(2*B+2));
+  if (!P->RV) {
+      perror("P->RV");
+      exit(1);
+  }
+
+  /* Generate Random Vectors */
+  for (i = 0; i < B; i++) {
+    P->RV[i].v[0] = (tfloat)((PRAND % (2*B)) - B) / B;
+    P->RV[i].v[1] = (tfloat)((PRAND % (2*B)) - B) / B;
+    P->RV[i].v[2] = (tfloat)((PRAND % (2*B)) - B) / B;
+    MATH_VEC_UNITIZE(P->RV[i]);
+    P->PV[i] = i;
+  }
+
+  /* Permute Indices into Vector List G */
+  for(i = 0; i < B; i++) {
+    k = P->PV[i];
+    P->PV[i] = P->PV[j = PRAND % B];
+    P->PV[j] = k;
+  }
+
+  for(i = 0; i < B + 2; i++) {
+    P->PV[B+i] = P->PV[i];
+    P->RV[B+i] = P->RV[i];
+  }
+}
+
+
+void texture_perlin_free(texture_perlin_t *P) {
+  free(P->PV);
+  free(P->RV);
+}
+
+
+tfloat texture_perlin_noise3(texture_perlin_t *P, TIE_3 V, tfloat Size, int Depth) {
+  int i;
+  tfloat sum;
+
+  sum = 0;
+  for(i = 0; i < Depth; i++) {
+    sum += texture_perlin_omega(P, V);
+    MATH_VEC_MUL_SCALAR(V, V, Size);
+  }
+
+  return(sum);
+}
+
+
+tfloat texture_perlin_omega(texture_perlin_t *P, TIE_3 V) {
+  TIE_3		q;
+  tfloat	r0[3], r1[3], sy, sz, a, b, c, d, t, u, v;
+  int		b0[3], b1[3], b00, b10, b01, b11;
+  int		i, j;
+
+
+  for(i = 0; i < 3; i++) {
+    t = V.v[i] + N;
+    b0[i] = ((int)t) & BM;
+    b1[i] = (b0[i]+1) & BM;
+    r0[i] = t - (int)t;
+    r1[i] = r0[i] - 1.0;
+  }
+
+  i = P->PV[b0[0]];
+  j = P->PV[b1[0]];
+
+  b00 = P->PV[i + b0[1]];
+  b10 = P->PV[j + b0[1]];
+  b01 = P->PV[i + b1[1]];
+  b11 = P->PV[j + b1[1]];
+
+  t = S_CURVE(r0[0]);
+  sy = S_CURVE(r0[1]);
+  sz = S_CURVE(r0[2]);
+
+  q = P->RV[b00 + b0[2]];
+  u = AT3(r0[0], r0[1], r0[2]);
+  q = P->RV[b10 + b0[2]];
+  v = AT3(r1[0], r0[1], r0[2]);
+  a = LERP(t, u, v);
+
+  q = P->RV[b01 + b0[2]];
+  u = AT3(r0[0], r1[1], r0[2]);
+  q = P->RV[b11 + b0[2]];
+  v = AT3(r1[0], r1[1], r0[2]);
+  b = LERP(t, u, v);
+
+  c = LERP(sy, a, b);
+
+  q = P->RV[b00 + b1[2]];
+  u = AT3(r0[0], r0[1], r1[2]);
+  q = P->RV[b10 + b1[2]];
+  v = AT3(r1[0], r0[1], r1[2]);
+  a = LERP(t, u, v);
+
+  q = P->RV[b01 + b1[2]];
+  u = AT3(r0[0], r1[1], r1[2]);
+  q = P->RV[b11 + b1[2]];
+  v = AT3(r1[0], r1[1], r1[2]);
+  b = LERP(t, u, v);
+
+  d = LERP(sy, a, b);
+
+  return( LERP(sz, c, d) );
+}
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+1.13
+log
+@merge in the updated libtexture stuff
+@
+text
+@d32 1
+a32 1
+ * $Id: texture_perlin.c,v 1.12 2007/08/30 19:11:29 brlcad Exp $
+d37 1
+a37 1
+#include "util_math.h"
+@
+
+
+1.12
+log
+@TFLOAT changed to tfloat.  also quell a few warnings/bugs related to passing the wrong TIE_3 pointer type.
+@
+text
+@d32 1
+a32 1
+ * $Id: texture_perlin.c,v 1.11 2007/03/20 20:05:07 brlcad Exp $
+d37 1
+a37 1
+#include "umath.h"
+@
+
+
+1.11
+log
+@since adrt uses malloc, add checks on use for a null return value.  this probably would be a good reason to being associating with libbu.. (this fixes sf bug 1680679 - Check return codes everywhere; submitted by Markus Elfring (elfring))
+@
+text
+@d32 1
+a32 1
+ * $Id: texture_perlin.c,v 1.10 2007/02/08 06:49:18 brlcad Exp $
+d53 2
+a54 2
+TFLOAT	texture_perlin_noise3(texture_perlin_t *P, TIE_3 V, TFLOAT Size, int Depth);
+TFLOAT	texture_perlin_omega(texture_perlin_t *P, TIE_3 V);
+d73 3
+a75 3
+    P->RV[i].v[0] = (TFLOAT)((PRAND % (2*B)) - B) / B;
+    P->RV[i].v[1] = (TFLOAT)((PRAND % (2*B)) - B) / B;
+    P->RV[i].v[2] = (TFLOAT)((PRAND % (2*B)) - B) / B;
+d100 1
+a100 1
+TFLOAT texture_perlin_noise3(texture_perlin_t *P, TIE_3 V, TFLOAT Size, int Depth) {
+d102 1
+a102 1
+  TFLOAT sum;
+d114 1
+a114 1
+TFLOAT texture_perlin_omega(texture_perlin_t *P, TIE_3 V) {
+d116 1
+a116 1
+  TFLOAT	r0[3], r1[3], sy, sz, a, b, c, d, t, u, v;
+@
+
+
+1.10
+log
+@give adrt some distinctiveness in the header
+@
+text
+@d32 1
+a32 1
+ * $Id: texture_perlin.c,v 1.9 2007/02/02 19:46:34 erikgreenwald Exp $
+d61 4
+d66 4
+@
+
+
+1.9
+log
+@finish changing all #defined symbols to uppercase...
+@
+text
+@d2 1
+a2 1
+ * BRL-CAD
+d32 1
+a32 1
+ * $Id: texture_perlin.c,v 1.8 2007/01/23 01:13:22 brlcad Exp $
+@
+
+
+1.8
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@d32 1
+a32 1
+ * $Id: texture_perlin.c,v 1.7 2007/01/21 00:51:05 brlcad Exp $
+d53 2
+a54 2
+tfloat	texture_perlin_noise3(texture_perlin_t *P, TIE_3 V, tfloat Size, int Depth);
+tfloat	texture_perlin_omega(texture_perlin_t *P, TIE_3 V);
+d65 3
+a67 3
+    P->RV[i].v[0] = (tfloat)((PRAND % (2*B)) - B) / B;
+    P->RV[i].v[1] = (tfloat)((PRAND % (2*B)) - B) / B;
+    P->RV[i].v[2] = (tfloat)((PRAND % (2*B)) - B) / B;
+d92 1
+a92 1
+tfloat texture_perlin_noise3(texture_perlin_t *P, TIE_3 V, tfloat Size, int Depth) {
+d94 1
+a94 1
+  tfloat sum;
+d106 1
+a106 1
+tfloat texture_perlin_omega(texture_perlin_t *P, TIE_3 V) {
+d108 1
+a108 1
+  tfloat	r0[3], r1[3], sy, sz, a, b, c, d, t, u, v;
+@
+
+
+1.7
+log
+@standard header and footer cleanup
+@
+text
+@d9 1
+a9 2
+ * as published by the Free Software Foundation; either version 2 of
+ * the License, or (at your option) any later version.
+d14 1
+a14 1
+ * Library General Public License for more details.
+d32 1
+a32 1
+ * $Id: texture_perlin.c,v 1.6 2007/01/20 14:36:41 brlcad Exp $
+@
+
+
+1.6
+log
+@update copyright to 2007
+@
+text
+@a1 3
+ *
+ * @@file texture_perlin.c
+ *
+d20 2
+d33 1
+a33 1
+ * $Id: texture_perlin.c,v 1.5 2007/01/18 22:17:57 erikgreenwald Exp $
+d164 10
+@
+
+
+1.5
+log
+@uppercase all #define symbols
+@
+text
+@d7 1
+a7 1
+ * Copyright (c) 2002-2006 United States Government as represented by
+d34 1
+a34 1
+ * $Id: texture_perlin.c,v 1.4 2006/01/18 06:46:11 brlcad Exp $
+@
+
+
+1.4
+log
+@update copyright to 2006
+@
+text
+@d34 1
+a34 1
+ * $Id: texture_perlin.c,v 1.3 2005/10/23 04:44:28 brlcad Exp $
+d47 4
+a50 4
+#define	prand (int)(math_rand()*16384)
+#define	s_curve(t) (t * t * (3.0 - 2.0 * t))
+#define	at3(rx,ry,rz) (rx*q.v[0] + ry*q.v[1] + rz*q.v[2]);
+#define	lerp(t, a, b) (a+t*(b-a))
+d67 4
+a70 4
+    P->RV[i].v[0] = (tfloat)((prand % (2*B)) - B) / B;
+    P->RV[i].v[1] = (tfloat)((prand % (2*B)) - B) / B;
+    P->RV[i].v[2] = (tfloat)((prand % (2*B)) - B) / B;
+    math_vec_unitize(P->RV[i]);
+d77 1
+a77 1
+    P->PV[i] = P->PV[j = prand % B];
+d101 1
+a101 1
+    math_vec_mul_scalar(V, V, Size);
+d131 3
+a133 3
+  t = s_curve(r0[0]);
+  sy = s_curve(r0[1]);
+  sz = s_curve(r0[2]);
+d136 1
+a136 1
+  u = at3(r0[0], r0[1], r0[2]);
+d138 2
+a139 2
+  v = at3(r1[0], r0[1], r0[2]);
+  a = lerp(t, u, v);
+d142 1
+a142 1
+  u = at3(r0[0], r1[1], r0[2]);
+d144 2
+a145 2
+  v = at3(r1[0], r1[1], r0[2]);
+  b = lerp(t, u, v);
+d147 1
+a147 1
+  c = lerp(sy, a, b);
+d150 1
+a150 1
+  u = at3(r0[0], r0[1], r1[2]);
+d152 2
+a153 2
+  v = at3(r1[0], r0[1], r1[2]);
+  a = lerp(t, u, v);
+d156 1
+a156 1
+  u = at3(r0[0], r1[1], r1[2]);
+d158 2
+a159 2
+  v = at3(r1[0], r1[1], r1[2]);
+  b = lerp(t, u, v);
+d161 1
+a161 1
+  d = lerp(sy, a, b);
+d163 1
+a163 1
+  return( lerp(sz, c, d) );
+@
+
+
+1.3
+log
+@trailing ws
+@
+text
+@d7 1
+a7 1
+ * Copyright (C) 2002-2005 United States Government as represented by
+d34 1
+a34 1
+ * $Id: texture_perlin.c,v 1.2 2005/06/18 21:58:58 twingy Exp $
+@
+
+
+1.2
+log
+@Added licensing info to libtexture files.
+@
+text
+@d34 1
+a34 1
+ * $Id: texture_perlin.c,v 1.2 2005/06/18 01:56:30 twingy Exp $
+d160 1
+a160 1
+  
+@
+
+
+1.2.6.1
+log
+@merge changes from HEAD aka rel-7-6-4 to the rel-7-6-branch just in case someone peeks a gander or tries to continue/build the branch
+@
+text
+@d34 1
+a34 1
+ * $Id$
+d160 1
+a160 1
+
+@
+
+
+1.1
+log
+@Welcome ADRT
+@
+text
+@d1 36
+@
+

@@ -1,0 +1,434 @@
+head	14.10;
+access;
+symbols
+	rel-7-10-4:14.10
+	STABLE:14.10.0.2
+	stable-branch:14.7
+	rel-7-10-2:14.10
+	rel-7-10-0:14.10
+	rel-7-8-4:14.8
+	rel-7-8-2:14.8
+	rel-7-8-0:14.8
+	trimnurbs-branch:14.8.0.2
+	help:14.8
+	temp_tag:14.7
+	bobWinPort-20051223-freeze:14.7
+	postmerge-20051223-bobWinPort:14.7
+	premerge-20051223-bobWinPort:14.7
+	rel-7-6-6:14.7
+	rel-7-6-4:14.7
+	rel-7-6-2:14.7
+	rel-7-6-branch:14.7.0.6
+	rel-7-6-0:14.7
+	rel-7-4-2:14.7
+	rel-7-4-branch:14.7.0.4
+	bobWinPort:14.7.0.2
+	rel-7-4-0:14.7
+	rel-7-2-6:14.7
+	rel-7-2-4:14.7
+	rel-7-2-2:14.6
+	rel-7-2-0:14.6
+	rel-7-0-4:14.5
+	rel-7-0-2:14.5
+	rel-7-0-1:14.5
+	opensource-post:14.5
+	opensource-pre:1.1
+	rel-7-0-branch:1.1.0.2
+	rel-7-0:1.1;
+locks; strict;
+comment	@# @;
+
+
+14.10
+date	2007.01.23.01.13.50;	author brlcad;	state Exp;
+branches;
+next	14.9;
+
+14.9
+date	2007.01.20.14.37.03;	author brlcad;	state Exp;
+branches;
+next	14.8;
+
+14.8
+date	2006.01.18.06.46.25;	author brlcad;	state Exp;
+branches;
+next	14.7;
+
+14.7
+date	2005.04.13.01.43.21;	author brlcad;	state Exp;
+branches;
+next	14.6;
+
+14.6
+date	2005.01.30.20.31.13;	author brlcad;	state Exp;
+branches;
+next	14.5;
+
+14.5
+date	2004.12.21.06.38.23;	author morrison;	state Exp;
+branches;
+next	14.4;
+
+14.4
+date	2004.12.21.06.18.49;	author morrison;	state Exp;
+branches;
+next	14.3;
+
+14.3
+date	2004.12.21.05.45.27;	author morrison;	state Exp;
+branches;
+next	14.2;
+
+14.2
+date	2004.12.21.04.46.06;	author morrison;	state Exp;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.31;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.15.21.03;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.10
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@#                B U I L D _ R E G I O N . T C L
+# BRL-CAD
+#
+# Copyright (c) 2000-2007 United States Government as represented by
+# the U.S. Army Research Laboratory.
+#
+# This library is free software; you can redistribute it and/or
+# modify it under the terms of the GNU Lesser General Public License
+# version 2.1 as published by the Free Software Foundation.
+#
+# This library is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public
+# License along with this file; see the file named COPYING for more
+# information.
+#
+###
+#
+#	This procedure builds regions in MGED based on primitive solid names
+#
+#	Usage:
+#		build_region [-a region_number] tag start_num end_num
+#
+#	The region is built from all primitive solids matching the RE "tag.s*"
+#	The region is a union of all the solids of the form "tag.s#", with optional
+#	intersections and subtractions. Solids of the form "tag.s#-#" are subtracted from
+#	the base solid, and solids of the form "tag.s#+#" are intersected. For example,
+#	given solids "abc.s1, abc.s2, abc.s2-1, abc.s2+1", the command "build_region abc 1 2"
+#	will produce a region "abc.r1" (assuming "abc.r1" does not already exist):
+#		u abc.s1
+#		u abc.s2
+#		+ abc.s2+1
+#		- abc.s2-1
+#
+#	Only solids with numbers from "start_num" through "end_num" will be used in building the region
+#	A new region will be created, unless the "-a" option is used. The "-a region_number" option
+#	results in the new construction being unioned with an existing region named "tag.r#" where #
+#	is the specified "region_number". No checking is done to determine if the existing region already
+#	contains the unioned objects.
+#	When a new region is created, its properties are determined by the current "regdef" setings, and
+#	the regdef ident number is incremented.
+#
+#	Author:
+#		John R. Anderson
+#
+
+proc build_region { args } {
+	set usage "Usage:\n\tbuild_region \[-a region_num\] tag start_num end_num"
+
+	# get command line arguments
+	set argc [llength $args]
+	if { $argc != 3 && $argc != 5 } {
+		error "Too few arguments\n$usage"
+	}
+	set append 0
+	set index 0
+	if { $argc == 5 } {
+		set append 1
+		set regnum [lindex $args 1]
+		incr index 2
+	}
+	set tag [lindex $args $index]
+	incr index
+	set start [lindex $args $index]
+	incr index
+	set end [lindex $args $index]
+
+	# get regdef values
+	set defs [regdef]
+	set id [lindex $defs 1]
+	set air [lindex $defs 3]
+	set los [lindex $defs 5]
+	set mater [lindex $defs 7]
+
+	# get list of solids mathing tag form
+	set taglen [expr [string length $tag] + 2]
+	set alist [expand ${tag}.s*]
+	if { $alist == "${tag}.s*" } {
+		error "No solids found with tag ($tag)"
+	}
+
+	# use dictionary order sorting to get solids in handy order
+	set alist [lsort -dictionary $alist]
+
+	# loop through each solid in the sorted list
+	set tree ""
+	set curtree ""
+	set cursol -1
+	foreach solid $alist {
+		# the default operator is union
+		set op u
+
+		# check for a minus sign beyond the tag
+		set opind [string first "-" $solid $taglen]
+		if { $opind > -1 } {
+			set op -
+		} else {
+			# check for an intersection
+			set opind [string first "+" $solid $taglen]
+			if { $opind > -1 } {
+				set op n
+			}
+		}
+
+		# get the base solid number
+		if { $opind > -1 } {
+			# this is a subtracted or intersected solid
+			set solnum [string range $solid $taglen [expr $opind - 1]]
+		} else {
+			# this is a base solid
+			set solnum [string range $solid $taglen end]
+		}
+
+		# if the solid number is outside the specified range, skip it
+		if { $solnum < $start || $solnum > $end } continue
+
+		# if the base solid number has changed, we start a new union
+		if { $solnum != $cursol } {
+			if { $op != "u" } {
+				error "Missing base solid (${tag}.s${solnum})"
+			}
+			# start new union
+			if { [llength $curtree] > 0 } {
+				if { [llength $tree] > 0 } {
+					set tree [list u $tree $curtree]
+				} else {
+					set tree $curtree
+				}
+			}
+			set curtree [list l $solid]
+			set cursol $solnum
+		} else {
+			# add to current tree
+			set curtree [list $op $curtree [list l $solid]]
+		}
+	}
+
+	# add last bit of the region currently being built
+	if { [llength $curtree] > 0 } {
+		if { [llength $tree] > 0 } {
+			set tree [list u $tree $curtree]
+		} else {
+			set tree $curtree
+		}
+	}
+
+	if { [llength $tree] == 0 } {
+		error "no solids found for tree ($args)"
+	}
+
+	# if we are in append mode, union the current tree with an existing region
+	if { $append } {
+		set regname ${tag}.r$regnum
+		if { [catch {db get $regname tree} oldtree] == 0 } {
+			set tree [list u $oldtree $tree]
+			if { [catch {db adjust $regname tree $tree} ret ] } {
+				error "failed to update existing region ($regname)"
+			} else {
+				puts "Appended to region $regname"
+			}
+		} else {
+			# specified region does not exist, so create it
+			if { [catch {db put $regname comb region yes air $air id $id los $los GIFTmater $mater tree $tree} ret] } {
+				error "failed to create region!!!\n$ret"
+			} else {
+				puts "Created region $regname"
+			}
+			# increment regdef ident number
+			if { $id > 0 } {
+				incr id
+				regdef $id
+			}
+		}
+	} else {
+		# find next region name that doesn't already exist
+		set regnum 0
+		set reg_exists 1
+		while { $reg_exists } {
+			incr regnum
+			set regname ${tag}.r$regnum
+			if { [catch {db get $regname} ret] } {
+				set reg_exists 0
+			}
+		}
+
+		# create the new region
+		if { [catch {db put $regname comb region yes air $air id $id los $los GIFTmater $mater tree $tree} ret] } {
+			error "failed to create region!!!\n$ret"
+		} else {
+			puts "Created region $regname"
+		}
+
+		# increment regdef ident number
+		if { $id > 0 } {
+			incr id
+			regdef $id
+		}
+	}
+}
+
+# Local Variables:
+# mode: Tcl
+# tab-width: 8
+# c-basic-offset: 4
+# tcl-indent-level: 4
+# indent-tabs-mode: t
+# End:
+# ex: shiftwidth=4 tabstop=8
+@
+
+
+14.9
+log
+@update copyright to 2007
+@
+text
+@d9 1
+a9 2
+# as published by the Free Software Foundation; either version 2 of
+# the License, or (at your option) any later version.
+d14 1
+a14 1
+# Library General Public License for more details.
+@
+
+
+14.8
+log
+@update copyright to 2006
+@
+text
+@d4 1
+a4 1
+# Copyright (c) 2000-2006 United States Government as represented by
+@
+
+
+14.7
+log
+@remove specific references to ARL addresses.  instead use brlcad.org mail aliases and the new sf.net mailing lists.
+@
+text
+@d4 1
+a4 1
+# Copyright (C) 2000-2005 United States Government as represented by
+@
+
+
+14.6
+log
+@update copyright to 2005
+@
+text
+@d48 1
+a48 2
+#		John R. Anderson <jra@@arl.army.mil>
+#		AMSRL-SL-BE
+@
+
+
+14.5
+log
+@remove the old copyright notice section
+@
+text
+@d4 1
+a4 1
+# Copyright (c) 2000-2004 United States Government as represented by
+@
+
+
+14.4
+log
+@they should have received a copy of the LGPL with LGPL'd files
+@
+text
+@a50 3
+#	Copyright Notice -
+#		This software is Copyright (C) 2000-2004 by the United States Army in all countries except the USA.
+#		Unauthorized redistribution in any form is prohibited.
+@
+
+
+14.3
+log
+@s/GNU Library General/GNU Lesser General/g
+@
+text
+@d17 2
+a18 2
+# You should have received a copy of the GNU General Public License
+# along with this file; see the file named COPYING for more
+@
+
+
+14.2
+log
+@assign copyright and LGPL
+@
+text
+@d8 1
+a8 1
+# modify it under the terms of the GNU Library General Public License
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@d1 21
+a21 1
+#				B U I L D _ R E G I O N
+@
+
+
+1.1
+log
+@Vast reorganization begins.  Sources moved from top-level directories into src/.
+@
+text
+@d188 9
+@
+

@@ -1,0 +1,552 @@
+head	14.13;
+access;
+symbols
+	rel-7-10-4:14.13
+	STABLE:14.13.0.2
+	stable-branch:14.6
+	rel-7-10-2:14.13
+	rel-7-10-0:14.13
+	rel-7-8-4:14.9
+	rel-7-8-2:14.8
+	rel-7-8-0:14.8
+	trimnurbs-branch:14.8.0.2
+	help:14.8
+	temp_tag:14.7
+	bobWinPort-20051223-freeze:14.7
+	postmerge-20051223-bobWinPort:14.7
+	premerge-20051223-bobWinPort:14.7
+	rel-7-6-6:14.7
+	rel-7-6-4:14.7
+	rel-7-6-2:14.7
+	rel-7-6-branch:14.7.0.4
+	rel-7-6-0:14.7
+	rel-7-4-2:14.6
+	rel-7-4-branch:14.6.0.2
+	bobWinPort:14.7.0.2
+	rel-7-4-0:14.6
+	rel-7-2-6:14.6
+	rel-7-2-4:14.6
+	rel-7-2-2:14.6
+	rel-7-2-0:14.6
+	rel-7-0-4:14.5
+	rel-7-0-2:14.5
+	rel-7-0-1:14.5
+	opensource-post:14.5
+	opensource-pre:1.2
+	rel-7-0-branch:1.2.0.2
+	rel-7-0:1.2;
+locks; strict;
+comment	@ * @;
+
+
+14.13
+date	2007.01.27.01.41.41;	author brlcad;	state Exp;
+branches;
+next	14.12;
+
+14.12
+date	2007.01.23.01.13.38;	author brlcad;	state Exp;
+branches;
+next	14.11;
+
+14.11
+date	2007.01.21.04.45.44;	author brlcad;	state Exp;
+branches;
+next	14.10;
+
+14.10
+date	2007.01.20.14.36.55;	author brlcad;	state Exp;
+branches;
+next	14.9;
+
+14.9
+date	2006.09.16.02.04.25;	author lbutler;	state Exp;
+branches;
+next	14.8;
+
+14.8
+date	2006.01.18.06.46.17;	author brlcad;	state Exp;
+branches
+	14.8.2.1;
+next	14.7;
+
+14.7
+date	2005.08.12.22.31.08;	author lbutler;	state Exp;
+branches;
+next	14.6;
+
+14.6
+date	2005.01.30.20.31.02;	author brlcad;	state Exp;
+branches;
+next	14.5;
+
+14.5
+date	2004.12.21.06.38.21;	author morrison;	state Exp;
+branches;
+next	14.4;
+
+14.4
+date	2004.12.21.06.18.46;	author morrison;	state Exp;
+branches;
+next	14.3;
+
+14.3
+date	2004.12.21.05.45.24;	author morrison;	state Exp;
+branches;
+next	14.2;
+
+14.2
+date	2004.12.21.04.18.20;	author morrison;	state Exp;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.16;	author morrison;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2004.08.02.23.01.49;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.15.20.07;	author morrison;	state Exp;
+branches;
+next	;
+
+14.8.2.1
+date	2006.04.20.13.09.23;	author jlowenz;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.13
+log
+@ws. lots and lots of ws.  see sh/ws.sh for details (cases 'abcdeg').
+@
+text
+@/*                   N U R B _ B E Z I E R . C
+ * BRL-CAD
+ *
+ * Copyright (c) 1991-2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This library is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@addtogroup nurb */
+/** @@{ */
+/** @@file nurb_bezier.c
+ *
+ * Convert a NURB surface or curve into Bezier form, with no internal knots.
+ *
+ *  Author -
+ *	Paul R. Stay
+ *
+ *  Source -
+ *     SECAD/VLD Computing Consortium, Bldg 394
+ *     The U.S. Army Ballistic Research Laboratory
+ *     Aberdeen Proving Ground, Maryland 21005
+ *
+ */
+/** @@} */
+
+#include "common.h"
+
+
+#include <stdio.h>
+
+#include "machine.h"
+#include "vmath.h"
+#include "nmg.h"
+#include "raytrace.h"
+#include "nurb.h"
+
+/*
+ *			R T _ N U R B _ B E Z I E R
+ *
+ *  Given a single snurb, if it is in Bezier form,
+ *  duplicate the snurb, and enqueue it on the bezier_hd list.
+ *  If the original snurb is NOT in Bezier form,
+ *  subdivide it a set of snurbs which are,
+ *  each of which are enqueued on the bezier_hd list.
+ *
+ *  In either case, the original surface remains untouched.
+ *
+ *  Returns -
+ *	0	Surface splitting was done.
+ *	1	Original surface was Bezier, only a copy was done.
+ */
+int
+rt_nurb_bezier(struct bu_list *bezier_hd, const struct face_g_snurb *orig_surf, struct resource *res)
+{
+	struct face_g_snurb	*s;
+	int		dir;
+	struct bu_list	todo;
+
+	NMG_CK_SNURB(orig_surf);
+
+	if( (dir = rt_bez_check( orig_surf )) == -1)  {
+		s = rt_nurb_scopy( orig_surf, res );
+		BU_LIST_APPEND( bezier_hd, &s->l );
+		return 1;	/* Was already Bezier, nothing done */
+	}
+
+	BU_LIST_INIT( &todo );
+	rt_nurb_s_split( &todo, orig_surf, dir, res );
+
+	while( BU_LIST_WHILE( s, face_g_snurb, &todo ) )  {
+		if( (dir = rt_bez_check(s)) == -1)  {
+			/* This snurb is now a Bezier */
+			BU_LIST_DEQUEUE( &s->l );
+			BU_LIST_APPEND( bezier_hd, &s->l );
+		} else {
+			/* Split, and keep going */
+			BU_LIST_DEQUEUE( &s->l );
+			rt_nurb_s_split( &todo, s, dir, res );
+			rt_nurb_free_snurb(s, res);
+		}
+	}
+	return 0;		/* Bezier snurbs on bezier_hd list */
+}
+
+int
+rt_bez_check(const struct face_g_snurb *srf)
+{
+	NMG_CK_SNURB(srf);
+
+	if( srf->u.k_size > (2.0 * srf->order[0]))
+		return 0;
+	if( srf->v.k_size > (2.0 * srf->order[1]))
+		return 1;
+
+	return -1;
+}
+
+/*		N U R B _ C R V _ I S _ B E Z I E R
+ *
+ * Check if a NURB curve is in Bezier form.
+ *
+ * returns:
+ *	1 - curve is Bezier
+ *	0 - curve is not Bezier
+ */
+
+int
+nurb_crv_is_bezier(const struct edge_g_cnurb *crv)
+{
+	int i;
+	fastf_t knot_min, knot_max;
+	int bezier=1;
+
+	knot_min = crv->k.knots[0];
+	knot_max = crv->k.knots[crv->k.k_size-1];
+
+	for( i=1 ; i<crv->k.k_size-1 ; i++ )
+	{
+		if( crv->k.knots[i] != knot_min && crv->k.knots[i] != knot_max )
+		{
+			bezier = 0;
+			break;
+		}
+	}
+
+	return( bezier );
+}
+
+/*	N U R B _ C _ T O _ B E Z I E R
+ *
+ * Split NURB curve into list of Bezier curves.
+ *
+ * If curve is already Bezier, return NULL
+ */
+
+void
+nurb_c_to_bezier(struct bu_list *clist, struct edge_g_cnurb *crv)
+{
+	fastf_t knot_min, knot_max;
+	int i;
+	struct edge_g_cnurb *crv1, *crv_copy;
+	int done;
+
+	/* make a copy of original curve */
+	crv_copy = rt_nurb_crv_copy( crv );
+
+	/* split curve at each knot value */
+	done = 0;
+	while( !done )
+	{
+		fastf_t split;
+
+		knot_min = crv_copy->k.knots[0];
+		knot_max = crv_copy->k.knots[crv_copy->k.k_size-1];
+
+		split = MAX_FASTF;
+		for( i=1 ; i<crv_copy->k.k_size-1 ; i++ )
+		{
+			if( crv_copy->k.knots[i] != knot_min && crv_copy->k.knots[i] != knot_max )
+			{
+				split = crv_copy->k.knots[i];
+				break;
+			}
+		}
+
+		if( split == MAX_FASTF )
+		{
+			done = 1;
+			BU_LIST_APPEND( clist, &crv_copy->l );
+			break;
+		}
+
+		crv1 = rt_nurb_c_xsplit( crv_copy, split );
+
+		rt_nurb_free_cnurb( crv_copy );
+		crv_copy = BU_LIST_PNEXT( edge_g_cnurb, &crv1->l );
+		BU_LIST_DEQUEUE( &crv_copy->l );
+
+		BU_LIST_APPEND( clist, &crv1->l );
+	}
+}
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+14.12
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@a39 1
+
+@
+
+
+14.11
+log
+@ugh, what tedium.  put some effort towards cleaning up the doxygen labels and making the headers more consistent.  also exclusively using @@ for doxygen instead of \ to try to keep things more consistent.
+@
+text
+@d9 1
+a9 2
+ * as published by the Free Software Foundation; either version 2 of
+ * the License, or (at your option) any later version.
+d14 1
+a14 1
+ * Library General Public License for more details.
+@
+
+
+14.10
+log
+@update copyright to 2007
+@
+text
+@a20 1
+
+d22 1
+a22 1
+/*@@{*/
+d24 1
+d36 1
+a36 1
+/*@@}*/
+@
+
+
+14.9
+log
+@Doxygen updates
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 1991-2006 United States Government as represented by
+@
+
+
+14.8
+log
+@update copyright to 2006
+@
+text
+@d22 1
+a22 1
+/** \addtogroup nurb */
+@
+
+
+14.8.2.1
+log
+@support for preprocessing non-bezier trims to bezier trims
+@
+text
+@a110 33
+
+/*
+ *                     R T _ N U R B _ T R I M _ T O _ B E Z I E R
+ *
+ * Convert the trims on this surface (srf) to bezier curves (if they
+ * aren't already!) Fills the list represented by the (trims)
+ * parameter.
+ *
+ */
+void
+rt_nurb_trims_to_bezier(struct bu_list* trims, struct face_g_snurb* srf)
+{  
+    if (!srf->trims_count) {
+	return;
+    } else {
+	struct trim_contour* contour = NULL;
+	for (BU_LIST_FOR(contour, trim_contour, &(srf->trims_hd.l))) {
+	    struct edge_g_cnurb* curve = NULL;	    
+	    for (BU_LIST_FOR(curve, edge_g_cnurb, &(contour->curve_hd.l))) {
+		if (!nurb_crv_is_bezier(curve)) {
+		    /* convert it! */
+		    nurb_c_to_bezier(trims, curve);
+		} else {
+		    struct edge_g_cnurb* copy = rt_nurb_crv_copy(curve);
+		    BU_LIST_APPEND(trims, &copy->l);
+		}
+	    }
+	}
+    }
+}
+
+
+
+a126 4
+	/* HACK */
+	/* If curve is a line, then say it's Bezier! */
+	if (crv->order <= 0) return 1;
+
+@
+
+
+14.7
+log
+@Doxygen changes
+@
+text
+@d4 1
+a4 1
+ * Copyright (C) 1991-2005 United States Government as represented by
+@
+
+
+14.6
+log
+@update copyright to 2005
+@
+text
+@d21 3
+d25 1
+a25 2
+ *  Function-
+ *  	Convert a NURB surface or curve into Bezier form, with no internal knots.
+d36 1
+@
+
+
+14.5
+log
+@remove the old copyright notice section
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 1991-2004 United States Government as represented by
+@
+
+
+14.4
+log
+@they should have received a copy of the LGPL with LGPL'd files
+@
+text
+@a32 3
+ * Copyright Notice -
+ *     This software is Copyright (C) 1991-2004 by the United States Army.
+ *     All rights reserved.
+@
+
+
+14.3
+log
+@s/GNU Library General/GNU Lesser General/g
+@
+text
+@d17 2
+a18 2
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+@
+
+
+14.2
+log
+@assign copyright and LGPL
+@
+text
+@d8 1
+a8 1
+ * modify it under the terms of the GNU Library General Public License
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@d1 2
+a2 1
+/*		N U R B _ B E Z I E R . C
+d4 18
+@
+
+
+1.2
+log
+@replace the wrapped config.h block with common.h
+@
+text
+@d176 10
+@
+
+
+1.1
+log
+@Vast reorganization begins.  Sources moved from top-level directories into src/.
+@
+text
+@d19 1
+a19 3
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+@
+

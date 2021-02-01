@@ -1,0 +1,475 @@
+head	11.10;
+access;
+symbols
+	ansi-20040405-merged:11.7.2.1
+	postmerge-20040405-ansi:11.8
+	premerge-20040404-ansi:11.7
+	postmerge-autoconf:11.7
+	autoconf-freeze:11.7
+	premerge-autoconf:11.7
+	postmerge-20040315-windows:11.7
+	premerge-20040315-windows:11.7
+	windows-20040315-freeze:11.7
+	autoconf-20031203:11.7
+	autoconf-20031202:11.7
+	autoconf-branch:11.7.0.10
+	phong-branch:11.7.0.8
+	photonmap-branch:11.7.0.6
+	rel-6-1-DP:11.7
+	windows-branch:11.7.0.4
+	rel-6-0-2:11.5
+	ansi-branch:11.7.0.2
+	rel-6-0-1-branch:11.5.0.2
+	hartley-6-0-post:11.6
+	hartley-6-0-pre:11.5
+	rel-6-0-1:11.5
+	rel-6-0:11.5
+	rel-5-4:11.2
+	offsite-5-3-pre:11.3
+	rel-5-3:11.2
+	rel-5-2:11.2
+	rel-5-1-branch:11.2.0.2
+	rel-5-1:11.2
+	rel-5-0:11.1
+	rel-5-0-beta:11.1
+	rel-4-5:11.1
+	ctj-4-5-post:11.1
+	ctj-4-5-pre:11.1
+	rel-4-4:11.1
+	rel-4-0:10.1;
+locks; strict;
+comment	@ * @;
+
+
+11.10
+date	2004.05.21.16.38.54;	author morrison;	state dead;
+branches;
+next	11.9;
+
+11.9
+date	2004.05.10.15.30.50;	author erikg;	state Exp;
+branches;
+next	11.8;
+
+11.8
+date	2004.04.05.05.46.01;	author morrison;	state Exp;
+branches;
+next	11.7;
+
+11.7
+date	2002.08.20.17.08.50;	author jra;	state Exp;
+branches
+	11.7.2.1;
+next	11.6;
+
+11.6
+date	2002.08.15.20.56.01;	author hartley;	state Exp;
+branches;
+next	11.5;
+
+11.5
+date	2001.08.10.20.44.36;	author jra;	state Exp;
+branches;
+next	11.4;
+
+11.4
+date	2001.04.20.22.31.26;	author morrison;	state Exp;
+branches;
+next	11.3;
+
+11.3
+date	2000.08.24.22.46.21;	author mike;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	2000.01.31.16.17.47;	author jra;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	95.01.04.10.21.04;	author mike;	state Rel4_4;
+branches;
+next	10.2;
+
+10.2
+date	94.08.11.20.09.07;	author gdurf;	state Exp;
+branches;
+next	10.1;
+
+10.1
+date	91.10.12.06.52.43;	author mike;	state Rel4_0;
+branches;
+next	1.1;
+
+1.1
+date	91.01.03.20.45.24;	author butler;	state Exp;
+branches;
+next	;
+
+11.7.2.1
+date	2002.09.19.18.02.29;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@dist
+@
+
+
+11.10
+log
+@moved to src/tools/
+@
+text
+@/*
+ * This software is copyrighted as noted below.  It may be freely copied,
+ * modified, and redistributed, provided that the copyright notice is 
+ * preserved on all copies.
+ * 
+ * There is no warranty or other guarantee of fitness for this software,
+ * it is provided solely "as is".  Bug reports or fixes may be sent
+ * to the author, who may or may not act on them as he desires.
+ *
+ * You may not include this software in a program or other software product
+ * without supplying the source, or without informing the end-user that the 
+ * source is available for no extra charge.
+ *
+ * If you modify this software, you should include a notice giving the
+ * name of the person performing the modification, the date of modification,
+ * and the reason for such modification.
+ */
+/* 
+ * rlepatch.c - Patch images over a larger image.
+ * 
+ * Author:	John W. Peterson
+ * 		Computer Science Dept.
+ * 		University of Utah
+ * Date:	Sun Nov 29 1987
+ * Copyright (c) 1987, University of Utah
+ *
+ * This was a quick hack.  It should be changed to use the "raw"
+ * routines someday - this would run MUCH faster for sparse patches.
+ */
+
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+
+#include <stdio.h>
+
+#ifdef USE_STRING_H
+#include <string.h>
+#else
+#include <strings.h>
+#endif
+
+#include "machine.h"
+#include "externs.h"		/* For malloc, calloc and free */
+#include "rle.h"
+
+#define CHECK_MALLOC( ptr ) \
+	{ if (! (ptr)) {fprintf( stderr, "%s: Unable to alloc memory\n", \
+				 cmd_name( argv ) ); exit(-2);}}
+#define IN_WINDOW(y,wind) ((y >= wind.ymin) && (y <= wind.ymax))
+
+int
+main(int argc, char **argv)
+{
+    rle_hdr im_hdr, *patch_hdr, out_hdr;
+    const char *imfilename = NULL, *outfilename = NULL;
+    const char **patchnames;
+    FILE *outfile = stdout;
+    rle_pixel ** im_rows, **patch_rows, ** outrows;
+    int stdin_used = 0;
+    int patches = 0, oflag = 0, i, y, c, xlen, width;
+    int rle_cnt;
+
+    if (! scanargs( argc, argv, "% o%-outfile!s infile!s patchfiles%*s",
+		    &oflag, &outfilename, &imfilename, &patches, &patchnames ))
+	exit( -1 );
+
+    patch_hdr = (rle_hdr *) malloc( sizeof( rle_hdr )
+						* patches );
+    CHECK_MALLOC( patch_hdr );
+
+    /* Setup the main image data structures. */
+
+    im_hdr.rle_file = rle_open_f( cmd_name( argv ), imfilename, "r" );
+    if ( im_hdr.rle_file == stdin )
+    {
+	imfilename = "Standard input";	/* For error messages */
+	stdin_used++;
+    }
+
+    for( i = 0; i < patches; i++ )
+    {
+	patch_hdr[i].rle_file = rle_open_f( cmd_name( argv ),
+					    patchnames[i], "r" );
+	if ( patch_hdr[i].rle_file == stdin )
+	{
+	    patchnames[i] = "Standard input";
+	    if ( stdin_used )
+	    {
+		fprintf(stderr, "%s: Only use stdin (-) once.\n",
+			cmd_name( argv ));
+		exit(-1);
+	    }
+	    stdin_used++;
+	}
+    }
+
+    for ( rle_cnt = 0;
+	  rle_get_setup( &im_hdr );
+	  rle_cnt++ )
+    {
+	/* Get the patch files set up */
+	for( i = 0; i < patches; i++ )
+	{
+	    rle_get_setup_ok( &patch_hdr[i], cmd_name( argv ), patchnames[i] );
+
+	    /* Sanity checks. */
+
+	    if ((patch_hdr[i].xmin < im_hdr.xmin) ||
+		(patch_hdr[i].xmax > im_hdr.xmax) ||
+		(patch_hdr[i].ymin < im_hdr.ymin) ||
+		(patch_hdr[i].ymax > im_hdr.ymax))
+	    {
+		fprintf( stderr, "%s: file %s is outside %s\n",
+			 cmd_name( argv ), patchnames[i], imfilename );
+		exit( -2 );
+	    }
+
+	    if ((patch_hdr[i].ncolors != im_hdr.ncolors) ||
+		(patch_hdr[i].alpha != im_hdr.alpha))
+	    {
+		fprintf( stderr,
+			 "%s: file %s doesn't have the same channels as %s\n",
+			 cmd_name( argv ), patchnames[i], imfilename );
+		exit(-2);
+	    }
+	}	
+
+	if (rle_row_alloc( &im_hdr, &im_rows ) ||
+	    rle_row_alloc( &im_hdr, &patch_rows ))
+	    CHECK_MALLOC( 0 );
+
+	/* Setup output */
+	out_hdr = im_hdr;
+	if ( rle_cnt == 0 )
+	    outfile = rle_open_f( cmd_name( argv ), outfilename, "w" );
+	out_hdr.rle_file = outfile;
+
+	rle_addhist( argv, &im_hdr, &out_hdr );
+
+	rle_put_setup( &out_hdr );
+
+	/*
+	 * Allocate pointers to the output rows.  Note that rle_putrow
+	 * expects the pointers to start at xmin, instead of at zero
+	 * like rle_getrow (Weird Spencerism).
+	 */
+	outrows = (rle_pixel**) malloc( sizeof( rle_pixel** ) *
+					(im_hdr.alpha + im_hdr.ncolors));
+	CHECK_MALLOC( outrows );
+	if (im_hdr.alpha)
+	    outrows++;		/* Put alpha at -1 index */
+
+	xlen = out_hdr.xmax - out_hdr.xmin + 1;
+	for( i = -im_hdr.alpha; i < im_hdr.ncolors; i++ )
+	    outrows[i] = &(im_rows[i][im_hdr.xmin]);
+
+	/* Process the images. */
+
+	for (y = im_hdr.ymin; y <= im_hdr.ymax; y++)
+	{
+	    rle_getrow( &im_hdr, im_rows );
+
+	    for (i = 0; i < patches; i++)
+	    {
+		if (IN_WINDOW( y, patch_hdr[i]))
+		{
+		    rle_getrow( &(patch_hdr[i]), patch_rows );
+		    width = patch_hdr[i].xmax - patch_hdr[i].xmin + 1;
+		    for( c = -im_hdr.alpha; c < im_hdr.ncolors; c++)
+			bcopy( &(patch_rows[c][patch_hdr[i].xmin]),
+			       &(im_rows[c][patch_hdr[i].xmin]), width );
+		}
+	    }
+	    rle_putrow( outrows, xlen, &out_hdr );
+	}
+    
+	rle_puteof( &out_hdr );
+
+	/* Release memory. */
+	rle_row_free( &im_hdr, im_rows );
+	rle_row_free( &im_hdr, patch_rows );
+	if ( im_hdr.alpha )
+	    outrows--;
+	free( outrows );
+    }
+    exit( 0 );
+}
+@
+
+
+11.9
+log
+@change conf.h to a wrapped config.h
+@
+text
+@@
+
+
+11.8
+log
+@merge of ansi-6-0-branch into head
+@
+text
+@d31 5
+a35 1
+#include "conf.h"
+@
+
+
+11.7
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d51 1
+a51 3
+main( argc, argv )
+int argc;
+char **argv;
+@
+
+
+11.7.2.1
+log
+@Initial ANSIfication
+@
+text
+@d51 3
+a53 1
+main(int argc, char **argv)
+@
+
+
+11.6
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d51 3
+a53 1
+main(int argc, char **argv)
+@
+
+
+11.5
+log
+@lint
+@
+text
+@d51 1
+a51 3
+main( argc, argv )
+int argc;
+char **argv;
+@
+
+
+11.4
+log
+@CONST to const
+@
+text
+@d35 6
+@
+
+
+11.3
+log
+@
+lint
+@
+text
+@d50 2
+a51 2
+    CONST char *imfilename = NULL, *outfilename = NULL;
+    CONST char **patchnames;
+@
+
+
+11.2
+log
+@Eliminated some unused variables
+@
+text
+@d44 1
+a44 1
+void
+@
+
+
+11.1
+log
+@Release_4.4
+@
+text
+@d56 1
+a56 1
+    int rle_cnt, rle_err;
+d93 1
+a93 1
+	  (rle_err = rle_get_setup( &im_hdr )) == RLE_SUCCESS;
+@
+
+
+10.2
+log
+@Altered #defines and #includes to conform to BRL-CAD standards
+@
+text
+@@
+
+
+10.1
+log
+@Release_4.0
+@
+text
+@d31 2
+a33 12
+#include <rle.h>
+
+#ifdef USE_STDLIB_H
+#include <stdlib.h>
+#else
+
+#ifdef VOID_STAR
+extern void *malloc();
+#else
+extern char *malloc();
+#endif
+extern void free();
+d35 3
+a37 1
+#endif /* USE_STDLIB_H */
+d50 2
+a51 2
+    CONST_DECL char *imfilename = NULL, *outfilename = NULL;
+    CONST_DECL char **patchnames;
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@@

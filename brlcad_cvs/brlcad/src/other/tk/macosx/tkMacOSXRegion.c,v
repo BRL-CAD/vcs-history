@@ -1,0 +1,581 @@
+head	1.3;
+access;
+symbols
+	rel-7-10-4:1.2
+	STABLE:1.2.0.2
+	rel-7-10-2:1.2
+	rel-7-10-0:1.1;
+locks; strict;
+comment	@ * @;
+
+
+1.3
+date	2007.11.06.21.38.50;	author erikgreenwald;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2007.05.07.04.17.46;	author brlcad;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2007.03.02.21.49.55;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.3
+log
+@tk 8.5a6->8.5b1
+@
+text
+@/*
+ * tkMacOSXRegion.c --
+ *
+ *	Implements X window calls for manipulating regions
+ *
+ * Copyright (c) 1995-1996 Sun Microsystems, Inc.
+ * Copyright 2001, Apple Computer, Inc.
+ * Copyright (c) 2006-2007 Daniel A. Steffen <das@@users.sourceforge.net>
+ *
+ * See the file "license.terms" for information on usage and redistribution
+ * of this file, and for a DISCLAIMER OF ALL WARRANTIES.
+ *
+ * RCS: @@(#) $Id: tkMacOSXRegion.c,v 1.9 2007/06/29 03:20:02 das Exp $
+ */
+
+#include "tkMacOSXPrivate.h"
+
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * TkCreateRegion --
+ *
+ *	Implements the equivelent of the X window function
+ *	XCreateRegion. See X window documentation for more details.
+ *
+ * Results:
+ *	Returns an allocated region handle.
+ *
+ * Side effects:
+ *	None.
+ *
+ *----------------------------------------------------------------------
+ */
+
+TkRegion
+TkCreateRegion(void)
+{
+    return (TkRegion) NewRgn();
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * TkDestroyRegion --
+ *
+ *	Implements the equivelent of the X window function
+ *	XDestroyRegion. See X window documentation for more details.
+ *
+ * Results:
+ *	None.
+ *
+ * Side effects:
+ *	Memory is freed.
+ *
+ *----------------------------------------------------------------------
+ */
+
+void
+TkDestroyRegion(
+    TkRegion r)
+{
+    DisposeRgn((RgnHandle) r);
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * TkIntersectRegion --
+ *
+ *	Implements the equivalent of the X window function
+ *	XIntersectRegion. See X window documentation for more details.
+ *
+ * Results:
+ *	None.
+ *
+ * Side effects:
+ *	None.
+ *
+ *----------------------------------------------------------------------
+ */
+
+void
+TkIntersectRegion(
+    TkRegion sra,
+    TkRegion srb,
+    TkRegion dr_return)
+{
+    SectRgn((RgnHandle) sra, (RgnHandle) srb, (RgnHandle) dr_return);
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * TkSubtractRegion --
+ *
+ *	Implements the equivalent of the X window function
+ *	XSubtractRegion. See X window documentation for more details.
+ *
+ * Results:
+ *	None.
+ *
+ * Side effects:
+ *	None.
+ *
+ *----------------------------------------------------------------------
+ */
+
+void
+TkSubtractRegion(
+    TkRegion sra,
+    TkRegion srb,
+    TkRegion dr_return)
+{
+    DiffRgn((RgnHandle) sra, (RgnHandle) srb, (RgnHandle) dr_return);
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * TkUnionRectWithRegion --
+ *
+ *	Implements the equivelent of the X window function
+ *	XUnionRectWithRegion. See X window documentation for more
+ *	details.
+ *
+ * Results:
+ *	None.
+ *
+ * Side effects:
+ *	None.
+ *
+ *----------------------------------------------------------------------
+ */
+
+void
+TkUnionRectWithRegion(
+    XRectangle* rectangle,
+    TkRegion src_region,
+    TkRegion dest_region_return)
+{
+    TkMacOSXCheckTmpQdRgnEmpty();
+    SetRectRgn(tkMacOSXtmpQdRgn, rectangle->x, rectangle->y,
+	    rectangle->x + rectangle->width, rectangle->y + rectangle->height);
+    UnionRgn((RgnHandle) src_region, tkMacOSXtmpQdRgn,
+	    (RgnHandle) dest_region_return);
+    SetEmptyRgn(tkMacOSXtmpQdRgn);
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * TkRectInRegion --
+ *
+ *	Implements the equivelent of the X window function
+ *	XRectInRegion. See X window documentation for more details.
+ *
+ * Results:
+ *	Returns one of: RectangleOut, RectangleIn, RectanglePart.
+ *
+ * Side effects:
+ *	None.
+ *
+ *----------------------------------------------------------------------
+ */
+
+int
+TkRectInRegion(
+    TkRegion region,
+    int x,
+    int y,
+    unsigned int width,
+    unsigned int height)
+{
+    int result;
+
+    TkMacOSXCheckTmpQdRgnEmpty();
+    SetRectRgn(tkMacOSXtmpQdRgn, x, y, x + width, y + height);
+    SectRgn((RgnHandle) region, tkMacOSXtmpQdRgn, tkMacOSXtmpQdRgn);
+    if (EmptyRgn(tkMacOSXtmpQdRgn)) {
+	result = RectangleOut;
+    } else if (EqualRgn((RgnHandle) region, tkMacOSXtmpQdRgn)) {
+	result = RectangleIn;
+    } else {
+	result = RectanglePart;
+    }
+    SetEmptyRgn(tkMacOSXtmpQdRgn);
+    return result;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * TkClipBox --
+ *
+ *	Implements the equivelent of the X window function XClipBox.
+ *	See X window documentation for more details.
+ *
+ * Results:
+ *	None.
+ *
+ * Side effects:
+ *	None.
+ *
+ *----------------------------------------------------------------------
+ */
+
+void
+TkClipBox(
+    TkRegion r,
+    XRectangle* rect_return)
+{
+    Rect rect;
+
+    GetRegionBounds((RgnHandle) r,&rect);
+    rect_return->x = rect.left;
+    rect_return->y = rect.top;
+    rect_return->width = rect.right-rect.left;
+    rect_return->height = rect.bottom-rect.top;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * TkpBuildRegionFromAlphaData --
+ *
+ *	Set up a rectangle of the given region based on the supplied
+ *	alpha data.
+ *
+ * Results:
+ *	None
+ *
+ * Side effects:
+ *	The region is updated, with extra pixels added to it.
+ *
+ *----------------------------------------------------------------------
+ */
+
+void
+TkpBuildRegionFromAlphaData(
+    TkRegion region,			/* Region to update. */
+    unsigned int x,			/* Where in region to update. */
+    unsigned int y,			/* Where in region to update. */
+    unsigned int width,			/* Size of rectangle to update. */
+    unsigned int height,		/* Size of rectangle to update. */
+    unsigned char *dataPtr,		/* Data to read from. */
+    unsigned int pixelStride,		/* num bytes from one piece of alpha
+					 * data to the next in the line. */
+    unsigned int lineStride)		/* num bytes from one line of alpha
+					 * data to the next line. */
+{
+    unsigned char *lineDataPtr;
+    unsigned int x1, y1, end;
+    XRectangle rect;
+
+    for (y1 = 0; y1 < height; y1++) {
+	lineDataPtr = dataPtr;
+	for (x1 = 0; x1 < width; x1 = end) {
+	    /* search for first non-transparent pixel */
+	    while ((x1 < width) && !*lineDataPtr) {
+		x1++;
+		lineDataPtr += pixelStride;
+	    }
+	    end = x1;
+	    /* search for first transparent pixel */
+	    while ((end < width) && *lineDataPtr) {
+		end++;
+		lineDataPtr += pixelStride;
+	    }
+	    if (end > x1) {
+		rect.x = x + x1;
+		rect.y = y + y1;
+		rect.width = end - x1;
+		rect.height = 1;
+		TkUnionRectWithRegion(&rect, region, region);
+	    }
+	}
+	dataPtr += lineStride;
+    }
+}
+@
+
+
+1.2
+log
+@upgrade to tcl/tk 8.5a6 (from 8.5a5) .. includes even more (extensive) aquatk fixes/enhancements
+@
+text
+@d13 1
+a13 1
+ * RCS: @@(#) $Id: tkMacOSXRegion.c,v 1.6 2007/04/23 21:24:34 das Exp $
+d16 1
+a16 1
+#include "tkMacOSXInt.h"
+d39 1
+a39 3
+    RgnHandle rgn;
+    rgn = NewRgn();
+    return (TkRegion) rgn;
+d63 1
+a63 2
+    RgnHandle rgn = (RgnHandle) r;
+    DisposeRgn(rgn);
+d71 1
+a71 1
+ *	Implements the equivilent of the X window function
+d89 27
+a115 4
+    RgnHandle srcRgnA = (RgnHandle) sra;
+    RgnHandle srcRgnB = (RgnHandle) srb;
+    RgnHandle destRgn = (RgnHandle) dr_return;
+    SectRgn(srcRgnA, srcRgnB, destRgn);
+d142 2
+a143 5
+    RgnHandle srcRgn = (RgnHandle) src_region;
+    RgnHandle destRgn = (RgnHandle) dest_region_return;
+
+    TkMacOSXCheckTmpRgnEmpty(1);
+    SetRectRgn(tkMacOSXtmpRgn1, rectangle->x, rectangle->y,
+d145 3
+a147 2
+    UnionRgn(srcRgn, tkMacOSXtmpRgn1, destRgn);
+    SetEmptyRgn(tkMacOSXtmpRgn1);
+a174 1
+    RgnHandle rgn = (RgnHandle) region;
+d177 4
+a180 4
+    TkMacOSXCheckTmpRgnEmpty(1);
+    SetRectRgn(tkMacOSXtmpRgn1, x, y, x + width, y + height);
+    SectRgn(rgn, tkMacOSXtmpRgn1, tkMacOSXtmpRgn1);
+    if (EmptyRgn(tkMacOSXtmpRgn1)) {
+d182 1
+a182 1
+    } else if (EqualRgn(rgn, tkMacOSXtmpRgn1)) {
+d187 1
+a187 1
+    SetEmptyRgn(tkMacOSXtmpRgn1);
+d213 1
+a213 4
+    RgnHandle rgn = (RgnHandle) r;
+    Rect      rect;
+
+    GetRegionBounds(rgn,&rect);
+d215 1
+a224 30
+ * TkSubtractRegion --
+ *
+ *	Implements the equivilent of the X window function
+ *	XSubtractRegion. See X window documentation for more details.
+ *
+ * Results:
+ *	None.
+ *
+ * Side effects:
+ *	None.
+ *
+ *----------------------------------------------------------------------
+ */
+
+void
+TkSubtractRegion(
+    TkRegion sra,
+    TkRegion srb,
+    TkRegion dr_return)
+{
+    RgnHandle srcRgnA = (RgnHandle) sra;
+    RgnHandle srcRgnB = (RgnHandle) srb;
+    RgnHandle destRgn = (RgnHandle) dr_return;
+
+    DiffRgn(srcRgnA, srcRgnB, destRgn);
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+a280 31
+
+#if 0
+int
+XSetClipRectangles(Display *d, GC gc, int clip_x_origin, int clip_y_origin,
+	XRectangle* rectangles, int n, int ordering)
+{
+    RgnHandle clipRgn;
+
+    if (gc->clip_mask && ((TkpClipMask*)gc->clip_mask)->type
+	    == TKP_CLIP_REGION) {
+	clipRgn = (RgnHandle) ((TkpClipMask*)gc->clip_mask)->value.region;
+	SetEmptyRgn(clipRgn);
+    } else {
+	clipRgn = NewRgn(); /* LEAK! */
+    }
+
+    TkMacOSXCheckTmpRgnEmpty(1);
+    while (n--) {
+	int x = clip_x_origin + rectangles->x;
+	int y = clip_y_origin + rectangles->y;
+
+	SetRectRgn(tkMacOSXtmpRgn1, x, y, x + rectangles->width,
+		y + rectangles->height);
+	UnionRgn(tkMacOSXtmpRgn1, clipRgn, clipRgn);
+	rectangles++;
+    }
+    SetEmptyRgn(tkMacOSXtmpRgn1);
+    TkSetRegion(d, gc, (TkRegion) clipRgn);
+    return 1;
+}
+#endif
+@
+
+
+1.1
+log
+@upgrade tcl/tk from 8.4.6 to 8.5a5; also move to a recursive configure, using AC_CONFIG_SUBDIRS to call upon tcl, tk, and enigma's configure scripts as needed instead of redoing their build systems for our purpose.  this has a rather drastic impact on the way the libraries are linked together, including the need to compile tcl/tk static so as to avoid libtool portability issues as well as letting us take advantage of their build system for reduced maintenance and easing future upgrades.  undoubtedly more build issues to be worked out with other platforms given the extent of this change.  this does move us one step closer towards correctly linking against system tcl/tk installations too.
+@
+text
+@d1 1
+a1 1
+/* 
+d4 1
+a4 1
+ *        Implements X window calls for manipulating regions
+d8 1
+d13 1
+a13 1
+ * RCS: @@(#) $Id: tkMacOSXRegion.c,v 1.5 2006/03/24 14:58:01 das Exp $
+a17 5
+/*
+ * Temporary region that can be reused.
+ */
+static RgnHandle tmpRgn = NULL;
+
+d24 2
+a25 2
+ *        Implements the equivelent of the X window function
+ *        XCreateRegion.  See X window documentation for more details.
+d28 1
+a28 1
+ *      Returns an allocated region handle.
+d31 1
+a31 1
+ *        None.
+d37 1
+a37 1
+TkCreateRegion()
+d49 2
+a50 2
+ *        Implements the equivelent of the X window function
+ *        XDestroyRegion.  See X window documentation for more details.
+d53 1
+a53 1
+ *        None.
+d56 1
+a56 1
+ *        Memory is freed.
+d61 1
+a61 1
+void 
+d74 2
+a75 2
+ *        Implements the equivilent of the X window function
+ *        XIntersectRegion.  See X window documentation for more details.
+d78 1
+a78 1
+ *        None.
+d81 1
+a81 1
+ *        None.
+d86 1
+a86 1
+void 
+d103 3
+a105 3
+ *        Implements the equivelent of the X window function
+ *        XUnionRectWithRegion.  See X window documentation for more
+ *        details.
+d108 1
+a108 1
+ *        None.
+d111 1
+a111 1
+ *        None.
+d116 1
+a116 1
+void 
+d125 2
+a126 4
+    if (tmpRgn == NULL) {
+        tmpRgn = NewRgn();
+    }
+    SetRectRgn(tmpRgn, rectangle->x, rectangle->y,
+d128 2
+a129 1
+    UnionRgn(srcRgn, tmpRgn, destRgn);
+d137 2
+a138 2
+ *        Implements the equivelent of the X window function
+ *        XRectInRegion.  See X window documentation for more details.
+d141 1
+a141 1
+ *        Returns one of: RectangleOut, RectangleIn, RectanglePart.
+d144 1
+a144 1
+ *        None.
+d149 1
+a149 1
+int 
+a157 1
+    RgnHandle rectRgn, destRgn;
+d159 5
+a163 6
+    
+    rectRgn = NewRgn();
+    destRgn = NewRgn();
+    SetRectRgn(rectRgn, x,  y, x + width, y + height);
+    SectRgn(rgn, rectRgn, destRgn);
+    if (EmptyRgn(destRgn)) {
+d165 1
+a165 1
+    } else if (EqualRgn(rgn, destRgn)) {
+d170 1
+a170 2
+    DisposeRgn(rectRgn);
+    DisposeRgn(destRgn);
+d179 2
+a180 2
+ *        Implements the equivelent of the X window function XClipBox.
+ *        See X window documentation for more details.
+d183 1
+a183 1
+ *        None.
+d186 1
+a186 1
+ *        None.
+d191 1
+a191 1
+void 
+d213 1
+a213 1
+ *	XSubtractRegion.  See X window documentation for more details.
+d224 1
+a224 1
+void 
+d296 31
+@
+

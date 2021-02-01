@@ -1,0 +1,664 @@
+head	14.14;
+access;
+symbols
+	rel-7-10-4:14.14
+	STABLE:14.14.0.2
+	stable-branch:14.6
+	rel-7-10-2:14.14
+	rel-7-10-0:14.14
+	rel-7-8-4:14.10
+	rel-7-8-2:14.9
+	rel-7-8-0:14.9
+	trimnurbs-branch:14.9.0.2
+	help:14.9
+	temp_tag:14.8
+	bobWinPort-20051223-freeze:14.7
+	postmerge-20051223-bobWinPort:14.8
+	premerge-20051223-bobWinPort:14.8
+	rel-7-6-6:14.8
+	rel-7-6-4:14.8
+	rel-7-6-2:14.7
+	rel-7-6-branch:14.7.0.4
+	rel-7-6-0:14.7
+	rel-7-4-2:14.6
+	rel-7-4-branch:14.6.0.2
+	bobWinPort:14.7.0.2
+	rel-7-4-0:14.6
+	rel-7-2-6:14.6
+	rel-7-2-4:14.6
+	rel-7-2-2:14.6
+	rel-7-2-0:14.6
+	rel-7-0-4:14.5
+	rel-7-0-2:14.5
+	rel-7-0-1:14.5
+	opensource-post:14.5
+	opensource-pre:1.2
+	rel-7-0-branch:1.2.0.2
+	rel-7-0:1.2;
+locks; strict;
+comment	@ * @;
+
+
+14.14
+date	2007.01.27.01.41.42;	author brlcad;	state Exp;
+branches;
+next	14.13;
+
+14.13
+date	2007.01.23.01.13.39;	author brlcad;	state Exp;
+branches;
+next	14.12;
+
+14.12
+date	2007.01.21.04.45.45;	author brlcad;	state Exp;
+branches;
+next	14.11;
+
+14.11
+date	2007.01.20.14.36.55;	author brlcad;	state Exp;
+branches;
+next	14.10;
+
+14.10
+date	2006.09.16.02.04.25;	author lbutler;	state Exp;
+branches;
+next	14.9;
+
+14.9
+date	2006.01.18.06.46.17;	author brlcad;	state Exp;
+branches
+	14.9.2.1;
+next	14.8;
+
+14.8
+date	2005.10.23.04.44.36;	author brlcad;	state Exp;
+branches;
+next	14.7;
+
+14.7
+date	2005.08.12.22.31.08;	author lbutler;	state Exp;
+branches
+	14.7.4.1;
+next	14.6;
+
+14.6
+date	2005.01.30.20.31.03;	author brlcad;	state Exp;
+branches;
+next	14.5;
+
+14.5
+date	2004.12.21.06.38.21;	author morrison;	state Exp;
+branches;
+next	14.4;
+
+14.4
+date	2004.12.21.06.18.48;	author morrison;	state Exp;
+branches;
+next	14.3;
+
+14.3
+date	2004.12.21.05.45.24;	author morrison;	state Exp;
+branches;
+next	14.2;
+
+14.2
+date	2004.12.21.04.18.21;	author morrison;	state Exp;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.16;	author morrison;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2004.08.02.23.01.49;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.15.20.09;	author morrison;	state Exp;
+branches;
+next	;
+
+14.7.4.1
+date	2005.11.13.13.46.17;	author brlcad;	state Exp;
+branches;
+next	;
+
+14.9.2.1
+date	2006.04.07.18.37.19;	author jlowenz;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.14
+log
+@ws. lots and lots of ws.  see sh/ws.sh for details (cases 'abcdeg').
+@
+text
+@/*                     O S L O _ C A L C . C
+ * BRL-CAD
+ *
+ * Copyright (c) 1986-2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This library is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@addtogroup librt
+/** @@{ */
+/** @@file oslo_calc.c
+ *
+ * Calculate the Oslo refinement matrix.
+ *
+ * Author -
+ *     Paul R. Stay
+ *
+ * Source -
+ *     SECAD/VLD Computing Consortium, Bldg 394
+ *     The U.S. Army Ballistic Research Laboratory
+ *     Aberdeen Proving Ground, Maryland 21005
+ *
+ *
+ * This algorithm was taken from the paper
+ * "Making the Oslo Algorithm More Efficient" by T. Lyche and K. Morken
+ * The algorithm referenced in the paper is algorithm 1 since we will be
+ * dealing mostly with surfaces. This routine computes the refinement
+ * matrix and returns a oslo structure which will allow a new curve or
+ * surface to be built.
+ *
+ * Since we only want the last row of the alpha's as outlined in the
+ * paper we can use a one dimensional array for the ah.
+ */
+
+#include "common.h"
+
+
+#include <stdio.h>
+#include "machine.h"
+#include "vmath.h"
+#include "raytrace.h"
+#include "nurb.h"
+
+#define AMAX(i,j)    ( (i) > (j) ? (i) : (j) )
+#define AMIN(i,j)    ( (i) < (j) ? (i) : (j) )
+
+struct oslo_mat *
+rt_nurb_calc_oslo(register int order, register const struct knot_vector *tau_kv, register struct knot_vector *t_kv, struct resource *res)
+
+						/* old knot vector */
+						/* new knot vector */
+
+{
+	register fastf_t	*t_p;
+	register const fastf_t	*tau_p;
+	fastf_t ah[20];
+	fastf_t newknots[20];			/* new knots */
+	register int  j;			/* d(j), j = 0 : # of new ctl points */
+	int     mu,				/* mu:  tau[mu] <= t[j] < tau[mu+1]*/
+		muprim,
+		v,				/* Nu value (order of matrix) */
+		p,
+		iu,				/* upper bound loop counter */
+		il,				/* lower bound loop counter */
+		ih,
+		n1;				/* upper bound of t knot vector - order*/
+
+	fastf_t tj;
+
+	struct oslo_mat * head, * o_ptr, *new_o;
+
+	n1 = t_kv->k_size - order;
+
+	t_p = t_kv->knots;
+	tau_p = tau_kv->knots;
+
+	mu = 0;				/* initialize mu */
+
+	head = (struct oslo_mat *) bu_malloc (
+		    sizeof( struct oslo_mat),
+		    "rt_nurb_calc_oslo: oslo mat head" );
+
+	o_ptr = head;
+
+	for (j = 0; j < n1; j++) {
+		register int  i;
+
+		if ( j != 0 )
+		{
+			new_o = (struct oslo_mat *) bu_malloc (
+				    sizeof( struct oslo_mat),
+				    "rt_nurb_calc_oslo: oslo mat struct" );
+
+			o_ptr->next = new_o;
+			o_ptr = new_o;
+		}
+
+		/* find the bounding mu */
+		while (tau_p[mu + 1] <= t_p[j]) mu++;
+
+		muprim = mu;
+
+		i = j + 1;
+
+		while ((t_p[i] == tau_p[muprim]) && i < (j + order)) {
+			i++;
+			muprim--;
+		}
+
+		ih = muprim + 1;
+
+		for (v = 0, p = 1; p < order; p++) {
+			if (t_p[j + p] == tau_p[ih])
+				ih++;
+			else
+				newknots[++v - 1] = t_p[j + p];
+		}
+
+		ah[order-1] = 1.0;
+
+		for (p = 1; p <= v; p++) {
+
+			fastf_t beta1;
+			int o_m;
+
+			beta1 = 0.0;
+			o_m = order - muprim;
+
+			tj = newknots[p-1];
+
+			if (p > muprim) {
+				beta1 = ah[o_m];
+				beta1 = ((tj - tau_p[0]) * beta1) /
+				    (tau_p[p + order - v] - tau_p[0]);
+			}
+			i = muprim - p + 1;
+			il = AMAX (1, i);
+			i = n1 - 1 + v - p;
+			iu = AMIN (muprim, i);
+
+			for (i = il; i <= iu; i++) {
+				fastf_t d1, d2;
+				fastf_t beta;
+
+				d1 = tj - tau_p[i];
+				d2 = tau_p[i + p + order - v - 1] - tj;
+
+				beta = ah[i + o_m - 1] / (d1 + d2);
+
+				ah[i + o_m - 2] = d2 * beta + beta1;
+				beta1 = d1 * beta;
+			}
+
+			ah[iu + o_m - 1] = beta1;
+
+			if (iu < muprim) {
+				register fastf_t kkk;
+				register fastf_t ahv;
+
+				kkk = tau_p[n1 - 1 + order];
+				ahv = ah[iu + o_m];
+				ah[iu + o_m - 1] =
+				    beta1 + (kkk - tj) *
+				    ahv / (kkk - tau_p[iu + 1]);
+			}
+		}
+
+		o_ptr->o_vec = (fastf_t *) bu_malloc ( sizeof( fastf_t) * (v+1),
+			    "rt_nurb_calc_oslo: oslo vector");
+
+		o_ptr->offset = AMAX(muprim -v,0);
+		o_ptr->osize = v;
+
+		for ( i = v, p = 0; i >= 0; i--)
+			o_ptr->o_vec[p++] =  ah[(order-1) - i];
+	}
+
+	o_ptr->next = (struct oslo_mat*) 0;
+	return head;
+}
+
+
+/*
+ *  rt_pr_oslo() - FOR DEBUGGING PURPOSES
+ */
+void
+rt_nurb_pr_oslo(struct oslo_mat *om)
+{
+	struct oslo_mat * omp;
+	int j;
+
+	for( omp = om; omp!= ( struct oslo_mat *) 0; omp = omp->next)
+	{
+		fprintf(stderr, "%lx offset %d osize %d next %lx\n",
+			(unsigned long)omp,  omp->offset,  omp->osize,
+			(unsigned long)omp->next);
+
+		fprintf(stderr,"\t%f",  omp->o_vec[0]);
+
+		for ( j = 1; j <= omp->osize; j++)
+			fprintf(stderr,"\t%f",  omp->o_vec[j]);
+		fprintf(  stderr, "\n");
+	}
+}
+
+/* rt_nurb_free_oslo()
+ * Free up the structures and links for the oslo matrix.
+ */
+
+void
+rt_nurb_free_oslo(struct oslo_mat *om, struct resource *res)
+{
+	register struct oslo_mat * omp;
+
+	while( om != (struct oslo_mat *) 0 )
+	{
+		omp = om;
+		om = om->next;
+		bu_free( (char *)omp->o_vec, "rt_nurb_free_oslo: ovec");
+		bu_free( (char *)omp, "rt_nurb_free_oslo: struct oslo");
+	}
+}
+
+/** @@} */
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+14.13
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@a48 1
+
+d61 2
+a62 2
+                                           	/* old knot vector */
+                                   		/* new knot vector */
+@
+
+
+14.12
+log
+@ugh, what tedium.  put some effort towards cleaning up the doxygen labels and making the headers more consistent.  also exclusively using @@ for doxygen instead of \ to try to keep things more consistent.
+@
+text
+@d9 1
+a9 2
+ * as published by the Free Software Foundation; either version 2 of
+ * the License, or (at your option) any later version.
+d14 1
+a14 1
+ * Library General Public License for more details.
+@
+
+
+14.11
+log
+@update copyright to 2007
+@
+text
+@a20 1
+
+d22 1
+a22 1
+/*@@{*/
+d24 1
+d237 1
+a237 1
+/*@@}*/
+@
+
+
+14.10
+log
+@Doxygen updates
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 1986-2006 United States Government as represented by
+@
+
+
+14.9
+log
+@update copyright to 2006
+@
+text
+@d22 1
+a22 3
+/** \defgroup oslo oslo
+ * \ingroup librt */
+
+a45 1
+/*@@}*/
+d237 1
+@
+
+
+14.9.2.1
+log
+@utilize new allocation/free routines for oslo_mat
+@
+text
+@d95 3
+a97 1
+	head = rt_nurb_new_oslo();
+d106 6
+a111 4
+		    new_o = rt_nurb_new_oslo();
+		    
+		    o_ptr->next = new_o;
+		    o_ptr = new_o;
+d184 2
+a185 4
+		if ((v+1) > MAX_OSLO_VEC_SIZE) 
+		    bu_bomb("found a max oslo_mat->o_vec with size > MAX_OSLO_VEC_SIZE");
+/* 		o_ptr->o_vec = (fastf_t *) bu_malloc ( sizeof( fastf_t) * (v+1), */
+/* 			    "rt_nurb_calc_oslo: oslo vector"); */
+d226 13
+a238 13
+/* void */
+/* rt_nurb_free_oslo(struct oslo_mat *om, struct resource *res) */
+/* { */
+/* 	register struct oslo_mat * omp; */
+
+/* 	while( om != (struct oslo_mat *) 0 ) */
+/* 	{ */
+/* 		omp = om; */
+/* 		om = om->next; */
+/* 		bu_free( (char *)omp->o_vec, "rt_nurb_free_oslo: ovec"); */
+/* 		bu_free( (char *)omp, "rt_nurb_free_oslo: struct oslo"); */
+/* 	} */
+/* } */
+@
+
+
+14.8
+log
+@trailing ws
+@
+text
+@d4 1
+a4 1
+ * Copyright (C) 1986-2005 United States Government as represented by
+@
+
+
+14.7
+log
+@Doxygen changes
+@
+text
+@d22 1
+a22 1
+/** \defgroup oslo oslo 
+d28 1
+a28 1
+ * 
+d38 2
+a39 2
+ * This algorithm was taken from the paper 
+ * "Making the Oslo Algorithm More Efficient" by T. Lyche and K. Morken 
+d65 1
+a65 1
+                   
+d68 1
+a68 1
+                     
+d106 2
+a107 2
+			new_o = (struct oslo_mat *) bu_malloc ( 
+				    sizeof( struct oslo_mat), 
+@
+
+
+14.7.4.1
+log
+@merge changes from HEAD aka rel-7-6-4 to the rel-7-6-branch just in case someone peeks a gander or tries to continue/build the branch
+@
+text
+@d22 1
+a22 1
+/** \defgroup oslo oslo
+d28 1
+a28 1
+ *
+d38 2
+a39 2
+ * This algorithm was taken from the paper
+ * "Making the Oslo Algorithm More Efficient" by T. Lyche and K. Morken
+d65 1
+a65 1
+
+d68 1
+a68 1
+
+d106 2
+a107 2
+			new_o = (struct oslo_mat *) bu_malloc (
+				    sizeof( struct oslo_mat),
+@
+
+
+14.6
+log
+@update copyright to 2005
+@
+text
+@d21 5
+d27 1
+a27 8
+ *
+ */
+
+/* 
+ *       C A L C _ O S L O . C
+ *
+ * Function -
+ *     Calculate the Oslo refinement matrix.
+d48 1
+@
+
+
+14.5
+log
+@remove the old copyright notice section
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 1986-2004 United States Government as represented by
+@
+
+
+14.4
+log
+@they should have received a copy of the LGPL with LGPL'd files
+@
+text
+@a38 3
+ * Copyright Notice -
+ *     This software is Copyright (C) 1986-2004 by the United States Army.
+ *     All rights reserved.
+@
+
+
+14.3
+log
+@s/GNU Library General/GNU Lesser General/g
+@
+text
+@d17 2
+a18 2
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+@
+
+
+14.2
+log
+@assign copyright and LGPL
+@
+text
+@d8 1
+a8 1
+ * modify it under the terms of the GNU Library General Public License
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@d1 24
+@
+
+
+1.2
+log
+@replace the wrapped config.h block with common.h
+@
+text
+@d219 10
+@
+
+
+1.1
+log
+@Vast reorganization begins.  Sources moved from top-level directories into src/.
+@
+text
+@d30 1
+a30 3
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+@
+

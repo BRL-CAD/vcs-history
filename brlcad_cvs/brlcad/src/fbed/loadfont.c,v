@@ -1,0 +1,416 @@
+head	14.10;
+access;
+symbols
+	rel-7-10-4:14.10
+	STABLE:14.10.0.2
+	stable-branch:14.3
+	rel-7-10-2:14.10
+	rel-7-10-0:14.9
+	rel-7-8-4:14.6
+	rel-7-8-2:14.6
+	rel-7-8-0:14.6
+	trimnurbs-branch:14.6.0.2
+	help:14.6
+	temp_tag:14.5
+	bobWinPort-20051223-freeze:14.3
+	postmerge-20051223-bobWinPort:14.5
+	premerge-20051223-bobWinPort:14.5
+	rel-7-6-6:14.5
+	rel-7-6-4:14.5
+	rel-7-6-2:14.3
+	rel-7-6-branch:14.3.0.6
+	rel-7-6-0:14.3
+	rel-7-4-2:14.3
+	rel-7-4-branch:14.3.0.4
+	bobWinPort:14.3.0.2
+	rel-7-4-0:14.3
+	rel-7-2-6:14.3
+	rel-7-2-4:14.3
+	rel-7-2-2:14.3
+	rel-7-2-0:14.3
+	rel-7-0-4:14.2
+	rel-7-0-2:14.2
+	rel-7-0-1:14.2
+	opensource-post:14.2
+	opensource-pre:1.3
+	rel-7-0-branch:1.3.0.2
+	rel-7-0:1.3;
+locks; strict;
+comment	@ * @;
+
+
+14.10
+date	2007.05.31.22.21.33;	author brlcad;	state Exp;
+branches;
+next	14.9;
+
+14.9
+date	2007.01.27.01.41.34;	author brlcad;	state Exp;
+branches;
+next	14.8;
+
+14.8
+date	2007.01.23.01.13.32;	author brlcad;	state Exp;
+branches;
+next	14.7;
+
+14.7
+date	2007.01.20.14.36.49;	author brlcad;	state Exp;
+branches;
+next	14.6;
+
+14.6
+date	2006.01.18.06.46.15;	author brlcad;	state Exp;
+branches;
+next	14.5;
+
+14.5
+date	2005.10.31.06.52.58;	author brlcad;	state Exp;
+branches;
+next	14.4;
+
+14.4
+date	2005.10.23.04.44.30;	author brlcad;	state Exp;
+branches;
+next	14.3;
+
+14.3
+date	2005.01.30.20.30.37;	author brlcad;	state Exp;
+branches
+	14.3.6.1;
+next	14.2;
+
+14.2
+date	2004.12.20.19.33.55;	author morrison;	state Exp;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.13;	author morrison;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2004.08.02.23.01.47;	author morrison;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2004.06.08.22.04.14;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.15.19.07;	author morrison;	state Exp;
+branches;
+next	;
+
+14.3.6.1
+date	2005.11.13.13.46.14;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.10
+log
+@comment cleanup
+@
+text
+@
+/*                      L O A D F O N T . C
+ * BRL-CAD
+ *
+ * Copyright (c) 2004-2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@file loadfont.c
+ *
+ * Load a new font by reading in the header and directory.
+ *
+ * Author -
+ *	Paul R. Stay
+ * Date -
+ *	Tue Jan  8 1985
+ */
+
+#include "common.h"
+
+#include <stdio.h>
+
+#include "machine.h"
+#include "fb.h"
+
+#include "./std.h"
+#include "./ascii.h"
+#include "./font.h"
+#include "./try.h"
+#include "./extern.h"
+
+
+int loadfont(char *ff)
+{
+	FILE		*newff;
+	struct header	lochdr;
+
+	/* Open the file and read in the header information. */
+	if( (newff = fopen( ff, "r" )) == NULL )
+		{
+		MvCursor( 1, 4 );
+		prnt_Debug( "Error opening font file '%s'", ff );
+		ffdes = NULL;
+		return 0;
+		}
+	if( ffdes != NULL )
+		(void) fclose(ffdes);
+	ffdes = newff;
+	if( fread( (char *) &lochdr, (int) sizeof(struct header), 1, ffdes ) < 1 )
+		{
+		(void) fprintf( stderr, "loadfont() read failed!\n" );
+		ffdes = NULL;
+		return 0;
+		}
+
+	if( lochdr.magic != 0436 )
+		{
+		prnt_Debug( "Not a font file: %s", ff );
+		ffdes = NULL;
+		return 0;
+		}
+	hdr = lochdr;
+
+	/* Read in the directory for the font. */
+	if( fread( (char *) dir, (int) sizeof(struct dispatch), 256, ffdes ) < 256 )
+		{
+		(void) fprintf( stderr, "loadfont() read failed!\n" );
+		ffdes = NULL;
+		return 0;
+		}
+	/* Addresses of characters in the file are relative to
+		point in the file after the directory, so grab the
+		current position.
+	 */
+	offset = ftell( ffdes );
+	return 1;
+	}
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+14.9
+log
+@ws. lots and lots of ws.  see sh/ws.sh for details (cases 'abcdeg').
+@
+text
+@d23 1
+a23 1
+ * loadfont.c - Load a new font by reading in the header and directory.
+d25 4
+a28 4
+ * Original Author:	Paul R. Stay
+ * 			Ballistics Research Labratory
+ * 			APG, Md.
+ * Date:		Tue Jan  8 1985
+@
+
+
+14.8
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@d57 1
+a57 1
+    		}
+d69 1
+a69 1
+    		{
+d87 1
+a87 1
+ 	offset = ftell( ffdes );
+@
+
+
+14.7
+log
+@update copyright to 2007
+@
+text
+@d9 2
+a10 3
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+d15 1
+a15 1
+ * General Public License for more details.
+d17 2
+a18 2
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+@
+
+
+14.6
+log
+@update copyright to 2006
+@
+text
+@d5 1
+a5 1
+ * Copyright (c) 2004-2006 United States Government as represented by
+@
+
+
+14.5
+log
+@set return type to int, quell warning
+@
+text
+@d5 1
+a5 1
+ * Copyright (C) 2004-2005 United States Government as represented by
+@
+
+
+14.4
+log
+@trailing ws
+@
+text
+@d1 1
+d23 1
+a23 10
+	SCCS id:	@@(#) loadfont.c	1.14
+	Modified: 	5/6/86 at 15:33:42 Gary S. Moss
+	Retrieved: 	12/26/86 at 21:54:27
+	SCCS archive:	/vld/moss/src/fbed/s.loadfont.c
+*/
+#if ! defined( lint )
+static
+char sccsTag[] = "@@(#) loadfont.c 1.14, modified 5/6/86 at 15:33:42, archive /vld/moss/src/fbed/s.loadfont.c";
+#endif
+/*
+a33 2
+
+
+d45 2
+a46 1
+loadfont(char *ff)
+@
+
+
+14.3
+log
+@update copyright to 2005
+@
+text
+@d31 1
+a31 1
+/* 
+d33 1
+a33 1
+ * 
+@
+
+
+14.3.6.1
+log
+@merge changes from HEAD aka rel-7-6-4 to the rel-7-6-branch just in case someone peeks a gander or tries to continue/build the branch
+@
+text
+@a0 1
+
+d22 10
+a31 1
+ *
+d33 1
+a33 1
+ *
+d42 2
+d55 1
+a55 2
+
+int loadfont(char *ff)
+@
+
+
+14.2
+log
+@assign copyright and GPL license
+@
+text
+@d4 2
+a5 2
+ * Copyright (c) 2004 United States Government as represented by the
+ * U.S. Army Research Laboratory.
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@d1 21
+a21 1
+/*
+@
+
+
+1.3
+log
+@replace the wrapped config.h block with common.h
+@
+text
+@d80 10
+@
+
+
+1.2
+log
+@obliterate externs.h
+@
+text
+@d20 1
+a20 3
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+@
+
+
+1.1
+log
+@Vast reorganization begins.  Sources moved from top-level directories into src/.
+@
+text
+@a28 1
+#include "externs.h"
+@
+

@@ -1,0 +1,914 @@
+head	14.15;
+access;
+symbols
+	rel-7-10-4:14.12
+	STABLE:14.12.0.2
+	rel-7-10-2:14.11;
+locks; strict;
+comment	@ * @;
+
+
+14.15
+date	2007.09.15.16.23.08;	author brlcad;	state Exp;
+branches;
+next	14.14;
+
+14.14
+date	2007.09.15.03.41.58;	author brlcad;	state Exp;
+branches;
+next	14.13;
+
+14.13
+date	2007.09.14.15.21.06;	author erikgreenwald;	state Exp;
+branches;
+next	14.12;
+
+14.12
+date	2007.08.30.19.15.38;	author erikgreenwald;	state Exp;
+branches;
+next	14.11;
+
+14.11
+date	2007.07.30.18.03.21;	author brlcad;	state Exp;
+branches;
+next	14.10;
+
+14.10
+date	2007.07.10.18.38.08;	author brlcad;	state Exp;
+branches;
+next	14.9;
+
+14.9
+date	2007.07.10.16.17.39;	author brlcad;	state Exp;
+branches;
+next	14.8;
+
+14.8
+date	2007.05.26.01.31.49;	author brlcad;	state Exp;
+branches;
+next	14.7;
+
+14.7
+date	2007.05.20.20.21.16;	author brlcad;	state Exp;
+branches;
+next	14.6;
+
+14.6
+date	2007.05.15.14.20.44;	author d_rossberg;	state Exp;
+branches;
+next	14.5;
+
+14.5
+date	2007.05.14.17.13.59;	author brlcad;	state Exp;
+branches;
+next	14.4;
+
+14.4
+date	2007.05.13.18.51.12;	author brlcad;	state Exp;
+branches;
+next	14.3;
+
+14.3
+date	2007.05.13.07.13.32;	author brlcad;	state Exp;
+branches;
+next	14.2;
+
+14.2
+date	2007.05.12.06.06.19;	author brlcad;	state Exp;
+branches;
+next	14.1;
+
+14.1
+date	2007.05.12.04.28.29;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.15
+log
+@more c89 embracing.  c89 provides string.h for all of the various str*() and mem*() functions, so remove the check for its presence.  there is still likely to be work required for strict c89 conformance for the various bsd strings.h functions that may be in use.
+@
+text
+@/*                     B A C K T R A C E . C
+ * BRL-CAD
+ *
+ * Copyright (c) 2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This library is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@addtogroup bu_log */
+/** @@{ */
+/** @@file backtrace.c
+ *
+ * Extract a backtrace of the current call stack.
+ *
+ * Author -
+ *   Christopher Sean Morrison
+ *
+ * Source -
+ *   BRL-CAD Open Source
+ */
+
+#include "common.h"
+
+/* system headers */
+#include <signal.h>
+#include <stdarg.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <time.h>
+#include <string.h>
+
+#ifdef HAVE_SYS_TIME_H
+#  include <sys/time.h>
+#endif
+
+#ifdef HAVE_SYS_TIMES_H
+#  include <sys/times.h>
+#endif
+
+#ifdef HAVE_SYS_TYPES_H
+#  include <sys/types.h>
+#endif
+
+#ifdef HAVE_UNISTD_H
+#  include <unistd.h>
+#endif
+
+#ifdef HAVE_FCNTL_H
+#  include <fcntl.h>
+#endif
+
+#ifdef HAVE_PROCESS_H
+#  include <process.h>
+#endif
+
+#ifdef HAVE_SYS_SELECT_H
+#  include <sys/select.h>
+#endif
+
+/* common headers */
+#include "bu.h"
+
+
+/* so we don't have to worry as much about stack stomping */
+#define BT_BUFSIZE 4096
+static char buffer[BT_BUFSIZE] = {0};
+
+static pid_t pid = (pid_t)0;
+static int backtrace_done = 0;
+static int interrupt_wait = 0;
+
+/* avoid stack variables for backtrace() */
+static int input[2] = {0,0};
+static int output[2] = {0,0};
+static fd_set fdset;
+static fd_set readset;
+static struct timeval tv;
+static int result;
+static int position;
+static int processing_bt;
+static char c = 0;
+static int warned;
+
+/* avoid stack variables for bu_backtrace() */
+static char *args[4] = { NULL, NULL, NULL, NULL };
+static const char *locate_gdb = NULL;
+
+
+/* SIGCHLD handler for backtrace() */
+static void
+backtrace_sigchld(int signum)
+{
+    backtrace_done = 1;
+    interrupt_wait = 1;
+}
+
+/* SIGINT handler for bu_backtrace() */
+static void
+backtrace_sigint(int signum)
+{
+    interrupt_wait = 1;
+}
+
+
+/* actual guts to bu_backtrace() used to invoke gdb and parse out the
+ * backtrace from gdb's output.
+ */
+static void
+backtrace(char **args, int fd)
+{
+    /* receiving a SIGCHLD signal indicates something happened to a
+     * child process, which should be this backtrace since it is
+     * invoked after a fork() call as the child.
+     */
+#ifdef SIGCHLD
+    signal(SIGCHLD, backtrace_sigchld);
+#endif
+#ifdef SIGINT
+    signal(SIGINT, backtrace_sigint);
+#endif
+
+    if ((pipe(input) == -1) || (pipe(output) == -1)) {
+	perror("unable to open pipe");
+	fflush(stderr);
+	exit(1); /* can't call bu_bomb() */
+    }
+
+    pid = fork();
+    if (pid == 0) {
+	close(0); dup(input[0]); /* set the stdin to the in pipe */
+	close(1); dup(output[1]); /* set the stdout to the out pipe */
+	close(2); dup(output[1]); /* set the stderr to the out pipe */
+
+	execvp(args[0], args); /* invoke debugger */
+	perror("exec failed");
+	fflush(stderr);
+	exit(1); /* can't call bu_bomb() */
+    } else if (pid == (pid_t) -1) {
+	perror("unable to fork");
+	fflush(stderr);
+	exit(1); /* can't call bu_bomb() */
+    }
+
+    FD_ZERO(&fdset);
+    FD_SET(output[0], &fdset);
+
+    write(input[1], "set prompt\n", 12);
+    write(input[1], "set confirm off\n", 16);
+    write(input[1], "set backtrace past-main on\n", 27);
+    write(input[1], "bt full\n", 8);
+    /* can add additional gdb commands here.  output will contain
+     * everything up to the "Detaching from process" statement from
+     * quit.
+     */
+    write(input[1], "quit\n", 5);
+
+    position = 0;
+    processing_bt = 0;
+    memset(buffer, 0, BT_BUFSIZE);
+
+    /* get/print the trace */
+    warned = 0;
+    while (1) {
+	readset = fdset;
+
+	tv.tv_sec = 0;
+	tv.tv_usec = 42;
+
+	result = select(FD_SETSIZE, &readset, NULL, NULL, &tv);
+	if (result == -1) {
+	    break;
+	}
+
+	if ((result > 0) && (FD_ISSET(output[0], &readset))) {
+	    if (read(output[0], &c, 1)) {
+		switch (c) {
+		    case '\n':
+			if (bu_debug & BU_DEBUG_BACKTRACE) {
+			    bu_log("BACKTRACE DEBUG: [%s]\n", buffer);
+			}
+			if (position+1 < BT_BUFSIZE) {
+			    buffer[position++] = c;
+			    buffer[position] = '\0';
+			} else {
+			    position++;
+			}
+			if (strncmp(buffer, "No locals", 9) == 0) {
+			    /* skip it */
+			} else if (strncmp(buffer, "No symbol table", 15) == 0) {
+			    /* skip it */
+			} else if (strncmp(buffer, "Detaching", 9) == 0) {
+			    /* done processing backtrace output */
+			    processing_bt = 0;
+			} else if (processing_bt == 1) {
+			    if ((size_t)write(fd, buffer, strlen(buffer)) != strlen(buffer)) {
+				perror("error writing stack to file");
+				break;
+			    }
+			    if (position > BT_BUFSIZE) {
+				if (write(fd, " [TRIMMED]\n", 11) != 11) {
+				    perror("error writing trim message to file");
+				    break;
+				}
+			    }
+			}
+			position = 0;
+			continue;
+		    case '#':
+			/* once we find a # on the beginning of a
+			 * line, begin keeping track of the output.
+			 * the first #0 backtrace frame (i.e. that for
+			 * the bu_backtrace() call) is not included in
+			 * the output intentionally (because of the
+			 * gdb prompt).
+			 */
+			if (position == 0) {
+			    processing_bt = 1;
+			}
+			break;
+		    default:
+			break;
+		}
+		if (position+1 < BT_BUFSIZE) {
+		    buffer[position++] = c;
+		    buffer[position] = '\0';
+		} else {
+		    if (!warned && (bu_debug & BU_DEBUG_ATTACH)) {
+			bu_log("Warning: debugger output overflow\n");
+			warned = 1;
+		    }
+		    position++;
+		}
+	    }
+	} else if (backtrace_done) {
+	    break;
+	}
+    }
+
+    fflush(stdout);
+    fflush(stderr);
+
+    close(input[0]);
+    close(input[1]);
+    close(output[0]);
+    close(output[1]);
+
+    if (bu_debug & BU_DEBUG_ATTACH) {
+	bu_log("\nBacktrace complete.\nAttach debugger or interrupt to continue...\n");
+    } else {
+#  ifdef HAVE_KILL
+	/* not attaching, so let the parent continue */
+#    ifdef SIGINT
+	kill(getppid(), SIGINT);
+#    endif
+#    ifdef SIGCHLD
+	kill(getppid(), SIGCHLD);
+#    endif
+#  endif
+	sleep(2);
+    }
+
+    exit(0);
+}
+
+
+/**
+ * b u _ b a c k t r a c e
+ *
+ * this routine provides a trace of the call stack to the caller,
+ * generally called either directly, via a signal handler, or through
+ * bu_bomb() with the appropriate bu_debug flags set.
+ *
+ * the routine waits indefinitely (in a spin loop) until a signal
+ * (SIGINT) is received, at which point execution continues, or until
+ * some other signal is received that terminates the application.
+ *
+ * the stack backtrace will be written to the provided 'fp' file
+ * pointer.  it's the caller's responsibility to open and close
+ * that pointer if necessary.  If 'fp' is NULL, stdout will be used.
+ *
+ * returns truthfully if a backtrace was attempted.
+ */
+int
+bu_backtrace(FILE *fp)
+{
+    if (!fp) {
+	fp = stdout;
+    }
+
+    /* make sure the debugger exists */
+    if ((locate_gdb = bu_which("gdb"))) {
+	args[0] = bu_strdup(locate_gdb);
+	if (bu_debug & BU_DEBUG_BACKTRACE) {
+	    bu_log("Found gdb in USER path: %s\n", locate_gdb);
+	}
+    } else if ((locate_gdb = bu_whereis("gdb"))) {
+	args[0] = bu_strdup(locate_gdb);
+	if (bu_debug & BU_DEBUG_BACKTRACE) {
+	    bu_log("Found gdb in SYSTEM path: %s\n", locate_gdb);
+	}
+    } else {
+	if (bu_debug & BU_DEBUG_BACKTRACE) {
+	    bu_log("gdb was NOT found, no backtrace available\n");
+	}
+	return 0;
+    }
+    locate_gdb = NULL;
+
+#ifdef SIGINT
+    signal(SIGINT, backtrace_sigint);
+#endif
+
+    snprintf(buffer, BT_BUFSIZE, "%d", bu_process_id());
+
+    args[1] = (char*) bu_argv0();
+    args[2] = buffer;
+
+    if (bu_debug & BU_DEBUG_BACKTRACE) {
+	bu_log("CALL STACK BACKTRACE REQUESTED\n");
+	bu_log("Invoking Debugger: %s %s %s\n\n", args[0], args[1], args[2]);
+    }
+
+    /* fork so that trace symbols stop _here_ instead of in some libc
+     * routine (e.g., in wait(2)).
+     */
+    pid = fork();
+    if (pid == 0) {
+	/* child */
+	backtrace(args, fileno(fp));
+	bu_free(args[0], "gdb strdup");
+	args[0] = NULL;
+	exit(0);
+    } else if (pid == (pid_t) -1) {
+	/* failure */
+	bu_free(args[0], "gdb strdup");
+	args[0] = NULL;
+	perror("unable to fork for gdb");
+	return 0;
+    }
+    /* parent */
+    if (args[0]) {
+	bu_free(args[0], "gdb strdup");
+	args[0] = NULL;
+    }
+    fflush(fp);
+
+    /* could probably do something better than this to avoid hanging
+     * indefinitely.  keeps the trace clean, though, and allows for a
+     * debugger to be attached interactively if needed.
+     */
+    interrupt_wait = 0;
+#ifdef HAVE_KILL
+    {
+	struct timeval start, end;
+	gettimeofday(&start, NULL);
+	gettimeofday(&end, NULL);
+	while ((interrupt_wait == 0) && (end.tv_sec - start.tv_sec < 60)) {
+	    /* do nothing, wait for debugger to attach but don't wait too long */;
+	    gettimeofday(&end, NULL);
+	    sleep(1);
+	}
+    }
+#else
+    /* FIXME: need something better here for win32 */
+    sleep(10);
+#endif
+
+    if (bu_debug & BU_DEBUG_BACKTRACE) {
+	bu_log("\nContinuing.\n");
+    }
+
+#ifdef SIGINT
+    signal(SIGINT, SIG_DFL);
+#endif
+#ifdef SIGCHLD
+    signal(SIGCHLD, SIG_DFL);
+#endif
+
+    fflush(fp);
+
+    return 1;
+}
+
+
+#ifdef TEST_BACKTRACE
+int bar(char **argv)
+{
+    int moo = 5;
+    bu_backtrace(NULL);
+    return 0;
+}
+
+
+int foo(char **argv)
+{
+    return bar(argv);
+}
+
+
+int
+main(int argc, char *argv[])
+{
+    if (argc > 1) {
+	bu_bomb("this is a test\n");
+    } else {
+	(void)foo(argv);
+    }
+    return 0;
+}
+#endif  /* TEST_BACKTRACE */
+
+/** @@} */
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+14.14
+log
+@no longer need to conditionally check for time.h (or stddef.h) prior to use per c89
+@
+text
+@d41 1
+d44 1
+a44 1
+#   include <sys/time.h>
+d48 1
+a48 1
+#   include <sys/times.h>
+d52 1
+a52 1
+#   include <sys/types.h>
+d56 1
+a56 1
+#   include <unistd.h>
+d60 1
+a60 1
+#   include <fcntl.h>
+d64 1
+a64 1
+#   include <process.h>
+d68 1
+a68 5
+#   include <sys/select.h>
+#endif
+
+#ifdef HAVE_STRING_H
+#   include <string.h>
+@
+
+
+14.13
+log
+@removed trailing whitespace
+@
+text
+@d40 1
+a53 4
+#ifdef HAVE_TIME_H
+#   include <time.h>
+#endif
+
+@
+
+
+14.12
+log
+@fixed signed/unsigned comparison
+@
+text
+@d221 1
+a221 1
+			    }				
+@
+
+
+14.11
+log
+@increase the buffer size which is useful when gdb prints out stack variables, but instead of dumping the overflow to stderr, write it to the log with a note that it was trimmed.  only given the warning if we're debugging.
+@
+text
+@d212 1
+a212 1
+			    if (write(fd, buffer, strlen(buffer)) != strlen(buffer)) {
+@
+
+
+14.10
+log
+@flush the output before sending the signal so that the parent should be guaranteed to have something to read.  this should hopefully fix a race condition where the child would never get the signal to continue.  fixed </> logic bug so we now actually wait a minute instead of immediately continuing.
+@
+text
+@d82 1
+a82 1
+#define BT_BUFSIZE 2048
+d99 1
+d179 1
+d201 2
+d214 1
+d216 6
+d244 5
+a248 4
+		    bu_log("Warning: debugger output overflow\n");
+		    bu_log("%s\n", buffer);
+		    processing_bt = 0;
+		    position = 0;
+@
+
+
+14.9
+log
+@hrm, for some reason the child isn't getting the signal so regardless, don't wait indefinitely for the child to send the signal.  only wait up to a minute for a debugger to attach.
+@
+text
+@a130 2
+    backtrace_done = 0;
+
+d134 3
+d244 8
+d257 1
+d259 4
+d264 1
+a266 7
+    fflush(stdout);
+    fflush(stderr);
+
+    close(input[0]);
+    close(input[1]);
+    close(output[0]);
+    close(output[1]);
+d279 2
+a280 3
+ * (SIGINT or SIGCONT) is received, at which point execution
+ * continues, or until some other signal is received that terminates
+ * the application.
+d314 1
+d316 2
+d362 1
+a362 1
+	while ((interrupt_wait == 0) && (end.tv_sec - start.tv_sec > 60)) {
+d377 1
+d379 5
+a383 1
+    /*    signal(SIGCONT, SIG_DFL); */
+@
+
+
+14.8
+log
+@utilize BU_DEBUG_ATTACH to allow for run-time attaching a debugger to apps that will potentially crash.  this sends the app looping until a signal is received, or a variable is manually set in the debugger.
+@
+text
+@d348 9
+a356 2
+    while (interrupt_wait == 0) {
+	/* do nothing, wait for debugger to attach */;
+@
+
+
+14.7
+log
+@change bu_argv0() to not take any parameters, preferring instead that apps only use bu_setprogname(), passing the full argv[0].
+@
+text
+@a136 5
+#ifdef HAVE_KILL
+    /* halt the parent until we are done */
+    //    kill(getppid(), SIGSTOP);
+#endif
+
+d243 3
+a245 3
+#if 0
+    bu_log("\nBacktrace complete.\nAttach debugger or interrupt to continue...\n");
+#else
+d247 2
+a248 1
+    kill(getppid(), SIGINT);
+d250 4
+a253 1
+#endif
+d349 1
+a349 1
+	/* do nothing */;
+d351 5
+d359 1
+a359 4
+#else
+    /* FIXME: need something better here for win32 */
+    sleep(2);
+#endif
+d361 1
+a361 1
+    //    signal(SIGCONT, SIG_DFL);
+@
+
+
+14.6
+log
+@conditional header inclusion
+no SIGCHLD in MS Windows
+@
+text
+@d311 1
+a311 1
+    args[1] = (char*) bu_argv0(NULL);
+@
+
+
+14.5
+log
+@avoid new stack/heap variables since these routines need to be callable during a crash and out-of-memory situations.
+@
+text
+@d41 3
+a43 3
+#include <sys/time.h>
+#include <sys/times.h>
+#include <sys/types.h>
+d45 3
+a47 2
+#include <time.h>
+#include <unistd.h>
+d49 27
+a75 2
+#include <sys/select.h>
+#include <string.h>
+d132 2
+d135 1
+@
+
+
+14.4
+log
+@whereis/which now just take one parameter, the command name, returning the matched result.  no longer need to free anything.
+@
+text
+@d59 1
+d63 15
+a100 10
+    pid_t pid = (pid_t)0;
+    int input[2] = {0,0};
+    int output[2] = {0,0};
+    fd_set fdset;
+    fd_set readset;
+    struct timeval tv;
+    int result, index;
+    int processing_bt;
+    char c = 0;
+
+d148 1
+a148 1
+    index = 0;
+d171 3
+a173 3
+			if (index+1 < BT_BUFSIZE) {
+			    buffer[index++] = c;
+			    buffer[index] = '\0';
+d187 1
+a187 1
+			index = 0;
+d197 1
+a197 1
+			if (index == 0) {
+d204 3
+a206 3
+		if (index+1 < BT_BUFSIZE) {
+		    buffer[index++] = c;
+		    buffer[index] = '\0';
+d211 1
+a211 1
+		    index = 0;
+a255 8
+    pid_t pid = (pid_t)0;
+    char process[16] = {0};
+    char *args[4] = { NULL, NULL, NULL, NULL };
+    int status = 0;
+    const char *locate_gdb = NULL;
+    const char *program = bu_argv0(NULL);
+    int fd;
+
+a258 1
+    fd = fileno(fp);
+d280 1
+a280 1
+    sprintf(process, "%d", bu_process_id());
+d282 2
+a283 2
+    args[1] = (char*) program;
+    args[2] = process;
+d296 1
+a296 1
+	backtrace(args, fd);
+@
+
+
+14.3
+log
+@flush before forking, else we end up with duplicates when both child and parent flush.  free a few overlooked allocations.  turn off some of the optional signal stuff for now.
+@
+text
+@d254 1
+a254 1
+    char *locate_gdb = NULL;
+d264 2
+a265 2
+    if (bu_which(&locate_gdb, 1, "gdb") == 1) {
+	args[0] = bu_strdup("gdb");
+d269 1
+a269 1
+    } else if (bu_whereis(&locate_gdb, 1, "gdb") == 1) {
+d280 1
+a280 4
+    if (locate_gdb) {
+	bu_free(locate_gdb, "deallocate locate_gdb");
+	locate_gdb = NULL;
+    }
+@
+
+
+14.2
+log
+@do something if we don't have kill()
+@
+text
+@d20 2
+d24 1
+a24 1
+ * Print a backtrace of the current call stack.
+d68 1
+d102 5
+d110 1
+a110 1
+	exit(0); /* can't call bu_bomb() */
+d122 1
+a122 1
+	exit(0); /* can't call bu_bomb() */
+d126 1
+a126 1
+	exit(0); /* can't call bu_bomb() */
+d237 3
+a239 2
+ * (SIGINT) is received, at which point execution continues, or until
+ * some other signal is received that terminates the application.
+d256 1
+d261 1
+d267 1
+a267 1
+	    bu_log("Found gdb in user path: %s\n", locate_gdb);
+a268 1
+	bu_free(locate_gdb, "deallocate locate_gdb");
+d272 1
+a272 1
+	    bu_log("Found gdb in system path: %s\n", locate_gdb);
+a273 1
+	bu_free(locate_gdb, "deallocate locate_gdb");
+d280 4
+d286 1
+a286 2
+    signal(SIGCONT, backtrace_sigint);
+    sprintf(process, "%u", (unsigned int) getpid());
+d302 1
+a302 1
+	backtrace(args, fileno(fp));
+d304 1
+d309 1
+d314 5
+a318 1
+    bu_free(args[0], "gdb strdup");
+d329 3
+d337 2
+a338 2
+    signal(SIGCONT, SIG_DFL);
+    bu_log("\nContinuing.\n");
+d343 1
+a347 2
+    char *argv0 = bu_strdup(argv[0]);
+
+a348 2
+
+    bu_free(argv0, "argv0");
+a366 1
+
+d369 3
+a371 1
+#endif
+@
+
+
+14.1
+log
+@Initial support for extracting a stack backtrace during run-time from the current execution environment.  Hooked into bu_bomb() for starters, which is just set up to write the backtrace out to a file for now.
+@
+text
+@d208 1
+d210 1
+d307 1
+d311 4
+@
+

@@ -1,0 +1,457 @@
+head	14.12;
+access;
+symbols
+	rel-7-10-4:14.11
+	STABLE:14.11.0.2
+	stable-branch:14.4
+	rel-7-10-2:14.11
+	rel-7-10-0:14.10
+	rel-7-8-4:14.7
+	rel-7-8-2:14.7
+	rel-7-8-0:14.7
+	trimnurbs-branch:14.7.0.2
+	help:14.7
+	temp_tag:14.5
+	bobWinPort-20051223-freeze:14.4
+	postmerge-20051223-bobWinPort:14.5
+	premerge-20051223-bobWinPort:14.5
+	rel-7-6-6:14.5
+	rel-7-6-4:14.5
+	rel-7-6-2:14.4
+	rel-7-6-branch:14.4.0.6
+	rel-7-6-0:14.4
+	rel-7-4-2:14.4
+	rel-7-4-branch:14.4.0.4
+	bobWinPort:14.4.0.2
+	rel-7-4-0:14.4
+	rel-7-2-6:14.4
+	rel-7-2-4:14.4
+	rel-7-2-2:14.4
+	rel-7-2-0:14.4
+	rel-7-0-4:14.3
+	rel-7-0-2:14.3
+	rel-7-0-1:14.3
+	opensource-post:14.3
+	opensource-pre:1.1
+	rel-7-0-branch:1.1.0.2
+	rel-7-0:1.1;
+locks; strict;
+comment	@ * @;
+
+
+14.12
+date	2007.12.16.15.59.37;	author brlcad;	state Exp;
+branches;
+next	14.11;
+
+14.11
+date	2007.05.14.21.04.30;	author brlcad;	state Exp;
+branches;
+next	14.10;
+
+14.10
+date	2007.01.27.01.41.32;	author brlcad;	state Exp;
+branches;
+next	14.9;
+
+14.9
+date	2007.01.23.01.13.25;	author brlcad;	state Exp;
+branches;
+next	14.8;
+
+14.8
+date	2007.01.20.14.36.43;	author brlcad;	state Exp;
+branches;
+next	14.7;
+
+14.7
+date	2006.02.27.05.22.22;	author brlcad;	state Exp;
+branches;
+next	14.6;
+
+14.6
+date	2006.01.18.06.46.13;	author brlcad;	state Exp;
+branches;
+next	14.5;
+
+14.5
+date	2005.10.23.04.44.29;	author brlcad;	state Exp;
+branches;
+next	14.4;
+
+14.4
+date	2005.01.30.20.30.18;	author brlcad;	state Exp;
+branches
+	14.4.6.1;
+next	14.3;
+
+14.3
+date	2004.12.18.06.50.50;	author morrison;	state Exp;
+branches;
+next	14.2;
+
+14.2
+date	2004.12.18.02.38.09;	author morrison;	state Exp;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.12;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.09.28.13.36.38;	author justin;	state Exp;
+branches;
+next	;
+
+14.4.6.1
+date	2005.11.13.13.46.13;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.12
+log
+@convert all bzero calls to memset
+@
+text
+@/*                       B O T - R A W . C
+ * BRL-CAD
+ *
+ * Copyright (c) 2004-2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ *
+ */
+/** @@file bot-raw.c
+ *
+ */
+#include "common.h"
+
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+
+#include "machine.h"
+#include "vmath.h"
+#include "nmg.h"
+#include "rtgeom.h"
+#include "bu.h"
+#include "raytrace.h"
+#include "wdb.h"
+
+
+void write_bot(struct rt_bot_internal *bot, FILE *fh, char *name)
+{
+    int num_vertices;
+    fastf_t *vertices;
+    int num_faces, *faces, i, n;
+    char string[64];
+    float v;
+
+    num_vertices = bot->num_vertices;
+    vertices = bot->vertices;
+    num_faces = bot->num_faces;
+    faces = bot->faces;
+
+
+    printf ("name: %s, verts: %d, faces: %d\n", name, num_vertices, num_faces);
+
+    /* Name */
+    memset(string, 0, 64);
+    memcpy (string, name, strlen(name));
+    fwrite (string, 64, 1, fh);
+
+    /* Vertices */
+    fwrite (&num_vertices, sizeof(int), 1, fh);
+    for (i = 0; i < num_vertices; i++)
+      for (n = 0; n < 3; n++) {
+	v = (float)vertices[3*i+n] * 0.001;
+	fwrite ( &v , sizeof(float), 1, fh);
+      }
+
+    /* Faces */
+    fwrite (&num_faces, sizeof(int), 1, fh);
+    for (i = 0; i < num_faces; i++)
+      for (n = 0; n < 3; n++)
+	fwrite (&faces[3*i+n], sizeof(int), 1, fh);
+}
+
+
+/*
+ *	M A I N
+ *
+ *	Call parse_args to handle command line arguments first, then
+ *	process input.
+ */
+int main(int ac, char *av[])
+{
+    char idbuf[132];		/* First ID record info */
+    struct rt_db_internal intern;
+    struct rt_bot_internal *bot;
+    struct rt_i *rtip;
+    struct directory *dp;
+
+
+    if (ac < 2) {
+	fprintf(stderr, "usage: bot-raw geom.g [file.raw]\n");
+	return 1;
+    }
+
+    RT_INIT_DB_INTERNAL(&intern);
+
+    printf("geometry file: %s\n", av[1]);
+
+
+    if ((rtip=rt_dirbuild(av[1], idbuf, sizeof(idbuf)))==RTI_NULL){
+	fprintf(stderr,"rtexample: rt_dirbuild failure\n");
+	return 2;
+    }
+
+
+    {
+	mat_t mat;
+	int i;
+	FILE *fh;
+
+
+	fh = fopen(av[2], "w");
+
+	MAT_IDN(mat);
+
+	/* dump all the bots */
+	FOR_ALL_DIRECTORY_START(dp, rtip->rti_dbip)
+
+	/* we only dump BOT primitives, so skip some obvious exceptions */
+	if (dp->d_major_type != DB5_MAJORTYPE_BRLCAD) continue;
+	if (dp->d_flags & DIR_COMB) continue;
+
+	/* get the internal form */
+	i=rt_db_get_internal(&intern, dp, rtip->rti_dbip, mat,&rt_uniresource);
+
+	if (i < 0) {
+	    fprintf(stderr, "rt_get_internal failure %d on %s\n", i, dp->d_namep);
+	    continue;
+	}
+
+	if (i != ID_BOT) {
+	    continue;
+	}
+
+	bot = (struct rt_bot_internal *)intern.idb_ptr;
+
+	write_bot(bot, fh, dp->d_namep);
+
+	FOR_ALL_DIRECTORY_END
+    }
+    return 0;
+}
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+14.11
+log
+@gah, pick up where someone left off over half a decade ago.  finish updating all of the compat4 symbols throughout the code to their new names.  finally. it's done.  make the deprecated headers obsolete -- make compat4.h obsolete too so we can be sure that all of the changes are now picked up by the compiler as errors.  this change will likely impact muves if they've similarly not updated to the new names too, so the headers are kept with a #warning for now (though will likely disappear down the road entirely).
+@
+text
+@d56 1
+a56 1
+    memset (string, 0, 64);
+@
+
+
+14.10
+log
+@ws. lots and lots of ws.  see sh/ws.sh for details (cases 'abcdeg').
+@
+text
+@d115 1
+a115 1
+	mat_idn(mat);
+@
+
+
+14.9
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@d64 2
+a65 2
+        v = (float)vertices[3*i+n] * 0.001;
+        fwrite ( &v , sizeof(float), 1, fh);
+d72 1
+a72 1
+        fwrite (&faces[3*i+n], sizeof(int), 1, fh);
+a100 1
+
+d113 1
+a113 1
+        fh = fopen(av[2], "w");
+d120 2
+a121 2
+        /* we only dump BOT primitives, so skip some obvious exceptions */
+        if (dp->d_major_type != DB5_MAJORTYPE_BRLCAD) continue;
+@
+
+
+14.8
+log
+@update copyright to 2007
+@
+text
+@d8 2
+a9 3
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+d14 1
+a14 1
+ * General Public License for more details.
+d16 2
+a17 2
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+@
+
+
+14.7
+log
+@a variety of warning quellings, missing stdlib, calls to exit with a negative, ws.
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 2004-2006 United States Government as represented by
+@
+
+
+14.6
+log
+@update copyright to 2006
+@
+text
+@d25 1
+d27 1
+d30 1
+d94 1
+a94 1
+	exit(-1);
+d105 1
+a105 1
+	exit(2);
+@
+
+
+14.5
+log
+@trailing ws
+@
+text
+@d4 1
+a4 1
+ * Copyright (C) 2004-2005 United States Government as represented by
+@
+
+
+14.4
+log
+@update copyright to 2005
+@
+text
+@d88 1
+a88 1
+	
+d130 1
+a130 1
+	
+d138 1
+a138 1
+	    
+@
+
+
+14.4.6.1
+log
+@merge changes from HEAD aka rel-7-6-4 to the rel-7-6-branch just in case someone peeks a gander or tries to continue/build the branch
+@
+text
+@d88 1
+a88 1
+
+d130 1
+a130 1
+
+d138 1
+a138 1
+
+@
+
+
+14.3
+log
+@break up the doxygen marker to appease emacs M-x indent-region'ing
+@
+text
+@d4 2
+a5 2
+ * Copyright (c) 2004 United States Government as represented by the
+ * U.S. Army Research Laboratory.
+@
+
+
+14.2
+log
+@acquire copyright and GPL license
+@
+text
+@d21 2
+a22 1
+ **//** @@file bot-raw.c
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@d1 24
+@
+
+
+1.1
+log
+@added a raw dump converter for bringing large stuff into blender easier
+@
+text
+@d118 10
+@
+

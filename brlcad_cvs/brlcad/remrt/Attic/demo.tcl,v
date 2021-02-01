@@ -1,0 +1,1028 @@
+head	1.24;
+access;
+symbols
+	rel-4-5:1.20
+	ctj-4-5-post:1.5
+	ctj-4-5-pre:1.5;
+locks; strict;
+comment	@# @;
+
+
+1.24
+date	98.11.10.04.54.43;	author mike;	state dead;
+branches;
+next	1.23;
+
+1.23
+date	98.06.03.04.33.57;	author mike;	state Exp;
+branches;
+next	1.22;
+
+1.22
+date	98.04.29.03.30.54;	author mike;	state Exp;
+branches;
+next	1.21;
+
+1.21
+date	98.04.08.21.06.57;	author jra;	state Exp;
+branches;
+next	1.20;
+
+1.20
+date	97.12.31.07.49.43;	author mike;	state Exp;
+branches;
+next	1.19;
+
+1.19
+date	97.12.16.05.55.23;	author mike;	state Exp;
+branches;
+next	1.18;
+
+1.18
+date	97.12.04.03.15.07;	author mike;	state Exp;
+branches;
+next	1.17;
+
+1.17
+date	97.12.03.08.00.51;	author mike;	state Exp;
+branches;
+next	1.16;
+
+1.16
+date	97.11.21.05.33.40;	author mike;	state Exp;
+branches;
+next	1.15;
+
+1.15
+date	97.11.20.22.41.03;	author mike;	state Exp;
+branches;
+next	1.14;
+
+1.14
+date	97.08.26.08.24.28;	author mike;	state Exp;
+branches;
+next	1.13;
+
+1.13
+date	97.08.26.06.03.13;	author mike;	state Exp;
+branches;
+next	1.12;
+
+1.12
+date	97.08.26.03.19.26;	author mike;	state Exp;
+branches;
+next	1.11;
+
+1.11
+date	97.08.26.00.46.05;	author mike;	state Exp;
+branches;
+next	1.10;
+
+1.10
+date	97.08.22.22.28.28;	author mike;	state Exp;
+branches;
+next	1.9;
+
+1.9
+date	97.08.22.21.48.31;	author mike;	state Exp;
+branches;
+next	1.8;
+
+1.8
+date	97.08.19.07.27.37;	author mike;	state Exp;
+branches;
+next	1.7;
+
+1.7
+date	97.07.30.06.05.55;	author mike;	state Exp;
+branches;
+next	1.6;
+
+1.6
+date	97.06.17.19.29.53;	author mike;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	97.05.28.03.33.47;	author mike;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	97.05.23.20.50.45;	author mike;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	97.05.22.21.01.33;	author mike;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	97.05.22.05.48.09;	author mike;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	97.05.22.05.40.47;	author mike;	state Exp;
+branches;
+next	;
+
+
+desc
+@GUI to manage running a real-time ray-tracer demo
+@
+
+
+1.24
+log
+@Moved real-time ray-tracer over into "SWISS" directory
+@
+text
+@#!/m/cad/.libtk.6d/wish demo.tcl
+#!/bin/sh
+# The next line restarts the shell script using best WISH in $PATH
+# exec wish "$0" "$@@"
+# demo.tcl
+#	setenv LD_LIBRARY_PATH /usr/lib/X11:/usr/X11/lib
+# A GUI for starting up a demonstration of the real-time ray-tracer.
+# To be run from the shell, on the machine to run MGED on.
+#  starts rtsync, mged, and various rtnode's.
+#  -Mike Muuss, ARL, May 97.
+
+puts "running demo.tcl"
+##option add *background #ffffff
+##. configure -background #ffffff
+
+tk appname demo
+
+set hostname [exec hostname]
+set mged_is_alive	0
+
+# Create main interaction widget
+frame .mbar -relief raised -bd 2 ; pack .mbar -side top
+frame .logo_fr ; pack .logo_fr -side top
+frame .title_fr ; pack .title_fr -side top
+frame .fbserv_fr -relief ridge -bd 2 ; pack .fbserv_fr -side top
+frame .mged_fr  -relief ridge -bd 2 ; pack .mged_fr -side top
+frame .rtsync_fr -relief ridge -bd 2 ; pack .rtsync_fr -side top
+frame .rtnode_fr -relief ridge -bd 2 ; pack .rtnode_fr -side top
+frame .button_fr ; pack .button_fr -side top
+
+# Menu bar, acros very top
+menubutton .mbar.file -text "File" -menu .mbar.file.menu
+pack .mbar.file -side left -in .mbar -expand 1 -fill x
+menu .mbar.file.menu
+.mbar.file.menu add command -label "Exit" -command "exit"
+
+# Title, across the top
+frame .words_fr
+image create photo .eagle -file "/m/cad/remrt/eagleCAD.gif"
+label .logo -image .eagle
+label .title1 -text "A Demonstration of:"
+label .title2 -text "The Real-Time Ray-Tracer"
+label .title3 -text "(A SIMTECH Project)"
+pack .title1 .title2 .title3 -side top -in .words_fr
+pack .logo .words_fr -side left -in .title_fr
+
+# Set up FBSERV parameters
+if { [catch { set fbserv_host $env(FB_FILE) }] }  {
+	# Environment variable not set, default to this machine
+	set fbserv_host ${hostname}:0
+}
+set fbserv_resolution 256
+frame .fb1_fr
+label .fb_title -text "FBSERV host:"
+entry .fb_host -width 32 -relief sunken -bd 2 -textvariable fbserv_host
+pack .fb_title .fb_host -side left -in .fb1_fr
+
+frame .fb2_fr
+label .res_title -text "FBSERV resolution:"
+entry .res_value -width 4 -relief sunken -bd 2 -textvariable fbserv_resolution
+pack .res_title .res_value -side left -in .fb2_fr
+pack .fb1_fr .fb2_fr -side top -in .fbserv_fr
+
+# Set up MGED parameters
+set database_file ../.db.6d/world.g
+set mged_treetops all.g
+frame .mged1_fr
+label .mged1_title -text "MGED database:"
+entry .mged_db -width 32 -relief sunken -bd 2 -textvariable database_file
+pack .mged1_title .mged_db -side left -in .mged1_fr
+
+frame .mged2_fr
+label .mged2_title -text "MGED treetops:"
+entry .mged2_treetops -width 32 -relief sunken -bd 2 -textvariable mged_treetops
+button .mged2_button -text "SENSE" -command mged_sense
+pack .mged2_title .mged2_treetops -side left -in .mged2_fr
+pack .mged1_fr .mged2_fr .mged2_button -side top -in .mged_fr
+
+proc mged_sense {} {
+	global database_file
+	global mged_treetops
+	global mged_is_alive
+
+	# Assumes MGED is running on local display, opened with "openw" cmd.
+	puts "mged_sense"
+	if { [catch { send mged echo NIL } status] } {
+		puts "send to MGED failed, status=$status"
+		puts "MGED's window needs to be opened with 'openw' command."
+		return
+	}
+	set database_file [send mged "opendb"]
+	set mged_treetops [send mged "who"]
+	set mged_is_alive 1
+}
+
+# Select machine to run RTSYNC on
+set rtsync_host $hostname
+set rtsync_port 4446
+frame .sync1_fr
+label .rtsync_title -text "RTSYNC host:"
+entry .rtsync_host -width 24 -relief sunken -bd 2 -textvariable rtsync_host
+pack .rtsync_title .rtsync_host -side left -in .sync1_fr
+
+frame .sync2_fr
+label .sync2_title -text "RTSYNC port:"
+entry .sync2_port -width 4 -relief sunken -bd 2 -textvariable rtsync_port
+pack .sync2_title .sync2_port -side left -in .sync2_fr
+
+button .rtsync_button -text "START" -command start_rtsync
+button .rtsync_button2 -text "LINK TO MGED" -command start_vrmgr
+pack .sync1_fr .sync2_fr .rtsync_button .rtsync_button2 -side top -in .rtsync_fr
+
+proc start_rtsync {} {
+	global rtsync_host
+	global fbserv_resolution
+	global fbserv_host
+	global database_file
+	global mged_treetops
+
+	puts "start_rtsync"
+
+	# Test access to framebuffer by clearing it.
+	# On fail will pop-up an error window and abort this func.
+	catch { exec fbclear -F$fbserv_host 0 200 0 } code
+	puts "exec FBCLEAR result = $code"
+
+	set code "!error?"
+	catch {
+		exec ssh $rtsync_host \
+		setenv cadroot /m/cad ";" \
+		setenv TCL_LIBRARY {$cadroot/libtcl/library} ";" \
+		setenv TK_LIBRARY {$cadroot/libtk/library} ";" \
+		/m/cad/.remrt.6d/rtsync \
+		-s$fbserv_resolution \
+		-F$fbserv_host \
+		$database_file $mged_treetops \
+		&
+	} code
+	puts "exec RTSYNC result = $code"
+}
+
+proc start_vrmgr {} {
+	global rtsync_host
+	global mged_is_alive
+
+	if { [catch { send mged vrmgr $rtsync_host master } status] } {
+		puts "send to MGED failed, status=$status"
+		puts "MGED's window needs to be opened with 'openw' command."
+		return
+	}
+	set mged_is_alive 1
+}
+
+# Select machines to run RTNODE on
+label .rtnode_title -text "RTNODE hosts:"
+pack .rtnode_title -side top -in .rtnode_fr
+
+proc server_sense {host} {
+	global nodes
+	global	fds
+	global status
+
+	if { $fds($host) == "dead" } continue
+	puts "Sensing $host"
+	set code "!error?"
+	if { [ catch {
+		puts $fds($host) "status"
+		flush $fds($host)
+	} code ] } {
+		# error condition on write
+		puts "$host error $code"
+
+		close $fds($host)
+		set fds($host) "dead"
+		set status($host) "$host -died-"
+		return
+	}
+	if { [gets $fds($host) status($host)] <= 0 } {
+		puts "EOF from $host"
+		close $fds($host)
+		set fds($host) "dead"
+		set status($host) "$host -died-"
+		set code "eof"
+		return
+	}
+}
+
+proc sense_servers {} {
+	global nodes
+	global	fds
+	global status
+
+# XXX to conquer latency of computing uptime, should really
+# XXX run this loop twice.  One to send the commands,
+# XXX a second time to read the replies.
+	# loop through list of nodes selected, starting each one.
+	set j [array startsearch nodes]
+	while { [array anymore nodes $j] } {
+		set host [array nextelement nodes $j]
+		if { $fds($host) == "dead" } continue
+		server_sense $host
+		##.title_$shost configure -text "$status($host)"
+	}
+	array donesearch nodes $j
+}
+
+# Only attempt reconnection to nodes which are presently not connected.
+proc reconnect {} {
+	global nodes
+	global	fds
+	global status
+
+	set j [array startsearch nodes]
+	while { [array anymore nodes $j] } {
+		set host [array nextelement nodes $j]
+		if { $fds($host) != "dead" }  continue
+
+		puts "Connecting to $host"
+		set code "!error?"
+		if { [ catch { exec host-up-brief.sh $host } code ] }  {
+			set fds($host) dead
+			set status($host) "$host dead (ping failed)"
+			puts "  $host : ping failed"
+			continue
+		}
+		if { [ catch { set fds($host) [socket $host 5353] } code ] }  {
+			set fds($host) dead
+			set status($host) "$host dead (ping ok, connect failed)"
+			puts "  $host : ping OK, $code"
+			continue
+		}
+		# fds($host) is now set non-dead, to the actual fd.
+		# establish per-connection state
+
+		server_sense $host
+	}
+	array donesearch nodes $j
+}
+
+proc register {informal_name formalname} {
+	global nodes
+	global	fds
+	global status
+
+	# Establish connection-invarient state
+	set nodes($formalname) 0
+	set fds($formalname) "dead"
+	set status($formalname) "$formalname : pre-natal"
+
+	frame .fr_$informal_name
+	checkbutton .button_$informal_name -variable nodes($formalname)
+	label .title_$informal_name -textvariable status($formalname)
+	pack .button_$informal_name .title_$informal_name -side left -in .fr_$informal_name
+	pack .fr_$informal_name -side top -in .rtnode_fr
+}
+
+frame .button1_fr
+frame .button2_fr
+button .rtnode_button -text "Start Checked NODES" -command {start_nodes 0}
+button .rtnode_allbut -text "Start All NODES" -command {start_nodes 1}
+pack .rtnode_button .rtnode_allbut -side left -in .button1_fr
+button .sense_button -text "Re-SENSE" -command sense_servers
+button .reconnect_button -text "RECONNECT" -command reconnect
+button .restart_button -text "(Restart RTMON)" -command restart_rtmon
+pack .sense_button .reconnect_button .restart_button -side left -in .button2_fr
+pack .button1_fr .button2_fr -side top -in .button_fr
+
+proc restart_rtmon {} {
+	global nodes
+	global	fds
+	global status
+
+	puts "restart_rtmon -- all RTSYNC processes had better be dead first."
+	# loop through list of nodes selected, starting each one selected.
+	set j [array startsearch nodes]
+	while { [array anymore nodes $j] } {
+		set host [array nextelement nodes $j]
+		if { $fds($host) == "dead" }  continue
+
+		puts "restarting $host"
+		catch { puts $fds($host) "restart"; flush $fds($host); close $fds($host) }
+
+		set fds($host) "dead"
+		set status($host) "$host -restarted-"
+		set nodes($host) 0
+	}
+	array donesearch nodes $j
+	puts "restart_rtmon finished"
+}
+
+proc start_nodes {all} {
+	global rtsync_host
+	global rtsync_port
+	global nodes
+	global	fds
+	global status
+
+	puts "start_nodes $all"
+	# loop through list of nodes selected, starting each one selected.
+	set j [array startsearch nodes]
+	while { [array anymore nodes $j] } {
+		set host [array nextelement nodes $j]
+		if { $fds($host) == "dead" }  continue
+		if { $all == 0 && $nodes($host) == 0 }  continue
+		puts "Starting rtnode on $host"
+		set code "!error?"
+		if { [ catch {
+			puts $fds($host) "rtnode $rtsync_host $rtsync_port"
+			flush $fds($host)
+		} code ] } {
+			# error condition on write
+			puts "$host error $code"
+
+			close $fds($host)
+			set fds($host) "dead"
+			set status($host) "$host -died-"
+			set nodes($host) 0
+			continue
+		}
+		if { [gets $fds($host) reply] <= 0 } {
+			puts "EOF from $host"
+			close $fds($host)
+			set fds($host) "dead"
+			set status($host) "$host -died-"
+			set nodes($host) 0
+			continue
+		}
+		# First word should be OK or FAIL, 2nd word is path.
+		if { [lindex $reply 0] != "OK" }  {
+			puts "$host $reply"
+			set status($host) "$host -can't-exec-"
+			set nodes($host) 0
+			continue
+		}
+		set nodes($host) 0
+	}
+	array donesearch nodes $j
+	puts "start_nodes finished"
+}
+
+# main()
+
+puts "Running .demorc"
+# This file should contain lines of the form
+# register "vapor" "vapor-uni0.arl.mil"
+source ".demorc"
+
+# Automatically try to contact all the registered servers
+puts "Connecting to registered servers"
+reconnect
+
+puts "demo.tcl done"
+
+
+## Todo:  send change directory command.
+##  Maybe give a sequence of 'em.
+# how about a "re-read 'register' list cmd, by grepping through tcl src.
+@
+
+
+1.23
+log
+@To bypass interminable timeouts waiting for connections to dead hosts,
+added check via new "host-up-brief.sh" script
+@
+text
+@@
+
+
+1.22
+log
+@Added "Start All Nodes" button.
+@
+text
+@d220 6
+d228 2
+a229 2
+			set status($host) "$host not-responding"
+			puts "  $host : $code"
+@
+
+
+1.21
+log
+@New path
+@
+text
+@d253 3
+a255 2
+button .rtnode_button -text "Start Checked NODES" -command start_nodes
+pack .rtnode_button -side left -in .button1_fr
+d285 1
+a285 1
+proc start_nodes {} {
+d292 1
+a292 1
+	puts "start_nodes"
+d298 1
+a298 1
+		if { $nodes($host) == 0 }  continue
+@
+
+
+1.20
+log
+@Don't use FIND command on RTMON any more, that's done by RTNODE
+dynamically at runtime.
+Therefore, don't keep db_path() array.
+@
+text
+@d1 1
+a1 1
+#!/m/cad/.tk.6d/wish demo.tcl
+@
+
+
+1.19
+log
+@Moved the host registration outboard to a dot file.
+@
+text
+@a157 43
+
+proc find_db {} {
+	global nodes
+	global	fds
+	global db_path
+	global status
+
+	# loop through list of nodes selected, starting each one.
+	set j [array startsearch nodes]
+	while { [array anymore nodes $j] } {
+		set host [array nextelement nodes $j]
+		if { $fds($host) == "dead" } continue
+		puts "Finding $host"
+		set code "!error?"
+		if { [ catch {
+			puts $fds($host) "find .db.6d/moss.g"
+			flush $fds($host)
+		} code ] } {
+			# error condition on write
+			puts "$host error $code"
+
+			close $fds($host)
+			set fds($host) "dead"
+			set status($host) "$host -died-"
+			continue
+		}
+		if { [gets $fds($host) reply] <= 0 } {
+			puts "EOF from $host"
+			close $fds($host)
+			set fds($host) "dead"
+			set status($host) "$host -died-"
+			set code "eof"
+			continue
+		}
+		# First word should be OK or FAIL, 2nd word is path.
+		if { [lindex $reply 0] != "OK" }  {
+			continue
+		}
+		set db_path($host) [lindex $reply 1]
+	}
+	array donesearch nodes $j
+}
+
+a160 1
+	global db_path
+a190 1
+	global db_path
+a210 1
+	global db_path
+a227 1
+		set db_path($host) "unknown"
+a236 1
+	global db_path
+d247 1
+a247 2
+	entry .entry_$informal_name -width 20 -relief sunken -bd 2 -textvariable db_path($formalname)
+	pack .button_$informal_name .title_$informal_name .entry_$informal_name -side left -in .fr_$informal_name
+d253 3
+a255 4
+button .sense_button -text "SENSE" -command sense_servers
+button .find_button -text "FIND_DB" -command find_db
+button .rtnode_button -text "Start NODES" -command start_nodes
+pack .sense_button .find_button .rtnode_button -side left -in .button1_fr
+d258 1
+a258 1
+pack .reconnect_button .restart_button -side left -in .button2_fr
+a288 1
+	global db_path
+@
+
+
+1.18
+log
+@Shortened error message
+@
+text
+@a299 23
+register "vapor" "vapor-uni0.arl.mil"
+register "wax" "wax-uni0.arl.mil"
+register wilson "wilson-uni0.arl.mil"
+register jewel "jewel-atm.arl.mil"
+register cosm0 "cosm0-atm.arl.hpc.mil"
+#register cosm1 "cosm1-atm.arl.hpc.mil"
+#register cosm2 "cosm2-atm.arl.hpc.mil"
+#register cosm3 "cosm3-atm.arl.hpc.mil"
+#register eckert "eckert-atm.arl.hpc.mil"
+
+#register toltec "toltec.nvl.army.mil"
+#register olmec "olmec.nvl.army.mil"		# Only 1 200Mhz cpu
+#register octopus "octopus.nvl.army.mil"
+#register vdemo3 "vdemo3.arl.mil"
+## NVL, 4 R10k
+#register bfm9000 "bfm9000-lane.nvl.army.mil"
+register toltec "toltec-lane.nvl.army.mil"
+## ARL MSRC, 64 R10k each
+register adele "128.63.240.32"
+register adele1 "128.63.240.33"
+register herman herman.arl.hpc.mil
+register herman1 "128.63.240.35"
+
+d386 6
+d393 1
+@
+
+
+1.17
+log
+@Changing machine config
+@
+text
+@d269 1
+a269 1
+			puts "  $host : $code, skipping"
+@
+
+
+1.16
+log
+@Put the cosm's back.
+@
+text
+@d305 3
+a307 7
+register cosm1 "cosm1-atm.arl.hpc.mil"
+register cosm2 "cosm2-atm.arl.hpc.mil"
+register cosm3 "cosm3-atm.arl.hpc.mil"
+#register cosm4 "cosm4-atm.arl.hpc.mil"
+#register cosm5 "cosm5-atm.arl.hpc.mil"
+#register cosm6 "cosm6-atm.arl.hpc.mil"
+#register cosm7 "cosm7-atm.arl.hpc.mil"
+d309 1
+d314 8
+a321 1
+register bfm9000 "bfm9000-lane.nvl.army.mil"
+@
+
+
+1.15
+log
+@Added error catching.
+@
+text
+@d305 3
+a307 3
+#register cosm1 "cosm1-atm.arl.hpc.mil"
+#register cosm2 "cosm2-atm.arl.hpc.mil"
+#register cosm3 "cosm3-atm.arl.hpc.mil"
+d317 1
+@
+
+
+1.14
+log
+@Improvement noted.
+@
+text
+@d124 2
+a125 1
+	exec fbclear -F$fbserv_host 0 200 0
+d305 9
+a313 9
+register cosm1 "cosm1-atm.arl.hpc.mil"
+register cosm2 "cosm2-atm.arl.hpc.mil"
+register cosm3 "cosm3-atm.arl.hpc.mil"
+register cosm4 "cosm4-atm.arl.hpc.mil"
+register cosm5 "cosm5-atm.arl.hpc.mil"
+register cosm6 "cosm6-atm.arl.hpc.mil"
+register cosm7 "cosm7-atm.arl.hpc.mil"
+register eckert "eckert-atm.arl.hpc.mil"
+register toltec "toltec.nvl.army.mil"
+d315 2
+a316 1
+register octopus "octopus.nvl.army.mil"
+@
+
+
+1.13
+log
+@Reorganized buttons
+@
+text
+@d237 3
+@
+
+
+1.12
+log
+@Added restart RTMON button
+@
+text
+@d313 2
+a315 1
+button .reconnect_button -text "RECONNECT" -command reconnect
+d318 2
+d321 2
+a322 1
+pack .sense_button .reconnect_button .find_button .rtnode_button .restart_button -side left -in .button_fr
+@
+
+
+1.11
+log
+@added octopus
+@
+text
+@d317 25
+a341 1
+pack .sense_button .reconnect_button .find_button .rtnode_button -side left -in .button_fr
+@
+
+
+1.10
+log
+@Added a few NVL hosts.
+@
+text
+@d311 1
+a311 1
+## What was name of SPARC server?
+@
+
+
+1.9
+log
+@*** empty log message ***
+@
+text
+@d309 3
+a311 1
+
+@
+
+
+1.8
+log
+@Use ATM host names.
+@
+text
+@d248 1
+@
+
+
+1.7
+log
+@Upgraded to use rtmon
+@
+text
+@d132 1
+a132 1
+		/m/cad/remrt/rtsync \
+d295 13
+a307 13
+register "vapor" "vapor.arl.mil"
+register "wax" "wax.arl.mil"
+register wilson "wilson.arl.mil"
+register jewel "jewel.arl.mil"
+register cosm0 "cosm0.arl.hpc.mil"
+register cosm1 "cosm1.arl.hpc.mil"
+register cosm2 "cosm2.arl.hpc.mil"
+register cosm3 "cosm3.arl.hpc.mil"
+register cosm4 "cosm4.arl.hpc.mil"
+register cosm5 "cosm5.arl.hpc.mil"
+register cosm6 "cosm6.arl.hpc.mil"
+register cosm7 "cosm7.arl.hpc.mil"
+register eckert "eckert-ether.arl.hpc.mil"
+d376 1
+@
+
+
+1.6
+log
+@Added SIMTECH ack.
+@
+text
+@d16 2
+d156 3
+a158 1
+proc register {host formalname cmd dir} {
+d160 3
+a162 2
+	global	cmds
+	global dirs
+d164 34
+a197 8
+	set dirs($formalname) $dir
+	frame .fr_$host
+	checkbutton .button_$host -variable nodes($formalname)
+	label .title_$host -text "$formalname $cmd"
+	entry .entry_$host -width 20 -relief sunken -bd 2 -textvariable dirs($formalname)
+	pack .button_$host .title_$host .entry_$host -side left -in .fr_$host
+	pack .fr_$host -side top -in .rtnode_fr
+	set cmds($formalname) $cmd
+a198 14
+register "vapor" "vapor.arl.mil" ssh /m/cad/remrt
+register "wax" "wax.arl.mil" ssh /n/vapor/m/cad/remrt
+# wilson has 100 MHz cpus, slows things down.
+##register wilson "wilson.arl.mil" ssh /n/vapor/m/cad/remrt
+register jewel "jewel.arl.mil" ssh /n/vapor/m/cad/remrt
+register cosm0 "cosm0.arl.hpc.mil" rsh /r/mike/cad/remrt
+register cosm1 "cosm1.arl.hpc.mil" rsh /r/mike/cad/remrt
+register cosm2 "cosm2.arl.hpc.mil" rsh /r/mike/cad/remrt
+register cosm3 "cosm3.arl.hpc.mil" rsh /r/mike/cad/remrt
+register cosm4 "cosm4.arl.hpc.mil" rsh /r/mike/cad/remrt
+register cosm5 "cosm5.arl.hpc.mil" rsh /r/mike/cad/remrt
+register cosm6 "cosm6.arl.hpc.mil" rsh /r/mike/cad/remrt
+register cosm7 "cosm7.arl.hpc.mil" rsh /r/mike/cad/remrt
+register eckert "eckert-ether.arl.hpc.mil" ssh /n/vapor/m/cad/remrt
+d200 5
+d206 107
+d314 1
+a314 1
+pack .rtnode_button -side top -in .button_fr
+d320 3
+a322 2
+	global	cmds
+	global dirs
+d325 1
+a325 1
+	# loop through list of nodes selected, starting each one.
+d329 1
+d333 29
+a361 9
+		catch {
+			# ssh -f flag means detatch
+			# ssh -n flag means take stdin from /dev/null.
+			exec echo "no" | $cmds($host) $host \
+				cd $dirs($host) \; \
+				../remrt/rtnode \
+				$rtsync_host $rtsync_port &
+		} code
+		puts "$host results = $code"
+d366 4
+@
+
+
+1.5
+log
+@Include entry box for directory on server.
+@
+text
+@d41 2
+a42 1
+pack .title1 .title2 -side top -in .words_fr
+@
+
+
+1.4
+log
+@Added jewel.
+@
+text
+@d62 1
+a62 1
+set database_file /m/cad/.db.6d/world.g
+d153 1
+a153 1
+proc register {host formalname cmd} {
+d156 1
+d158 1
+d162 2
+a163 1
+	pack .button_$host .title_$host -side left -in .fr_$host
+d167 14
+a180 13
+register "vapor" "vapor.arl.mil" ssh
+register "wax" "wax.arl.mil" ssh
+register wilson "wilson.arl.mil" ssh
+register jewel "jewel.arl.mil" ssh
+register cosm0 "cosm0.arl.hpc.mil" rsh
+register cosm1 "cosm1.arl.hpc.mil" rsh
+register cosm2 "cosm2.arl.hpc.mil" rsh
+register cosm3 "cosm3.arl.hpc.mil" rsh
+register cosm4 "cosm4.arl.hpc.mil" rsh
+register cosm5 "cosm5.arl.hpc.mil" rsh
+register cosm6 "cosm6.arl.hpc.mil" rsh
+register cosm7 "cosm7.arl.hpc.mil" rsh
+register eckert "eckert-ether.arl.hpc.mil" ssh
+d191 1
+d205 2
+a206 1
+				/m/cad/remrt/rtnode \
+d216 4
+@
+
+
+1.3
+log
+@This version actually works.
+@
+text
+@d167 1
+@
+
+
+1.2
+log
+@Two minor fixes
+@
+text
+@d1 4
+a4 1
+#!wish -f demo.tcl
+d17 1
+d20 1
+d29 6
+a63 3
+## Assumes MGED was started onto local display, with "openw" cmd.
+##	wset database_file [send mged "opendb"]
+##	set mged_treetops [send mged "who"]
+d72 1
+d74 18
+a91 1
+pack .mged1_fr .mged2_fr -side top -in .mged_fr
+d107 2
+a108 1
+pack .sync1_fr .sync2_fr .rtsync_button -side top -in .rtsync_fr
+d133 1
+a133 1
+		'&'
+d138 12
+d153 1
+a153 1
+proc register {host formalname} {
+d155 1
+d159 1
+a159 1
+	label .title_$host -text "$formalname"
+d162 1
+d164 13
+a176 12
+register "vapor" "vapor.arl.mil"
+register "wax" "wax.arl.mil"
+register wilson "wilson.arl.mil"
+register cosm0 "cosm0.arl.hpc.mil"
+register cosm1 "cosm1.arl.hpc.mil"
+register cosm2 "cosm2.arl.hpc.mil"
+register cosm3 "cosm3.arl.hpc.mil"
+register cosm4 "cosm4.arl.hpc.mil"
+register cosm5 "cosm5.arl.hpc.mil"
+register cosm6 "cosm6.arl.hpc.mil"
+register cosm7 "cosm7.arl.hpc.mil"
+register eckert "eckert.arl.hpc.mil"
+d185 1
+d196 3
+a198 3
+			# -f flag means detatch
+			# -n flag means take stdin from /dev/null.
+			exec echo "no" | ssh -v -f -n $host \
+d200 1
+a200 1
+				$rtsync_host $rtsync_port
+d205 1
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d3 1
+d81 1
+a81 1
+pack .sync1_fr .rtsync_button -side left -in .rtsync_fr
+@

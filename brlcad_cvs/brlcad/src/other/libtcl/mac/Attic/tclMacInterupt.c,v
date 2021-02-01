@@ -1,0 +1,375 @@
+head	14.2;
+access;
+symbols
+	stable-branch:14.1
+	rel-7-8-4:14.1
+	rel-7-8-2:14.1
+	rel-7-8-0:14.1
+	trimnurbs-branch:14.1.0.8
+	help:14.1
+	temp_tag:14.1
+	bobWinPort-20051223-freeze:14.1
+	postmerge-20051223-bobWinPort:14.1
+	premerge-20051223-bobWinPort:14.1
+	rel-7-6-6:14.1
+	rel-7-6-4:14.1
+	rel-7-6-2:14.1
+	rel-7-6-branch:14.1.0.6
+	rel-7-6-0:14.1
+	rel-7-4-2:14.1
+	rel-7-4-branch:14.1.0.4
+	bobWinPort:14.1.0.2
+	rel-7-4-0:14.1
+	rel-7-2-6:14.1
+	rel-7-2-4:14.1
+	rel-7-2-2:14.1
+	rel-7-2-0:14.1
+	rel-7-0-4:14.1
+	rel-7-0-2:14.1
+	rel-7-0-1:14.1
+	opensource-post:14.1
+	opensource-pre:1.1
+	rel-7-0-branch:1.1.0.2
+	rel-7-0:1.1;
+locks; strict;
+comment	@ * @;
+
+
+14.2
+date	2007.03.02.21.47.02;	author brlcad;	state dead;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.22;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.14.51.49;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.2
+log
+@upgrade tcl/tk from 8.4.6 to 8.5a5; also move to a recursive configure, using AC_CONFIG_SUBDIRS to call upon tcl, tk, and enigma's configure scripts as needed instead of redoing their build systems for our purpose.  this has a rather drastic impact on the way the libraries are linked together, including the need to compile tcl/tk static so as to avoid libtool portability issues as well as letting us take advantage of their build system for reduced maintenance and easing future upgrades.  undoubtedly more build issues to be worked out with other platforms given the extent of this change.  this does move us one step closer towards correctly linking against system tcl/tk installations too.
+@
+text
+@/* 
+ * tclMacInterupt.c --
+ *
+ *	This file contains routines that deal with the Macintosh's low level
+ *	time manager.  This code provides a better resolution timer than what
+ *	can be provided by WaitNextEvent.  
+ *
+ * Copyright (c) 1996 Sun Microsystems, Inc.
+ *
+ * See the file "license.terms" for information on usage and redistribution
+ * of this file, and for a DISCLAIMER OF ALL WARRANTIES.
+ *
+ * RCS: @@(#) $Id: tclMacInterupt.c,v 14.1 2004/11/16 19:42:22 morrison Exp $
+ */
+
+#include "tclInt.h"
+#include "tclMacInt.h"
+#include <LowMem.h>
+#include <Processes.h>
+#include <Timer.h>
+
+/*
+ * Data structure for timer tasks.
+ */
+typedef struct TMInfo {
+    TMTask		tmTask;
+    ProcessSerialNumber	psn;
+    Point 		lastPoint;
+    Point 		newPoint;
+    long 		currentA5;
+    long 		ourA5;
+    int			installed;
+} TMInfo;
+
+/*
+ * Globals used within this file.
+ */
+ 
+static TimerUPP sleepTimerProc = NULL;
+static int interuptsInited = false;
+static ProcessSerialNumber applicationPSN;
+#define MAX_TIMER_ARRAY_SIZE 16
+static TMInfo timerInfoArray[MAX_TIMER_ARRAY_SIZE];
+static int topTimerElement = 0;
+
+/*
+ * Prototypes for procedures that are referenced only in this file:
+ */
+
+#if !GENERATINGCFM
+static TMInfo * 	GetTMInfo(void) ONEWORDINLINE(0x2E89); /* MOVE.L A1,(SP) */
+#endif
+static void		SleepTimerProc _ANSI_ARGS_((void));
+static pascal void	CleanUpExitProc _ANSI_ARGS_((void));
+static void		InitInteruptSystem _ANSI_ARGS_((void));
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * InitInteruptSystem --
+ *
+ *	Does various initialization for the functions used in this 
+ *	file.  Sets up Universial Pricedure Pointers, installs a trap
+ *	patch for ExitToShell, etc.
+ *
+ * Results:
+ *	None.
+ *
+ * Side effects:
+ *	Various initialization.
+ *
+ *----------------------------------------------------------------------
+ */
+
+void
+InitInteruptSystem()
+{
+    int i;
+    
+    sleepTimerProc = NewTimerProc(SleepTimerProc);
+    GetCurrentProcess(&applicationPSN);
+    for (i = 0; i < MAX_TIMER_ARRAY_SIZE; i++) {
+	timerInfoArray[i].installed = false;
+    }
+    
+    /*
+     * Install the ExitToShell patch.  We use this patch instead
+     * of the Tcl exit mechanism because we need to ensure that
+     * these routines are cleaned up even if we crash or are forced
+     * to quit.  There are some circumstances when the Tcl exit
+     * handlers may not fire.
+     */
+     
+    TclMacInstallExitToShellPatch(CleanUpExitProc);
+    interuptsInited = true;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * TclMacStartTimer --
+ *
+ *	Install a Time Manager task to wake our process up in the
+ *	future.  The process should get a NULL event after ms 
+ *	milliseconds.
+ *
+ * Results:
+ *	None.
+ *
+ * Side effects:
+ *	Schedules our process to wake up.
+ *
+ *----------------------------------------------------------------------
+ */
+
+void *
+TclMacStartTimer(
+    long ms)		/* Milliseconds. */
+{
+    TMInfo *timerInfoPtr;
+    
+    if (!interuptsInited) {
+	InitInteruptSystem();
+    }
+    
+    /*
+     * Obtain a pointer for the timer.  We only allocate up
+     * to MAX_TIMER_ARRAY_SIZE timers.  If we are past that
+     * max we return NULL.
+     */
+    if (topTimerElement < MAX_TIMER_ARRAY_SIZE) {
+	timerInfoPtr = &timerInfoArray[topTimerElement];
+	topTimerElement++;
+    } else {
+	return NULL;
+    }
+    
+    /*
+     * Install timer to wake process in ms milliseconds.
+     */
+    timerInfoPtr->tmTask.tmAddr = sleepTimerProc;
+    timerInfoPtr->tmTask.tmWakeUp = 0;
+    timerInfoPtr->tmTask.tmReserved = 0;
+    timerInfoPtr->psn = applicationPSN;
+    timerInfoPtr->installed = true;
+
+    InsTime((QElemPtr) timerInfoPtr);
+    PrimeTime((QElemPtr) timerInfoPtr, (long) ms);
+
+    return (void *) timerInfoPtr;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * TclMacRemoveTimer --
+ *
+ *	Remove the timer event from the Time Manager.
+ *
+ * Results:
+ *	None.
+ *
+ * Side effects:
+ *	A scheduled timer would be removed.
+ *
+ *----------------------------------------------------------------------
+ */
+
+void
+TclMacRemoveTimer(
+    void * timerToken)		/* Token got from start timer. */
+{
+    TMInfo *timerInfoPtr = (TMInfo *) timerToken;
+    
+    if (timerInfoPtr == NULL) {
+	return;
+    }
+    
+    RmvTime((QElemPtr) timerInfoPtr);
+    timerInfoPtr->installed = false;
+    topTimerElement--;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * TclMacTimerExpired --
+ *
+ *	Check to see if the installed timer has expired.
+ *
+ * Results:
+ *	True if timer has expired, false otherwise.
+ *
+ * Side effects:
+ *	None.
+ *
+ *----------------------------------------------------------------------
+ */
+
+int
+TclMacTimerExpired(
+    void * timerToken)		/* Our token again. */
+{
+    TMInfo *timerInfoPtr = (TMInfo *) timerToken;
+    
+    if ((timerInfoPtr == NULL) || 
+	!(timerInfoPtr->tmTask.qType & kTMTaskActive)) {
+	return true;
+    } else {
+	return false;
+    }
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * SleepTimerProc --
+ *
+ *	Time proc is called by the is a callback routine placed in the 
+ *	system by Tcl_Sleep.  The routine is called at interupt time
+ *	and threrfor can not move or allocate memory.  This call will
+ *	schedule our process to wake up the next time the process gets
+ *	around to consider running it.
+ *
+ * Results:
+ *	None.
+ *
+ * Side effects:
+ *	Schedules our process to wake up.
+ *
+ *----------------------------------------------------------------------
+ */
+
+static void
+SleepTimerProc()
+{
+    /*
+     * In CFM code we can access our code directly.  In 68k code that
+     * isn't based on CFM we must do a glorious hack.  The function 
+     * GetTMInfo is an inline assembler call that moves the pointer 
+     * at A1 to the top of the stack.  The Time Manager keeps the TMTask
+     * info record there before calling this call back.  In order for
+     * this to work the infoPtr argument must be the *last* item on the
+     * stack.  If we "piggyback" our data to the TMTask info record we 
+     * can get access to the information we need.  While this is really 
+     * ugly - it's the way Apple recomends it be done - go figure...
+     */
+    
+#if GENERATINGCFM
+    WakeUpProcess(&applicationPSN);
+#else
+    TMInfo * infoPtr;
+    
+    infoPtr = GetTMInfo();
+    WakeUpProcess(&infoPtr->psn);
+#endif
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * CleanUpExitProc --
+ *
+ *	This procedure is invoked as an exit handler when ExitToShell
+ *	is called.  It removes the system level timer handler if it 
+ *	is installed.  This must be called or the Mac OS will more than 
+ *	likely crash.
+ *
+ * Results:
+ *	None.
+ *
+ * Side effects:
+ *	None.
+ *
+ *----------------------------------------------------------------------
+ */
+
+static pascal void
+CleanUpExitProc()
+{
+    int i;
+    
+    for (i = 0; i < MAX_TIMER_ARRAY_SIZE; i++) {
+	if (timerInfoArray[i].installed) {
+	    RmvTime((QElemPtr) &timerInfoArray[i]);
+	    timerInfoArray[i].installed = false;
+	}
+    }
+}
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@d13 1
+a13 1
+ * RCS: @@(#) $Id: tclMacInterupt.c,v 1.1 2004/05/20 14:51:49 morrison Exp $
+@
+
+
+1.1
+log
+@Sources that are external to BRL-CAD are moved from the top level to src/other/.
+@
+text
+@d13 1
+a13 1
+ * RCS: @@(#) $Id: tclMacInterupt.c,v 1.3 2004/03/04 19:47:12 morrison Exp $
+@
+

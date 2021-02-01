@@ -1,0 +1,416 @@
+head	11.8;
+access;
+symbols
+	ansi-20040405-merged:11.5.2.1
+	postmerge-20040405-ansi:11.6
+	premerge-20040404-ansi:11.5
+	postmerge-autoconf:11.5
+	autoconf-freeze:11.5
+	premerge-autoconf:11.5
+	postmerge-20040315-windows:11.5
+	premerge-20040315-windows:11.5
+	windows-20040315-freeze:11.5
+	autoconf-20031203:11.5
+	autoconf-20031202:11.5
+	autoconf-branch:11.5.0.10
+	phong-branch:11.5.0.8
+	photonmap-branch:11.5.0.6
+	rel-6-1-DP:11.5
+	windows-branch:11.5.0.4
+	rel-6-0-2:11.3
+	ansi-branch:11.5.0.2
+	rel-6-0-1-branch:11.3.0.2
+	hartley-6-0-post:11.4
+	hartley-6-0-pre:11.3
+	rel-6-0-1:11.3
+	rel-6-0:11.3
+	rel-5-4:11.1
+	offsite-5-3-pre:11.2
+	rel-5-3:11.1
+	rel-5-2:11.1
+	rel-5-1-branch:11.1.0.2
+	rel-5-1:11.1
+	rel-5-0:11.1
+	rel-5-0-beta:11.1
+	rel-4-5:11.1
+	ctj-4-5-post:11.1
+	ctj-4-5-pre:11.1
+	rel-4-4:11.1
+	rel-4-0:10.1;
+locks; strict;
+comment	@ * @;
+
+
+11.8
+date	2004.05.21.16.38.57;	author morrison;	state dead;
+branches;
+next	11.7;
+
+11.7
+date	2004.05.10.15.30.50;	author erikg;	state Exp;
+branches;
+next	11.6;
+
+11.6
+date	2004.04.05.05.46.01;	author morrison;	state Exp;
+branches;
+next	11.5;
+
+11.5
+date	2002.08.20.17.08.50;	author jra;	state Exp;
+branches
+	11.5.2.1;
+next	11.4;
+
+11.4
+date	2002.08.15.20.56.02;	author hartley;	state Exp;
+branches;
+next	11.3;
+
+11.3
+date	2001.04.20.22.31.27;	author morrison;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	2000.08.24.22.46.22;	author mike;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	95.01.04.10.21.16;	author mike;	state Rel4_4;
+branches;
+next	10.2;
+
+10.2
+date	94.08.11.20.09.14;	author gdurf;	state Exp;
+branches;
+next	10.1;
+
+10.1
+date	91.10.12.06.52.52;	author mike;	state Rel4_0;
+branches;
+next	1.2;
+
+1.2
+date	91.01.12.08.47.46;	author butler;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	91.01.03.20.45.33;	author butler;	state Exp;
+branches;
+next	;
+
+11.5.2.1
+date	2002.09.19.18.02.29;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@dist
+@
+
+
+11.8
+log
+@moved to src/tools/
+@
+text
+@/* 
+ * rlesplit.c - Split concatenated RLE files into separate files.
+ * 
+ * Author:	Spencer W. Thomas
+ * 		Computer Science Dept.
+ * 		University of Utah
+ * Date:	Mon May  4 1987
+ * Copyright (c) 1987, University of Utah
+ */
+
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+
+#include <stdio.h>
+#ifdef USE_STRING_H
+#include <string.h>
+#else
+#include <strings.h>
+#endif
+
+#include "machine.h"
+#include "externs.h"		/* For calloc */
+#include "rle.h"
+#include "rle_code.h"
+#include "rle_raw.h"
+
+/*****************************************************************
+ * TAG( main )
+ * 
+ * Usage:
+ *     rlesplit [-n number [digits]] [-p prefix] [rlefile]
+ * Inputs:
+ *	-n number:	If specified, output file numbering will start
+ *			with this value (see below).  Otherwise, numbering
+ *			starts at 1.
+ *
+ * 	digits:		The number of digits to be used in the numeric
+ * 			portion of the output file names.  Defaults to 3.
+ * 			All numbers will be leading zero filled.
+ * 
+ * 	-p prefix:	If specified, output files will be named
+ *			"prefix.#.rle".  If not specified, and
+ *			an rlefile is specified, then output files
+ *			will be "rlefileroot.#.rle", where
+ *			"rlefileroot" is rlefile with any ".rle" suffix
+ *			stripped off.  If no arguments are specified,
+ *			output files will be "#.rle".  In any case, "#"
+ *			represents a sequentially increasing number.
+ *
+ *	infile:	If specified, input will be read from here,
+ *			otherwise, input will be read from stdin.
+ * Outputs:
+ * 	Writes each rle image in the input stream to an output file
+ *	whose name is generated as above.
+ * Assumptions:
+ * 	Each RLE image in the input stream must be terminated with
+ *	an EOF opcode.
+ * Algorithm:
+ *	[None]
+ */
+
+int
+main(int argc, char **argv)
+{
+    register const char * cp, * slashp;
+    int num = 1, oflag = 0, digits = 3;
+    int rle_err, ynext, y;
+    const char * infname = NULL, * format = "%s%0*d.rle";
+    char * prefix = "";
+    char filebuf[BUFSIZ];
+    rle_hdr in_hdr, out_hdr;
+    rle_op ** scan;
+    int * nraw;
+
+    if ( scanargs( argc, argv, "% n%-number!ddigits%d o%-prefix!s infile%s",
+		   &num, &num, &digits, &oflag, &prefix, &infname ) == 0 )
+	exit( 1 );
+
+    /* Open input file */
+    in_hdr.rle_file = rle_open_f(cmd_name( argv ), infname, "r");
+
+    if ( oflag || infname )
+    {
+	format = "%s.%0*d.rle";
+	if ( !oflag )
+	{
+	    /* Strip ".rle" suffix from input file name */
+	    /* Avoid strrchr, rindex problem */
+	    for ( cp = infname; *cp; cp++ )
+		;		/* find end of name */
+	    /* Look for last slash */
+	    for ( slashp = cp - 1; *slashp != '/' && slashp > infname; )
+		slashp--;
+	    if ( *slashp == '/' )
+		slashp++;
+	    /* Look for last dot */
+	    while ( *--cp != '.' && cp > infname )
+		;		/* find last . */
+	    if ( strcmp( cp, ".rle" ) != 0 )
+		cp = infname + strlen( infname );
+	    /* Make null full string buffer */
+	    prefix = (char *)calloc( cp - slashp + 1, 1 );
+	    /* Copy everything but suffix */
+	    strncpy( prefix, infname, cp - slashp );
+	}
+    }
+
+    while ( (rle_err = rle_get_setup( &in_hdr )) == RLE_SUCCESS )
+    {
+	/* Copy input to output file */
+	sprintf( filebuf, format, prefix, digits, num++ );
+	fprintf( stderr, "%s: Creating %s\n", cmd_name( argv ), filebuf );
+	out_hdr = in_hdr;
+        out_hdr.rle_file = rle_open_f(cmd_name( argv ), filebuf, "w");
+	rle_addhist( argv, &in_hdr, &out_hdr );
+
+	rle_put_setup( &out_hdr );
+
+	rle_raw_alloc( &in_hdr, &scan, &nraw );
+
+
+	for ( y = in_hdr.ymin;
+	      (ynext = rle_getraw( &in_hdr, scan, nraw )) != 32768;
+	      y = ynext )
+	{
+	    if ( ynext - y > 1 )
+		rle_skiprow( &out_hdr, ynext - y );
+	    rle_putraw( scan, nraw, &out_hdr );
+	    rle_freeraw( &in_hdr, scan, nraw );
+	}
+	rle_puteof( &out_hdr );
+	fclose( out_hdr.rle_file );
+
+	rle_raw_free( &in_hdr, scan, nraw );
+    }
+
+    if ( rle_err != RLE_EOF && rle_err != RLE_EMPTY )
+	rle_get_error( rle_err, argv[0], infname );
+
+    exit( 0 );
+}
+@
+
+
+11.7
+log
+@change conf.h to a wrapped config.h
+@
+text
+@@
+
+
+11.6
+log
+@merge of ansi-6-0-branch into head
+@
+text
+@d11 5
+a15 1
+#include "conf.h"
+@
+
+
+11.5
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d62 1
+a62 3
+main( argc, argv )
+int argc;
+char **argv;
+@
+
+
+11.5.2.1
+log
+@Initial ANSIfication
+@
+text
+@d62 3
+a64 1
+main(int argc, char **argv)
+@
+
+
+11.4
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d62 3
+a64 1
+main(int argc, char **argv)
+@
+
+
+11.3
+log
+@CONST to const
+@
+text
+@d62 1
+a62 3
+main( argc, argv )
+int argc;
+char **argv;
+@
+
+
+11.2
+log
+@
+lint
+@
+text
+@d66 1
+a66 1
+    register CONST char * cp, * slashp;
+d69 1
+a69 1
+    CONST char * infname = NULL, * format = "%s%0*d.rle";
+@
+
+
+11.1
+log
+@Release_4.4
+@
+text
+@d61 1
+a61 1
+void
+@
+
+
+10.2
+log
+@Altered #defines and #includes to conform to BRL-CAD standards
+@
+text
+@@
+
+
+10.1
+log
+@Release_4.0
+@
+text
+@d11 2
+a13 6
+#include <rle.h>
+#include <rle_raw.h>
+#ifdef USE_STDLIB_H
+#include <stdlib.h>
+#else
+
+d20 5
+a24 7
+#ifdef VOID_STAR
+extern void *calloc();
+#else
+extern char *calloc();
+#endif
+
+#endif /* USE_STDLIB_H */
+d66 1
+a66 1
+    register CONST_DECL char * cp, * slashp;
+d69 1
+a69 1
+    CONST_DECL char * infname = NULL, * format = "%s%0*d.rle";
+@
+
+
+1.2
+log
+@changed declaration of "prefix" from being a "const" to a variable
+@
+text
+@@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d75 2
+a76 1
+    CONST_DECL char * infname = NULL, * prefix = "", * format = "%s%0*d.rle";
+@

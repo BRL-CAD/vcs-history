@@ -1,0 +1,477 @@
+head	1.5;
+access;
+symbols
+	ansi-20040405-merged:1.4
+	postmerge-20040405-ansi:1.4
+	premerge-20040404-ansi:1.4
+	postmerge-autoconf:1.4
+	autoconf-freeze:1.4
+	premerge-autoconf:1.4
+	postmerge-20040315-windows:1.4
+	premerge-20040315-windows:1.4
+	windows-20040315-freeze:1.4
+	autoconf-20031203:1.4
+	autoconf-20031202:1.4
+	autoconf-branch:1.4.0.12
+	phong-branch:1.4.0.10
+	photonmap-branch:1.4.0.8
+	rel-6-1-DP:1.4
+	windows-branch:1.4.0.6
+	rel-6-0-2:1.4
+	ansi-branch:1.4.0.4
+	rel-6-0-1-branch:1.4.0.2
+	hartley-6-0-post:1.4
+	hartley-6-0-pre:1.4
+	rel-6-0-1:1.4
+	rel-6-0:1.4
+	rel-5-4:1.2
+	offsite-5-3-pre:1.2
+	rel-5-3:1.2
+	rel-5-2:1.2
+	rel-5-1-branch:1.2.0.2
+	rel-5-1:1.2
+	rel-5-0:1.2
+	rel-5-0-beta:1.2
+	rel-4-5:1.1;
+locks; strict;
+comment	@# @;
+
+
+1.5
+date	2004.05.21.16.41.22;	author morrison;	state dead;
+branches;
+next	1.4;
+
+1.4
+date	2001.11.05.21.20.07;	author morrison;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2001.09.05.20.53.43;	author bparker;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	98.06.16.19.42.01;	author pjt;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	97.06.12.15.12.11;	author pjt;	state Exp;
+branches;
+next	;
+
+
+desc
+@     Calipers widget for measuring distances
+@
+
+
+1.5
+log
+@moved to src/tclscripts/
+@
+text
+@# wm geometry . {+1-20}
+# wm positionfrom . program
+
+#
+#	Ensure that all commands that this script uses without defining
+#	are provided by the calling application
+#
+check_externs "_mged_view"
+
+#	XXX	kludge for edit-test cycle
+
+
+########################################################################
+#
+#	Global Variables
+#
+########################################################################
+
+# How user specifies landmarks
+set landmarkmode {View center}
+
+# Draw caliper legs in geometry windows?
+set show_cal_legs	0
+
+# Location of each leg
+set cal_leg_loc(1) "1 2 3"
+set cal_leg_loc(2) "0 0 0"
+set cal_dist ""
+
+proc do_caliper_leg {leg} {
+    global landmarkmode
+    global cal_leg_loc
+
+    if {$landmarkmode == {View center}} {
+	set cal_leg_loc($leg) [_mged_view center]
+    } elseif {$landmarkmode == {Model origin}} {
+	set cal_leg_loc($leg) {0 0 0}
+    } else {
+	set cal_leg_loc($leg) {1 2 3}
+    }
+    calculate_distance
+}
+
+proc x_coord {string} {
+    lindex $string 0
+}
+
+proc y_coord {string} {
+    lindex $string 1
+}
+
+proc z_coord {string} {
+    lindex $string 2
+}
+
+proc calculate_distance {} {
+    global cal_leg_loc
+
+    set x [expr [x_coord $cal_leg_loc(1)] - [x_coord $cal_leg_loc(2)]]
+    set y [expr [y_coord $cal_leg_loc(1)] - [y_coord $cal_leg_loc(2)]]
+    set z [expr [z_coord $cal_leg_loc(1)] - [z_coord $cal_leg_loc(2)]]
+    puts "The delta is ($x $y $z)"
+    set cal_dist [expr sqrt([expr $x*$x + $y*$y + $z*$z])]
+    puts "OK, cal_dist is now $cal_dist\n"
+}
+
+
+proc calipers {} {
+    global landmarkmode
+    global show_cal_legs
+
+    toplevel .cal 
+    wm title .cal "MGED Calipers"
+
+
+########################################################################
+#
+#	The menu bar
+#
+########################################################################
+frame .cal.mbar -relief raised -bd 2
+menubutton .cal.mbar.mode -text Mode -menu .cal.mbar.mode.menu
+    menu .cal.mbar.mode.menu
+    .cal.mbar.mode.menu add radiobutton -label "View center" \
+	-variable landmarkmode
+    .cal.mbar.mode.menu add radiobutton -label "Model origin" \
+	-variable landmarkmode
+    .cal.mbar.mode.menu add cascade -label "Primitive parameters" \
+	-menu .cal.mbar.mode.menu.params
+	menu .cal.mbar.mode.menu.params
+	.cal.mbar.mode.menu.params add radiobutton -label V -variable landmarkmode
+	.cal.mbar.mode.menu.params add radiobutton -label A -variable landmarkmode
+	.cal.mbar.mode.menu.params add radiobutton -label B -variable landmarkmode
+	.cal.mbar.mode.menu.params add radiobutton -label C -variable landmarkmode
+	.cal.mbar.mode.menu.params add radiobutton -label D -variable landmarkmode
+    .cal.mbar.mode.menu add radiobutton -label Keypoint -variable landmarkmode
+    .cal.mbar.mode.menu add radiobutton -label History -variable landmarkmode
+    .cal.mbar.mode.menu entryconfigure {Primitive parameters} -state disabled
+    .cal.mbar.mode.menu entryconfigure Keypoint -state disabled
+    .cal.mbar.mode.menu entryconfigure History -state disabled
+menubutton .cal.mbar.options -text Options -menu .cal.mbar.options.menu
+    menu .cal.mbar.options.menu
+    .cal.mbar.options.menu add checkbutton -label "Display legs" \
+				       -variable show_cal_legs
+button .cal.mbar.dismiss -bd 0 -text Dismiss -command {destroy .cal}
+#
+pack .cal.mbar.mode .cal.mbar.options -side left -in .cal.mbar
+pack .cal.mbar.dismiss -side right -in .cal.mbar
+pack .cal.mbar -fill x -side top
+
+########################################################################
+#
+#	The main window
+#
+########################################################################
+
+frame .cal.leg1line
+button .cal.leg1 -text "Place leg 1" -command {do_caliper_leg 1}
+label .cal.leg1val -textvariable cal_leg_loc(1)
+pack .cal.leg1 .cal.leg1val -side left -in .cal.leg1line
+
+frame .cal.leg2line
+button .cal.leg2 -text "Place leg 2" -command {do_caliper_leg 2}
+label .cal.leg2val -textvariable cal_leg_loc(2)
+pack .cal.leg2 .cal.leg2val -side left -in .cal.leg2line
+
+frame .cal.distline
+label .cal.distlabel -text "Distance:"
+label .cal.distance -textvariable cal_dist
+pack .cal.distlabel .cal.distance -side left -in .cal.distline
+
+
+frame .cal.modeline
+label .cal.modelabel -text "Leg placement mode:"
+tk_optionMenu .cal.modemenu landmarkmode {View center} {Model origin} {Primitive parameters} Keypoint History
+.cal.modemenu.menu entryconfigure {Primitive parameters} -state disabled
+.cal.modemenu.menu entryconfigure Keypoint -state disabled
+.cal.modemenu.menu entryconfigure History -state disabled
+pack .cal.modelabel .cal.modemenu -side left -in .cal.modeline
+
+
+pack .cal.mbar .cal.leg1line .cal.leg2line .cal.distline .cal.modeline -side top -in .cal
+}
+@
+
+
+1.4
+log
+@Solid to Primitive naming convention conversions
+@
+text
+@@
+
+
+1.3
+log
+@*- change viewget to view
+@
+text
+@d88 1
+a88 1
+    .cal.mbar.mode.menu add cascade -label "Solid parameter" \
+d98 1
+a98 1
+    .cal.mbar.mode.menu entryconfigure {Solid parameter} -state disabled
+d135 2
+a136 2
+tk_optionMenu .cal.modemenu landmarkmode {View center} {Model origin} {Solid parameter} Keypoint History
+.cal.modemenu.menu entryconfigure {Solid parameter} -state disabled
+@
+
+
+1.2
+log
+@added some stuff
+@
+text
+@d8 1
+a8 1
+check_externs "_mged_viewget"
+d35 1
+a35 1
+	set cal_leg_loc($leg) [_mged_viewget center]
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d1 1
+a1 6
+#!/bin/sh
+#
+# restart with wish \
+exec wish "$0" "$@@"
+
+wm geometry . {+1-20}
+d5 2
+a6 1
+#	XXX	for now am hardwired to grab Lee's menu package
+d8 3
+a10 1
+#
+a11 1
+source ~butler/src/Tcl/menuPackage.tcl
+d14 3
+a16 5
+##
+##	Global Variables
+##
+##
+##
+d19 1
+a19 1
+# Location to use as landmark
+d25 1
+d28 1
+d30 3
+a32 21
+# Database editing units
+set units "millimeters"
+
+# Location about which rotations occur
+#	ViewCenter, Eye, Origin, Keypoint
+set rotplace {View Center}
+
+# Absolute/Rate based manipulations
+set absrate Position
+
+# What transformation are we modifying:  View, Solid Params, ADC values
+set talon {View}
+
+# Transformation in View vs Model coordinates.  
+# XXX How does this relate to the "talon" variable.  Could this be
+#	folded in to the talon variable's function?
+set modelview "View"
+
+proc null_proc {} {
+
+}
+d34 8
+a41 7
+########################################################################
+##
+##	Menu Creation
+##
+########################################################################
+proc new_proc {} {
+	puts "New ..."
+d44 2
+a45 2
+proc open_proc {} {
+	puts "Open ..."
+d48 2
+a49 2
+proc insert_proc {} {
+	puts "Insert ..."
+d52 2
+a53 2
+proc extract_proc {} {
+	puts "Extract ..."
+d56 2
+a57 3
+proc ray_proc {} {
+	puts "Raytrace ..."
+}
+d59 6
+a64 2
+proc save_as {type} {
+puts "Save As $type"
+a66 1
+MenuSetup
+d68 3
+a70 14
+Menu		Mode	left	0
+MenuRadio	Mode	{View center}		landmarkmode
+MenuRadio	Mode	{Model origin}		landmarkmode
+MenuCascade	Mode	{Solid parameter}
+MenuRadio	{Solid parameter}	V	landmarkmode
+MenuRadio	{Solid parameter}	A	landmarkmode
+MenuRadio	{Solid parameter}	B	landmarkmode
+MenuRadio	{Solid parameter}	C	landmarkmode
+MenuRadio	{Solid parameter}	D	landmarkmode
+MenuEntryConfigure Mode {Solid parameter} -state disabled
+MenuRadio	Mode	Keypoint		landmarkmode
+MenuEntryConfigure Mode Keypoint -state disabled
+MenuRadio	Mode	History			landmarkmode
+MenuEntryConfigure Mode History -state disabled
+d72 2
+d76 9
+a84 40
+proc solid_select {} {
+
+tk_dialog .d about {solid list...} {} 0 {Solid Click} OK Dismiss
+# MenuCommand	Edit	{Solid Click}		solid_click	0
+# MenuCommand	Edit	{Solid Illum}		solid_illum	0
+
+}
+
+
+proc matrix_select {} {
+tk_dialog .d about {matrix list...} {} 0 {Matrix Click} OK Dismiss
+# MenuCommand	Edit	{Matrix Illum}		matrix_illum	0
+}
+
+#MenuCommand	Edit	{Edit Solid}	solid_select	5
+#MenuCommand	Edit	{Edit Matrix}	matrix_select	5
+#MenuSeparator	Edit
+#MenuCommand	Edit	Reject		{ puts "reject_edit" }	0
+#MenuCommand	Edit	Accept		{ puts "accept_edit" }	0
+
+
+Menu		Options	left	0
+MenuCheck	Options {Display legs}	show_cal_legs
+
+Menu		Help	right	0
+MenuCommand	Help	About		{tk_dialog .d about {BRL-CAD MGED} {} 0 Dismiss}
+MenuCommand	Help	{On Context}	{tk_dialog .d about {MGED Context Help} {} 0 Dismiss}	0
+MenuCommand	Help	Commands...	{tk_dialog .d about {MGED Commands} {} 0 Dismiss}	0
+MenuCommand	Help	Apropos...	{tk_dialog .d about {MGED Apropos Command} {} 0 Dismiss}	0
+MenuCommand	Help	Manual...	{tk_dialog .d about {MGED Online Manual} {} 0 Dismiss}	0
+
+
+proc new_proc {} {
+	puts "new"
+}
+
+frame .mbar -relief raised -bd 2
+menubutton .mbar.mode -text Mode -menu .mbar.mode.menu
+    menu .mbar.mode.menu
+    .mbar.mode.menu add radiobutton -label "View center" \
+d86 1
+a86 1
+    .mbar.mode.menu add radiobutton -label "Model origin" \
+d88 16
+a103 16
+    .mbar.mode.menu add cascade -label "Solid parameter" \
+	-menu .mbar.mode.menu.params
+	menu .mbar.mode.menu.params
+	.mbar.mode.menu.params add radiobutton -label V -variable landmarkmode
+	.mbar.mode.menu.params add radiobutton -label A -variable landmarkmode
+	.mbar.mode.menu.params add radiobutton -label B -variable landmarkmode
+	.mbar.mode.menu.params add radiobutton -label C -variable landmarkmode
+	.mbar.mode.menu.params add radiobutton -label D -variable landmarkmode
+    .mbar.mode.menu add radiobutton -label Keypoint -variable landmarkmode
+    .mbar.mode.menu add radiobutton -label History -variable landmarkmode
+    .mbar.mode.menu entryconfigure {Solid parameter} -state disabled
+    .mbar.mode.menu entryconfigure Keypoint -state disabled
+    .mbar.mode.menu entryconfigure History -state disabled
+menubutton .mbar.options -text Options -menu .mbar.options.menu
+    menu .mbar.options.menu
+    .mbar.options.menu add checkbutton -label "Display legs" \
+d105 1
+a105 1
+button .mbar.dismiss -bd 0 -text Dismiss -command exit
+d107 3
+a109 3
+pack .mbar.mode .mbar.options -side left -in .mbar
+pack .mbar.dismiss -side right -in .mbar
+pack .mbar -fill x -side top
+d112 3
+a114 3
+##
+##	Main Window
+##
+d117 24
+a140 2
+proc caliper_leg {leg} {
+    global cal_leg_loc
+d142 1
+a142 1
+    set cal_leg_loc($leg) {1 2 3}
+a143 26
+
+frame .leg1line
+button .leg1 -text "Place leg 1" -command {caliper_leg 1}
+label .leg1val -textvariable cal_leg_loc(1)
+pack .leg1 .leg1val -side left -in .leg1line
+
+frame .leg2line
+button .leg2 -text "Place leg 2" -command {caliper_leg 2}
+label .leg2val -textvariable cal_leg_loc(2)
+pack .leg2 .leg2val -side left -in .leg2line
+
+
+frame .modeline
+label .modelabel -text "Leg placement mode:"
+tk_optionMenu .modemenu landmarkmode {View center} {Model origin} {Solid parameter} Keypoint History
+.modemenu.menu entryconfigure {Solid parameter} -state disabled
+.modemenu.menu entryconfigure Keypoint -state disabled
+.modemenu.menu entryconfigure History -state disabled
+pack .modelabel .modemenu -side left -in .modeline
+
+
+#label .mode_id -textvariable landmarkmode
+
+
+pack .mbar .leg1line .leg2line .modeline -side top
+
+@

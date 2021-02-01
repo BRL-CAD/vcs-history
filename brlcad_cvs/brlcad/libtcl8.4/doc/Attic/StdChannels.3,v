@@ -1,0 +1,302 @@
+head	1.4;
+access;
+symbols
+	ansi-20040405-merged:1.3.4.1
+	postmerge-20040405-ansi:1.3
+	premerge-20040404-ansi:1.3
+	postmerge-autoconf:1.3
+	autoconf-freeze:1.1.6.4
+	premerge-autoconf:1.3
+	postmerge-20040315-windows:1.3
+	premerge-20040315-windows:1.3
+	windows-20040315-freeze:1.3.2.1
+	autoconf-20031203:1.1.6.1
+	autoconf-20031202:1.1
+	autoconf-branch:1.1.0.6
+	phong-branch:1.1.0.4
+	photonmap-branch:1.1.0.2
+	windows-branch:1.3.0.2
+	ansi-branch:1.3.0.4;
+locks; strict;
+comment	@.\" @;
+
+
+1.4
+date	2004.05.21.18.03.14;	author morrison;	state dead;
+branches;
+next	1.3;
+
+1.3
+date	2004.03.04.19.46.54;	author morrison;	state Exp;
+branches
+	1.3.2.1
+	1.3.4.1;
+next	1.2;
+
+1.2
+date	2003.11.07.14.54.20;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2003.03.13.19.17.48;	author jra;	state Exp;
+branches
+	1.1.6.1;
+next	;
+
+1.1.6.1
+date	2003.12.03.16.24.12;	author erikg;	state Exp;
+branches;
+next	1.1.6.2;
+
+1.1.6.2
+date	2004.02.12.18.43.08;	author erikg;	state Exp;
+branches;
+next	1.1.6.3;
+
+1.1.6.3
+date	2004.03.15.12.04.00;	author erikg;	state Exp;
+branches;
+next	1.1.6.4;
+
+1.1.6.4
+date	2004.03.15.14.00.38;	author erikg;	state Exp;
+branches;
+next	;
+
+1.3.2.1
+date	2004.03.12.09.58.27;	author morrison;	state Exp;
+branches;
+next	;
+
+1.3.4.1
+date	2004.03.17.21.19.14;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.4
+log
+@moved from top-level to src/other/.
+@
+text
+@'\"
+'\" Copyright (c) 2001 by ActiveState Corporation
+'\"
+'\" See the file "license.terms" for information on usage and redistribution
+'\" of this file, and for a DISCLAIMER OF ALL WARRANTIES.
+'\" 
+'\" RCS: @@(#) $Id: StdChannels.3,v 1.3 2004/03/04 19:46:54 morrison Exp $
+'\" 
+.so man.macros
+.TH "Standard Channels" 3 7.5 Tcl "Tcl Library Procedures"
+.BS
+'\" Note:  do not modify the .SH NAME line immediately below!
+.SH NAME
+Tcl_StandardChannels \- How the Tcl library deals with the standard channels
+.BE
+
+.SH DESCRIPTION
+.PP
+This page explains the initialization and use of standard channels in
+the Tcl library.
+.PP
+The term \fIstandard channels\fR comes out of the Unix world and
+refers to the three channels automatically opened by the OS for
+each new application. They are \fBstdin\fR, \fBstdout\fR and
+\fBstderr\fR. The first is the standard input an application can read
+from, the other two refer to writable channels, one for regular
+output and the other for error messages.
+.PP
+Tcl generalizes this concept in a cross-platform way and
+exposes standard channels to the script level.
+
+.SH APIs
+.PP
+The public API procedures dealing directly with standard channels are
+\fBTcl_GetStdChannel\fR and \fBTcl_SetStdChannel\fR. Additional public
+APIs to consider are \fBTcl_RegisterChannel\fR,
+\fBTcl_CreateChannel\fR and \fBTcl_GetChannel\fR.
+.SH "INITIALIZATION OF TCL STANDARD CHANNELS"
+.PP
+Standard channels are initialized by the Tcl library in three cases:
+when explicitly requested, when implicitly required before returning
+channel information, or when implicitly required during registration
+of a new channel.
+.PP
+These cases differ in how they handle unavailable platform- specific
+standard channels.  (A channel is not ``available'' if it could not be
+successfully opened; for example, in a Tcl application run as a
+Windows NT service.)
+.TP
+1)
+A single standard channel is initialized when it is explicitly
+specified in a call to \fBTcl_SetStdChannel\fR.  The state of the
+other standard channels are unaffected.
+.sp
+Missing platform-specific standard channels do not matter here. This
+approach is not available at the script level.
+.TP
+2)
+All uninitialized standard channels are initialized to
+platform-specific default values:
+.RS
+.TP
+(a)
+when open channels are listed with \fBTcl_GetChannelNames\fR (or the
+\fBfile channels\fR script command), or
+.TP
+(b)
+when information about any standard channel is requested with a call
+to \fBTcl_GetStdChannel\fR, or with a call to \fBTcl_GetChannel\fR
+which specifies one of the standard names (\fBstdin\fR, \fBstdout\fR
+and \fBstderr\fR).
+.RE
+.sp
+.RS
+In case of missing platform-specific standard channels, the Tcl
+standard channels are considered as initialized and then immediately
+closed. This means that the first three Tcl channels then opened by
+the application are designated as the Tcl standard channels.
+.RE
+.TP
+3)
+All uninitialized standard channels are initialized to
+platform-specific default values when a user-requested channel is
+registered with \fBTcl_RegisterChannel\fR.
+.sp
+In case of unavailable platform-specific standard channels the channel
+whose creation caused the initialization of the Tcl standard channels
+is made a normal channel.  The next three Tcl channels opened by the
+application are designated as the Tcl standard channels.  In other
+words, of the first four Tcl channels opened by the application the
+second to fourth are designated as the Tcl standard channels.
+.PP
+.SH "RE-INITIALIZATION OF TCL STANDARD CHANNELS"
+.PP
+Once a Tcl standard channel is initialized through one of the methods
+above, closing this Tcl standard channel will cause the next call to
+\fBTcl_CreateChannel\fR to make the new channel the new standard
+channel, too. If more than one Tcl standard channel was closed
+\fBTcl_CreateChannel\fR will fill the empty slots in the order
+\fBstdin\fR, \fBstdout\fR and \fBstderr\fR.
+.PP
+\fBTcl_CreateChannel\fR will not try to reinitialize an empty slot if
+that slot was not initialized before. It is this behavior which
+enables an application to employ method 1 of initialization, i.e. to
+create and designate their own Tcl standard channels.
+
+.SH tclsh
+.PP
+The Tcl shell (or rather \fBTcl_Main\fR) uses method 2 to initialize
+the standard channels.
+
+.SH wish
+.PP
+The windowing shell (or rather \fBTk_MainEx\fR) uses method 1 to
+initialize the standard channels (See \fBTk_InitConsoleChannels\fR)
+on non-Unix platforms.  On Unix platforms, \fBTk_MainEx\fR implicitly
+uses method 2 to initialize the standard channels.
+
+.SH "SEE ALSO"
+Tcl_CreateChannel(3), Tcl_RegisterChannel(3), Tcl_GetChannel(3), Tcl_GetStdChannel(3), Tcl_SetStdChannel(3), Tk_InitConsoleChannels(3), tclsh(1), wish(1), Tcl_Main(3), Tk_MainEx(3)
+
+.SH KEYWORDS
+standard channels
+@
+
+
+1.3
+log
+@Updated to tcl 8.4.6
+@
+text
+@d7 1
+a7 1
+'\" RCS: @@(#) $Id: StdChannels.3,v 1.8 2002/11/15 15:34:17 dkf Exp $
+@
+
+
+1.3.4.1
+log
+@sync branch with HEAD
+@
+text
+@d7 1
+a7 1
+'\" RCS: @@(#) $Id$
+@
+
+
+1.3.2.1
+log
+@merge from HEAD
+@
+text
+@d7 1
+a7 1
+'\" RCS: @@(#) $Id$
+@
+
+
+1.2
+log
+@updated tcl to 8.4.4
+@
+text
+@@
+
+
+1.1
+log
+@*** empty log message ***
+@
+text
+@@
+
+
+1.1.6.1
+log
+@updates from HEAD, part 1
+@
+text
+@d7 1
+a7 1
+'\" RCS: @@(#) $Id: StdChannels.3,v 1.2 2003/11/07 14:54:20 morrison Exp $
+@
+
+
+1.1.6.2
+log
+@merge from HEAD
+@
+text
+@@
+
+
+1.1.6.3
+log
+@merge from head...
+@
+text
+@d7 1
+a7 1
+'\" RCS: @@(#) $Id: StdChannels.3,v 1.3 2004/03/04 19:46:54 morrison Exp $
+@
+
+
+1.1.6.4
+log
+@merge from head...
+@
+text
+@d7 1
+a7 1
+'\" RCS: @@(#) $Id: StdChannels.3,v 1.1.6.3 2004/03/15 12:04:00 erikg Exp $
+@
+
+

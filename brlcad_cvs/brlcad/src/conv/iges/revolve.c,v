@@ -1,0 +1,1337 @@
+head	1.8;
+access;
+symbols
+	rel-7-10-4:1.4
+	STABLE:1.4.0.2
+	rel-7-10-2:1.4
+	rel-7-10-0:1.4
+	rel-7-8-4:1.2
+	rel-7-8-2:1.2
+	rel-7-8-0:1.2
+	trimnurbs-branch:1.2.0.2
+	help:1.2
+	temp_tag:1.1
+	postmerge-20051223-bobWinPort:1.1
+	premerge-20051223-bobWinPort:1.1
+	rel-7-6-6:1.1
+	rel-7-6-branch:1.1.0.2
+	rel-7-6-4:1.1;
+locks; strict;
+comment	@ * @;
+
+
+1.8
+date	2007.12.31.20.25.14;	author brlcad;	state Exp;
+branches;
+next	1.7;
+
+1.7
+date	2007.10.28.05.41.46;	author brlcad;	state Exp;
+branches;
+next	1.6;
+
+1.6
+date	2007.10.18.09.11.56;	author brlcad;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	2007.10.14.22.15.54;	author brlcad;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	2007.01.23.01.13.26;	author brlcad;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2007.01.20.14.36.47;	author brlcad;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2006.01.18.06.46.14;	author brlcad;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2005.10.27.03.44.49;	author brlcad;	state Exp;
+branches
+	1.1.2.1;
+next	;
+
+1.1.2.1
+date	2005.10.27.03.44.49;	author brlcad;	state dead;
+branches;
+next	1.1.2.2;
+
+1.1.2.2
+date	2005.11.13.17.45.00;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.8
+log
+@header cleanup, more address removal
+@
+text
+@/*                       R E V O L V E . C
+ * BRL-CAD
+ *
+ * Copyright (c) 1990-2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@file revolve.c
+ *  Authors -
+ *	John R. Anderson
+ *	Susanne L. Muuss
+ *	Earl P. Weaver
+ *
+ */
+/*				SOLID OF REVOLUTION	*/
+
+#include "./iges_struct.h"
+#include "./iges_extern.h"
+
+void Addsub();
+
+#ifdef M_PI
+#define PI M_PI
+#else
+#define	PI	3.14159265358979
+#endif
+
+struct subtracts
+{
+	char *name;
+	int index;
+	struct subtracts *next;
+};
+
+struct trclist
+{
+	point_t base,top;
+	fastf_t r1,r2;
+	int op; /* 0 => union, 1=> subtract */
+	int index;
+	char name[NAMESIZE];
+	struct subtracts *subtr;
+	struct trclist *next,*prev;
+};
+
+int
+revolve( entityno )
+int entityno;
+{
+	struct wmember	head;			/* For region */
+	int		sol_num;		/* IGES solid type number */
+	point_t		pt;			/* Point on axis of revolution */
+	vect_t		adir;			/* Direction of axis of revolution */
+	int		curve;			/* Pointer to driectory entry for curve */
+	fastf_t		fract;			/* Fraction of circle for rotation (0 < fract <= 1.0) */
+	vect_t		v1;			/* Vector from "pt" to any point along curve */
+	fastf_t		h;			/* height of "TRC" */
+	int		npts;			/* Number of points used to approximate curve */
+	struct ptlist	*curv_pts,*ptr;		/* Pointer to a linked list of npts points along curve */
+	int		ntrcs;			/* number of "TRC" solids used */
+	vect_t		tmp;			/* temporary storage for a vector */
+	struct trclist	*trcs,*trcptr,*ptr2;	/* Pointers to linked list of TRC`s */
+	fastf_t		r2;			/* TRC radius */
+	fastf_t		hmax,hmin;		/* Max and Min distances along axis of rotation */
+	fastf_t		rmax;			/* Max radius */
+	int		cutop = Intersect;	/* Operator for cutting solid */
+	char		cutname[NAMESIZE];	/* Name for cutting solid */
+	struct subtracts *subp;
+	int		i;
+
+	BU_LIST_INIT( &head.l );
+
+	/* Default values */
+	VSET( adir, 0.0, 0.0, 1.0 );
+	VSET( pt, 0.0, 0.0, 0.0 );
+	fract = 1.0;
+
+	/* Acquire data */
+
+	if( dir[entityno]->param <= pstart )
+	{
+		bu_log( "Illegal parameter pointer for entity D%07d (%s)\n" ,
+				dir[entityno]->direct, dir[entityno]->name );
+		return(0);
+	}
+	Readrec( dir[entityno]->param );
+	Readint( &sol_num, "" );
+
+	/* Read pointer to directory entry for curve to be extruded */
+
+	Readint( &curve, "" );
+
+	/* Convert this to a "dir" index */
+
+	curve = (curve-1)/2;
+
+	Readflt( &fract, "" );
+	Readflt( &pt[X], "" );
+	Readflt( &pt[Y], "" );
+	Readflt( &pt[Z], "" );
+	Readflt( &adir[X], "" );
+	Readflt( &adir[Y], "" );
+	Readflt( &adir[Z], "" );
+
+	/* just to be safe */
+	VUNITIZE( adir );
+
+	if( fract <= 0.0 || fract > 1.0 )
+	{
+		bu_log( "Illegal parameters for entity D%07d (%s)\n" ,
+			dir[entityno]->direct, dir[entityno]->name );
+		return( 0 );
+	}
+
+	dir[entityno]->referenced = 1;
+
+	/* Get the curve in the form of a series of straight line segments */
+
+	npts = Getcurve( curve, &curv_pts );
+	if( npts == 0 )
+	{
+		bu_log( "Could not get points along curve for revovling\n" );
+		bu_log( "Illegal parameters for entity D%07d (%s)\n" ,
+			dir[entityno]->direct, dir[entityno]->name );
+		return( 0 );
+	}
+
+/* Construct a linked list of TRC's */
+	ntrcs = 0;
+	trcs = NULL;
+	ptr = curv_pts;
+
+	/* Calculate radius at start of curve */
+	VSUB2( v1, ptr->pt, pt );
+	VCROSS( tmp, v1, adir );
+	r2 = MAGNITUDE( tmp );
+	if( r2 < TOL )
+		r2 = TOL;
+	rmax = r2;
+	hmax = VDOT( v1, adir );
+	hmin = hmax;
+
+	trcptr = NULL;
+	while( ptr->next != NULL )
+	{
+		struct trclist *prev;
+		fastf_t h1;
+
+		if( trcs == NULL )
+		{
+			trcs = (struct trclist *)bu_malloc( sizeof( struct trclist ),
+				"Revolve: trcs" );
+			trcptr = trcs;
+			prev = NULL;
+		}
+		else if( trcptr->name[0] != '\0' )
+		{
+			trcptr->next = (struct trclist *)bu_malloc( sizeof( struct trclist ),
+				"Revolve: trcptr->next" );
+			prev = trcptr;
+			trcptr = trcptr->next;
+		}
+		else  prev = NULL;
+		trcptr->next = NULL;
+		trcptr->prev = prev;
+		trcptr->op = 0;
+		trcptr->subtr = NULL;
+		trcptr->name[0] = '\0';
+
+		/* Calculate base point of TRC */
+		VSUB2( v1, ptr->pt, pt );
+		VJOIN1( trcptr->base, pt, VDOT( v1, adir ), adir );
+
+		/* Height along axis of rotation */
+		h1 = VDOT( v1, adir );
+		if( h1 < hmin )
+			hmin = h1;
+		if( h1 > hmax )
+			hmax = h1;
+
+		/* Radius at base is top radius from previous TRC */
+		trcptr->r1 = r2;
+
+		/* Calculate new top radius */
+		VSUB2( v1, ptr->next->pt, pt );
+		VCROSS( tmp, v1, adir );
+		trcptr->r2 = MAGNITUDE( tmp );
+		if( trcptr->r2 < TOL )
+			trcptr->r2 = TOL;
+		r2 = trcptr->r2;
+		if( r2 > rmax )
+			rmax = r2;
+
+		/* Calculate height of TRC */
+		VSUB2( v1, ptr->next->pt, pt );
+		VJOIN1( trcptr->top, pt, VDOT( v1, adir ), adir );
+		VSUB2( v1, trcptr->top, trcptr->base );
+		h = MAGNITUDE( v1 );
+		/* If height is zero, don't make a TRC */
+		if( NEAR_ZERO( h, TOL ) )
+		{
+			ptr = ptr->next;
+			continue;
+		}
+
+		/* Make a name for the TRC */
+		snprintf( trcptr->name, NAMESIZE, "rev.%d.%d", entityno, ntrcs ); /* Format for creating TRC names */
+
+		/* Make the TRC */
+		if( mk_trc_top( fdout, trcptr->name, trcptr->base,
+		    trcptr->top, trcptr->r1, trcptr->r2 ) < 0 )  {
+			bu_log( "Unable to write TRC for entity D%07d (%s)\n" ,
+				dir[entityno]->direct, dir[entityno]->name );
+			return( 0 );
+		}
+
+		/* Count 'em */
+		ntrcs++;
+		ptr = ptr->next;
+	}
+
+	/* Eliminate last struct if not used */
+	if( trcptr->name[0] == '\0' )
+	{
+		trcptr->prev->next = NULL;
+		bu_free( (char *)trcptr, "Revolve: trcptr" );
+	}
+
+	if( dir[entityno]->form == 1 ) /* curve closed on itself */
+	{
+		trcptr = trcs;
+		while( trcptr != NULL )
+		{
+			fastf_t hb1,ht1,hb2,ht2; /* distance from "pt" to bottom and top of TRC's */
+			fastf_t	rtmp;	/* interpolated radii for TRC */
+			fastf_t tmpp;	/* temp storage */
+
+			/* Calculate distances to top and base */
+			VSUB2( tmp, trcptr->base, pt );
+			hb1 = MAGNITUDE( tmp );
+			VSUB2( tmp, trcptr->top, pt );
+			ht1 = MAGNITUDE( tmp );
+			/* Make sure distance to base is smaller */
+			if( ht1 < hb1 )
+			{
+				tmpp = ht1;
+				ht1 = hb1;
+				hb1 = tmpp;
+			}
+
+			/* Check every TRC against this one */
+			ptr2 = trcs;
+			while( ptr2 != NULL )
+			{
+				if( ptr2 == trcptr ) /* but not itself */
+					ptr2 = ptr2->next;
+				else
+				{
+					/* Calculate heights */
+					VSUB2( tmp, ptr2->base, pt );
+					hb2 = MAGNITUDE( tmp );
+					VSUB2( tmp, ptr2->top, pt );
+					ht2 = MAGNITUDE( tmp );
+					/* and order them */
+					if( ht2 < hb2 )
+					{
+						tmpp = ht2;
+						ht2 = hb2;
+						hb2 = tmpp;
+					}
+					if( hb2 < ht1 && hb2 > hb1 )
+					{
+						/* These TRC's overlap */
+						/* Calculate radius at hb2 */
+						rtmp = trcptr->r1 + (trcptr->r2 - trcptr->r1)*(hb2-hb1)/(ht1-hb1);
+						if( rtmp > ptr2->r1 )
+						{
+							/* ptr2 must be an inside solid, so subtract it */
+							Addsub( trcptr, ptr2 );
+							ptr2->op = 1;
+						}
+						else if( rtmp < ptr2->r1 )
+						{
+							/* trcptr must be an inside solid */
+							Addsub( ptr2, trcptr );
+							trcptr->op = 1;
+						}
+					}
+					else if( ht2 < ht1 && ht2 > hb1 )
+					{
+						/* These TRC's overlap */
+						/* Calculate radius at ht2 */
+						rtmp = trcptr->r1 + (trcptr->r2 - trcptr->r1)*(ht2-hb1)/(ht1-hb1);
+						if( rtmp > ptr2->r2 )
+						{
+							/* ptr2 must be an inside solid, so subtract it */
+							Addsub( trcptr, ptr2 );
+							ptr2->op = 1;
+						}
+						else if( rtmp < ptr2->r1 )
+						{
+							/* trcptr must be an inside solid */
+							Addsub( ptr2, trcptr );
+							trcptr->op = 1;
+						}
+					}
+					ptr2 = ptr2->next;
+				}
+			}
+			trcptr = trcptr->next;
+		}
+	}
+
+	if( fract < 1.0 )
+	{
+		/* Must calculate a cutting solid */
+		vect_t pdir,enddir,startdir;
+		fastf_t len,theta;
+		point_t pts[8];
+
+		/* Calculate direction from axis to curve */
+		len = 0.0;
+		ptr = curv_pts;
+		while( len == 0.0 )
+		{
+			VSUB2( pdir, ptr->pt, pt );
+			VJOIN1( startdir, pdir, -VDOT( pdir, adir ), adir );
+			len = MAGNITUDE( startdir );
+			ptr = ptr->next;
+		}
+		VUNITIZE( startdir );
+
+		/* Calculate direction towards solid from axis */
+		VCROSS( pdir, adir, startdir );
+		VUNITIZE( pdir );
+
+		if( fract < 0.5 )
+		{
+			theta = 2.0*PI*fract;
+			cutop = Intersect;
+		}
+		else if( fract > 0.5 )
+		{
+			theta = (-2.0*PI*(1.0-fract));
+			cutop = Subtract;
+		}
+		else
+		{
+			/* XXX fract == 0.5, a dangerous comparison (roundoff) */
+			theta = PI;
+			cutop = Intersect;
+			/* Construct vertices for cutting solid */
+			VJOIN2( pts[0], pt, hmin, adir, rmax, startdir );
+			VJOIN1( pts[1], pts[0], (-2.0*rmax), startdir );
+			VJOIN1( pts[2], pts[1], rmax, pdir );
+			VJOIN1( pts[3], pts[0], rmax, pdir );
+			for( i=0 ; i<4 ; i++ )
+			{
+				VJOIN1( pts[i+4], pts[i], (hmax-hmin), adir );
+			}
+		}
+		if( fract != 0.5 )
+		{
+			/* Calculate direction to end of revolve */
+			VSCALE( enddir, startdir, cos( theta ) );
+			VJOIN1( enddir, enddir, sin( theta ), pdir );
+			VUNITIZE( enddir );
+
+			/* Calculate required length of a side */
+			len = rmax/cos( theta/4.0 );
+
+			/* Construct vertices for cutting solid */
+				/* Point at bottom center of revolution */
+			VJOIN1( pts[0], pt, hmin, adir );
+				/* Point at bottom on curve */
+			VJOIN1( pts[1], pts[0], len, startdir );
+				/* Point at bottom at end of revolution */
+			VJOIN1( pts[3], pts[0], len, enddir );
+				/* Calculate direction to pts[2] */
+			VADD2( enddir, enddir, startdir );
+			VUNITIZE( enddir );
+				/* Calculate pts[2] */
+			VJOIN1( pts[2], pts[0], len, enddir );
+
+			/* Calculate top vertices */
+			for( i=0 ; i<4 ; i++ )
+			{
+				VJOIN1( pts[i+4], pts[i], (hmax-hmin), adir );
+			}
+		}
+
+		/* Make the BRL-CAD solid */
+		if( mk_arb8( fdout, cutname, &pts[0][X] ) < 0 )  {
+			bu_log( "Unable to write ARB8 for entity D%07d (%s)\n" ,
+				dir[entityno]->direct, dir[entityno]->name );
+			return( 0 );
+		}
+	}
+
+	/* Build region */
+	trcptr = trcs;
+	while( trcptr != NULL )
+	{
+		/* Union together all the TRC's that are not subtracts */
+		if( trcptr->op != 1 )
+		{
+			(void)mk_addmember( trcptr->name, &head.l, NULL, operator[Union] );
+
+			if( fract < 1.0 )
+			{
+				/* include cutting solid */
+				(void)mk_addmember( cutname, &head.l, NULL, operator[cutop] );
+			}
+
+			subp = trcptr->subtr;
+			/* Subtract the inside TRC's */
+			while( subp != NULL )
+			{
+				(void)mk_addmember( subp->name, &head.l, NULL, operator[Subtract] );
+				subp = subp->next;
+			}
+		}
+		trcptr = trcptr->next;
+	}
+
+	/* Make the object */
+	if( mk_lcomb( fdout, dir[entityno]->name, &head, 0 ,
+	    (char *)0, (char *)0, (unsigned char *)0, 0 ) < 0 )  {
+		bu_log( "Unable to make combination for entity D%07d (%s)\n" ,
+			dir[entityno]->direct, dir[entityno]->name );
+		return( 0 );
+	}
+
+
+	/* Free the TRC structures */
+	trcptr = trcs;
+	while( trcptr != NULL )
+	{
+		bu_free( (char *)trcptr, "Revolve: trcptr" );
+		trcptr = trcptr->next;
+	}
+	return( 1 );
+}
+
+/* Routine to add a name to the list of subtractions */
+void
+Addsub( trc, ptr )
+struct trclist *trc,*ptr;
+{
+	struct subtracts *subp;
+
+	if( trc->subtr == NULL )
+	{
+		trc->subtr = (struct subtracts *)bu_malloc( sizeof( struct subtracts ),
+			"Revolve: trc->subtr" );
+		subp = trc->subtr;
+	}
+	else
+	{
+		subp = trc->subtr;
+		while( subp->next != NULL )
+			subp = subp->next;
+		subp->next = (struct subtracts *)bu_malloc( sizeof( struct subtracts ),
+			"Revolve: subp->next" );
+		subp = subp->next;
+	}
+
+	subp->next = NULL;
+	subp->name = ptr->name;
+	subp->index = ptr->index;
+}
+
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+1.7
+log
+@more flawfinder and bu_exit conversions
+@
+text
+@a25 5
+ *  Source -
+ *	VLD/ASB Building 1065
+ *	The U. S. Army Ballistic Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005
+ *
+@
+
+
+1.6
+log
+@more quellings of level 4 flawfinder issues
+@
+text
+@a67 1
+	const char	*trcform="rev.%d.%d";	/* Format for creating TRC names */
+d224 1
+a224 1
+		snprintf( trcptr->name, NAMESIZE, trcform, entityno, ntrcs );
+@
+
+
+1.5
+log
+@more level 4 flawfinder issues.  mostly string length clampages.
+@
+text
+@d92 2
+a93 2
+	VSET( adir , 0.0 , 0.0 , 1.0 );
+	VSET( pt , 0.0 , 0.0 , 0.0 );
+d101 1
+a101 1
+				dir[entityno]->direct , dir[entityno]->name );
+d105 1
+a105 1
+	Readint( &sol_num , "" );
+d109 1
+a109 1
+	Readint( &curve , "" );
+d115 7
+a121 7
+	Readflt( &fract , "" );
+	Readflt( &pt[X] , "" );
+	Readflt( &pt[Y] , "" );
+	Readflt( &pt[Z] , "" );
+	Readflt( &adir[X] , "" );
+	Readflt( &adir[Y] , "" );
+	Readflt( &adir[Z] , "" );
+d129 1
+a129 1
+			dir[entityno]->direct , dir[entityno]->name );
+d137 1
+a137 1
+	npts = Getcurve( curve , &curv_pts );
+d142 1
+a142 1
+			dir[entityno]->direct , dir[entityno]->name );
+d152 2
+a153 2
+	VSUB2( v1 , ptr->pt , pt );
+	VCROSS( tmp , v1 , adir );
+d158 1
+a158 1
+	hmax = VDOT( v1 , adir );
+d189 2
+a190 2
+		VSUB2( v1 , ptr->pt , pt );
+		VJOIN1( trcptr->base , pt , VDOT( v1 , adir ) , adir );
+d193 1
+a193 1
+		h1 = VDOT( v1 , adir );
+d203 2
+a204 2
+		VSUB2( v1 , ptr->next->pt , pt );
+		VCROSS( tmp , v1 , adir );
+d213 3
+a215 3
+		VSUB2( v1 , ptr->next->pt , pt );
+		VJOIN1( trcptr->top , pt , VDOT( v1 , adir ) , adir );
+		VSUB2( v1 , trcptr->top , trcptr->base );
+d218 1
+a218 1
+		if( NEAR_ZERO( h , TOL ) )
+d225 1
+a225 1
+		sprintf( trcptr->name , trcform , entityno , ntrcs );
+d231 1
+a231 1
+				dir[entityno]->direct , dir[entityno]->name );
+d257 1
+a257 1
+			VSUB2( tmp , trcptr->base , pt );
+d259 1
+a259 1
+			VSUB2( tmp , trcptr->top , pt );
+d278 1
+a278 1
+					VSUB2( tmp , ptr2->base , pt );
+d280 1
+a280 1
+					VSUB2( tmp , ptr2->top , pt );
+d297 1
+a297 1
+							Addsub( trcptr , ptr2 );
+d303 1
+a303 1
+							Addsub( ptr2 , trcptr );
+d315 1
+a315 1
+							Addsub( trcptr , ptr2 );
+d321 1
+a321 1
+							Addsub( ptr2 , trcptr );
+d344 2
+a345 2
+			VSUB2( pdir , ptr->pt , pt );
+			VJOIN1( startdir , pdir , -VDOT( pdir , adir ) , adir );
+d352 1
+a352 1
+		VCROSS( pdir , adir , startdir );
+d371 4
+a374 4
+			VJOIN2( pts[0] , pt , hmin , adir , rmax , startdir );
+			VJOIN1( pts[1] , pts[0] , (-2.0*rmax) , startdir );
+			VJOIN1( pts[2] , pts[1] , rmax , pdir );
+			VJOIN1( pts[3] , pts[0] , rmax , pdir );
+d377 1
+a377 1
+				VJOIN1( pts[i+4] , pts[i] , (hmax-hmin) , adir );
+d383 2
+a384 2
+			VSCALE( enddir , startdir , cos( theta ) );
+			VJOIN1( enddir , enddir , sin( theta ) , pdir );
+d392 1
+a392 1
+			VJOIN1( pts[0] , pt , hmin , adir );
+d394 1
+a394 1
+			VJOIN1( pts[1] , pts[0] , len , startdir );
+d396 1
+a396 1
+			VJOIN1( pts[3] , pts[0] , len , enddir );
+d398 1
+a398 1
+			VADD2( enddir , enddir , startdir );
+d401 1
+a401 1
+			VJOIN1( pts[2] , pts[0] , len , enddir );
+d406 1
+a406 1
+				VJOIN1( pts[i+4] , pts[i] , (hmax-hmin) , adir );
+d411 1
+a411 1
+		if( mk_arb8( fdout , cutname , &pts[0][X] ) < 0 )  {
+d413 1
+a413 1
+				dir[entityno]->direct , dir[entityno]->name );
+d425 1
+a425 1
+			(void)mk_addmember( trcptr->name , &head.l, NULL, operator[Union] );
+d430 1
+a430 1
+				(void)mk_addmember( cutname , &head.l, NULL, operator[cutop] );
+d437 1
+a437 1
+				(void)mk_addmember( subp->name , &head.l, NULL, operator[Subtract] );
+d445 2
+a446 2
+	if( mk_lcomb( fdout , dir[entityno]->name , &head , 0 ,
+	    (char *)0 , (char *)0 , (unsigned char *)0 , 0 ) < 0 )  {
+d448 1
+a448 1
+			dir[entityno]->direct , dir[entityno]->name );
+d465 1
+a465 1
+Addsub( trc , ptr )
+@
+
+
+1.4
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@d68 1
+a68 1
+	char		*trcform="rev.%d.%d";	/* Format for creating TRC names */
+@
+
+
+1.3
+log
+@update copyright to 2007
+@
+text
+@d8 2
+a9 3
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+d14 1
+a14 1
+ * General Public License for more details.
+d16 2
+a17 2
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+@
+
+
+1.2
+log
+@update copyright to 2006
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 1990-2006 United States Government as represented by
+@
+
+
+1.1
+log
+@moved all the geometry converter directories from src/. to src/conv/.
+@
+text
+@d4 1
+a4 1
+ * Copyright (C) 1990-2005 United States Government as represented by
+@
+
+
+1.1.2.1
+log
+@file revolve.c was added on branch rel-7-6-branch on 2005-11-13 17:45:00 +0000
+@
+text
+@d1 501
+@
+
+
+1.1.2.2
+log
+@more merging changes from HEAD aka rel-7-6-4 to the rel-7-6-branch, adding the items that were moved and resolving rcs keyword conflicts
+@
+text
+@a0 501
+/*                       R E V O L V E . C
+ * BRL-CAD
+ *
+ * Copyright (C) 1990-2005 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@file revolve.c
+ *  Authors -
+ *	John R. Anderson
+ *	Susanne L. Muuss
+ *	Earl P. Weaver
+ *
+ *  Source -
+ *	VLD/ASB Building 1065
+ *	The U. S. Army Ballistic Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005
+ *
+ */
+/*				SOLID OF REVOLUTION	*/
+
+#include "./iges_struct.h"
+#include "./iges_extern.h"
+
+void Addsub();
+
+#ifdef M_PI
+#define PI M_PI
+#else
+#define	PI	3.14159265358979
+#endif
+
+struct subtracts
+{
+	char *name;
+	int index;
+	struct subtracts *next;
+};
+
+struct trclist
+{
+	point_t base,top;
+	fastf_t r1,r2;
+	int op; /* 0 => union, 1=> subtract */
+	int index;
+	char name[NAMESIZE];
+	struct subtracts *subtr;
+	struct trclist *next,*prev;
+};
+
+int
+revolve( entityno )
+int entityno;
+{
+	struct wmember	head;			/* For region */
+	char		*trcform="rev.%d.%d";	/* Format for creating TRC names */
+	int		sol_num;		/* IGES solid type number */
+	point_t		pt;			/* Point on axis of revolution */
+	vect_t		adir;			/* Direction of axis of revolution */
+	int		curve;			/* Pointer to driectory entry for curve */
+	fastf_t		fract;			/* Fraction of circle for rotation (0 < fract <= 1.0) */
+	vect_t		v1;			/* Vector from "pt" to any point along curve */
+	fastf_t		h;			/* height of "TRC" */
+	int		npts;			/* Number of points used to approximate curve */
+	struct ptlist	*curv_pts,*ptr;		/* Pointer to a linked list of npts points along curve */
+	int		ntrcs;			/* number of "TRC" solids used */
+	vect_t		tmp;			/* temporary storage for a vector */
+	struct trclist	*trcs,*trcptr,*ptr2;	/* Pointers to linked list of TRC`s */
+	fastf_t		r2;			/* TRC radius */
+	fastf_t		hmax,hmin;		/* Max and Min distances along axis of rotation */
+	fastf_t		rmax;			/* Max radius */
+	int		cutop = Intersect;	/* Operator for cutting solid */
+	char		cutname[NAMESIZE];	/* Name for cutting solid */
+	struct subtracts *subp;
+	int		i;
+
+	BU_LIST_INIT( &head.l );
+
+	/* Default values */
+	VSET( adir , 0.0 , 0.0 , 1.0 );
+	VSET( pt , 0.0 , 0.0 , 0.0 );
+	fract = 1.0;
+
+	/* Acquire data */
+
+	if( dir[entityno]->param <= pstart )
+	{
+		bu_log( "Illegal parameter pointer for entity D%07d (%s)\n" ,
+				dir[entityno]->direct , dir[entityno]->name );
+		return(0);
+	}
+	Readrec( dir[entityno]->param );
+	Readint( &sol_num , "" );
+
+	/* Read pointer to directory entry for curve to be extruded */
+
+	Readint( &curve , "" );
+
+	/* Convert this to a "dir" index */
+
+	curve = (curve-1)/2;
+
+	Readflt( &fract , "" );
+	Readflt( &pt[X] , "" );
+	Readflt( &pt[Y] , "" );
+	Readflt( &pt[Z] , "" );
+	Readflt( &adir[X] , "" );
+	Readflt( &adir[Y] , "" );
+	Readflt( &adir[Z] , "" );
+
+	/* just to be safe */
+	VUNITIZE( adir );
+
+	if( fract <= 0.0 || fract > 1.0 )
+	{
+		bu_log( "Illegal parameters for entity D%07d (%s)\n" ,
+			dir[entityno]->direct , dir[entityno]->name );
+		return( 0 );
+	}
+
+	dir[entityno]->referenced = 1;
+
+	/* Get the curve in the form of a series of straight line segments */
+
+	npts = Getcurve( curve , &curv_pts );
+	if( npts == 0 )
+	{
+		bu_log( "Could not get points along curve for revovling\n" );
+		bu_log( "Illegal parameters for entity D%07d (%s)\n" ,
+			dir[entityno]->direct , dir[entityno]->name );
+		return( 0 );
+	}
+
+/* Construct a linked list of TRC's */
+	ntrcs = 0;
+	trcs = NULL;
+	ptr = curv_pts;
+
+	/* Calculate radius at start of curve */
+	VSUB2( v1 , ptr->pt , pt );
+	VCROSS( tmp , v1 , adir );
+	r2 = MAGNITUDE( tmp );
+	if( r2 < TOL )
+		r2 = TOL;
+	rmax = r2;
+	hmax = VDOT( v1 , adir );
+	hmin = hmax;
+
+	trcptr = NULL;
+	while( ptr->next != NULL )
+	{
+		struct trclist *prev;
+		fastf_t h1;
+
+		if( trcs == NULL )
+		{
+			trcs = (struct trclist *)bu_malloc( sizeof( struct trclist ),
+				"Revolve: trcs" );
+			trcptr = trcs;
+			prev = NULL;
+		}
+		else if( trcptr->name[0] != '\0' )
+		{
+			trcptr->next = (struct trclist *)bu_malloc( sizeof( struct trclist ),
+				"Revolve: trcptr->next" );
+			prev = trcptr;
+			trcptr = trcptr->next;
+		}
+		else  prev = NULL;
+		trcptr->next = NULL;
+		trcptr->prev = prev;
+		trcptr->op = 0;
+		trcptr->subtr = NULL;
+		trcptr->name[0] = '\0';
+
+		/* Calculate base point of TRC */
+		VSUB2( v1 , ptr->pt , pt );
+		VJOIN1( trcptr->base , pt , VDOT( v1 , adir ) , adir );
+
+		/* Height along axis of rotation */
+		h1 = VDOT( v1 , adir );
+		if( h1 < hmin )
+			hmin = h1;
+		if( h1 > hmax )
+			hmax = h1;
+
+		/* Radius at base is top radius from previous TRC */
+		trcptr->r1 = r2;
+
+		/* Calculate new top radius */
+		VSUB2( v1 , ptr->next->pt , pt );
+		VCROSS( tmp , v1 , adir );
+		trcptr->r2 = MAGNITUDE( tmp );
+		if( trcptr->r2 < TOL )
+			trcptr->r2 = TOL;
+		r2 = trcptr->r2;
+		if( r2 > rmax )
+			rmax = r2;
+
+		/* Calculate height of TRC */
+		VSUB2( v1 , ptr->next->pt , pt );
+		VJOIN1( trcptr->top , pt , VDOT( v1 , adir ) , adir );
+		VSUB2( v1 , trcptr->top , trcptr->base );
+		h = MAGNITUDE( v1 );
+		/* If height is zero, don't make a TRC */
+		if( NEAR_ZERO( h , TOL ) )
+		{
+			ptr = ptr->next;
+			continue;
+		}
+
+		/* Make a name for the TRC */
+		sprintf( trcptr->name , trcform , entityno , ntrcs );
+
+		/* Make the TRC */
+		if( mk_trc_top( fdout, trcptr->name, trcptr->base,
+		    trcptr->top, trcptr->r1, trcptr->r2 ) < 0 )  {
+			bu_log( "Unable to write TRC for entity D%07d (%s)\n" ,
+				dir[entityno]->direct , dir[entityno]->name );
+			return( 0 );
+		}
+
+		/* Count 'em */
+		ntrcs++;
+		ptr = ptr->next;
+	}
+
+	/* Eliminate last struct if not used */
+	if( trcptr->name[0] == '\0' )
+	{
+		trcptr->prev->next = NULL;
+		bu_free( (char *)trcptr, "Revolve: trcptr" );
+	}
+
+	if( dir[entityno]->form == 1 ) /* curve closed on itself */
+	{
+		trcptr = trcs;
+		while( trcptr != NULL )
+		{
+			fastf_t hb1,ht1,hb2,ht2; /* distance from "pt" to bottom and top of TRC's */
+			fastf_t	rtmp;	/* interpolated radii for TRC */
+			fastf_t tmpp;	/* temp storage */
+
+			/* Calculate distances to top and base */
+			VSUB2( tmp , trcptr->base , pt );
+			hb1 = MAGNITUDE( tmp );
+			VSUB2( tmp , trcptr->top , pt );
+			ht1 = MAGNITUDE( tmp );
+			/* Make sure distance to base is smaller */
+			if( ht1 < hb1 )
+			{
+				tmpp = ht1;
+				ht1 = hb1;
+				hb1 = tmpp;
+			}
+
+			/* Check every TRC against this one */
+			ptr2 = trcs;
+			while( ptr2 != NULL )
+			{
+				if( ptr2 == trcptr ) /* but not itself */
+					ptr2 = ptr2->next;
+				else
+				{
+					/* Calculate heights */
+					VSUB2( tmp , ptr2->base , pt );
+					hb2 = MAGNITUDE( tmp );
+					VSUB2( tmp , ptr2->top , pt );
+					ht2 = MAGNITUDE( tmp );
+					/* and order them */
+					if( ht2 < hb2 )
+					{
+						tmpp = ht2;
+						ht2 = hb2;
+						hb2 = tmpp;
+					}
+					if( hb2 < ht1 && hb2 > hb1 )
+					{
+						/* These TRC's overlap */
+						/* Calculate radius at hb2 */
+						rtmp = trcptr->r1 + (trcptr->r2 - trcptr->r1)*(hb2-hb1)/(ht1-hb1);
+						if( rtmp > ptr2->r1 )
+						{
+							/* ptr2 must be an inside solid, so subtract it */
+							Addsub( trcptr , ptr2 );
+							ptr2->op = 1;
+						}
+						else if( rtmp < ptr2->r1 )
+						{
+							/* trcptr must be an inside solid */
+							Addsub( ptr2 , trcptr );
+							trcptr->op = 1;
+						}
+					}
+					else if( ht2 < ht1 && ht2 > hb1 )
+					{
+						/* These TRC's overlap */
+						/* Calculate radius at ht2 */
+						rtmp = trcptr->r1 + (trcptr->r2 - trcptr->r1)*(ht2-hb1)/(ht1-hb1);
+						if( rtmp > ptr2->r2 )
+						{
+							/* ptr2 must be an inside solid, so subtract it */
+							Addsub( trcptr , ptr2 );
+							ptr2->op = 1;
+						}
+						else if( rtmp < ptr2->r1 )
+						{
+							/* trcptr must be an inside solid */
+							Addsub( ptr2 , trcptr );
+							trcptr->op = 1;
+						}
+					}
+					ptr2 = ptr2->next;
+				}
+			}
+			trcptr = trcptr->next;
+		}
+	}
+
+	if( fract < 1.0 )
+	{
+		/* Must calculate a cutting solid */
+		vect_t pdir,enddir,startdir;
+		fastf_t len,theta;
+		point_t pts[8];
+
+		/* Calculate direction from axis to curve */
+		len = 0.0;
+		ptr = curv_pts;
+		while( len == 0.0 )
+		{
+			VSUB2( pdir , ptr->pt , pt );
+			VJOIN1( startdir , pdir , -VDOT( pdir , adir ) , adir );
+			len = MAGNITUDE( startdir );
+			ptr = ptr->next;
+		}
+		VUNITIZE( startdir );
+
+		/* Calculate direction towards solid from axis */
+		VCROSS( pdir , adir , startdir );
+		VUNITIZE( pdir );
+
+		if( fract < 0.5 )
+		{
+			theta = 2.0*PI*fract;
+			cutop = Intersect;
+		}
+		else if( fract > 0.5 )
+		{
+			theta = (-2.0*PI*(1.0-fract));
+			cutop = Subtract;
+		}
+		else
+		{
+			/* XXX fract == 0.5, a dangerous comparison (roundoff) */
+			theta = PI;
+			cutop = Intersect;
+			/* Construct vertices for cutting solid */
+			VJOIN2( pts[0] , pt , hmin , adir , rmax , startdir );
+			VJOIN1( pts[1] , pts[0] , (-2.0*rmax) , startdir );
+			VJOIN1( pts[2] , pts[1] , rmax , pdir );
+			VJOIN1( pts[3] , pts[0] , rmax , pdir );
+			for( i=0 ; i<4 ; i++ )
+			{
+				VJOIN1( pts[i+4] , pts[i] , (hmax-hmin) , adir );
+			}
+		}
+		if( fract != 0.5 )
+		{
+			/* Calculate direction to end of revolve */
+			VSCALE( enddir , startdir , cos( theta ) );
+			VJOIN1( enddir , enddir , sin( theta ) , pdir );
+			VUNITIZE( enddir );
+
+			/* Calculate required length of a side */
+			len = rmax/cos( theta/4.0 );
+
+			/* Construct vertices for cutting solid */
+				/* Point at bottom center of revolution */
+			VJOIN1( pts[0] , pt , hmin , adir );
+				/* Point at bottom on curve */
+			VJOIN1( pts[1] , pts[0] , len , startdir );
+				/* Point at bottom at end of revolution */
+			VJOIN1( pts[3] , pts[0] , len , enddir );
+				/* Calculate direction to pts[2] */
+			VADD2( enddir , enddir , startdir );
+			VUNITIZE( enddir );
+				/* Calculate pts[2] */
+			VJOIN1( pts[2] , pts[0] , len , enddir );
+
+			/* Calculate top vertices */
+			for( i=0 ; i<4 ; i++ )
+			{
+				VJOIN1( pts[i+4] , pts[i] , (hmax-hmin) , adir );
+			}
+		}
+
+		/* Make the BRL-CAD solid */
+		if( mk_arb8( fdout , cutname , &pts[0][X] ) < 0 )  {
+			bu_log( "Unable to write ARB8 for entity D%07d (%s)\n" ,
+				dir[entityno]->direct , dir[entityno]->name );
+			return( 0 );
+		}
+	}
+
+	/* Build region */
+	trcptr = trcs;
+	while( trcptr != NULL )
+	{
+		/* Union together all the TRC's that are not subtracts */
+		if( trcptr->op != 1 )
+		{
+			(void)mk_addmember( trcptr->name , &head.l, NULL, operator[Union] );
+
+			if( fract < 1.0 )
+			{
+				/* include cutting solid */
+				(void)mk_addmember( cutname , &head.l, NULL, operator[cutop] );
+			}
+
+			subp = trcptr->subtr;
+			/* Subtract the inside TRC's */
+			while( subp != NULL )
+			{
+				(void)mk_addmember( subp->name , &head.l, NULL, operator[Subtract] );
+				subp = subp->next;
+			}
+		}
+		trcptr = trcptr->next;
+	}
+
+	/* Make the object */
+	if( mk_lcomb( fdout , dir[entityno]->name , &head , 0 ,
+	    (char *)0 , (char *)0 , (unsigned char *)0 , 0 ) < 0 )  {
+		bu_log( "Unable to make combination for entity D%07d (%s)\n" ,
+			dir[entityno]->direct , dir[entityno]->name );
+		return( 0 );
+	}
+
+
+	/* Free the TRC structures */
+	trcptr = trcs;
+	while( trcptr != NULL )
+	{
+		bu_free( (char *)trcptr, "Revolve: trcptr" );
+		trcptr = trcptr->next;
+	}
+	return( 1 );
+}
+
+/* Routine to add a name to the list of subtractions */
+void
+Addsub( trc , ptr )
+struct trclist *trc,*ptr;
+{
+	struct subtracts *subp;
+
+	if( trc->subtr == NULL )
+	{
+		trc->subtr = (struct subtracts *)bu_malloc( sizeof( struct subtracts ),
+			"Revolve: trc->subtr" );
+		subp = trc->subtr;
+	}
+	else
+	{
+		subp = trc->subtr;
+		while( subp->next != NULL )
+			subp = subp->next;
+		subp->next = (struct subtracts *)bu_malloc( sizeof( struct subtracts ),
+			"Revolve: subp->next" );
+		subp = subp->next;
+	}
+
+	subp->next = NULL;
+	subp->name = ptr->name;
+	subp->index = ptr->index;
+}
+
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+

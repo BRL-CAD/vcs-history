@@ -1,0 +1,328 @@
+head	1.7;
+access;
+symbols
+	rel-7-10-4:1.5
+	STABLE:1.5.0.2
+	rel-7-10-2:1.5;
+locks; strict;
+comment	@ * @;
+
+
+1.7
+date	2007.12.31.17.46.48;	author brlcad;	state Exp;
+branches;
+next	1.6;
+
+1.6
+date	2007.12.01.21.47.12;	author brlcad;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	2007.07.10.18.35.14;	author brlcad;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	2007.05.20.20.21.16;	author brlcad;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2007.05.16.04.06.20;	author brlcad;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2007.05.14.16.08.47;	author brlcad;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2007.05.13.18.56.04;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.7
+log
+@make a note that bu_crashreport() is NOT thread-safe.  it could have an internal semaphore wrapper, but for now, just let callers protect (i.e. leave it up to bu_bomb())
+@
+text
+@/*                   C R A S H R E P O R T . C
+ * BRL-CAD
+ *
+ * Copyright (c) 2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This library is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@addtogroup bu_log */
+/** @@{ */
+/** @@file crashreport.c
+ *
+ * Generate a crash report file, including a call stack backtrace and
+ * other system details.
+ *
+ * Author -
+ *   Christopher Sean Morrison
+ *
+ * Source -
+ *   BRL-CAD Open Source
+ */
+
+#include "common.h"
+
+/* system headers */
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <time.h>
+
+/* common headers */
+#include "bu.h"
+#include "brlcad_version.h"
+
+
+#define CR_BUFSIZE 2048
+static char buffer[CR_BUFSIZE] = {0};
+static FILE *fp = NULL;
+static FILE *popenfp = NULL;
+static time_t now;
+static const char *path = NULL;
+
+
+/**
+ * b u _ c r a s h r e p o r t
+ *
+ * this routine writes out details of the currently running process to
+ * the specified file, including an informational header about the
+ * execution environment, stack trace details, kernel and hardware
+ * information, and current version information.
+ *
+ * returns truthfully if the crash report was written.
+ *
+ * due to various reasons, this routine is NOT thread-safe.
+ */
+int
+bu_crashreport(const char *filename)
+{
+    if (!filename) {
+	return 0;
+    }
+
+    fp = fopen(filename, "a");
+    if (!fp) {
+	perror("unable to open crash report file");
+	bu_log("ERROR: Unable to open crash report file [%s]\n", filename);
+	return 0;
+    }
+
+    /* vat time ist? */
+    (void)time(&now);
+
+    path = bu_which(bu_argv0());
+
+    /* do our own expansion to avoid heap allocation */
+    snprintf(buffer, CR_BUFSIZE, "******************************************\n\n"
+	     "%s\n"		/* version info */
+	     "Command: %s\n"	/* argv0 */
+	     "Process: %d\n"	/* pid */
+	     "Path: %s\n"	/* which binary */
+	     "Date: %s\n",	/* date/time */
+	     brlcad_ident("Crash Report"),
+	     bu_argv0(),
+	     bu_process_id(),
+	     path ? path : "Unknown",
+	     ctime(&now));
+
+    /* print the report header */
+    if (fprintf(fp, (const char *)buffer) <= 0) {
+	/* cannot bomb */
+	bu_log("ERROR: Unable to write to crash report file [%s]\n", filename);
+	(void)fclose(fp);
+	fp = NULL;
+	return 0;
+    }
+
+    /* write out the backtrace */
+    fprintf(fp, "Call stack backtrace:\n");
+    fflush(fp);
+    if (bu_backtrace(fp) == 0) {
+	bu_log("WARNING: Unable to obtain a call stack backtrace\n");
+    }
+
+    /* write out operating system information */
+    if ((path = bu_which("uname"))) {
+	snprintf(buffer, CR_BUFSIZE, "%s -a 2>&1", path);
+	popenfp = popen(buffer, "r");
+	if (!popenfp) {
+	    perror("unable to popen uname");
+	    bu_log("WARNING: Unable to obtain uname information\n");
+	} else {
+	    fprintf(fp, "\nSystem characteristics:\n");
+	    while (bu_fgets(buffer, CR_BUFSIZE, popenfp)) {
+		fprintf(fp, "%s", buffer);
+	    }
+	}
+	(void)pclose(popenfp);
+	popenfp = NULL;
+	path = NULL;
+    }
+
+    /* write out kernel and hardware information */
+    if (path = bu_which("sysctl")) {
+	/* need 2>&1 to capture stderr junk from sysctl on Mac OS X for kern.exec */
+	snprintf(buffer, CR_BUFSIZE, "%s -a 2>&1", path);
+	popenfp = popen(buffer, "r");
+	if (!popenfp) {
+	    perror("unable to popen sysctl");
+	    bu_log("WARNING: Unable to obtain sysctl information\n");
+	} else {
+	    fprintf(fp, "\nSystem information:\n");
+	    while (bu_fgets(buffer, CR_BUFSIZE, popenfp)) {
+		if ((strlen(buffer) == 0) || ((strlen(buffer) == 1) && (buffer[0] = '\n'))) {
+		    continue;
+		}
+		fprintf(fp, "%s", buffer);
+	    }
+	}
+	(void)pclose(popenfp);
+	popenfp = NULL;
+	path = NULL;
+    }
+
+    memset(buffer, 0, CR_BUFSIZE);
+    fprintf(fp, "\n");
+    fflush(fp);
+    (void)fclose(fp);
+    fp = NULL;
+
+    /* success */
+    return 1;
+}
+
+/** @@} */
+
+/*
+ * Local Variables:
+ * tab-width: 8
+ * mode: C
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+1.6
+log
+@more flawfinder level 4 quellage, mostly str*() buffer boundary limits.
+@
+text
+@d64 2
+@
+
+
+1.5
+log
+@capture stderr so that the kern.exec message is not displayed (on os x) during sysctl
+@
+text
+@d98 1
+a98 1
+    if (fprintf(fp, buffer) <= 0) {
+@
+
+
+1.4
+log
+@change bu_argv0() to not take any parameters, preferring instead that apps only use bu_setprogname(), passing the full argv[0].
+@
+text
+@d115 1
+a115 1
+	snprintf(buffer, CR_BUFSIZE, "%s -a", path);
+d133 2
+a134 4
+	snprintf(buffer, CR_BUFSIZE, "%s -a", path);
+	/* FIXME: really should fork and execve instead of popen to
+	 * catch stderr junk from sysctl.
+	 */
+@
+
+
+1.3
+log
+@comment that we really should fork and exec instead of use popen so we can close/redirect stderr since sysctl frequently will dump junk there.
+@
+text
+@d82 1
+a82 1
+    path = bu_which(bu_argv0(NULL));
+d92 1
+a92 1
+	     bu_argv0(NULL),
+@
+
+
+1.2
+log
+@do the header expansion in our own buffer to help avoid heap allocation inside fprintf; don't print empty sysctl lines
+@
+text
+@d134 3
+@
+
+
+1.1
+log
+@initial implementation of a crash report generator that works with the new backtrace support.  included in the crash report are additional details like the version of BRL-CAD; kernel, OS, and hardware info (via sysctl and uname commands); and the stack trace.  needs more work to avoid allocations and not utilize stack data in case of corruption, but it's a good start.
+@
+text
+@a50 1
+static int result;
+d52 1
+a53 1
+static const char *path = NULL;
+d80 1
+a80 1
+    now = time(NULL);
+d84 13
+d98 2
+a99 13
+    result = fprintf(fp, "******************************************\n\n"
+		     "%s\n"		/* version info */
+		     "Command: %s\n"	/* argv0 */
+		     "Process: %d\n"	/* pid */
+		     "Path: %s\n"	/* which binary */
+		     "Date: %s\n",	/* date/time */
+		     brlcad_ident("Crash Report"),
+		     bu_argv0(NULL),
+		     bu_process_id(),
+		     path ? path : "Unknown",
+		     ctime(&now));
+
+    if (result <= 0) {
+d141 3
+d152 1
+a156 1
+    memset(buffer, 0, CR_BUFSIZE);
+@
+

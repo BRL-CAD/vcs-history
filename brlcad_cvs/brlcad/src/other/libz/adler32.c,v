@@ -1,0 +1,308 @@
+head	14.3;
+access;
+symbols
+	rel-7-10-4:14.3
+	STABLE:14.3.0.2
+	stable-branch:14.2
+	rel-7-10-2:14.3
+	rel-7-10-0:14.3
+	rel-7-8-4:14.2
+	rel-7-8-2:14.2
+	rel-7-8-0:14.2
+	trimnurbs-branch:14.2.0.8
+	help:14.2
+	temp_tag:14.2
+	bobWinPort-20051223-freeze:14.2
+	postmerge-20051223-bobWinPort:14.2
+	premerge-20051223-bobWinPort:14.2
+	rel-7-6-6:14.2
+	rel-7-6-4:14.2
+	rel-7-6-2:14.2
+	rel-7-6-branch:14.2.0.6
+	rel-7-6-0:14.2
+	rel-7-4-2:14.2
+	rel-7-4-branch:14.2.0.4
+	bobWinPort:14.2.0.2
+	rel-7-4-0:14.2
+	rel-7-2-6:14.2
+	rel-7-2-4:14.2
+	rel-7-2-2:14.2
+	rel-7-2-0:14.2
+	rel-7-0-4:14.1
+	rel-7-0-2:14.1
+	rel-7-0-1:14.1
+	opensource-post:14.1
+	opensource-pre:1.1
+	rel-7-0-branch:1.1.0.2
+	rel-7-0:1.1;
+locks; strict;
+comment	@ * @;
+
+
+14.3
+date	2007.02.03.00.29.29;	author brlcad;	state Exp;
+branches;
+next	14.2;
+
+14.2
+date	2005.01.27.15.29.43;	author brlcad;	state Exp;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.30;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.14.54.10;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.3
+log
+@update of the bundled zlib from version 1.2.2 to 1.2.3; per the zlib website, this eliminates a potential security vulnerability when decoding invalid compressed data (VU#238678 / SA11129) as well as eliminates a potential security vulnerability when decoding specially crafted compressed data (VU#680620 / SA15949). other updates included, see the zlib release notes for details.
+@
+text
+@/* adler32.c -- compute the Adler-32 checksum of a data stream
+ * Copyright (C) 1995-2004 Mark Adler
+ * For conditions of distribution and use, see copyright notice in zlib.h
+ */
+
+/* @@(#) $Id$ */
+
+#define ZLIB_INTERNAL
+#include "zlib.h"
+
+#define BASE 65521UL    /* largest prime smaller than 65536 */
+#define NMAX 5552
+/* NMAX is the largest n such that 255n(n+1)/2 + (n+1)(BASE-1) <= 2^32-1 */
+
+#define DO1(buf,i)  {adler += (buf)[i]; sum2 += adler;}
+#define DO2(buf,i)  DO1(buf,i); DO1(buf,i+1);
+#define DO4(buf,i)  DO2(buf,i); DO2(buf,i+2);
+#define DO8(buf,i)  DO4(buf,i); DO4(buf,i+4);
+#define DO16(buf)   DO8(buf,0); DO8(buf,8);
+
+/* use NO_DIVIDE if your processor does not do division in hardware */
+#ifdef NO_DIVIDE
+#  define MOD(a) \
+    do { \
+        if (a >= (BASE << 16)) a -= (BASE << 16); \
+        if (a >= (BASE << 15)) a -= (BASE << 15); \
+        if (a >= (BASE << 14)) a -= (BASE << 14); \
+        if (a >= (BASE << 13)) a -= (BASE << 13); \
+        if (a >= (BASE << 12)) a -= (BASE << 12); \
+        if (a >= (BASE << 11)) a -= (BASE << 11); \
+        if (a >= (BASE << 10)) a -= (BASE << 10); \
+        if (a >= (BASE << 9)) a -= (BASE << 9); \
+        if (a >= (BASE << 8)) a -= (BASE << 8); \
+        if (a >= (BASE << 7)) a -= (BASE << 7); \
+        if (a >= (BASE << 6)) a -= (BASE << 6); \
+        if (a >= (BASE << 5)) a -= (BASE << 5); \
+        if (a >= (BASE << 4)) a -= (BASE << 4); \
+        if (a >= (BASE << 3)) a -= (BASE << 3); \
+        if (a >= (BASE << 2)) a -= (BASE << 2); \
+        if (a >= (BASE << 1)) a -= (BASE << 1); \
+        if (a >= BASE) a -= BASE; \
+    } while (0)
+#  define MOD4(a) \
+    do { \
+        if (a >= (BASE << 4)) a -= (BASE << 4); \
+        if (a >= (BASE << 3)) a -= (BASE << 3); \
+        if (a >= (BASE << 2)) a -= (BASE << 2); \
+        if (a >= (BASE << 1)) a -= (BASE << 1); \
+        if (a >= BASE) a -= BASE; \
+    } while (0)
+#else
+#  define MOD(a) a %= BASE
+#  define MOD4(a) a %= BASE
+#endif
+
+/* ========================================================================= */
+uLong ZEXPORT adler32(adler, buf, len)
+    uLong adler;
+    const Bytef *buf;
+    uInt len;
+{
+    unsigned long sum2;
+    unsigned n;
+
+    /* split Adler-32 into component sums */
+    sum2 = (adler >> 16) & 0xffff;
+    adler &= 0xffff;
+
+    /* in case user likes doing a byte at a time, keep it fast */
+    if (len == 1) {
+        adler += buf[0];
+        if (adler >= BASE)
+            adler -= BASE;
+        sum2 += adler;
+        if (sum2 >= BASE)
+            sum2 -= BASE;
+        return adler | (sum2 << 16);
+    }
+
+    /* initial Adler-32 value (deferred check for len == 1 speed) */
+    if (buf == Z_NULL)
+        return 1L;
+
+    /* in case short lengths are provided, keep it somewhat fast */
+    if (len < 16) {
+        while (len--) {
+            adler += *buf++;
+            sum2 += adler;
+        }
+        if (adler >= BASE)
+            adler -= BASE;
+        MOD4(sum2);             /* only added so many BASE's */
+        return adler | (sum2 << 16);
+    }
+
+    /* do length NMAX blocks -- requires just one modulo operation */
+    while (len >= NMAX) {
+        len -= NMAX;
+        n = NMAX / 16;          /* NMAX is divisible by 16 */
+        do {
+            DO16(buf);          /* 16 sums unrolled */
+            buf += 16;
+        } while (--n);
+        MOD(adler);
+        MOD(sum2);
+    }
+
+    /* do remaining bytes (less than NMAX, still just one modulo) */
+    if (len) {                  /* avoid modulos if none remaining */
+        while (len >= 16) {
+            len -= 16;
+            DO16(buf);
+            buf += 16;
+        }
+        while (len--) {
+            adler += *buf++;
+            sum2 += adler;
+        }
+        MOD(adler);
+        MOD(sum2);
+    }
+
+    /* return recombined sums */
+    return adler | (sum2 << 16);
+}
+
+/* ========================================================================= */
+uLong ZEXPORT adler32_combine(adler1, adler2, len2)
+    uLong adler1;
+    uLong adler2;
+    z_off_t len2;
+{
+    unsigned long sum1;
+    unsigned long sum2;
+    unsigned rem;
+
+    /* the derivation of this formula is left as an exercise for the reader */
+    rem = (unsigned)(len2 % BASE);
+    sum1 = adler1 & 0xffff;
+    sum2 = rem * sum1;
+    MOD(sum2);
+    sum1 += (adler2 & 0xffff) + BASE - 1;
+    sum2 += ((adler1 >> 16) & 0xffff) + ((adler2 >> 16) & 0xffff) + BASE - rem;
+    if (sum1 > BASE) sum1 -= BASE;
+    if (sum1 > BASE) sum1 -= BASE;
+    if (sum2 > (BASE << 1)) sum2 -= (BASE << 1);
+    if (sum2 > BASE) sum2 -= BASE;
+    return sum1 | (sum2 << 16);
+}
+@
+
+
+14.2
+log
+@update to zlib 1.2.2, modified files
+@
+text
+@d2 1
+a2 1
+ * Copyright (C) 1995-2003 Mark Adler
+d15 1
+a15 1
+#define DO1(buf,i)  {s1 += buf[i]; s2 += s1;}
+d21 1
+d43 8
+d53 1
+d62 50
+a111 10
+    unsigned long s1 = adler & 0xffff;
+    unsigned long s2 = (adler >> 16) & 0xffff;
+    int k;
+
+    if (buf == Z_NULL) return 1L;
+
+    while (len > 0) {
+        k = len < NMAX ? (int)len : NMAX;
+        len -= k;
+        while (k >= 16) {
+a113 1
+            k -= 16;
+d115 6
+a120 6
+        if (k != 0) do {
+            s1 += *buf++;
+            s2 += s1;
+        } while (--k);
+        MOD(s1);
+        MOD(s2);
+d122 27
+a148 1
+    return (s2 << 16) | s1;
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@d2 2
+a3 2
+ * Copyright (C) 1995-2002 Mark Adler
+ * For conditions of distribution and use, see copyright notice in zlib.h 
+d6 1
+a6 1
+/* @@(#) $Id: adler32.c,v 1.1 2004/05/20 14:54:10 morrison Exp $ */
+d8 1
+d11 1
+a11 1
+#define BASE 65521L /* largest prime smaller than 65536 */
+d21 25
+d59 1
+a59 1
+        k = len < NMAX ? len : NMAX;
+d63 1
+a63 1
+	    buf += 16;
+d68 1
+a68 1
+	    s2 += s1;
+d70 2
+a71 2
+        s1 %= BASE;
+        s2 %= BASE;
+@
+
+
+1.1
+log
+@Sources that are external to BRL-CAD are moved from the top level to src/other/.
+@
+text
+@d6 1
+a6 1
+/* @@(#) $Id: adler32.c,v 1.3 2002/12/23 21:47:37 jra Exp $ */
+@
+

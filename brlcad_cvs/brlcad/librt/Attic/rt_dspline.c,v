@@ -1,0 +1,716 @@
+head	1.12;
+access;
+symbols
+	ansi-20040405-merged:1.10.2.1
+	postmerge-20040405-ansi:1.11
+	premerge-20040404-ansi:1.10
+	postmerge-autoconf:1.10
+	autoconf-freeze:1.10
+	premerge-autoconf:1.10
+	ansi-20040316-freeze:1.10.2.1
+	postmerge-20040315-windows:1.10
+	premerge-20040315-windows:1.10
+	windows-20040315-freeze:1.10
+	autoconf-20031203:1.10
+	autoconf-20031202:1.10
+	autoconf-branch:1.10.0.10
+	phong-branch:1.10.0.8
+	photonmap-branch:1.10.0.6
+	rel-6-1-DP:1.10
+	windows-branch:1.10.0.4
+	rel-6-0-2:1.8
+	ansi-branch:1.10.0.2
+	rel-6-0-1-branch:1.8.0.2
+	hartley-6-0-post:1.9
+	hartley-6-0-pre:1.8
+	rel-6-0-1:1.8
+	rel-6-0:1.8
+	rel-5-4:1.5
+	offsite-5-3-pre:1.7
+	rel-5-3:1.5
+	rel-5-2:1.5
+	rel-5-1-branch:1.5.0.2
+	rel-5-1:1.5
+	rel-5-0:1.4
+	rel-5-0-beta:1.3
+	rel-4-5:1.3
+	ctj-4-5-post:1.3
+	ctj-4-5-pre:1.3;
+locks; strict;
+comment	@ * @;
+
+
+1.12
+date	2004.05.21.18.07.35;	author morrison;	state dead;
+branches;
+next	1.11;
+
+1.11
+date	2004.04.05.08.48.58;	author morrison;	state Exp;
+branches;
+next	1.10;
+
+1.10
+date	2002.08.20.17.08.09;	author jra;	state Exp;
+branches
+	1.10.2.1;
+next	1.9;
+
+1.9
+date	2002.08.15.20.55.21;	author hartley;	state Exp;
+branches;
+next	1.8;
+
+1.8
+date	2001.04.20.22.29.55;	author morrison;	state Exp;
+branches;
+next	1.7;
+
+1.7
+date	2000.08.21.02.02.34;	author butler;	state Exp;
+branches;
+next	1.6;
+
+1.6
+date	2000.07.10.23.01.48;	author mike;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	99.12.30.16.01.15;	author jra;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	99.06.03.01.12.52;	author mike;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	96.08.27.03.43.49;	author mike;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	96.07.12.12.10.21;	author jra;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	96.04.24.22.20.05;	author butler;	state Exp;
+branches;
+next	;
+
+1.10.2.1
+date	2002.09.19.18.01.46;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@Simple data splining support
+@
+
+
+1.12
+log
+@moved to src/
+@
+text
+@/*	R T _ S P L I N E . C
+ *
+ *  Simple data (double) spline package.
+ *
+ *  rt_dspline_matrix(m, type, tension, bias)	create basis matrix
+ *  rt_dspline4(m, a, b, c, d, alpha)		interpolate 1 value
+ *  rt_dspline4v(m, a, b, c, d, depth alpha)	interpolate vectors
+ *  rt_dspline(r, m, knots, n, depth, alpha)	interpolate n knots over 0..1
+ *
+ *  Example:
+ *	mat_t	m;
+ *	double	d;
+ *	vect_t	v;
+ *	vect_t  kn = { 	{0., 0., 0.},
+ *		 	{0., 1., 0.},
+ * 			{.5, 1., 0.},
+ *		 	{1., 1., 0.},
+ *		 	{1., 0., 0.} };
+ *
+ *	rt_dspline_matrix(m, "Beta", 0.5, 1.0);
+ *
+ *	d = rt_dspline4(m, .0, .0, 1.0, 1.0, 0.25);
+ *
+ *	for (p = 0.0 ; p <= 1.0 ; p += 0.0625 ) {
+ *		rt_dspline(v, m, kn, 5, 3, p);
+ *		bu_log("%g (%g %g %g)\n", p, V3ARGS(v));
+ *	}
+ *
+ *  Author -
+ *	Lee A. Butler
+ *
+ *  Source -
+ *	The U. S. Army Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005-5068  USA
+ *
+ *  Distribution Status -
+ *	Public Domain, Distribution Unlimited.
+ */
+
+#ifndef lint
+static const char RCSid[] = "@@(#)$Header: /n/xoff/cvs/brlcad/librt/rt_dspline.c,v 1.11 2004/04/05 08:48:58 morrison Exp $ (ARL)";
+#endif
+
+#include <stdio.h>
+#include <string.h>
+#include <math.h>
+
+#include "machine.h"
+#include "externs.h"
+#include "vmath.h"
+#include "bu.h"
+#include "raytrace.h"
+
+static void
+GetBeta(fastf_t *m, const double bias, const double tension)
+{
+	register int i;
+	double d, b2, b3;
+	register double tmp;
+
+	b2 = bias * bias;
+	b3 = bias * b2;
+
+	tmp = 2.0 * b3;
+	m[12] = tmp;
+	m[ 0] = -tmp;
+
+	tmp = tension+b2+bias;
+	m[ 1] = 2.0 * (tmp + b3);
+	m[ 2] = -2.0 * (tmp + 1.0);
+
+	tmp = tension + 2.0 * b2;
+	m[ 5] = -3.0 * (tmp + 2.0 * b3);
+	m[ 6] =  3.0 * tmp;
+
+	tmp = 6.0 * b3;
+	m[ 4] = tmp;
+	m[ 8] = -tmp;
+
+	m[ 9] = 6.0 * (b3 - bias);
+	m[10] = 6.0 * bias;
+
+	tmp = tension + 4.0 * (b2 + bias);
+	m[13] = tmp;
+	d = 1.0 / ( tmp + 2.0 * b3 + 2.0);
+
+	m[ 3] = m[14] = 2.0;
+	m[ 7] = m[11] = m[15] = 0.0;
+
+	for (i=0 ; i < 16; i++) m[i] *= d;
+}
+
+static void
+GetCardinal(fastf_t *m, const double tension)
+{
+	m[ 1] = 2.0 - tension;
+	m[ 2] = tension - 2.0;
+	m[ 4] = 2.0 * tension;
+	m[ 5] = tension - 3.0;
+	m[ 6] = 3.0 - 2.0 * tension;
+	m[13] = 1.0;
+	m[ 3] = m[10] = tension;
+	m[ 0] = m[7] = m[ 8] = -tension;
+	m[ 9] = m[11] = m[12] = m[14] = m[15] = 0.0;
+}
+
+/*	R T _ D S P L I N E _ M A T R I X 
+ *
+ *	Initialize a spline matrix for a particular spline type.
+ *
+ */
+void
+rt_dspline_matrix(fastf_t *m, const char *type, const double tension, const double bias)
+           	  
+          	      		/* "Cardinal", "Catmull", "Beta" */
+            	        	/* Cardinal tension of .5 is Catmull spline */
+            	     		/* only for B spline */
+{
+	if (!strncmp(type, "Cardinal", 8))	GetCardinal(m, tension);
+	else if (!strncmp(type, "Catmull", 7))	GetCardinal(m, 0.5);
+	else if (!strncmp(type, "Beta", 4)) 	GetBeta(m, bias, tension);
+	else {
+		bu_log( "Error: %s:%d spline type \"%s\" Unknown\n", 
+			__FILE__, __LINE__, type);
+		abort();
+	}
+}
+
+/*	R T _ D S P L I N E 4
+ *
+ *	m		spline matrix (see rt_dspline4_matrix)
+ *	a, b, c, d	knot values
+ *	alpha:	0..1	interpolation point
+ *
+ *	Evaluate a 1-dimensional spline at a point "alpha" on knot values
+ *	a, b, c, d.
+ */
+double
+rt_dspline4(fastf_t *m, double a, double b, double c, double d, double alpha)
+     	  		/* spline matrix */
+                  	/* control pts */
+             		/* point to interpolate at */
+{
+	double p0, p1, p2, p3;
+
+	p0 = m[ 0]*a + m[ 1]*b + m[ 2]*c + m[ 3]*d;
+	p1 = m[ 4]*a + m[ 5]*b + m[ 6]*c + m[ 7]*d;
+	p2 = m[ 8]*a + m[ 9]*b + m[10]*c + m[11]*d;
+	p3 = m[12]*a + m[13]*b + m[14]*c + m[15]*d;
+
+	return  p3 +  alpha*(p2 + alpha*(p1 + alpha*p0) );
+}
+
+/*	R T _ D S P L I N E 4 V
+ *
+ *	pt		vector to recieve the interpolation result
+ *	m		spline matrix (see rt_dspline4_matrix)
+ *	a, b, c, d	knot values
+ *	alpha:	0..1	interpolation point
+ *
+ *  Evaluate a spline at a point "alpha" between knot pts b & c
+ *  The knots and result are all vectors with "depth" values (length).
+ *
+ */
+void
+rt_dspline4v(double *pt, const fastf_t *m, const double *a, const double *b, const double *c, const double *d, const int depth, const double alpha)
+           	/* result */
+           	  	/* spline matrix obtained with spline_matrix() */
+                	/* knots */
+                
+                
+                
+                	/* number of values per knot */
+                   	/* 0 <= alpha <= 1 */
+{
+	int i;
+	double p0, p1, p2, p3;
+
+	for (i=0 ; i < depth ; i++) {
+		p0 = m[ 0]*a[i] + m[ 1]*b[i] + m[ 2]*c[i] + m[ 3]*d[i];
+		p1 = m[ 4]*a[i] + m[ 5]*b[i] + m[ 6]*c[i] + m[ 7]*d[i];
+		p2 = m[ 8]*a[i] + m[ 9]*b[i] + m[10]*c[i] + m[11]*d[i];
+		p3 = m[12]*a[i] + m[13]*b[i] + m[14]*c[i] + m[15]*d[i];
+
+		pt[i] = p3 +  alpha*(p2 + alpha*(p1 + alpha*p0) );
+	}
+}
+
+
+/*	R T _ D S P L I N E _ N
+ *
+ *	Interpolate n knot vectors over the range 0..1
+ *
+ *	"knots" is an array of "n" knot vectors.  Each vector consists of
+ *	"depth" values.  They define an "n" dimensional surface which is
+ *	evaluated at the single point "alpha".  The evaluated point is
+ *	returned in "r"
+ *
+ *	Example use:
+ *		double result[MAX_DEPTH], knots[MAX_DEPTH*MAX_KNOTS];
+ *		mat_t	m;
+ *		int	knot_count, depth;
+ *
+ *		knots = bu_malloc(sizeof(double) * knot_length * knot_count);
+ *		result = bu_malloc(sizeof(double) * knot_length);
+ *
+ *		rt_dspline4_matrix(m, "Catmull", (double *)NULL, 0.0);
+ *
+ *		for (i=0 ; i < knot_count ; i++)
+ *			get a knot(knots, i, knot_length);
+ *
+ *		rt_dspline_n(result, m, knots, knot_count, knot_length, alpha);
+ *
+ */
+void
+rt_dspline_n(double *r, const fastf_t *m, const double *knots, const int nknots, const int depth, const double alpha)
+            	   	/* result */
+           	  	/* spline matrix */
+            	       	/* knot values */
+         	       	/* number of knots */
+         	      	/* number of values per knot */
+            	      	/* point on surface (0..1) to evaluate */
+{
+	double *a, *b, *c, *d, x;
+	int nspans = nknots - 3;
+	int span;
+
+	/* validate args */
+	if (nspans < 1 || depth < 1 || alpha < 0.0 || alpha > 1.0 ||
+	    !r || !knots)
+		abort();
+
+
+	/* compute which knots (span) we're going to interpolate */
+
+
+	x = alpha * nspans;
+	span = (int)x;
+	if (span >= nspans) span = nspans - 1;
+	x -= span;
+
+	/* compute point (alpha 0..1) within this span */
+
+	a = (double *)&knots[span*depth];
+	b = a+depth;
+	c = b+depth;
+	d = c+depth;
+
+	rt_dspline4v(r, m, a, b, c, d, depth, x);
+
+}
+@
+
+
+1.11
+log
+@merge of ansi-6-0-branch into HEAD
+@
+text
+@d41 1
+a41 1
+static const char RCSid[] = "@@(#)$Header$ (ARL)";
+@
+
+
+1.10
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d41 1
+a41 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/librt/rt_dspline.c,v 1.8 2001/04/20 22:29:55 morrison Exp $ (ARL)";
+d55 1
+a55 3
+GetBeta(m, bias, tension)
+mat_t m;
+const double bias, tension;
+d94 1
+a94 3
+GetCardinal(m, tension)
+mat_t m;
+const double tension;
+d113 5
+a117 5
+rt_dspline_matrix(m, type, tension, bias)
+      mat_t	m;
+const char	*type;		/* "Cardinal", "Catmull", "Beta" */
+const double	tension;	/* Cardinal tension of .5 is Catmull spline */
+const double	bias;		/* only for B spline */
+d139 4
+a142 4
+rt_dspline4(m, a, b, c, d, alpha)
+mat_t	m;		/* spline matrix */
+double a, b, c, d;	/* control pts */
+double alpha;		/* point to interpolate at */
+d166 9
+a174 9
+rt_dspline4v(pt, m, a, b, c, d, depth, alpha)
+double *pt;	/* result */
+const mat_t	m;	/* spline matrix obtained with spline_matrix() */
+const double *a;	/* knots */
+const double *b;
+const double *c;
+const double *d;
+const int depth;	/* number of values per knot */
+const double alpha;	/* 0 <= alpha <= 1 */
+d216 7
+a222 7
+rt_dspline_n(r, m, knots, nknots, depth, alpha)
+      double	*r;	/* result */
+const mat_t	m;	/* spline matrix */
+const double	*knots;	/* knot values */
+const int	nknots;	/* number of knots */
+const int	depth;	/* number of values per knot */
+const double	alpha;	/* point on surface (0..1) to evaluate */
+@
+
+
+1.10.2.1
+log
+@Initial ANSIfication
+@
+text
+@d41 1
+a41 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/librt/rt_dspline.c,v 1.10 2002/08/20 17:08:09 jra Exp $ (ARL)";
+d55 3
+a57 1
+GetBeta(fastf_t *m, const double bias, const double tension)
+d96 3
+a98 1
+GetCardinal(fastf_t *m, const double tension)
+d117 5
+a121 5
+rt_dspline_matrix(fastf_t *m, const char *type, const double tension, const double bias)
+           	  
+          	      		/* "Cardinal", "Catmull", "Beta" */
+            	        	/* Cardinal tension of .5 is Catmull spline */
+            	     		/* only for B spline */
+d143 4
+a146 4
+rt_dspline4(fastf_t *m, double a, double b, double c, double d, double alpha)
+     	  		/* spline matrix */
+                  	/* control pts */
+             		/* point to interpolate at */
+d170 9
+a178 9
+rt_dspline4v(double *pt, const fastf_t *m, const double *a, const double *b, const double *c, const double *d, const int depth, const double alpha)
+           	/* result */
+           	  	/* spline matrix obtained with spline_matrix() */
+                	/* knots */
+                
+                
+                
+                	/* number of values per knot */
+                   	/* 0 <= alpha <= 1 */
+d220 7
+a226 7
+rt_dspline_n(double *r, const fastf_t *m, const double *knots, const int nknots, const int depth, const double alpha)
+            	   	/* result */
+           	  	/* spline matrix */
+            	       	/* knot values */
+         	       	/* number of knots */
+         	      	/* number of values per knot */
+            	      	/* point on surface (0..1) to evaluate */
+@
+
+
+1.9
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d55 3
+a57 1
+GetBeta(fastf_t *m, const double bias, const double tension)
+d96 3
+a98 1
+GetCardinal(fastf_t *m, const double tension)
+d117 5
+a121 5
+rt_dspline_matrix(fastf_t *m, const char *type, const double tension, const double bias)
+           	  
+          	      		/* "Cardinal", "Catmull", "Beta" */
+            	        	/* Cardinal tension of .5 is Catmull spline */
+            	     		/* only for B spline */
+d143 4
+a146 4
+rt_dspline4(fastf_t *m, double a, double b, double c, double d, double alpha)
+     	  		/* spline matrix */
+                  	/* control pts */
+             		/* point to interpolate at */
+d170 9
+a178 9
+rt_dspline4v(double *pt, const fastf_t *m, const double *a, const double *b, const double *c, const double *d, const int depth, const double alpha)
+           	/* result */
+           	  	/* spline matrix obtained with spline_matrix() */
+                	/* knots */
+                
+                
+                
+                	/* number of values per knot */
+                   	/* 0 <= alpha <= 1 */
+d220 7
+a226 7
+rt_dspline_n(double *r, const fastf_t *m, const double *knots, const int nknots, const int depth, const double alpha)
+            	   	/* result */
+           	  	/* spline matrix */
+            	       	/* knot values */
+         	       	/* number of knots */
+         	      	/* number of values per knot */
+            	      	/* point on surface (0..1) to evaluate */
+@
+
+
+1.8
+log
+@CONST to const
+@
+text
+@d41 1
+a41 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/librt/rt_dspline.c,v 1.7 2000/08/21 02:02:34 butler Exp $ (ARL)";
+d55 1
+a55 3
+GetBeta(m, bias, tension)
+mat_t m;
+const double bias, tension;
+d94 1
+a94 3
+GetCardinal(m, tension)
+mat_t m;
+const double tension;
+d113 5
+a117 5
+rt_dspline_matrix(m, type, tension, bias)
+      mat_t	m;
+const char	*type;		/* "Cardinal", "Catmull", "Beta" */
+const double	tension;	/* Cardinal tension of .5 is Catmull spline */
+const double	bias;		/* only for B spline */
+d139 4
+a142 4
+rt_dspline4(m, a, b, c, d, alpha)
+mat_t	m;		/* spline matrix */
+double a, b, c, d;	/* control pts */
+double alpha;		/* point to interpolate at */
+d166 9
+a174 9
+rt_dspline4v(pt, m, a, b, c, d, depth, alpha)
+double *pt;	/* result */
+const mat_t	m;	/* spline matrix obtained with spline_matrix() */
+const double *a;	/* knots */
+const double *b;
+const double *c;
+const double *d;
+const int depth;	/* number of values per knot */
+const double alpha;	/* 0 <= alpha <= 1 */
+d216 7
+a222 7
+rt_dspline_n(r, m, knots, nknots, depth, alpha)
+      double	*r;	/* result */
+const mat_t	m;	/* spline matrix */
+const double	*knots;	/* knot values */
+const int	nknots;	/* number of knots */
+const int	depth;	/* number of values per knot */
+const double	alpha;	/* point on surface (0..1) to evaluate */
+@
+
+
+1.7
+log
+@Massive compilation warnings eliminated
+@
+text
+@d41 1
+a41 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/librt/rt_dspline.c,v 1.6 2000/07/10 23:01:48 mike Exp $ (ARL)";
+d57 1
+a57 1
+CONST double bias, tension;
+d98 1
+a98 1
+CONST double tension;
+d119 3
+a121 3
+CONST char	*type;		/* "Cardinal", "Catmull", "Beta" */
+CONST double	tension;	/* Cardinal tension of .5 is Catmull spline */
+CONST double	bias;		/* only for B spline */
+d172 7
+a178 7
+CONST mat_t	m;	/* spline matrix obtained with spline_matrix() */
+CONST double *a;	/* knots */
+CONST double *b;
+CONST double *c;
+CONST double *d;
+CONST int depth;	/* number of values per knot */
+CONST double alpha;	/* 0 <= alpha <= 1 */
+d222 5
+a226 5
+CONST mat_t	m;	/* spline matrix */
+CONST double	*knots;	/* knot values */
+CONST int	nknots;	/* number of knots */
+CONST int	depth;	/* number of values per knot */
+CONST double	alpha;	/* point on surface (0..1) to evaluate */
+@
+
+
+1.6
+log
+@
+Added "const" to RCSid string, to silence warnings of unused variable
+on GCC compilers
+@
+text
+@d41 1
+a41 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/librt/rt_dspline.c,v 1.5 1999/12/30 16:01:15 jra Exp $ (ARL)";
+d45 1
+@
+
+
+1.5
+log
+@Eliminated some unused variables
+@
+text
+@d41 1
+a41 1
+static char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/librt/rt_dspline.c,v 1.4 1999/06/03 01:12:52 mike Exp $ (ARL)";
+@
+
+
+1.4
+log
+@
+sed4
+@
+text
+@d41 1
+a41 1
+static char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/librt/rt_dspline.c,v 1.3 1996/08/27 03:43:49 mike Exp $ (ARL)";
+d180 1
+a180 1
+	double p0, p1, p2, p3, v;
+a229 1
+	int i, j;
+@
+
+
+1.3
+log
+@bu.h
+@
+text
+@d26 1
+a26 1
+ *		rt_log("%g (%g %g %g)\n", p, V3ARGS(v));
+d41 1
+a41 1
+static char RCSid[] = "@@(#)$Header: /m/cad/librt/RCS/rt_dspline.c,v 1.2 1996/07/12 12:10:21 jra Exp mike $ (ARL)";
+d126 1
+a126 1
+		rt_log( "Error: %s:%d spline type \"%s\" Unknown\n", 
+d207 2
+a208 2
+ *		knots = rt_malloc(sizeof(double) * knot_length * knot_count);
+ *		result = rt_malloc(sizeof(double) * knot_length);
+@
+
+
+1.2
+log
+@Minor Mods for IRIX 6.2
+@
+text
+@d41 1
+a41 1
+static char RCSid[] = "@@(#)$Header: /m/cad/librt/RCS/rt_dspline.c,v 1.1 1996/04/24 22:20:05 butler Exp jra $ (ARL)";
+d45 1
+d48 1
+d50 2
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d41 1
+a41 1
+static char RCSid[] = "@@(#)$Header$ (ARL)";
+d54 1
+a54 1
+	register i;
+@

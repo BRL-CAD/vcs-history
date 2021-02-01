@@ -1,0 +1,448 @@
+head	14.9;
+access;
+symbols
+	rel-7-10-4:14.8
+	STABLE:14.8.0.2
+	stable-branch:14.3
+	rel-7-10-2:14.8
+	rel-7-10-0:14.8
+	rel-7-8-4:14.5
+	rel-7-8-2:14.5
+	rel-7-8-0:14.5
+	trimnurbs-branch:14.5.0.2
+	help:14.5
+	temp_tag:14.4
+	bobWinPort-20051223-freeze:14.3
+	postmerge-20051223-bobWinPort:14.4
+	premerge-20051223-bobWinPort:14.4
+	rel-7-6-6:14.4
+	rel-7-6-4:14.4
+	rel-7-6-2:14.3
+	rel-7-6-branch:14.3.0.6
+	rel-7-6-0:14.3
+	rel-7-4-2:14.3
+	rel-7-4-branch:14.3.0.4
+	bobWinPort:14.3.0.2
+	rel-7-4-0:14.3
+	rel-7-2-6:14.3
+	rel-7-2-4:14.3
+	rel-7-2-2:14.3
+	rel-7-2-0:14.3
+	rel-7-0-4:14.2
+	rel-7-0-2:14.2
+	rel-7-0-1:14.2
+	opensource-post:14.2
+	opensource-pre:1.2
+	rel-7-0-branch:1.2.0.2
+	rel-7-0:1.2;
+locks; strict;
+comment	@ * @;
+
+
+14.9
+date	2007.12.18.00.14.25;	author brlcad;	state Exp;
+branches;
+next	14.8;
+
+14.8
+date	2007.01.27.01.41.44;	author brlcad;	state Exp;
+branches;
+next	14.7;
+
+14.7
+date	2007.01.23.01.13.44;	author brlcad;	state Exp;
+branches;
+next	14.6;
+
+14.6
+date	2007.01.20.14.36.58;	author brlcad;	state Exp;
+branches;
+next	14.5;
+
+14.5
+date	2006.01.18.06.46.23;	author brlcad;	state Exp;
+branches;
+next	14.4;
+
+14.4
+date	2005.10.23.04.44.37;	author brlcad;	state Exp;
+branches;
+next	14.3;
+
+14.3
+date	2005.01.30.20.31.08;	author brlcad;	state Exp;
+branches
+	14.3.6.1;
+next	14.2;
+
+14.2
+date	2004.12.21.02.40.25;	author morrison;	state Exp;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.17;	author morrison;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2004.08.02.23.01.51;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.15.20.34;	author morrison;	state Exp;
+branches;
+next	;
+
+14.3.6.1
+date	2005.11.13.13.46.18;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.9
+log
+@ws and style consistency cleanup
+@
+text
+@/*                    C O N V E R S I O N . C
+ * BRL-CAD
+ *
+ * Copyright (c) 2004-2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@file conversion.c
+ *
+ * handle ae/direction/grid conversions
+ *
+ * Author:
+ *   Natalie L. Barker
+ *
+ * Date:
+ *   Jan 90
+ *
+ */
+
+#include "common.h"
+
+#include <stdio.h>
+#include <math.h>
+
+#include "machine.h"
+#include "vmath.h"
+
+#include "./nirt.h"
+#include "./usrfmt.h"
+
+
+extern outval	ValTab[];
+
+void
+dir2ae(void)
+{
+    double square;
+
+    azimuth() = ((direct(Y) == 0) && (direct(X) == 0)) ? 0.0 :
+	atan2 ( -(direct(Y)), -(direct(X)) ) / deg2rad;
+
+    square = sqrt(direct(X) * direct(X) + direct(Y) * direct(Y));
+    elevation() = atan2 (-(direct(Z)), square) / deg2rad;
+}
+
+
+void
+grid2targ(void)
+{
+    double	ar = azimuth() * deg2rad;
+    double	er = elevation() * deg2rad;
+    
+    target(X) = - grid(HORZ) * sin(ar)
+	- grid(VERT) * cos(ar) * sin(er)
+	+ grid(DIST) * cos(ar) * cos(er);
+    target(Y) =   grid(HORZ) * cos(ar)
+	- grid(VERT) * sin(ar) * sin(er)
+	+ grid(DIST) * sin(ar) * cos(er);
+    target(Z) =   grid(VERT) * cos(er)
+	+ grid(DIST) * sin(er);
+}
+
+
+void
+targ2grid(void)
+{
+    double	ar = azimuth() * deg2rad;
+    double	er = elevation() * deg2rad;
+    
+    grid(HORZ) = - target(X) * sin(ar)
+	+ target(Y) * cos(ar);
+    grid(VERT) = - target(X) * cos(ar) * sin(er)
+	- target(Y) * sin(er) * sin(ar)
+	+ target(Z) * cos(er);
+    grid(DIST) =   target(X) * cos(er) * cos(ar)
+	+ target(Y) * cos(er) * sin(ar)
+	+ target(Z) * sin(er);
+}
+
+
+void
+ae2dir(void)
+{
+    double	ar = azimuth() * deg2rad;
+    double	er = elevation() * deg2rad;
+    
+    int		i;
+    vect_t	dir;
+
+    dir[X] = -cos(ar) * cos(er);
+    dir[Y] = -sin(ar) * cos(er);
+    dir[Z] = -sin(er);
+    VUNITIZE( dir );
+    for (i = 0; i < 3; ++i)
+	direct(i) = dir[i];
+}
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+14.8
+log
+@ws. lots and lots of ws.  see sh/ws.sh for details (cases 'abcdeg').
+@
+text
+@d22 8
+a31 6
+/*      CONVERSION.C    */
+#ifndef lint
+static const char RCSid[] = "$Header: /cvsroot/brlcad/brlcad/src/nirt/conversion.c,v 14.7 2007/01/23 01:13:44 brlcad Exp $";
+#endif
+
+/*	INCLUDES	*/
+a33 1
+
+d39 1
+d43 1
+d46 2
+a47 1
+void dir2ae(void)
+d49 7
+a55 4
+	azimuth() = ((direct(Y) == 0) && (direct(X) == 0)) ? 0.0 :
+			atan2 ( -(direct(Y)), -(direct(X)) ) / deg2rad;
+	elevation() = atan2 ( -(direct(Z)),
+		sqrt(direct(X) * direct(X) + direct(Y) * direct(Y))) / deg2rad;
+d58 3
+a60 1
+void grid2targ(void)
+d64 1
+a64 1
+
+d66 2
+a67 2
+		      - grid(VERT) * cos(ar) * sin(er)
+		      + grid(DIST) * cos(ar) * cos(er);
+d69 2
+a70 2
+		      - grid(VERT) * sin(ar) * sin(er)
+		      + grid(DIST) * sin(ar) * cos(er);
+d72 1
+a72 1
+		      + grid(DIST) * sin(er);
+d75 3
+a77 1
+void targ2grid(void)
+d81 1
+a81 1
+
+d83 1
+a83 1
+		       + target(Y) * cos(ar);
+d85 2
+a86 2
+		       - target(Y) * sin(er) * sin(ar)
+		       + target(Z) * cos(er);
+d88 2
+a89 2
+		       + target(Y) * cos(er) * sin(ar)
+		       + target(Z) * sin(er);
+d92 3
+a94 1
+void ae2dir(void)
+d98 1
+a98 1
+
+@
+
+
+14.7
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@d26 1
+a26 1
+static const char RCSid[] = "$Header: /cvsroot/brlcad/brlcad/src/nirt/conversion.c,v 14.6 2007/01/20 14:36:58 brlcad Exp $";
+a32 1
+
+@
+
+
+14.6
+log
+@update copyright to 2007
+@
+text
+@d8 2
+a9 3
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+d14 1
+a14 1
+ * General Public License for more details.
+d16 2
+a17 2
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+d26 1
+a26 1
+static const char RCSid[] = "$Header: /cvsroot/brlcad/brlcad/src/nirt/conversion.c,v 14.5 2006/01/18 06:46:23 brlcad Exp $";
+@
+
+
+14.5
+log
+@update copyright to 2006
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 2004-2006 United States Government as represented by
+d27 1
+a27 1
+static const char RCSid[] = "$Header: /cvsroot/brlcad/brlcad/src/nirt/conversion.c,v 14.4 2005/10/23 04:44:37 brlcad Exp $";
+@
+
+
+14.4
+log
+@trailing ws
+@
+text
+@d4 1
+a4 1
+ * Copyright (C) 2004-2005 United States Government as represented by
+d27 1
+a27 1
+static const char RCSid[] = "$Header: /cvsroot/brlcad/brlcad/src/nirt/conversion.c,v 14.3 2005/01/30 20:31:08 brlcad Exp $";
+@
+
+
+14.3
+log
+@update copyright to 2005
+@
+text
+@d27 1
+a27 1
+static const char RCSid[] = "$Header: /cvsroot/brlcad/brlcad/src/nirt/conversion.c,v 14.2 2004/12/21 02:40:25 morrison Exp $";
+d49 1
+a49 1
+	elevation() = atan2 ( -(direct(Z)), 
+@
+
+
+14.3.6.1
+log
+@merge changes from HEAD aka rel-7-6-4 to the rel-7-6-branch just in case someone peeks a gander or tries to continue/build the branch
+@
+text
+@d27 1
+a27 1
+static const char RCSid[] = "$Header$";
+d49 1
+a49 1
+	elevation() = atan2 ( -(direct(Z)),
+@
+
+
+14.2
+log
+@assign copyright and GPL
+@
+text
+@d4 2
+a5 2
+ * Copyright (c) 2004 United States Government as represented by the
+ * U.S. Army Research Laboratory.
+d27 1
+a27 1
+static const char RCSid[] = "$Header: /cvs/brlcad/src/nirt/conversion.c,v 14.1 2004/11/16 19:42:17 morrison Exp $";
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@d1 24
+d27 1
+a27 1
+static const char RCSid[] = "$Header: /cvs/brlcad/src/nirt/conversion.c,v 1.2 2004/08/02 23:01:51 morrison Exp $";
+@
+
+
+1.2
+log
+@replace the wrapped config.h block with common.h
+@
+text
+@d3 1
+a3 1
+static const char RCSid[] = "$Header: /cvs/brlcad/src/nirt/conversion.c,v 1.1 2004/05/20 15:20:34 morrison Exp $";
+d74 10
+@
+
+
+1.1
+log
+@Vast reorganization begins.  Sources moved from top-level directories into src/.
+@
+text
+@d3 1
+a3 1
+static const char RCSid[] = "$Header: /cvs/brlcad/nirt/conversion.c,v 11.6 2004/05/10 15:30:49 erikg Exp $";
+d7 1
+a7 3
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+@
+

@@ -1,0 +1,408 @@
+head	11.8;
+access;
+symbols
+	ansi-20040405-merged:11.5.2.1
+	postmerge-20040405-ansi:11.6
+	premerge-20040404-ansi:11.5
+	postmerge-autoconf:11.5
+	autoconf-freeze:11.5
+	premerge-autoconf:11.5
+	postmerge-20040315-windows:11.5
+	premerge-20040315-windows:11.5
+	windows-20040315-freeze:11.5
+	autoconf-20031203:11.5
+	autoconf-20031202:11.5
+	autoconf-branch:11.5.0.10
+	phong-branch:11.5.0.8
+	photonmap-branch:11.5.0.6
+	rel-6-1-DP:11.5
+	windows-branch:11.5.0.4
+	rel-6-0-2:11.3
+	ansi-branch:11.5.0.2
+	rel-6-0-1-branch:11.3.0.2
+	hartley-6-0-post:11.4
+	hartley-6-0-pre:11.3
+	rel-6-0-1:11.3
+	rel-6-0:11.3
+	rel-5-4:11.1
+	offsite-5-3-pre:11.3
+	rel-5-3:11.1
+	rel-5-2:11.1
+	rel-5-1-branch:11.1.0.2
+	rel-5-1:11.1
+	rel-5-0:11.1
+	rel-5-0-beta:11.1
+	rel-4-5:11.1
+	ctj-4-5-post:11.1
+	ctj-4-5-pre:11.1
+	rel-4-4:11.1;
+locks; strict;
+comment	@ * @;
+
+
+11.8
+date	2004.05.21.14.57.38;	author morrison;	state dead;
+branches;
+next	11.7;
+
+11.7
+date	2004.05.10.15.30.50;	author erikg;	state Exp;
+branches;
+next	11.6;
+
+11.6
+date	2004.04.05.05.46.01;	author morrison;	state Exp;
+branches;
+next	11.5;
+
+11.5
+date	2002.08.20.17.08.57;	author jra;	state Exp;
+branches
+	11.5.2.1;
+next	11.4;
+
+11.4
+date	2002.08.15.20.56.10;	author hartley;	state Exp;
+branches;
+next	11.3;
+
+11.3
+date	2000.09.01.03.23.47;	author mike;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	2000.08.23.19.04.29;	author mike;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	95.01.04.10.11.54;	author mike;	state Rel4_4;
+branches;
+next	1.3;
+
+1.3
+date	94.11.14.23.08.35;	author mike;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	92.10.20.19.55.51;	author mike;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	92.01.08.17.08.11;	author mike;	state Exp;
+branches;
+next	;
+
+11.5.2.1
+date	2002.09.19.18.02.35;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@Program to reduce data array by decimation.
+@
+
+
+11.8
+log
+@moved to src/util/
+@
+text
+@/*
+ *			D E C I M A T E . C
+ *
+ *  Program to take M by N array of tuples, and reduce it down to
+ *  being an I by J array of tuples, by discarding unnecessary stuff.
+ *  The borders are padded with zeros.
+ *
+ *  Especially useful for looking at image files which are larger than
+ *  your biggest framebuffer, quickly.
+ *
+ *  Specify nbytes/pixel as:
+ *	1	.bw files
+ *	3	.pix files
+ *
+ *  Author -
+ *	Michael John Muuss
+ *  
+ *  Source -
+ *	SECAD/VLD Computing Consortium, Bldg 394
+ *	The U. S. Army Ballistic Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005-5066
+ *  
+ *  Distribution Status -
+ *	Public Domain, Distribution Unlimitied.
+ */
+#ifndef lint
+static const char RCSid[] = "@@(#)$Header: /n/xoff/cvs/brlcad/util/decimate.c,v 11.7 2004/05/10 15:30:50 erikg Exp $ (BRL)";
+#endif
+
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+
+#include <stdio.h>
+
+#include "machine.h"
+#include "externs.h"
+
+static char usage[] = "\
+Usage: decimate nbytes/pixel width height [outwidth outheight]\n\
+";
+
+int	nbytes;
+int	iwidth;
+int	iheight;
+int	owidth = 512;
+int	oheight = 512;
+
+unsigned char	*iline;
+unsigned char	*oline;
+
+int	discard;
+int	wpad;
+
+int
+main(int argc, char **argv)
+{
+	register int	i;
+	register int	j;
+	int	nh, nw;
+	int	dh, dw;
+	int	todo;
+
+	if( argc < 4 )  {
+		fputs( usage, stderr );
+		exit(1);
+	}
+
+	nbytes = atoi(argv[1]);
+	iwidth = atoi(argv[2]);
+	iheight = atoi(argv[3]);
+
+	if( argc >= 6 )  {
+		owidth = atoi(argv[4]);
+		oheight = atoi(argv[5]);
+	}
+
+	/* Determine how many samples/lines to discard after each one saved,
+	 * and how much padding to add to the end of each line.
+	 */
+	nh = (iheight + oheight-1) / oheight;
+	nw = (iwidth + owidth-1) / owidth;
+
+	dh = nh - 1;
+	dw = nw - 1;
+	discard = dh;
+	if( dw > discard ) discard = dw;
+
+
+	wpad = owidth - ( iwidth / (discard+1) );
+
+	iline = (unsigned char *)malloc( (iwidth+1) * nbytes );
+	oline = (unsigned char *)malloc( (owidth+1) * nbytes );
+	if( !iline || !oline )  {
+		fprintf(stderr,"malloc failure\n");
+		exit(2);
+
+	}
+	/* Zero output buf, for when last elements are unused (wpad>0) */
+	for( i = 0; i < owidth*nbytes; i++ )  {
+		oline[i] = '\0';
+	}
+
+	todo = iwidth / (discard+1) * (discard+1);
+	if( owidth < todo )  todo = owidth;
+	if( todo > iwidth/(discard+1) )  todo = iwidth/(discard+1);
+#if 0
+	fprintf(stderr,"dh=%d dw=%d, discard=%d\n", dh, dw, discard);
+	fprintf(stderr,"todo=%d\n", todo);
+#endif
+
+	while( !feof(stdin) )  {
+		register unsigned char	*ip, *op;
+
+		/* Scrunch down first scanline of input data */
+		if( fread( iline, nbytes, iwidth, stdin ) != iwidth ) break;
+		ip = iline;
+		op = oline;
+		for( i=0; i < todo; i++ )  {
+			for( j=0; j < nbytes; j++ )  {
+				*op++ = *ip++;
+			}
+			ip += discard * nbytes;
+		}
+		if( fwrite( oline, nbytes, owidth, stdout ) != owidth )  {
+			perror("fwrite");
+			exit(1);
+		}
+
+		/* Discard extra scanlines of input data */
+		for( i=0; i < discard; i++ )  {
+			if( fread( iline, nbytes, iwidth, stdin ) != iwidth )  {
+				exit(0);
+			}
+		}
+	}
+	exit(0);
+}
+@
+
+
+11.7
+log
+@change conf.h to a wrapped config.h
+@
+text
+@d27 1
+a27 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/util/decimate.c,v 11.6 2004/04/05 05:46:01 morrison Exp $ (BRL)";
+@
+
+
+11.6
+log
+@merge of ansi-6-0-branch into head
+@
+text
+@d27 1
+a27 1
+static const char RCSid[] = "@@(#)$Header$ (BRL)";
+d30 5
+a34 1
+#include "conf.h"
+@
+
+
+11.5
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d27 1
+a27 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/util/decimate.c,v 11.3 2000/09/01 03:23:47 mike Exp $ (BRL)";
+d54 1
+a54 3
+main(argc, argv)
+int	argc;
+char	*argv[];
+@
+
+
+11.5.2.1
+log
+@Initial ANSIfication
+@
+text
+@d27 1
+a27 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/util/decimate.c,v 11.5 2002/08/20 17:08:57 jra Exp $ (BRL)";
+d54 3
+a56 1
+main(int argc, char **argv)
+@
+
+
+11.4
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d54 3
+a56 1
+main(int argc, char **argv)
+@
+
+
+11.3
+log
+@
+Lint fix
+@
+text
+@d27 1
+a27 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/util/decimate.c,v 11.2 2000/08/23 19:04:29 mike Exp $ (BRL)";
+d54 1
+a54 3
+main(argc, argv)
+int	argc;
+char	*argv[];
+@
+
+
+11.2
+log
+@
+const RCSid
+@
+text
+@d27 1
+a27 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/util/decimate.c,v 11.1 1995/01/04 10:11:54 mike Rel4_4 $ (BRL)";
+d53 1
+@
+
+
+11.1
+log
+@Release_4.4
+@
+text
+@d27 1
+a27 1
+static char RCSid[] = "@@(#)$Header: /m/cad/util/RCS/decimate.c,v 1.3 94/11/14 23:08:35 mike Exp $ (BRL)";
+@
+
+
+1.3
+log
+@Irix 6
+@
+text
+@d27 1
+a27 1
+static char RCSid[] = "@@(#)$Header: /m/cad/util/RCS/decimate.c,v 1.2 92/10/20 19:55:51 mike Exp Locker: mike $ (BRL)";
+@
+
+
+1.2
+log
+@Program to scrunch files
+@
+text
+@d27 1
+a27 1
+static char RCSid[] = "@@(#)$Header: /m/cad/util/RCS/decimate.c,v 1.1 92/01/08 17:08:11 mike Exp Locker: mike $ (BRL)";
+d30 2
+d33 3
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d2 1
+a2 1
+ *			S C R U N C H . C
+d4 1
+a4 1
+ *  Program to take N by M array of tuples, and reduce it down to
+d6 1
+d11 4
+d27 1
+a27 1
+static char RCSid[] = "@@(#)$Header$ (BRL)";
+d33 1
+a33 1
+Usage: scrunch nbytes/pixel width height [outwidth outheight]\n\
+@

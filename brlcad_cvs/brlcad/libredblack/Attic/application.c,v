@@ -1,0 +1,811 @@
+head	11.2;
+access;
+symbols
+	rel-4-5:11.1
+	ctj-4-5-post:11.1
+	ctj-4-5-pre:11.1
+	rel-4-4:11.1;
+locks; strict;
+comment	@ * @;
+
+
+11.2
+date	98.12.30.04.24.10;	author mike;	state dead;
+branches;
+next	11.1;
+
+11.1
+date	95.01.04.10.05.51;	author mike;	state Rel4_4;
+branches;
+next	2.4;
+
+2.4
+date	95.01.04.09.17.52;	author mike;	state Exp;
+branches;
+next	2.3;
+
+2.3
+date	94.09.26.12.21.10;	author jra;	state Exp;
+branches;
+next	2.2;
+
+2.2
+date	94.09.22.15.30.26;	author pjt;	state Exp;
+branches;
+next	2.1;
+
+2.1
+date	93.03.25.11.03.03;	author pjt;	state Exp;
+branches;
+next	1.11;
+
+1.11
+date	93.03.25.11.00.11;	author pjt;	state Exp;
+branches;
+next	1.10;
+
+1.10
+date	93.01.21.14.33.47;	author pjt;	state zero_1;
+branches;
+next	1.9;
+
+1.9
+date	93.01.15.14.35.18;	author pjt;	state Exp;
+branches;
+next	1.8;
+
+1.8
+date	93.01.15.13.09.11;	author pjt;	state Exp;
+branches;
+next	1.7;
+
+1.7
+date	93.01.15.10.48.43;	author pjt;	state zero_0;
+branches;
+next	1.6;
+
+1.6
+date	93.01.14.15.13.49;	author pjt;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	92.11.06.13.51.10;	author pjt;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	92.11.04.12.55.08;	author pjt;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	92.11.04.12.09.26;	author pjt;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	92.11.04.10.47.13;	author pjt;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	92.11.04.10.27.36;	author pjt;	state Exp;
+branches;
+next	;
+
+
+desc
+@
+     A toy application to test LIBREDBLACK(3)
+
+@
+
+
+11.2
+log
+@All moved to libbu
+@
+text
+@/*			A P P L I C A T I O N . C
+ *
+ *	A toy application to test libredblack
+ *
+ *	Author:	Paul Tanenbaum
+ *
+ */
+
+#include <stdio.h>
+#include <string.h>
+#include "redblack.h"
+
+#define		ORDER_LASTNAME		0
+#define		ORDER_FIRSTNAME		1
+#define		ORDER_PARTY		2
+#define		DEMOCRAT		0
+#define		REPUBLICAN		2
+#define		ZEMOCRAT		1
+
+typedef struct
+{
+    long 	magic;		  /* Magic no. for integrity check */
+    char	last[32];
+    char	first[32];
+    int		party;
+} record;
+#define		RECORD_MAGIC	0x12345678
+
+/*
+ *	The order functions
+ */
+last_name_sort (v1, v2)
+
+void	*v1;
+void	*v2;
+
+{
+    int		result;
+    record	*r1 = v1;
+    record	*r2 = v2;
+
+    if (((result = strcmp(r1 -> last, r2 -> last)) == 0)
+    &&	((result = strcmp(r1 -> first, r2 -> first)) == 0))
+	result = (r1 -> party < r2 -> party) ? -1 :
+		 (r1 -> party > r2 -> party) ?  1 : 0;
+
+    return(result);
+}
+
+first_name_sort (v1, v2)
+
+void	*v1;
+void	*v2;
+
+{
+    int		result;
+    record	*r1 = v1;
+    record	*r2 = v2;
+
+    if (((result = strcmp(r1 -> first, r2 -> first)) == 0)
+    &&	((result = strcmp(r1 -> last, r2 -> last)) == 0))
+	result = (r1 -> party < r2 -> party) ? -1 :
+		 (r1 -> party > r2 -> party) ?  1 : 0;
+
+    return(result);
+}
+
+party_sort (v1, v2)
+
+void	*v1;
+void	*v2;
+
+{
+    record	*r1 = v1;
+    record	*r2 = v2;
+
+    return ((r1 -> party < r2 -> party) ? -1 :
+	    (r1 -> party > r2 -> party) ? 1 : 0);
+}
+
+void describe_president (v)
+
+void	*v;
+
+{
+    record	*p = v;
+
+    if (*((long *)(p)) != (RECORD_MAGIC))
+    {
+	rt_log(
+	    "Error: Bad %s pointer x%x s/b x%x was x%x, file %s, line %d\n",
+	    "president record", p, RECORD_MAGIC, *((long *)(p)),
+	    __FILE__, __LINE__);
+	exit (0);
+    }
+    rt_log("%-16s %-16s %s\n",
+	p -> last, p -> first,
+	(p -> party == DEMOCRAT) ? "Democrat" :
+	(p -> party == REPUBLICAN) ? "Republican" :
+	(p -> party == ZEMOCRAT) ? "Zemocrat" : "Huhh?");
+    fflush(stderr);
+}
+
+void print_last_name (v)
+
+void	*v;
+
+{
+    record	*p = v;
+
+    rt_log("%-16s\n", p -> last);
+}
+
+/* 
+ *	The main driver
+ */
+main ()
+{
+    int			i;
+    int			nm_presidents;
+    rb_tree		*tree;
+    record		p;
+    static record	pres[] = 
+			{
+			    {RECORD_MAGIC, "Washington", "George", DEMOCRAT},
+			    {RECORD_MAGIC, "Adams", "John", DEMOCRAT},
+			    {RECORD_MAGIC, "Jefferson", "Thomas", DEMOCRAT},
+			    {RECORD_MAGIC, "Madison", "James", DEMOCRAT},
+			    {RECORD_MAGIC, "Monroe", "James", DEMOCRAT},
+			    {RECORD_MAGIC, "Adams", "John Quincy", DEMOCRAT},
+			    {RECORD_MAGIC, "Jackson", "Andrew", DEMOCRAT},
+			    {RECORD_MAGIC, "Van Buren", "Martin", DEMOCRAT},
+			    {RECORD_MAGIC, "Harrison", "William", DEMOCRAT},
+			    {RECORD_MAGIC, "Tyler", "James", DEMOCRAT},
+			    {RECORD_MAGIC, "Polk", "James Knox", DEMOCRAT},
+			    {RECORD_MAGIC, "Taylor", "Zachary", DEMOCRAT},
+			    {RECORD_MAGIC, "Fillmore", "Millard", DEMOCRAT},
+			    {RECORD_MAGIC, "Pierce", "Franklin", DEMOCRAT},
+			    {RECORD_MAGIC, "Buchannan", "James", DEMOCRAT},
+			    {RECORD_MAGIC, "Lincoln", "Abraham", DEMOCRAT},
+			    {RECORD_MAGIC, "Johnson", "Andrew", DEMOCRAT},
+			    {RECORD_MAGIC, "Grant", "Ulysses", DEMOCRAT},
+			    {RECORD_MAGIC, "Hayes", "Rutherford", DEMOCRAT},
+			    {RECORD_MAGIC, "Garfield", "James", DEMOCRAT},
+			    {RECORD_MAGIC, "Arthur", "Chester", DEMOCRAT},
+			    {RECORD_MAGIC, "Cleveland", "Grover", DEMOCRAT},
+			    {RECORD_MAGIC, "Harrison", "Benjamin", DEMOCRAT},
+			    {RECORD_MAGIC, "McKinley", "William", DEMOCRAT},
+			    {RECORD_MAGIC, "Roosevelt", "Theodore", DEMOCRAT},
+			    {RECORD_MAGIC, "Taft", "William", DEMOCRAT},
+			    {RECORD_MAGIC, "Wilson", "Woodrow", DEMOCRAT},
+			    {RECORD_MAGIC, "Harding", "Warren", DEMOCRAT},
+			    {RECORD_MAGIC, "Coolidge", "Calvin", DEMOCRAT},
+			    {RECORD_MAGIC, "Hoover", "Herbert", DEMOCRAT},
+			    {RECORD_MAGIC, "Roosevelt", "Franklin", DEMOCRAT},
+			    {RECORD_MAGIC, "Truman", "Harry", DEMOCRAT},
+			    {RECORD_MAGIC, "Eisenhower", "Dwight", REPUBLICAN},
+			    {RECORD_MAGIC, "Kennedy", "John", DEMOCRAT},
+			    {RECORD_MAGIC, "Johnson", "Lyndon", DEMOCRAT},
+			    {RECORD_MAGIC, "Nixon", "Richard", REPUBLICAN},
+			    {RECORD_MAGIC, "Ford", "Gerald", REPUBLICAN},
+			    {RECORD_MAGIC, "Carter", "Jimmy", DEMOCRAT},
+			    {RECORD_MAGIC, "Reagan", "Ronald", REPUBLICAN},
+			    {RECORD_MAGIC, "Bush", "George", REPUBLICAN},
+			    {RECORD_MAGIC, "Clinton", "Bill", DEMOCRAT}
+			};
+    record		*r;
+    static char		*order_string[] =
+			{
+			    "last name", "first name", "party"
+			};
+    static int		(*comp_func[])() =
+			{
+			    last_name_sort, first_name_sort, party_sort
+			};
+
+    nm_presidents = sizeof(pres) / sizeof(record);
+
+    comp_func[0] = last_name_sort;
+    if ((tree = rb_create("First test", 3, comp_func)) == RB_TREE_NULL)
+    {
+	fputs("rb_create() bombed\n", stderr);
+	exit (1);
+    }
+    tree -> rbt_print = describe_president;
+
+    for (i = 0; i < nm_presidents - 1; ++i)
+    {
+	rb_insert(tree, (void *) &(pres[i]));
+    }
+    
+    rt_log("Before we begin...\n");
+    rb_diagnose_tree(tree, ORDER_FIRSTNAME, INORDER);
+    exit (0);
+
+    /*
+     *	Delete Reagan and Eisenhower
+     */
+    r = (record *) rb_search(tree, ORDER_LASTNAME, (void *) (pres + 8));
+    if (r != NULL)
+	rb_delete(tree, ORDER_LASTNAME);
+    rt_log("After deleting Reagan...\n");
+    rb_diagnose_tree(tree, ORDER_LASTNAME, PREORDER);
+
+    r = (record *) rb_search(tree, ORDER_LASTNAME, (void *) (pres + 2));
+    if (r != NULL)
+	rb_delete(tree, ORDER_LASTNAME);
+    rt_log("After deleting Eisenhower...\n");
+    rb_diagnose_tree(tree, ORDER_LASTNAME, PREORDER);
+    
+    /*
+     *	Insert Clinton
+     */
+    rb_insert(tree, (void *) &(pres[nm_presidents - 1]));
+    rt_log("After inserting Clinton...\n");
+    rb_diagnose_tree(tree, ORDER_LASTNAME, PREORDER);
+
+    /*
+     *	Delete Roosevelt
+     */
+    r = (record *) rb_search(tree, ORDER_LASTNAME, (void *) (pres + 0));
+    if (r != NULL)
+	rb_delete(tree, ORDER_LASTNAME);
+    rt_log("After deleting Roosevelt...\n");
+    rb_diagnose_tree(tree, ORDER_LASTNAME, PREORDER);
+}
+@
+
+
+11.1
+log
+@Release_4.4
+@
+text
+@@
+
+
+2.4
+log
+@Paul's final word.
+@
+text
+@@
+
+
+2.3
+log
+@Added #include "conf.h"
+@
+text
+@d4 1
+a4 1
+
+@
+
+
+2.2
+log
+@Replaced prototype-type definition with K&R type
+@
+text
+@d91 1
+a91 1
+	    "Error: Bad %s pointer x%x s/b x%x was x%x, file %s, line %d\n", \
+@
+
+
+2.1
+log
+@Installed into BRL CAD tree
+@
+text
+@d32 5
+a36 1
+last_name_sort (void *v1, void *v2)
+d50 5
+a54 1
+first_name_sort (void *v1, void *v2)
+d68 5
+a72 1
+party_sort (void *v1, void *v2)
+d81 4
+a84 1
+void describe_president (void *v)
+d104 4
+a107 1
+void print_last_name (void *v)
+@
+
+
+1.11
+log
+@Added authorship comment
+@
+text
+@@
+
+
+1.10
+log
+@1. The sort functions now try harder to break ties
+2. Now look at all the presidents
+@
+text
+@d4 3
+@
+
+
+1.9
+log
+@COB 15 Jan
+@
+text
+@d31 1
+d35 6
+a40 1
+    return(strcmp(r1 -> last, r2 -> last));
+d45 1
+d49 6
+a54 1
+    return(strcmp(r1 -> first, r2 -> first));
+d104 30
+a133 1
+#if 1
+a139 1
+#endif
+d164 1
+a164 1
+    tree -> rbt_print = print_last_name;
+d167 1
+d169 1
+d172 2
+a173 3
+    rb_diagnose_tree(tree, ORDER_LASTNAME, PREORDER);
+    rb_diagnose_tree(tree, ORDER_FIRSTNAME, PREORDER);
+    rb_diagnose_tree(tree, ORDER_PARTY, PREORDER);
+a182 1
+    rb_diagnose_tree(tree, ORDER_FIRSTNAME, PREORDER);
+a188 1
+    rb_diagnose_tree(tree, ORDER_FIRSTNAME, PREORDER);
+a195 1
+    rb_diagnose_tree(tree, ORDER_FIRSTNAME, PREORDER);
+a204 1
+    rb_diagnose_tree(tree, ORDER_FIRSTNAME, PREORDER);
+@
+
+
+1.8
+log
+@Switched from fprintf(stderr, ) to rt_log()
+@
+text
+@d130 4
+a133 3
+    rb_diagnose_tree(tree, ORDER_LASTNAME);
+    rb_diagnose_tree(tree, ORDER_FIRSTNAME);
+    rb_diagnose_tree(tree, ORDER_PARTY);
+d135 1
+a135 1
+     *	Delete Reagan, Nixon, and Roosevelt
+d140 5
+a144 1
+    r = (record *) rb_search(tree, ORDER_LASTNAME, (void *) (pres + 5));
+d147 15
+d165 3
+a167 12
+
+    rt_log("After deleting Reagan, Nixon, and Roosevelt...\n");
+    rb_diagnose_tree(tree, ORDER_LASTNAME);
+    rb_diagnose_tree(tree, ORDER_FIRSTNAME);
+    rb_diagnose_tree(tree, ORDER_PARTY);
+    
+    rb_insert(tree, (void *) &(pres[nm_presidents - 1]));
+
+    rt_log("After inserting Clinton...\n");
+    rb_diagnose_tree(tree, ORDER_LASTNAME);
+    rb_diagnose_tree(tree, ORDER_FIRSTNAME);
+    rb_diagnose_tree(tree, ORDER_PARTY);
+@
+
+
+1.7
+log
+@Changed a whole ton of stuff
+@
+text
+@d60 1
+a60 1
+	fprintf(stderr,
+d66 1
+a66 1
+    fprintf(stderr, "%-16s %-16s %s\n",
+d78 1
+a78 1
+    fprintf(stderr, "%-16s\n", p -> last);
+d124 1
+a124 1
+    rb_install_print(tree, print_last_name);
+d129 1
+a129 1
+    fprintf(stderr, "Before we begin...\n");
+d146 1
+a146 1
+    fprintf(stderr, "After deleting Reagan, Nixon, and Roosevelt...\n");
+d153 1
+a153 1
+    fprintf(stderr, "After inserting Clinton...\n");
+@
+
+
+1.6
+log
+@COB 14 Jan
+@
+text
+@d74 7
+a116 3
+    for (i = 0; i < nm_presidents; ++i)
+	fprintf(stderr, "%d  <%x>  %s\n",
+		i, pres + i, pres[i].last);
+d124 1
+a124 1
+    rb_install_print(tree, describe_president);
+d126 1
+a126 2
+    printf("There are %d presidents\n", nm_presidents);
+    for (i = 0; i < nm_presidents; ++i)
+d128 17
+d146 1
+a146 36
+    printf("\n\n a summary...\n");
+    rb_summarize_tree(tree);fflush(stdout);
+
+    for (i = 0; i < 3; ++i)
+    {
+	r = (record *) rb_min(tree, i);
+	printf("Smallest %s is for %s %s\n",
+	    order_string[i], r -> first, r -> last);
+	r = (record *) rb_max(tree, i);
+	printf("Largest %s is for %s %s\n",
+	    order_string[i], r -> first, r -> last);
+    }
+
+    printf("\n\n\nBy last name...\n");fflush(stdout);
+	rb_walk(tree, ORDER_LASTNAME, describe_president);fflush(stdout);
+    printf("\n\n\nBy first name...\n");fflush(stdout);
+	rb_walk(tree, ORDER_FIRSTNAME, describe_president);
+    printf("\n\n\nBy party...\n");
+	rb_walk(tree, ORDER_PARTY, describe_president);
+
+    p.magic = RECORD_MAGIC;
+    strcpy(p.first, "Lyndon");
+    strcpy(p.last, "Johnson");
+    p.party = DEMOCRAT;
+    r = (record *) rb_search(tree, ORDER_FIRSTNAME, (void *) (&p));
+    if (r == 0)
+    {
+	printf("It ain't there\n");
+    }
+    else
+    {
+	printf("I found it...\n");
+	describe_president((void *) r);
+    }
+
+    fprintf(stderr, "Last names as we begin...\n");
+a147 1
+    fprintf(stderr, "First names as we begin...\n");
+a148 1
+    fprintf(stderr, "parties as we begin...\n");
+d150 2
+d153 1
+a153 4
+    fprintf(stderr, "Deleting Johnson by last name\n");
+    rb_delete(tree, ORDER_LASTNAME);
+
+    fprintf(stderr, "Last names afterwards...\n");
+a154 1
+    fprintf(stderr, "First names afterwards...\n");
+d156 1
+a156 24
+
+    printf("\nStepping through by last names\n");
+    for (r = (record *) rb_min(tree, ORDER_LASTNAME);
+	 r != 0;
+	 r = (record *) rb_succ(tree, ORDER_LASTNAME))
+    {
+	describe_president((void *) r);
+    }
+
+    printf("\nStepping through by first names\n");
+    for (r = (record *) rb_min(tree, ORDER_FIRSTNAME);
+	 r != 0;
+	 r = (record *) rb_succ(tree, ORDER_FIRSTNAME))
+    {
+	describe_president((void *) r);
+    }
+
+    printf("\nStepping through by parties\n");
+    for (r = (record *) rb_min(tree, ORDER_PARTY);
+	 r != 0;
+	 r = (record *) rb_succ(tree, ORDER_PARTY))
+    {
+	describe_president((void *) r);
+    }
+@
+
+
+1.5
+log
+@Added test of left_rotate(), right_rotate(), and rb_diagnose_tree()
+@
+text
+@d14 2
+a15 1
+#define		REPUBLICAN		1
+d66 1
+a66 1
+    printf("%-16s %-16s %s\n",
+d68 4
+a71 2
+	(p -> party == DEMOCRAT) ? "Democrat" : "Republican");
+    fflush(stdout);
+d110 4
+d120 1
+d126 3
+d139 3
+a141 3
+    printf("\n\n\nBy last name...\n");
+	rb_walk(tree, ORDER_LASTNAME, describe_president);
+    printf("\n\n\nBy first name...\n");
+d148 2
+d161 6
+a166 2
+    {
+	void left_rotate();
+d168 2
+a169 2
+	printf("First names as we begin...\n");
+	rb_diagnose_tree(tree, ORDER_FIRSTNAME);
+d171 4
+a174 3
+	left_rotate(tree->rbt_root[ORDER_FIRSTNAME], ORDER_FIRSTNAME);
+	printf("First names after left rotation...\n");
+	rb_diagnose_tree(tree, ORDER_FIRSTNAME);
+d176 7
+a182 3
+	right_rotate(tree->rbt_root[ORDER_FIRSTNAME], ORDER_FIRSTNAME);
+	printf("First names after derotation...\n");
+	rb_diagnose_tree(tree, ORDER_FIRSTNAME);
+d184 14
+a197 3
+	right_rotate(tree->rbt_root[ORDER_FIRSTNAME], ORDER_FIRSTNAME);
+	printf("First names after right rotation...\n");
+	rb_diagnose_tree(tree, ORDER_FIRSTNAME);
+@
+
+
+1.4
+log
+@Added test of rb_search()
+@
+text
+@d82 1
+d89 1
+d146 19
+@
+
+
+1.3
+log
+@Implemented describe_president() and added the calls
+to rb_walk()
+@
+text
+@d79 1
+d132 13
+@
+
+
+1.2
+log
+@1. Changed pres[] to a static and initialize in declaration
+   instead of at run time
+2. Removed lots of diagnostics
+@
+text
+@d10 6
+d30 2
+a31 2
+    record *r1 = v1;
+    record *r2 = v2;
+d38 2
+a39 2
+    record *r1 = v1;
+    record *r2 = v2;
+d46 2
+a47 2
+    record *r1 = v1;
+    record *r2 = v2;
+d53 3
+a55 5
+#define		ORDER_LASTNAME		0
+#define		ORDER_FIRSTNAME		1
+#define		ORDER_PARTY		2
+#define		DEMOCRAT		0
+#define		REPUBLICAN		1
+d57 14
+d77 1
+d79 1
+a79 1
+    static record	pres[10] = 
+d90 2
+a91 1
+			    {RECORD_MAGIC, "Bush", "George", REPUBLICAN}
+d103 1
+d111 2
+a112 1
+    for (i = 0; i < 10; ++i)
+a117 1
+
+d120 3
+d124 7
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@a26 2
+    fprintf(stderr, "last_name_sort('%s', '%s')\n", r1 -> last, r2 -> last);
+    fflush(stderr);
+a34 2
+    fprintf(stderr, "first_name_sort('%s', '%s')\n", r1 -> first, r2 -> first);
+    fflush(stderr);
+a42 2
+    fprintf(stderr, "party_sort(%d, %d)\n", r1 -> party, r2 -> party);
+    fflush(stderr);
+d58 24
+a81 12
+    int		i;
+    rb_tree	*tree;
+    record	pres[6];
+    record	*r;
+    static char	*order_string[] =
+		{
+		    "last name", "first name", "party"
+		};
+    static int	(*comp_func[])() =
+		{
+		    last_name_sort, first_name_sort, party_sort
+		};
+a88 1
+    rb_describe(tree);
+d90 1
+a90 36
+    /*
+     *	Fill the records
+     */
+    pres[0].magic = RECORD_MAGIC;
+    strcpy(pres[0].last, "Roosevelt");
+    strcpy(pres[0].first, "Franklin");
+    pres[0].party = DEMOCRAT;
+    /* */
+    pres[1].magic = RECORD_MAGIC;
+    strcpy(pres[1].last, "Truman");
+    strcpy(pres[1].first, "Harry");
+    pres[1].party = DEMOCRAT;
+    /* */
+    pres[2].magic = RECORD_MAGIC;
+    strcpy(pres[2].last, "Eisenhower");
+    strcpy(pres[2].first, "Dwight");
+    pres[2].party = REPUBLICAN;
+    /* */
+    pres[3].magic = RECORD_MAGIC;
+    strcpy(pres[3].last, "Kennedy");
+    strcpy(pres[3].first, "John");
+    pres[3].party = DEMOCRAT;
+    /* */
+    pres[4].magic = RECORD_MAGIC;
+    strcpy(pres[4].last, "Johnson");
+    strcpy(pres[4].first, "Lyndon");
+    pres[4].party = DEMOCRAT;
+    /* */
+    pres[5].magic = RECORD_MAGIC;
+    strcpy(pres[5].last, "Nixon");
+    strcpy(pres[5].first, "Richard");
+    pres[5].party = REPUBLICAN;
+
+    printf("pres = %x = (void *) %x\n", pres, (void *) pres);
+    for (i = 0; i < 6; ++i)
+    {
+a91 4
+	fprintf(stderr, "Reached line %d\n", __LINE__);fflush(stderr);
+    }
+    rb_describe(tree);
+    fprintf(stderr, "Reached line %d\n", __LINE__);fflush(stderr);
+a95 1
+	fprintf(stderr, "Reached line %d\n", __LINE__);fflush(stderr);
+@

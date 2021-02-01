@@ -1,0 +1,330 @@
+head	1.4;
+access;
+symbols
+	ansi-20040405-merged:1.3.4.1
+	postmerge-20040405-ansi:1.3
+	premerge-20040404-ansi:1.3
+	postmerge-autoconf:1.3
+	autoconf-freeze:1.1.6.4
+	premerge-autoconf:1.3
+	postmerge-20040315-windows:1.3
+	premerge-20040315-windows:1.3
+	windows-20040315-freeze:1.3.2.1
+	autoconf-20031203:1.1.6.1
+	autoconf-20031202:1.1
+	autoconf-branch:1.1.0.6
+	phong-branch:1.1.0.4
+	photonmap-branch:1.1.0.2
+	windows-branch:1.3.0.2
+	ansi-branch:1.3.0.4;
+locks; strict;
+comment	@# @;
+
+
+1.4
+date	2004.05.21.18.04.36;	author morrison;	state dead;
+branches;
+next	1.3;
+
+1.3
+date	2004.03.04.19.47.14;	author morrison;	state Exp;
+branches
+	1.3.2.1
+	1.3.4.1;
+next	1.2;
+
+1.2
+date	2003.11.07.14.54.40;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2003.03.13.19.18.25;	author jra;	state Exp;
+branches
+	1.1.6.1;
+next	;
+
+1.1.6.1
+date	2003.12.03.16.24.42;	author erikg;	state Exp;
+branches;
+next	1.1.6.2;
+
+1.1.6.2
+date	2004.02.12.18.56.35;	author erikg;	state Exp;
+branches;
+next	1.1.6.3;
+
+1.1.6.3
+date	2004.03.15.12.10.31;	author erikg;	state Exp;
+branches;
+next	1.1.6.4;
+
+1.1.6.4
+date	2004.03.15.14.01.23;	author erikg;	state Exp;
+branches;
+next	;
+
+1.3.2.1
+date	2004.03.12.09.59.11;	author morrison;	state Exp;
+branches;
+next	;
+
+1.3.4.1
+date	2004.03.17.21.19.54;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.4
+log
+@moved from top-level to src/other/.
+@
+text
+@# Commands covered:  none
+#
+# This file contains a collection of tests for Tcl_AsyncCreate and related
+# library procedures.  Sourcing this file into Tcl runs the tests and
+# generates output for errors.  No output means no errors were found.
+#
+# Copyright (c) 1993 The Regents of the University of California.
+# Copyright (c) 1994-1996 Sun Microsystems, Inc.
+# Copyright (c) 1998-1999 by Scriptics Corporation.
+#
+# See the file "license.terms" for information on usage and redistribution
+# of this file, and for a DISCLAIMER OF ALL WARRANTIES.
+#
+# RCS: @@(#) $Id: async.test,v 1.3 2004/03/04 19:47:14 morrison Exp $
+
+if {[lsearch [namespace children] ::tcltest] == -1} {
+    package require tcltest
+    namespace import -force ::tcltest::*
+}
+
+if {[info commands testasync] == {}} {
+    puts "This application hasn't been compiled with the \"testasync\""
+    puts "command, so I can't test Tcl_AsyncCreate et al."
+    ::tcltest::cleanupTests
+    return
+}
+
+proc async1 {result code} {
+    global aresult acode
+    set aresult $result
+    set acode $code
+    return "new result"
+}
+proc async2 {result code} {
+    global aresult acode
+    set aresult $result
+    set acode $code
+    return -code error "xyzzy"
+}
+proc async3 {result code} {
+    global aresult
+    set aresult "test pattern"
+    return -code $code $result
+}
+
+set handler1 [testasync create async1]
+set handler2 [testasync create async2]
+set handler3 [testasync create async3]
+test async-1.1 {basic async handlers} {
+    set aresult xxx
+    set acode yyy
+    list [catch {testasync mark $handler1 "original" 0} msg] $msg \
+	   $acode $aresult
+} {0 {new result} 0 original}
+test async-1.2 {basic async handlers} {
+    set aresult xxx
+    set acode yyy
+    list [catch {testasync mark $handler1 "original" 1} msg] $msg \
+	   $acode $aresult
+} {0 {new result} 1 original}
+test async-1.3 {basic async handlers} {
+    set aresult xxx
+    set acode yyy
+    list [catch {testasync mark $handler2 "old" 0} msg] $msg \
+	   $acode $aresult
+} {1 xyzzy 0 old}
+test async-1.4 {basic async handlers} {
+    set aresult xxx
+    set acode yyy
+    list [catch {testasync mark $handler2 "old" 3} msg] $msg \
+	   $acode $aresult
+} {1 xyzzy 3 old}
+test async-1.5 {basic async handlers} {
+    set aresult xxx
+    list [catch {testasync mark $handler3 "foobar" 0} msg] $msg $aresult
+} {0 foobar {test pattern}}
+test async-1.6 {basic async handlers} {
+    set aresult xxx
+    list [catch {testasync mark $handler3 "foobar" 1} msg] $msg $aresult
+} {1 foobar {test pattern}}
+
+proc mult1 {result code} {
+    global x
+    lappend x mult1
+    return -code 7 mult1
+}
+set hm1 [testasync create mult1]
+proc mult2 {result code} {
+    global x
+    lappend x mult2
+    return -code 9 mult2
+}
+set hm2 [testasync create mult2]
+proc mult3 {result code} {
+    global x hm1 hm2
+    lappend x [catch {testasync mark $hm2 serial2 0}]
+    lappend x [catch {testasync mark $hm1 serial1 0}]
+    lappend x mult3
+    return -code 11 mult3
+}
+set hm3 [testasync create mult3]
+
+test async-2.1 {multiple handlers} {
+    set x {}
+    list [catch {testasync mark $hm3 "foobar" 5} msg] $msg $x
+} {9 mult2 {0 0 mult3 mult1 mult2}}
+
+proc del1 {result code} {
+    global x hm1 hm2 hm3 hm4
+    lappend x [catch {testasync mark $hm3 serial2 0}]
+    lappend x [catch {testasync mark $hm1 serial1 0}]
+    lappend x [catch {testasync mark $hm4 serial1 0}]
+    testasync delete $hm1
+    testasync delete $hm2
+    testasync delete $hm3
+    lappend x del1
+    return -code 13 del1
+}
+proc del2 {result code} {
+    global x
+    lappend x del2
+    return -code 3 del2
+}
+testasync delete $handler1
+testasync delete $hm2
+testasync delete $hm3
+set hm2 [testasync create del1]
+set hm3 [testasync create mult2]
+set hm4 [testasync create del2]
+
+test async-3.1 {deleting handlers} {
+    set x {}
+    list [catch {testasync mark $hm2 "foobar" 5} msg] $msg $x
+} {3 del2 {0 0 0 del1 del2}}
+
+# cleanup
+testasync delete
+::tcltest::cleanupTests
+return
+
+
+
+
+
+
+
+
+
+
+
+
+@
+
+
+1.3
+log
+@Updated to tcl 8.4.6
+@
+text
+@d14 1
+a14 1
+# RCS: @@(#) $Id: async.test,v 1.5 2000/04/10 17:18:56 ericm Exp $
+@
+
+
+1.3.4.1
+log
+@sync branch with HEAD
+@
+text
+@d14 1
+a14 1
+# RCS: @@(#) $Id$
+@
+
+
+1.3.2.1
+log
+@merge from HEAD
+@
+text
+@d14 1
+a14 1
+# RCS: @@(#) $Id$
+@
+
+
+1.2
+log
+@updated tcl to 8.4.4
+@
+text
+@@
+
+
+1.1
+log
+@*** empty log message ***
+@
+text
+@@
+
+
+1.1.6.1
+log
+@updates from HEAD, part 1
+@
+text
+@d14 1
+a14 1
+# RCS: @@(#) $Id: async.test,v 1.2 2003/11/07 14:54:40 morrison Exp $
+@
+
+
+1.1.6.2
+log
+@merge from HEAD
+@
+text
+@@
+
+
+1.1.6.3
+log
+@merge from head
+@
+text
+@d14 1
+a14 1
+# RCS: @@(#) $Id: async.test,v 1.3 2004/03/04 19:47:14 morrison Exp $
+@
+
+
+1.1.6.4
+log
+@merge from head...
+@
+text
+@d14 1
+a14 1
+# RCS: @@(#) $Id: async.test,v 1.1.6.3 2004/03/15 12:10:31 erikg Exp $
+@
+
+

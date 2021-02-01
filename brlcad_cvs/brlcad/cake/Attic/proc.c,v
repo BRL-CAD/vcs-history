@@ -1,0 +1,879 @@
+head	11.6;
+access;
+symbols
+	ansi-20040405-merged:11.5
+	premerge-autoconf:11.5
+	ansi-20040316-freeze:11.5
+	postmerge-20040315-windows:11.5
+	premerge-20040315-windows:11.5
+	windows-20040315-freeze:11.5
+	autoconf-20031203:11.5
+	autoconf-20031202:11.5
+	phong-branch:11.5.0.10
+	photonmap-branch:11.5.0.8
+	rel-6-1-DP:11.5
+	windows-branch:11.5.0.6
+	rel-6-0-2:11.5
+	ansi-branch:11.5.0.4
+	rel-6-0-1-branch:11.5.0.2
+	hartley-6-0-post:11.5
+	hartley-6-0-pre:11.5
+	rel-6-0-1:11.5
+	rel-6-0:11.5
+	rel-5-4:11.4
+	offsite-5-3-pre:11.5
+	rel-5-3:11.4
+	rel-5-2:11.4
+	rel-5-1-branch:11.4.0.2
+	rel-5-1:11.4
+	rel-5-0:11.4
+	rel-5-0-beta:11.3
+	rel-4-5:11.2
+	ctj-4-5-post:11.2
+	ctj-4-5-pre:11.2
+	rel-4-4:1.9
+	rel-4-0:1.6
+	rel-3-5:1.2
+	rel-3-0:1.2
+	AUTOCONF:11.5.0.12;
+locks; strict;
+comment	@ * @;
+
+
+11.6
+date	2004.03.18.18.15.14;	author erikg;	state dead;
+branches;
+next	11.5;
+
+11.5
+date	2000.08.31.01.05.56;	author mike;	state Exp;
+branches
+	11.5.12.1;
+next	11.4;
+
+11.4
+date	99.06.10.15.31.08;	author mike;	state Exp;
+branches;
+next	11.3;
+
+11.3
+date	98.10.27.19.01.21;	author mike;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	97.05.22.16.57.55;	author mike;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	95.01.05.06.00.10;	author mike;	state Rel4_4;
+branches;
+next	1.9;
+
+1.9
+date	94.11.03.14.13.30;	author mike;	state Exp;
+branches;
+next	1.8;
+
+1.8
+date	93.08.25.18.16.16;	author mike;	state Exp;
+branches;
+next	1.7;
+
+1.7
+date	92.02.01.11.49.40;	author butler;	state Exp;
+branches;
+next	1.6;
+
+1.6
+date	91.09.23.21.44.14;	author butler;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	91.09.09.20.45.12;	author butler;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	91.07.03.22.46.44;	author mike;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	91.06.12.06.50.44;	author mike;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	88.06.11.01.00.40;	author mike;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	88.06.11.00.56.24;	author mike;	state Original;
+branches;
+next	;
+
+11.5.12.1
+date	2004.03.18.18.10.24;	author erikg;	state dead;
+branches;
+next	;
+
+
+desc
+@cake source file 
+@
+
+
+11.6
+log
+@merge of AUTOCONF branch in to HEAD
+@
+text
+@/*
+**	Cake interface to the other processes.
+*/
+
+static	char
+rcs_id[] = "$Header: /cvs/brlcad/cake/proc.c,v 11.5 2000/08/31 01:05:56 mike Exp $";
+
+#include	"cake.h"
+#include	<ctype.h>
+#include	<errno.h>
+#include	<signal.h>
+#include	<fcntl.h>
+#if defined(BSD)
+# undef BSD	/* is defined in sys/param.h, and isn't needed aftere here */
+#endif
+#include	<sys/param.h>		/* for NOFILE */
+
+extern	List	*active_procs;		/* of Proc	*/
+
+/*
+**	Process the given command in the manner described by the args.
+*/
+
+int
+cake_proc(cmd, type, file, node, func, args)
+reg	char	*cmd;
+reg	A_kind	type;
+reg	char	*file;
+reg	Node	*node;
+reg	int	(*func)();
+reg	List	*args;
+{
+	char		*argv[MAXARGS];
+	reg	Proc	*proc;
+	reg	int	pid;
+	reg	char	*script_filename;
+
+	cmd = strip_backslash(cmd);
+
+#ifdef	CAKEDEBUG
+	if (file != NULL)
+		cdebug("file is %s\n", file);
+	else
+		cdebug("file is NULL\n");
+#endif
+
+	if (type == Exec && has_meta(cmd, TRUE))
+		type = System;
+
+	cdebug("cake_proc, type %d: %s\n", type, cmd);
+	fflush(stdout);
+
+	if (type == Exec)
+	{
+		if( parse_args(cmd, argv) < 1)  {		/* BRL */
+			printf("cake_proc:  Null exec command!\n");
+			exit_cake(FALSE);
+		}
+	}
+	or (type == Script)
+	{
+		reg	FILE	*script_fp;
+
+		script_filename = get_newname();
+		if ((script_fp = fopen(script_filename, "w")) == NULL)
+		{
+			sprintf(scratchbuf, "cake system error, fopen %s", script_filename);
+			perror(scratchbuf);
+			exit_cake(FALSE);
+		}
+
+		fprintf(script_fp, "%s", cmd);
+		fclose(script_fp);
+	}
+
+	mutex_lock();
+	if ((pid = fork()) == 0)
+	{
+		reg	int	fd;
+
+#ifdef	CLOSE_ALL
+		for (fd = 3; fd < NOFILE; fd++)
+			close(fd);
+#endif
+
+		if (file != NULL)
+		{
+			if (close(1) != 0)
+			{
+				perror("cake system error, close stdout");
+				_exit(127);
+			}
+
+#ifdef ATT
+			if ((fd = open(file, O_WRONLY|O_CREAT, 0600)) < 0)
+#else
+			if ((fd = creat(file, 0600)) < 0)	/* BRL */
+#endif
+			{
+				perror("cake system error, reopen stdout");
+				_exit(127);
+			}
+
+			if (fd != 1)
+			{
+				fprintf(stderr, "cake system error: reopen stdout gives fd %d\n", fd);
+				_exit(127);
+			}
+		}
+
+		switch (type)
+		{
+
+	case Script:	if (shell_opt[1] != NULL)
+				execl(shell_path[1], shell_cmd[1], shell_opt[1], script_filename, 0);
+			else
+				execl(shell_path[1], shell_cmd[1], script_filename, 0);
+
+			perror("cake system error, shell script exec");
+			_exit(127);
+
+	case System:	if (shell_opt[0] != NULL)
+				execl(shell_path[0], shell_cmd[0], shell_opt[0], cmd, 0);
+			else
+				execl(shell_path[0], shell_cmd[0], cmd, 0);
+
+			perror("cake system error, shell exec");
+			_exit(127);
+
+	case Exec:	execvp(argv[0], argv);
+			sprintf(scratchbuf, "cake system error, %s exec", argv[0]);
+			perror(scratchbuf);
+			_exit(127);
+
+	default:	fprintf(stderr, "cake internal error: type = %x in cake_proc\n", type);
+			_exit(127);
+		}
+	}
+	or (pid == -1)
+	{
+		perror("cake system error, fork");
+		exit_cake(FALSE);
+	}
+
+	proc = make(Proc);
+	proc->pr_pid  = pid;
+	proc->pr_node = node;
+	proc->pr_func = func;
+	proc->pr_args = args;
+	proc->pr_run  = TRUE;
+	addtail(active_procs, proc);
+	cdebug("cake_proc pid = %d\n", pid);
+
+	mutex_unlock();
+	if (type == Script && ! cakedebug)
+	{
+		cdebug("cake_proc unlink script_filename %s\n", script_filename);
+		if (unlink(script_filename) != 0)
+		{
+			sprintf(scratchbuf, "cake system error, unlink %s", script_filename);
+			perror(scratchbuf);
+			exit_cake(FALSE);
+		}
+	}
+
+	return pid;
+}
+
+/*
+**	The cake code allows many child processes to be running
+**	at any given time. Cake waits for these processes
+**	when their results are required. However, there is no
+**	necessary relationship between between when a process exits
+**	and when its product is needed.
+**
+**	The list of active processes contains all running processes
+**	and all exited processes that haven't been waited for yet.
+**	Cake_wait maintains this list. Whenever cake_wait gets
+**	an exit report from wait, it invokes the function (if any)
+**	associated with the exited process. If the exited process
+**	is the one cake_wait is looking for, it returns; otherwise
+**	it calls wait again and again until it finds that process.
+*/
+
+int
+cake_wait(pid)
+reg	int	pid;
+{
+	reg	int	exitpid;
+	reg	List	*ptr;
+	reg	Proc	*proc;
+	Wait		status;
+
+	mutex_lock();
+	ptr  = find_process(pid);
+	proc = (Proc *) ldata(ptr);
+	if (! proc->pr_run)
+	{
+		status = proc->pr_stat;
+		delete(active_procs, ptr);
+		mutex_unlock();
+		return status.w_status;
+	}
+
+#if defined(__convexc__) || defined(__bsdi__) || defined(__FreeBSD__)
+	while ((exitpid = wait(&status.w_status)) != -1)
+#else
+	while ((exitpid = wait(&status)) != -1)
+#endif
+	{
+		mutex_lock();
+		ptr  = find_process(exitpid);
+		proc = (Proc *) ldata(ptr);
+		proc->pr_run  = FALSE;
+		proc->pr_stat = status;
+		cdebug("cake_wait pid = %d, status = %d (x%x)\n", exitpid, status.w_status, status.w_status);
+		fflush(stdout);
+
+		if (proc->pr_func != NULL)
+		{
+			cdebug("cake_wait calling function at %x\n", proc->pr_func);
+			fflush(stdout);
+			(*proc->pr_func)(status, proc->pr_args);
+		}
+
+		if (exitpid == pid)
+		{
+			delete(active_procs, ptr);
+			mutex_unlock();
+			return status.w_status; /* normal return */
+		}
+
+		mutex_unlock();
+	}
+
+	fprintf(stderr, "cake internal error: waiting for nonactive process pid=%d\n", pid);
+	exit_cake(TRUE);
+	return status.w_status;	/* to shut up lint */
+}
+
+/*
+**	Find an active process in the active process list.
+*/
+
+List *
+find_process(pid)
+reg	int	pid;
+{
+	reg	List	*ptr;
+	reg	Proc	*proc;
+	reg	bool	found;
+
+	found = FALSE;
+	for_list (ptr, active_procs)
+	{
+		proc = (Proc *) ldata(ptr);
+		if (proc->pr_pid == pid)
+		{
+			found = TRUE;
+			break;
+		}
+	}
+
+	if (! found)
+	{
+		fprintf(stderr, "cake internal error: cannot find active process %d\n", pid);
+		exit_cake(TRUE);
+	}
+
+	return ptr;
+}
+
+/*
+**	Open a filter the cake way, with an execv instead of an execl.
+*/
+
+#define		READSIDE	0
+#define		WRITESIDE	1
+
+static	int	popen_pid[NOFILE];
+
+FILE *
+cake_popen(argv, mode)
+reg	char	*argv[MAXARGS];
+reg	char	*mode;
+{
+	int		pdesc[2];
+	reg	int	parent_end, child_end;
+	reg	int	replaced, pid;
+	reg	Proc	*proc;
+
+	if (pipe(pdesc) < 0)
+		return NULL;
+
+	if (mode[0] == 'r')
+	{
+		parent_end = pdesc[READSIDE];
+		child_end  = pdesc[WRITESIDE];
+		replaced   = 1;
+	}
+	else
+	{
+		parent_end = pdesc[WRITESIDE];
+		child_end  = pdesc[READSIDE];
+		replaced   = 0;
+	}
+
+	fflush(stdout);
+	mutex_lock();
+	if ((pid = fork()) == 0)
+	{
+		close(parent_end);
+		close(replaced);
+		if (dup(child_end) != replaced)
+			_exit(127);
+
+		close(child_end);
+		execvp(argv[0], argv);
+		sprintf(scratchbuf, "cake system error, %s exec", argv[0]);
+		perror(scratchbuf);
+		_exit(127);
+	}
+	or (pid == -1)
+	{
+		close(parent_end);
+		close(child_end);
+		perror("cake system error, fork");
+		exit_cake(FALSE);
+	}
+
+	proc = make(Proc);
+	proc->pr_pid  = pid;
+	proc->pr_func = NULL;
+	proc->pr_args = NULL;
+	proc->pr_run  = TRUE;
+	addtail(active_procs, proc);
+
+	close(child_end);
+	popen_pid[parent_end] = pid;
+	mutex_unlock();
+
+	return fdopen(parent_end, mode);
+}
+
+int
+cake_pclose(fp)
+reg	FILE	*fp;
+{
+	int		code;
+	reg	int	f;
+
+	f = fileno(fp);
+	fclose(fp);
+	code = cake_wait(popen_pid[f]);
+	return code;
+}
+
+/*
+**	Parse the given command into argv, argc.
+*/
+
+int
+parse_args(cmd, vector)
+reg	char	*cmd;
+reg	char	**vector;
+{
+	char		buf[MAXARGSIZE];
+	reg	int	i, count;
+	reg	char	*s;
+	reg	bool	instring;
+
+	cdebug("parse_args: ");
+
+	s = cmd;
+	for (count = 0; *s != '\0'; count++)
+	{
+		while (*s != '\0' && isspace(*s))
+			s++;
+
+		instring = FALSE;
+		for (i = 0; *s != '\0' && (! isspace(*s) || instring); s++)
+		{
+			if (*s == '\\')
+			{
+				if (s[1] != '\0')
+					buf[i++] = *++s;
+			}
+			or (*s == '"')
+				instring = ! instring;
+			else
+				buf[i++] = *s;
+		}
+
+		buf[i] = '\0';
+		if (i >= MAXARGSIZE)
+		{
+			fprintf(stderr, "cake: argument '%s' too long\n", buf);
+			exit_cake(FALSE);
+		}
+
+		if (count >= MAXARGS)
+		{
+			fprintf(stderr, "cake: '%s' has too many arguments for cake\n", cmd);
+			exit_cake(FALSE);
+		}
+
+		if (i == 0)
+			count--;
+		else
+		{
+			cdebug("<%s>", buf);
+			vector[count] = new_name(buf);
+		}
+	}
+
+	vector[count] = NULL;
+	cdebug("/%d\n", count);
+	return count;
+}
+
+/*
+**	Strip one level of backslashes from the given string.
+*/
+
+char *
+strip_backslash(str)
+reg	char	*str;
+{
+	char		buf[MAXSIZE];
+	reg	char	*s;
+	reg	int	i;
+
+	if (index(str, '\\') == NULL)
+		return str;
+
+	for (i = 0, s = str; *s != '\0'; s++)
+	{
+		if (*s != '\\')
+			buf[i++] = *s;
+		or (s[1] != '\0')
+			buf[i++] = *++s;
+	}
+
+	buf[i] = '\0';
+	if (i >= MAXSIZE)
+	{
+		fprintf(stderr, "cake: command '%s' too long.\n", str);
+		exit_cake(FALSE);
+	}
+
+	return new_name(buf);
+}
+
+/*
+**	These functions implement mutual exclusion.
+**	They prevent cake from being interrupted
+**	between calls to lock and unlock.
+**	This is used to preserve the consistency
+**	of the active_procs data structure in the presence
+**	of multiple executing children.
+*/
+
+#if 0		/* mutual exclusion is not necessary & has bug */
+#ifdef	ATT
+int	(*signalint)();
+int	(*signalquit)();
+#else
+int	signalmask;
+#endif
+#endif
+
+void
+mutex_lock()
+{
+#if 0
+#ifdef	ATT
+	signalint  = signal(SIGINT,  SIG_IGN);
+	signalquit = signal(SIGQUIT, SIG_IGN);
+#else
+	signalmask = sigblock(mask(SIGINT)|mask(SIGQUIT));
+#endif
+#endif
+}
+
+void
+mutex_unlock()
+{
+#if 0
+#ifdef	ATT
+	signal(SIGINT,  signalint);
+	signal(SIGQUIT, signalquit);
+#else
+	sigsetmask(signalmask);
+#endif
+#endif
+}
+@
+
+
+11.5
+log
+@
+Made error message even more descriptive,
+as the string printed by %s probably spans more than one screen.
+@
+text
+@d6 1
+a6 1
+rcs_id[] = "$Header: /c/CVS/brlcad/cake/proc.c,v 11.4 1999/06/10 15:31:08 mike Exp $";
+@
+
+
+11.5.12.1
+log
+@merge from head
+@
+text
+@d6 1
+a6 1
+rcs_id[] = "$Header: /cvs/brlcad/cake/proc.c,v 11.5 2000/08/31 01:05:56 mike Exp $";
+@
+
+
+11.4
+log
+@
+Silenced warnings on FreeBSD
+@
+text
+@d6 1
+a6 1
+rcs_id[] = "$Header: /c/CVS/brlcad/cake/proc.c,v 11.3 1998/10/27 19:01:21 mike Exp $";
+d403 1
+a403 1
+			fprintf(stderr, "cake: '%s' has too many arguments\n", cmd);
+@
+
+
+11.3
+log
+@printf lint
+@
+text
+@d6 1
+a6 1
+rcs_id[] = "$Header: /c/CVS/brlcad/cake/proc.c,v 11.2 1997/05/22 16:57:55 mike Exp $";
+d13 2
+a14 2
+#if defined(vax) && defined(BSD)
+# undef BSD	/* is defined in sys/param.h */
+d16 1
+a16 1
+#include	<sys/param.h>
+d205 1
+a205 1
+#if defined(__convexc__) || defined(__bsdi__)
+@
+
+
+11.2
+log
+@Added (void) declarations for IRIX 6 compiler.
+@
+text
+@d6 1
+a6 1
+rcs_id[] = "$Header: /m/cad/cake/RCS/proc.c,v 11.1 1995/01/05 06:00:10 mike Rel4_4 mike $";
+d236 1
+a236 1
+	fprintf(stderr, "cake internal error: waiting for nonactive process %s\n", pid);
+@
+
+
+11.1
+log
+@Release_4_4
+@
+text
+@d6 1
+a6 1
+rcs_id[] = "$Header: /m/cad/cake/RCS/proc.c,v 1.9 94/11/03 14:13:30 mike Exp $";
+d472 1
+d485 1
+@
+
+
+1.9
+log
+@Replaced 'when' with 'case', etc.
+@
+text
+@d6 1
+a6 1
+rcs_id[] = "$Header: /m/cad/cake/RCS/proc.c,v 1.8 93/08/25 18:16:16 mike Exp Locker: mike $";
+@
+
+
+1.8
+log
+@Modified to compile on ANSI compilers
+@
+text
+@d6 1
+a6 1
+rcs_id[] = "$Header: /m/cad/cake/RCS/proc.c,v 1.7 92/02/01 11:49:40 butler Exp Locker: mike $";
+d114 1
+a114 1
+	when Script:	if (shell_opt[1] != NULL)
+d122 1
+a122 1
+	when System:	if (shell_opt[0] != NULL)
+d130 1
+a130 1
+	when Exec:	execvp(argv[0], argv);
+d135 1
+a135 1
+	otherwise:	fprintf(stderr, "cake internal error: type = %x in cake_proc\n", type);
+@
+
+
+1.7
+log
+@altered for bsdi unix
+@
+text
+@d6 1
+a6 1
+rcs_id[] = "$Header: /n/wolf/m/cad/cake/RCS/proc.c,v 1.6 1991/09/23 21:44:14 butler Exp butler $";
+a32 5
+	extern	bool	has_meta();
+	extern	char	*strip_backslash();
+	extern	char	*shell_path[2];
+	extern	char	*shell_cmd[2];
+	extern	char	*shell_opt[2];
+d77 1
+a77 1
+	if ((pid = vfork()) == 0)
+a188 1
+	extern	List	*find_process();
+d310 1
+a310 1
+	if ((pid = vfork()) == 0)
+@
+
+
+1.6
+log
+@changes for convex.
+@
+text
+@d6 1
+a6 1
+rcs_id[] = "$Header: /m/cad/cake/RCS/proc.c,v 1.5 91/09/09 20:45:12 butler Exp $";
+d211 1
+a211 1
+#if defined(__convexc__)
+@
+
+
+1.5
+log
+@undefined BSD before include of sys/param.h on vax to avoid macro
+redefinition warning at compile time
+@
+text
+@d6 1
+a6 1
+rcs_id[] = "$Header: /m/cad/cake/RCS/proc.c,v 1.4 91/07/03 22:46:44 mike Exp $";
+d211 3
+d215 1
+@
+
+
+1.4
+log
+@Changed to used execvp, so that path will be searched.
+@
+text
+@d6 1
+a6 1
+rcs_id[] = "$Header: /m/cad/cake/RCS/proc.c,v 1.3 91/06/12 06:50:44 mike Exp $";
+d13 3
+@
+
+
+1.3
+log
+@Modified carry_out(), action(), and cake_wait() to return an int,
+rather that a "union wait" (aka typedef Wait).
+The Cray UNICOS 5.1 /bin/cc seems unable to successfully return
+a union.
+@
+text
+@d6 1
+a6 1
+rcs_id[] = "$Header: /m/cad/cake/RCS/proc.c,v 1.2 88/06/11 01:00:40 mike Exp $";
+d317 1
+a317 1
+		execv(argv[0], argv);
+@
+
+
+1.2
+log
+@minor BRL mods
+@
+text
+@d6 1
+a6 1
+rcs_id[] = "$Header: /mip/zs/src/sys/cake/RCS/proc.c,v 1.15 87/10/05 20:15:45 zs Exp $";
+d187 1
+a187 1
+Wait
+d205 1
+a205 1
+		return status;
+d215 1
+a215 1
+		cdebug("cake_wait pid = %d, status = %d\n", exitpid, status.w_status);
+d229 1
+a229 1
+			return status;	/* normal return */
+d237 1
+a237 1
+	return status;	/* to shut up lint */
+d348 1
+a348 1
+	Wait		code;
+d354 1
+a354 1
+	return code.w_status;
+@
+
+
+1.1
+log
+@Original CAKE version from net.sources
+@
+text
+@d56 6
+a61 1
+		parse_args(cmd, argv);
+d96 1
+d98 3
+@

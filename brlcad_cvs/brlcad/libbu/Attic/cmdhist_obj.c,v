@@ -1,0 +1,804 @@
+head	1.12;
+access;
+symbols
+	ansi-20040405-merged:1.6.2.3
+	postmerge-20040405-ansi:1.10
+	premerge-20040404-ansi:1.9
+	postmerge-autoconf:1.9
+	autoconf-freeze:1.7.6.2
+	premerge-autoconf:1.9
+	ansi-20040316-freeze:1.6.2.1
+	postmerge-20040315-windows:1.9
+	premerge-20040315-windows:1.8
+	windows-20040315-freeze:1.6.4.2
+	autoconf-20031203:1.7
+	autoconf-20031202:1.7
+	autoconf-branch:1.7.0.6
+	phong-branch:1.7.0.4
+	photonmap-branch:1.7.0.2
+	rel-6-1-DP:1.6
+	windows-branch:1.6.0.4
+	rel-6-0-2:1.4
+	ansi-branch:1.6.0.2
+	rel-6-0-1-branch:1.4.0.2
+	hartley-6-0-post:1.5
+	hartley-6-0-pre:1.4
+	rel-6-0-1:1.4
+	rel-6-0:1.4
+	rel-5-4:1.2
+	offsite-5-3-pre:1.4
+	rel-5-3:1.2
+	rel-5-2:1.2
+	rel-5-1-branch:1.2.0.2
+	rel-5-1:1.2;
+locks; strict;
+comment	@ * @;
+
+
+1.12
+date	2004.05.21.18.06.23;	author morrison;	state dead;
+branches;
+next	1.11;
+
+1.11
+date	2004.05.10.15.30.44;	author erikg;	state Exp;
+branches;
+next	1.10;
+
+1.10
+date	2004.04.05.07.46.16;	author morrison;	state Exp;
+branches;
+next	1.9;
+
+1.9
+date	2004.03.16.19.40.48;	author morrison;	state Exp;
+branches;
+next	1.8;
+
+1.8
+date	2004.02.02.17.39.07;	author morrison;	state Exp;
+branches;
+next	1.7;
+
+1.7
+date	2003.04.02.14.57.22;	author jra;	state Exp;
+branches
+	1.7.6.1;
+next	1.6;
+
+1.6
+date	2002.08.20.17.07.39;	author jra;	state Exp;
+branches
+	1.6.2.1
+	1.6.4.1;
+next	1.5;
+
+1.5
+date	2002.08.15.20.54.51;	author hartley;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	2000.10.19.19.19.45;	author butler;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2000.07.07.05.21.20;	author cjohnson;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2000.05.19.18.54.43;	author bparker;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2000.02.04.14.32.23;	author bparker;	state Exp;
+branches;
+next	;
+
+1.6.2.1
+date	2002.09.19.18.01.11;	author morrison;	state Exp;
+branches;
+next	1.6.2.2;
+
+1.6.2.2
+date	2004.03.17.21.16.49;	author morrison;	state Exp;
+branches;
+next	1.6.2.3;
+
+1.6.2.3
+date	2004.04.02.16.02.27;	author morrison;	state Exp;
+branches;
+next	;
+
+1.6.4.1
+date	2002.09.26.23.03.51;	author morrison;	state Exp;
+branches;
+next	1.6.4.2;
+
+1.6.4.2
+date	2004.03.11.23.41.49;	author morrison;	state Exp;
+branches;
+next	;
+
+1.7.6.1
+date	2004.02.12.18.39.18;	author erikg;	state Exp;
+branches;
+next	1.7.6.2;
+
+1.7.6.2
+date	2004.03.18.18.08.13;	author erikg;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.12
+log
+@moved to src/
+@
+text
+@/*
+ *				C M D H I S T . C
+ *
+ * A cmdhist object contains the attributes and
+ * methods for maintaining command history.
+ *
+ *
+ *  Author -
+ *	  Robert G. Parker
+ *
+ *  Source -
+ *	The U. S. Army Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005-5068  USA
+ *  
+ *  Distribution Notice -
+ *	Re-distribution of this software is restricted, as described in
+ *	your "Statement of Terms and Conditions for the Release of
+ *	The BRL-CAD Package" license agreement.
+ *
+ *  Copyright Notice -
+ *	This software is Copyright (C) 1998-2004 by the United States Army
+ *	in all countries except the USA.  All rights reserved.
+ *
+ */
+
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+#include "tcl.h"
+#ifdef HAVE_STRING_H
+#include <string.h>
+#endif
+#include "machine.h"
+#include "externs.h"
+#include "cmd.h"
+
+/* bu_cmdhist routines are defined in libbu/cmdhist.c */
+extern int bu_cmdhist_history(ClientData clientData, Tcl_Interp *interp, int argc, char **argv);
+extern int bu_cmdhist_add(ClientData clientData, Tcl_Interp *interp, int argc, char **argv);
+extern int bu_cmdhist_curr(ClientData clientData, Tcl_Interp *interp, int argc, char **argv);
+extern int bu_cmdhist_next(ClientData clientData, Tcl_Interp *interp, int argc, char **argv);
+extern int bu_cmdhist_prev(ClientData clientData, Tcl_Interp *interp, int argc, char **argv);
+
+int cho_open_tcl(ClientData clientData, Tcl_Interp *interp, int argc, char **argv);
+
+static struct bu_cmdhist_obj HeadCmdHistObj;		/* head of command history object list */
+
+static struct bu_cmdtab ch_cmds[] = 
+{
+	{"add",		bu_cmdhist_add},
+	{"curr",	bu_cmdhist_curr},
+	{"next",	bu_cmdhist_next},
+	{"prev",	bu_cmdhist_prev},
+	{(char *)NULL,	CMD_NULL}
+};
+
+int
+cho_hist(ClientData clientData, Tcl_Interp *interp, int argc, char **argv)
+{
+	return bu_cmd(clientData, interp, argc, argv, ch_cmds, 1);
+}
+
+static struct bu_cmdtab cho_cmds[] = 
+{
+	{"add",		bu_cmdhist_add},
+	{"curr",	bu_cmdhist_curr},
+	{"history",	bu_cmdhist_history},
+	{"next",	bu_cmdhist_next},
+	{"prev",	bu_cmdhist_prev},
+	{(char *)NULL,	CMD_NULL}
+};
+
+static int
+cho_cmd(ClientData clientData, Tcl_Interp *interp, int argc, char **argv)
+{
+	return bu_cmd(clientData, interp, argc, argv, cho_cmds, 1);
+}
+
+int
+Cho_Init(Tcl_Interp *interp)
+{
+	BU_LIST_INIT(&HeadCmdHistObj.l);
+	(void)Tcl_CreateCommand(interp, "ch_open", (Tcl_CmdProc *)cho_open_tcl,
+				(ClientData)NULL, (Tcl_CmdDeleteProc *)NULL);
+
+	return TCL_OK;
+}
+
+static void
+cho_deleteProc(ClientData clientData)
+{
+	struct bu_cmdhist_obj *chop = (struct  bu_cmdhist_obj *)clientData;
+	struct bu_cmdhist *curr, *next;
+
+	/* free list of commands */
+	curr = BU_LIST_NEXT(bu_cmdhist, &chop->cho_head.l);
+	while(BU_LIST_NOT_HEAD(curr,&chop->cho_head.l)) {
+		curr = BU_LIST_NEXT(bu_cmdhist, &chop->cho_head.l);
+		next = BU_LIST_PNEXT(bu_cmdhist, curr);
+
+		bu_vls_free(&curr->h_command);
+
+		BU_LIST_DEQUEUE(&curr->l);
+		bu_free((genptr_t)curr, "cho_deleteProc: curr");
+		curr = next;
+	}
+
+	bu_vls_free(&chop->cho_name);
+	bu_vls_free(&chop->cho_head.h_command);
+
+	BU_LIST_DEQUEUE(&chop->l);
+	bu_free((genptr_t)chop, "cho_deleteProc: chop");
+}
+
+#if 0			/* As far as I can tell, this is not used.  CTJ */
+/*
+ * Close a command history object.
+ *
+ * USAGE:
+ *        procname close
+ */
+static int
+cho_close_tcl(clientData, interp, argc, argv)
+     ClientData      clientData;
+     Tcl_Interp      *interp;
+     int             argc;
+     char            **argv;
+{
+	struct bu_cmdhist_obj *chop = (struct  bu_cmdhist_obj *)clientData;
+	struct bu_vls vls;
+
+	if (argc != 2) {
+		bu_vls_init(&vls);
+		bu_vls_printf(&vls, "helplib cho_close");
+		Tcl_Eval(interp, bu_vls_addr(&vls));
+		bu_vls_free(&vls);
+		return TCL_ERROR;
+	}
+
+	/* Among other things, this will call cho_deleteProc. */
+	Tcl_DeleteCommand(interp, bu_vls_addr(&chop->cho_name));
+
+	return TCL_OK;
+}
+#endif
+
+static struct bu_cmdhist_obj *
+cho_open(ClientData clientData, Tcl_Interp *interp, char *name)
+{
+	struct bu_cmdhist_obj *chop;
+
+	/* check to see if command history object exists */
+	for (BU_LIST_FOR(chop, bu_cmdhist_obj, &HeadCmdHistObj.l)) {
+		if (strcmp(name,bu_vls_addr(&chop->cho_name)) == 0) {
+			Tcl_AppendResult(interp, "ch_open: ", name,
+					 " exists.\n", (char *)NULL);
+			return CMDHIST_OBJ_NULL;
+		}
+	}
+
+	BU_GETSTRUCT(chop, bu_cmdhist_obj);
+	bu_vls_init(&chop->cho_name);
+	bu_vls_strcpy(&chop->cho_name, name);
+	BU_LIST_INIT(&chop->cho_head.l);
+	bu_vls_init(&chop->cho_head.h_command);
+	chop->cho_head.h_start.tv_sec = chop->cho_head.h_start.tv_usec =
+		chop->cho_head.h_finish.tv_sec = chop->cho_head.h_finish.tv_usec = 0L;
+	chop->cho_head.h_status = TCL_OK;
+	chop->cho_curr = &chop->cho_head;
+
+	BU_LIST_APPEND(&HeadCmdHistObj.l, &chop->l);
+	return chop;
+}
+
+/*
+ * Open a command history object.
+ *
+ * USAGE:
+ *        ch_open name
+ */
+int
+cho_open_tcl(ClientData clientData, Tcl_Interp *interp, int argc, char **argv)
+{
+	struct bu_cmdhist_obj *chop;
+	struct bu_vls vls;
+
+	if (argc == 1) {
+		/* get list of command history objects */
+		for (BU_LIST_FOR(chop, bu_cmdhist_obj, &HeadCmdHistObj.l))
+			Tcl_AppendResult(interp, bu_vls_addr(&chop->cho_name), " ", (char *)NULL);
+
+		return TCL_OK;
+	}
+
+	if (argc == 2) {
+		if ((chop = cho_open(clientData, interp, argv[1])) == CMDHIST_OBJ_NULL)
+			return TCL_ERROR;
+
+		(void)Tcl_CreateCommand(interp,
+					bu_vls_addr(&chop->cho_name),
+					(Tcl_CmdProc *)cho_cmd,
+					(ClientData)chop,
+					cho_deleteProc);
+
+		/* Return new function name as result */
+		Tcl_ResetResult(interp);
+		Tcl_AppendResult(interp, bu_vls_addr(&chop->cho_name), (char *)NULL);
+		return TCL_OK;
+	}
+
+	bu_vls_init(&vls);
+	bu_vls_printf(&vls, "helplib ch_open");
+	Tcl_Eval(interp, bu_vls_addr(&vls));
+	bu_vls_free(&vls);
+	return TCL_ERROR;
+}
+@
+
+
+1.11
+log
+@change conf.h to a wrapped config.h
+@
+text
+@@
+
+
+1.10
+log
+@merge of ansi-6-0-branch into HEAD
+@
+text
+@d26 5
+a30 1
+#include "conf.h"
+@
+
+
+1.9
+log
+@merge of windows-6-0-branch into head
+@
+text
+@d36 5
+a40 5
+extern int bu_cmdhist_history();
+extern int bu_cmdhist_add();
+extern int bu_cmdhist_curr();
+extern int bu_cmdhist_next();
+extern int bu_cmdhist_prev();
+d42 1
+a42 1
+int cho_open_tcl(ClientData clientData,Tcl_Interp *interp, int argc, char **argv);
+d56 1
+a56 5
+cho_hist(clientData, interp, argc, argv)
+     ClientData clientData;
+     Tcl_Interp *interp;
+     int argc;
+     char **argv;
+a70 1
+#ifndef WIN32
+d72 1
+a72 13
+cho_cmd(clientData, interp, argc, argv)
+     ClientData	clientData;
+     Tcl_Interp	*interp;
+     int		argc;
+     char		**argv;
+#else
+static int
+cho_cmd(
+	 ClientData	clientData,
+     Tcl_Interp	*interp,
+     int		argc,
+     char		**argv)
+#endif
+d78 1
+a78 2
+Cho_Init(interp)
+     Tcl_Interp *interp;
+d81 1
+a81 1
+	(void)Tcl_CreateCommand(interp, "ch_open", cho_open_tcl,
+a86 1
+#ifndef WIN32
+d88 1
+a88 5
+cho_deleteProc(clientData)
+     ClientData clientData;
+#else
+static void cho_deleteProc(ClientData clientData)
+#endif
+d146 1
+a146 4
+cho_open(clientData, interp, name)
+     ClientData      clientData;
+     Tcl_Interp      *interp;
+     char            *name;
+a178 1
+#ifndef WIN32
+d180 1
+a180 13
+cho_open_tcl(clientData, interp, argc, argv)
+     ClientData      clientData;
+     Tcl_Interp      *interp;
+     int             argc;
+     char            **argv;
+#else
+int
+cho_open_tcl(
+     ClientData      clientData,
+     Tcl_Interp      *interp,
+     int             argc,
+     char            **argv)
+#endif
+@
+
+
+1.8
+log
+@update copyright to include span through 2003
+@
+text
+@d42 1
+a42 1
+int cho_open_tcl();
+d75 1
+d82 8
+d105 1
+d109 3
+d205 1
+d212 8
+@
+
+
+1.7
+log
+@Added a cast to quiet the compiler
+@
+text
+@d21 1
+a21 1
+ *	This software is Copyright (C) 1998 by the United States Army
+@
+
+
+1.7.6.1
+log
+@merge from HEAD
+@
+text
+@d21 1
+a21 1
+ *	This software is Copyright (C) 1998-2004 by the United States Army
+@
+
+
+1.7.6.2
+log
+@merge from head
+@
+text
+@d42 1
+a42 1
+int cho_open_tcl(ClientData clientData,Tcl_Interp *interp, int argc, char **argv);
+a74 1
+#ifndef WIN32
+a80 8
+#else
+static int
+cho_cmd(
+	 ClientData	clientData,
+     Tcl_Interp	*interp,
+     int		argc,
+     char		**argv)
+#endif
+a95 1
+#ifndef WIN32
+a98 3
+#else
+static void cho_deleteProc(ClientData clientData)
+#endif
+a191 1
+#ifndef WIN32
+a197 8
+#else
+int
+cho_open_tcl(
+     ClientData      clientData,
+     Tcl_Interp      *interp,
+     int             argc,
+     char            **argv)
+#endif
+@
+
+
+1.6
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d216 1
+a216 1
+					cho_cmd,
+@
+
+
+1.6.4.1
+log
+@Modifications (on a 6.0 source distribution) for initial port to windows (merged with sources close to 6.0.2)
+@
+text
+@d42 1
+a42 1
+int cho_open_tcl(ClientData clientData,Tcl_Interp *interp, int argc, char **argv);
+a74 1
+#ifndef WIN32
+a80 8
+#else
+static int
+cho_cmd(
+	 ClientData	clientData,
+     Tcl_Interp	*interp,
+     int		argc,
+     char		**argv)
+#endif
+a95 1
+#ifndef WIN32
+a98 3
+#else
+static void cho_deleteProc(ClientData clientData)
+#endif
+a191 1
+#ifndef WIN32
+a197 8
+#else
+int
+cho_open_tcl(
+     ClientData      clientData,
+     Tcl_Interp      *interp,
+     int             argc,
+     char            **argv)
+#endif
+@
+
+
+1.6.4.2
+log
+@sync to HEAD...
+@
+text
+@d21 1
+a21 1
+ *	This software is Copyright (C) 1998-2004 by the United States Army
+d238 1
+a238 1
+					(Tcl_CmdProc *)cho_cmd,
+@
+
+
+1.6.2.1
+log
+@Initial ANSIfication
+@
+text
+@d36 5
+a40 5
+extern int bu_cmdhist_history(ClientData clientData, Tcl_Interp *interp, int argc, char **argv);
+extern int bu_cmdhist_add(ClientData clientData, Tcl_Interp *interp, int argc, char **argv);
+extern int bu_cmdhist_curr(ClientData clientData, Tcl_Interp *interp, int argc, char **argv);
+extern int bu_cmdhist_next(ClientData clientData, Tcl_Interp *interp, int argc, char **argv);
+extern int bu_cmdhist_prev(ClientData clientData, Tcl_Interp *interp, int argc, char **argv);
+d42 1
+a42 1
+int cho_open_tcl(ClientData clientData, Tcl_Interp *interp, int argc, char **argv);
+d56 5
+a60 1
+cho_hist(ClientData clientData, Tcl_Interp *interp, int argc, char **argv)
+d76 5
+a80 1
+cho_cmd(ClientData clientData, Tcl_Interp *interp, int argc, char **argv)
+d86 2
+a87 1
+Cho_Init(Tcl_Interp *interp)
+d97 2
+a98 1
+cho_deleteProc(ClientData clientData)
+d156 4
+a159 1
+cho_open(ClientData clientData, Tcl_Interp *interp, char *name)
+d193 5
+a197 1
+cho_open_tcl(ClientData clientData, Tcl_Interp *interp, int argc, char **argv)
+@
+
+
+1.6.2.2
+log
+@sync branch with HEAD
+@
+text
+@d21 1
+a21 1
+ *	This software is Copyright (C) 1998-2004 by the United States Army
+d199 1
+a199 1
+					(Tcl_CmdProc *)cho_cmd,
+@
+
+
+1.6.2.3
+log
+@quell warning
+@
+text
+@d81 1
+a81 1
+	(void)Tcl_CreateCommand(interp, "ch_open", (Tcl_CmdProc *)cho_open_tcl,
+@
+
+
+1.5
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d36 5
+a40 5
+extern int bu_cmdhist_history(ClientData clientData, Tcl_Interp *interp, int argc, char **argv);
+extern int bu_cmdhist_add(ClientData clientData, Tcl_Interp *interp, int argc, char **argv);
+extern int bu_cmdhist_curr(ClientData clientData, Tcl_Interp *interp, int argc, char **argv);
+extern int bu_cmdhist_next(ClientData clientData, Tcl_Interp *interp, int argc, char **argv);
+extern int bu_cmdhist_prev(ClientData clientData, Tcl_Interp *interp, int argc, char **argv);
+d42 1
+a42 1
+int cho_open_tcl(ClientData clientData, Tcl_Interp *interp, int argc, char **argv);
+d56 5
+a60 1
+cho_hist(ClientData clientData, Tcl_Interp *interp, int argc, char **argv)
+d76 5
+a80 1
+cho_cmd(ClientData clientData, Tcl_Interp *interp, int argc, char **argv)
+d86 2
+a87 1
+Cho_Init(Tcl_Interp *interp)
+d97 2
+a98 1
+cho_deleteProc(ClientData clientData)
+d156 4
+a159 1
+cho_open(ClientData clientData, Tcl_Interp *interp, char *name)
+d193 5
+a197 1
+cho_open_tcl(ClientData clientData, Tcl_Interp *interp, int argc, char **argv)
+@
+
+
+1.4
+log
+@Changes to compile under RedHat 7.0
+@
+text
+@d36 5
+a40 5
+extern int bu_cmdhist_history();
+extern int bu_cmdhist_add();
+extern int bu_cmdhist_curr();
+extern int bu_cmdhist_next();
+extern int bu_cmdhist_prev();
+d42 1
+a42 1
+int cho_open_tcl();
+d56 1
+a56 5
+cho_hist(clientData, interp, argc, argv)
+     ClientData clientData;
+     Tcl_Interp *interp;
+     int argc;
+     char **argv;
+d72 1
+a72 5
+cho_cmd(clientData, interp, argc, argv)
+     ClientData	clientData;
+     Tcl_Interp	*interp;
+     int		argc;
+     char		**argv;
+d78 1
+a78 2
+Cho_Init(interp)
+     Tcl_Interp *interp;
+d88 1
+a88 2
+cho_deleteProc(clientData)
+     ClientData clientData;
+d146 1
+a146 4
+cho_open(clientData, interp, name)
+     ClientData      clientData;
+     Tcl_Interp      *interp;
+     char            *name;
+d180 1
+a180 5
+cho_open_tcl(clientData, interp, argc, argv)
+     ClientData      clientData;
+     Tcl_Interp      *interp;
+     int             argc;
+     char            **argv;
+@
+
+
+1.3
+log
+@LINT plus minor bug fix in bu_tcl.c
+@
+text
+@d28 3
+a30 1
+
+@
+
+
+1.2
+log
+@*- alphabetize command list
+@
+text
+@d46 5
+a50 5
+	"add",		bu_cmdhist_add,
+	"curr",		bu_cmdhist_curr,
+	"next",		bu_cmdhist_next,
+	"prev",		bu_cmdhist_prev,
+	(char *)NULL,	CMD_NULL
+d65 6
+a70 6
+	"add",		bu_cmdhist_add,
+	"curr",		bu_cmdhist_curr,
+	"history",	bu_cmdhist_history,
+	"next",		bu_cmdhist_next,
+	"prev",		bu_cmdhist_prev,
+	(char *)NULL,	CMD_NULL
+d121 1
+d151 1
+@
+
+
+1.1
+log
+@Command History Objects and support routines
+@
+text
+@a64 1
+	"history",	bu_cmdhist_history,
+d67 1
+@
+

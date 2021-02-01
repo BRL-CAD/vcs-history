@@ -1,0 +1,203 @@
+head	1.3;
+access;
+symbols
+	ansi-20040405-merged:1.2.6.1
+	premerge-autoconf:1.2
+	postmerge-20040315-windows:1.2
+	premerge-20040315-windows:1.2
+	windows-20040315-freeze:1.2.4.1
+	autoconf-20031203:1.2
+	autoconf-20031202:1.2
+	phong-branch:1.1.0.4
+	photonmap-branch:1.1.0.2
+	windows-branch:1.2.0.4
+	ansi-branch:1.2.0.6
+	AUTOCONF:1.2.0.2;
+locks; strict;
+comment	@# @;
+
+
+1.3
+date	2004.03.18.18.16.08;	author erikg;	state dead;
+branches;
+next	1.2;
+
+1.2
+date	2003.09.27.00.28.21;	author morrison;	state Exp;
+branches
+	1.2.2.1
+	1.2.4.1
+	1.2.6.1;
+next	1.1;
+
+1.1
+date	2003.03.13.19.17.35;	author jra;	state Exp;
+branches;
+next	;
+
+1.2.2.1
+date	2004.03.18.18.10.29;	author erikg;	state dead;
+branches;
+next	;
+
+1.2.4.1
+date	2004.03.12.09.58.12;	author morrison;	state Exp;
+branches;
+next	;
+
+1.2.6.1
+date	2004.03.17.21.19.02;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.3
+log
+@merge of AUTOCONF branch in to HEAD
+@
+text
+@/*
+ *			libtcl/Cakefile
+ */
+#define SRCDIR	[[echo libtcl''TCLTK_VERS]]
+#define	SRCSUFF	.c
+#define MANSECTION	3
+
+#include "../Cakefile.defs"
+
+/* Since we're building a library, we can't also list a regular
+ * program (like tclsh) in the PRODUCTS rule, it will confuse
+ * the BUILD_LIBRARY rule in Cakefile.defs.
+ * Hence the EXTRA_PRODUCTS dodge
+ */
+
+#if !defined(BUILD_LIBRARY)
+#define	BUILD_LIBRARY	ar r
+#define TCL_OPTS	--srcdir=[[pwd]]/../SRCDIR/"unix" --quiet --cache-file cache.MTYPE \
+			 --exec-prefix=BASEDIR --prefix=BASEDIR --disable-shared
+#define PRODUCTS	[[echo libtcl''TCLTK_VERS.a]]
+#define	AFTER_MAKE	rm -f libtcl.a ; ln -s PRODUCTS libtcl.a
+#else
+#define TCL_OPTS	--srcdir=[[pwd]]/../SRCDIR/"unix" --quiet --enable-shared \
+			 --cache-file cache.MTYPE --exec-prefix=BASEDIR --prefix=BASEDIR
+#define PRODUCTS	[[echo libtcl''TCLTK_VERS.''ARCH_SUF]]
+#define SHARED_PRODUCT	libtcl''TCLTK_VERS.''[[echo ARCH_SUF]]''[[LIBVERS]]
+#define	AFTER_MAKE	mv -f libtcl''TCLTK_VERS.''ARCH_SUF SHARED_PRODUCT ; sharedliblink.sh SHARED_PRODUCT ; rm -f libtcl.''ARCH_SUF ; ln -s SHARED_PRODUCT libtcl.''ARCH_SUF
+#endif
+#define EXTRA_PRODUCTS	tclsh
+
+#if defined(USE_64)
+#define ENABLE_64 --enable-64bit
+#else
+#define ENABLE_64 /**/
+#endif
+
+/* Rule to see if cake is running with -s flag */
+#define MINUS_S	[[echo CAKEFLAGS | tr '\040' '\012' | sed -n -e /-s/p ]]
+
+PRODUCTS: Makefile.MTYPE cache.MTYPE
+	make MINUS_S -f Makefile.MTYPE CAKEFLAGS EXTRA_PRODUCTS
+	AFTER_MAKE
+
+EXTRA_PRODUCTS: Makefile.MTYPE cache.MTYPE
+	make MINUS_S -f Makefile.MTYPE CAKEFLAGS EXTRA_PRODUCTS
+	AFTER_MAKE
+
+
+Makefile.MTYPE cache.MTYPE:		if not exist Makefile.MTYPE or not exist cache.MTYPE
+	( \C\F\L\A\G\S=\"GFLAG OPTIMIZER PROFILER\"; \
+		\A\F\T\E\R\_\M\A\K\E=\"AFTER_MAKE\"; \
+		\R\A\N\L\I\B=\"RANLIB\"; \
+		\L\D\F\L\A\G\S=\"LDFLAGS\"; \
+		\B\U\I\L\D\_\L\I\B\R\A\R\Y=\"BUILD_LIBRARY\"; \
+		\C\C=\"CC\"; \
+		 export \C\F\L\A\G\S \R\A\N\L\I\B \L\D\F\L\A\G\S \B\U\I\L\D\_\L\I\B\R\A\R\Y \C\C \A\F\T\E\R\_\M\A\K\E; \
+		 ../SRCDIR/"unix"/configure TCL_OPTS ENABLE_64; \
+		../SRCDIR/fix_makefile.sh > Makefile.MTYPE)
+
+
+clean&:	Makefile.MTYPE
+	make -f Makefile.MTYPE clean
+
+noprod&:
+	rm -rf libtcl''TCLTK_VERS.*
+
+clobber&:
+	rm -f *.MTYPE *.o libtcl* gmon.out config.log config.status tclConfig.sh tclsh Makefile lib.exp
+	#ifdef NFS
+	rm -rf dltest
+	#endif
+
+install&: Makefile.MTYPE
+	make -f Makefile.MTYPE install
+	( cd BASEDIR/lib; AFTER_MAKE )
+
+install-nobak&: Makefile.MTYPE
+	make -f Makefile.MTYPE install
+	( cd BASEDIR/lib; AFTER_MAKE )
+
+tclsh: Makefile.MTYPE
+	make -f Makefile.MTYPE tclsh
+
+tcltest: Makefile.MTYPE
+	make -f Makefile.MTYPE tcltest
+
+test&: Makefile.MTYPE
+	make -f Makefile.MTYPE test
+
+/* dltest:			if not exist dltest
+	cp -r ../SRCDIR/"unix"/dltest .
+*/
+@
+
+
+1.2
+log
+@add a hook to force 64 bit mode (since configure wants to use 32 bit by default on aix) if a USE_64 define is set in Cakefile.defs
+@
+text
+@@
+
+
+1.2.2.1
+log
+@merge from head
+@
+text
+@@
+
+
+1.2.6.1
+log
+@sync branch with HEAD
+@
+text
+@@
+
+
+1.2.4.1
+log
+@merge from HEAD
+@
+text
+@@
+
+
+1.1
+log
+@Update to tcl 8.4
+@
+text
+@d31 6
+d57 1
+a57 1
+		 ../SRCDIR/"unix"/configure TCL_OPTS; \
+d68 1
+a68 1
+	rm -f *.MTYPE *.o libtcl* gmon.out config.log config.status tclConfig.sh tclsh Makefile
+@
+

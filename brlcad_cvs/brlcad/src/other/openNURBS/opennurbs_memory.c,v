@@ -1,0 +1,193 @@
+head	1.2;
+access;
+symbols
+	rel-7-10-4:1.1
+	STABLE:1.1.0.2
+	rel-7-10-2:1.1
+	rel-7-10-0:1.1;
+locks; strict;
+comment	@ * @;
+
+
+1.2
+date	2007.09.14.15.21.44;	author erikgreenwald;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2007.01.05.15.20.28;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.2
+log
+@removed trailing whitespace
+@
+text
+@/* $Header: /cvsroot/brlcad/brlcad/src/other/openNURBS/opennurbs_memory.c,v 1.1 2007/01/05 15:20:28 brlcad Exp $ */
+/* $NoKeywords: $ */
+/*
+//
+// Copyright (c) 1993-2006 Robert McNeel & Associates. All rights reserved.
+// Rhinoceros is a registered trademark of Robert McNeel & Assoicates.
+//
+// THIS SOFTWARE IS PROVIDED "AS IS" WITHOUT EXPRESS OR IMPLIED WARRANTY.
+// ALL IMPLIED WARRANTIES OF FITNESS FOR ANY PARTICULAR PURPOSE AND OF
+// MERCHANTABILITY ARE HEREBY DISCLAIMED.
+//
+// For complete openNURBS copyright information see <http://www.opennurbs.org>.
+//
+////////////////////////////////////////////////////////////////
+*/
+
+#include "opennurbs_system.h"
+#include "opennurbs_defines.h"
+#include "opennurbs_memory.h"
+#include "opennurbs_error.h"
+
+void* onmalloc( size_t sz )
+{
+  return (sz > 0) ? malloc(sz) : 0;
+}
+
+void* oncalloc( size_t num, size_t sz )
+{
+  return (num > 0 && sz > 0) ? calloc( num, sz ) : 0;
+}
+
+
+void onfree( void* memblock )
+{
+  if ( memblock )
+    free( memblock );
+}
+
+
+void* onrealloc( void* memblock, size_t sz )
+{
+#if defined(_MSC_VER)
+#if _MSC_VER == 1200
+/*
+//  (_MSC_VER is defined as 1200 for Microsoft Visual C++ 6.0)
+//
+//   NOTE WELL: Microsoft's VC 6.0 realloc() contains a bug that can cause
+//              crashes and should be avoided.  See MSDN Knowledge Base
+//              article ID Q225099 for more information.
+*/
+#define ON_REALLOC_BROKEN
+#endif
+#endif
+
+#if defined(ON_REALLOC_BROKEN)
+  void* p;
+  size_t memblocksz;
+#endif
+
+  if ( !memblock )
+  {
+    return onmalloc(sz);
+  }
+
+  if ( sz <= 0 )
+  {
+    onfree(memblock);
+    return 0;
+  }
+
+#if defined(ON_REALLOC_BROKEN)
+
+  /* use malloc() and memcpy() instead of buggy realloc() */
+  memblocksz = _msize(memblock);
+  if ( sz <= memblocksz )
+  {
+    /* shrink */
+    if ( memblocksz <= 28 || 8*sz >= 7*memblocksz )
+    {
+      /* don't bother reallocating */
+      p = memblock;
+    }
+    else
+    {
+      /* allocate smaller block */
+      p = malloc(sz);
+      if ( p )
+      {
+        memcpy( p, memblock, sz );
+        free(memblock);
+      }
+    }
+  }
+  else if ( sz > memblocksz )
+  {
+    /* grow */
+    p = malloc(sz);
+    if ( p )
+    {
+      memcpy( p, memblock, memblocksz );
+      free(memblock);
+    }
+  }
+  return p;
+
+#else
+
+  return realloc(memblock,sz);
+
+#endif
+}
+
+
+size_t onmsize( const void* memblock )
+{
+#if defined(ON_OS_WINDOWS)
+  return _msize((void*)memblock);
+#else
+  // OS doesn't support _msize().
+  return 0;
+#endif
+}
+
+@
+
+
+1.1
+log
+@initial import of the openNURBS initiative's nurbs toolkit.  the toolkit consists of code for reading/writing .3dm files used by Rhino as well as nurbs evaluation and other geometry processing facilities.  the library is being evaluated for .3dm support as well as potentially gutting the existing nurbs primitive and using openNURBS evaluation routines instead (still probably need to implement ray shot evaluation).  this is version 200612050 (aka 4.0).
+
+this is also a C++ library, the first integration of an external C++ dependency into BRL-CAD.  additional support/infrastructure will be needed to support this in configure.  there's still, however, a policy/convention of "containment" so that C++ does not propagate into the existing BRL-CAD libraries.  any additions that utilize c++ still have to be entirely modular (and optional) for the time being.
+@
+text
+@d1 1
+a1 1
+/* $Header: $ */
+d11 1
+a11 1
+//				
+d64 1
+a64 1
+  
+d75 1
+a75 1
+  if ( sz <= memblocksz ) 
+d78 1
+a78 1
+    if ( memblocksz <= 28 || 8*sz >= 7*memblocksz ) 
+d83 1
+a83 1
+    else 
+d87 1
+a87 1
+      if ( p ) 
+d94 1
+a94 1
+  else if ( sz > memblocksz ) 
+d98 1
+a98 1
+    if ( p ) 
+@
+

@@ -1,0 +1,906 @@
+head	14.13;
+access;
+symbols
+	rel-7-10-4:14.13
+	STABLE:14.13.0.2
+	stable-branch:14.8
+	rel-7-10-2:14.13
+	rel-7-10-0:14.13
+	rel-7-8-4:14.11
+	rel-7-8-2:14.11
+	rel-7-8-0:14.11
+	trimnurbs-branch:14.11.0.2
+	help:14.11
+	temp_tag:14.9
+	bobWinPort-20051223-freeze:14.8
+	postmerge-20051223-bobWinPort:14.9
+	premerge-20051223-bobWinPort:14.9
+	rel-7-6-6:14.9
+	rel-7-6-4:14.9
+	rel-7-6-2:14.8
+	rel-7-6-branch:14.8.0.6
+	rel-7-6-0:14.8
+	rel-7-4-2:14.8
+	rel-7-4-branch:14.8.0.4
+	bobWinPort:14.8.0.2
+	rel-7-4-0:14.8
+	rel-7-2-6:14.8
+	rel-7-2-4:14.8
+	rel-7-2-2:14.8
+	rel-7-2-0:14.8
+	rel-7-0-4:14.6
+	rel-7-0-2:14.6
+	rel-7-0-1:14.6
+	opensource-post:14.6
+	opensource-pre:1.3
+	rel-7-0-branch:1.3.0.2
+	rel-7-0:1.3;
+locks; strict;
+comment	@ * @;
+
+
+14.13
+date	2007.01.23.01.13.23;	author brlcad;	state Exp;
+branches;
+next	14.12;
+
+14.12
+date	2007.01.20.14.36.42;	author brlcad;	state Exp;
+branches;
+next	14.11;
+
+14.11
+date	2006.02.27.10.08.39;	author brlcad;	state Exp;
+branches;
+next	14.10;
+
+14.10
+date	2006.01.18.06.46.12;	author brlcad;	state Exp;
+branches;
+next	14.9;
+
+14.9
+date	2005.10.23.04.44.28;	author brlcad;	state Exp;
+branches;
+next	14.8;
+
+14.8
+date	2005.02.14.02.29.35;	author brlcad;	state Exp;
+branches
+	14.8.6.1;
+next	14.7;
+
+14.7
+date	2005.01.30.20.30.14;	author brlcad;	state Exp;
+branches;
+next	14.6;
+
+14.6
+date	2004.12.21.07.32.29;	author morrison;	state Exp;
+branches;
+next	14.5;
+
+14.5
+date	2004.12.21.06.58.41;	author morrison;	state Exp;
+branches;
+next	14.4;
+
+14.4
+date	2004.12.21.06.50.58;	author morrison;	state Exp;
+branches;
+next	14.3;
+
+14.3
+date	2004.12.18.06.50.49;	author morrison;	state Exp;
+branches;
+next	14.2;
+
+14.2
+date	2004.12.18.00.54.02;	author morrison;	state Exp;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.12;	author morrison;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2004.08.02.23.01.47;	author morrison;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2004.06.08.22.04.07;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.15.18.39;	author morrison;	state Exp;
+branches;
+next	;
+
+14.8.6.1
+date	2005.11.13.13.46.13;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.13
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@/*                     A N I M _ T I M E . C
+ * BRL-CAD
+ *
+ * Copyright (c) 1993-2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ *
+ */
+/** @@file anim_time.c
+ *  Given an animation path consiting of time stamps and 3-d points,
+ *  estimate new time stamps based on the distances between points, the
+ *  given starting and ending times, and optionally specified starting
+ *  and ending velocities.
+ *
+ *  Author -
+ *	Carl J. Nuzman
+ *
+ *  Source -
+ *      The U. S. Army Research Laboratory
+ *      Aberdeen Proving Ground, Maryland  21005-5068  USA
+ */
+
+#include "common.h"
+
+#include <stdlib.h>
+#include <math.h>
+#include <stdio.h>
+
+#include "machine.h"
+#include "vmath.h"
+#include "bu.h"
+#include "raytrace.h"
+
+
+extern int bu_optind;
+extern char *bu_optarg;
+
+#define MAXLEN		64
+#define DIVIDE_TOL	(1.0e-10)
+#define MAXITS		100
+#define DELTA		(1.0e-6)
+#define TIME_NONE	0
+#define TIME_ABSOLUTE	1
+#define TIME_RELATIVE	2
+
+/* command line variables */
+fastf_t inv0,inv1;
+int v0_set =	 TIME_NONE;
+int v1_set =	 TIME_NONE;
+int query =	 0;
+int verbose = 	 0;
+int maxlines = 	 0;
+int domem = 	 0;
+int debug = 	 0;
+
+int get_args(int argc, char **argv);
+
+fastf_t
+gettime(fastf_t dist, fastf_t a, fastf_t b, fastf_t c, fastf_t init)
+{
+
+    fastf_t old,new,temp;
+    int countdown,success;
+    countdown = MAXITS;
+
+    old = init;
+    success = 0;
+    while(countdown-->0){
+	temp = (3.0*a*old+2.0*b)*old+c;
+	if (temp<DIVIDE_TOL){
+	    new = 0.75*old;
+	} else {
+	    new = old - (((a*old+b)*old+c)*old-dist)/temp;
+	}
+	if (((new-old)<DELTA)&&((old-new)<DELTA)){
+	    success = 1;
+	    break;
+	}
+	if (debug)
+	    printf("c: %d %f\t%f\n",countdown,new,new-old);
+	old = new;
+    }
+    if (!success) fprintf(stderr,"warning - max iterations reached\n");
+    return (new);
+
+}
+
+int
+main(int argc, char **argv)
+{
+    fastf_t *l, *x, *y, *z;
+    fastf_t temp0,temp1,temp2,start=0.0,end,v0,v1;
+    int i,j , num,plen;
+
+
+    fastf_t time,dist,slope,a,b,c;
+
+
+    plen = 0;
+
+    if (!get_args(argc,argv)) {
+	fprintf(stderr,"Usage: anim_time [-s#] [-e#] [-d] < in.table\n");
+	return 1;
+    }
+
+    if (!domem) {
+	maxlines = MAXLEN;
+    }
+
+    l = (fastf_t *) bu_malloc(maxlines*sizeof(fastf_t),"l[]");
+    if (verbose) {
+	x = (fastf_t *) bu_malloc(maxlines*sizeof(fastf_t),"x[]");
+	y = (fastf_t *) bu_malloc(maxlines*sizeof(fastf_t),"y[]");
+	z = (fastf_t *) bu_malloc(maxlines*sizeof(fastf_t),"z[]");
+    } else {
+	x = (fastf_t *) bu_malloc(2*sizeof(fastf_t),"x[]");
+	y = (fastf_t *) bu_malloc(2*sizeof(fastf_t),"y[]");
+	z = (fastf_t *) bu_malloc(2*sizeof(fastf_t),"z[]");
+    }
+    l[0] = 0.0;
+
+    while(plen<maxlines){
+	i = (verbose) ? plen : plen%2;
+	j = (verbose) ? (plen-1) : (plen+1)%2;
+	num = scanf("%lf %lf %lf %lf",&end,x+i,y+i,z+i);
+	if (num<4)
+	    break;
+	if(plen){
+	    temp0 = x[i]-x[j];
+	    temp1 = y[i]-y[j];
+	    temp2 = z[i]-z[j];
+	    l[plen] = sqrt(temp0*temp0+temp1*temp1+temp2*temp2);
+	    l[plen] += l[plen-1];
+	} else {
+	    start = end;
+	}
+
+	plen++;
+    }
+
+    time = end - start;
+    dist = l[plen-1];
+
+    if (query){
+	printf("%f\n",dist);
+	return(0);
+    }
+
+    if (time < DIVIDE_TOL){
+	fprintf(stderr,"anim_time: time too small. Only %f s.\n",time);
+	return 10;
+    }
+    if (dist < DIVIDE_TOL){
+	fprintf(stderr,"anim_time: pathlength too small. Only %f\n",dist);
+	return 10;
+    }
+    slope = dist/time;
+
+    switch (v0_set) {
+    case TIME_ABSOLUTE:
+	v0 = inv0;
+	break;
+    case TIME_RELATIVE:
+	v0 = slope*inv0;
+	break;
+    default:
+    case TIME_NONE:
+	v0 = slope;
+	break;
+    }
+
+    switch (v1_set) {
+    case TIME_ABSOLUTE:
+	v1 = inv1;
+	break;
+    case TIME_RELATIVE:
+	v1 = slope*inv1;
+	break;
+    default:
+    case TIME_NONE:
+	v1 = slope;
+	break;
+    }
+    if (v0<0.0) {
+	fprintf(stderr,"anim_time: Start velocity must be non-negative.\n");
+	return 1;
+    }
+    if (v1<0.0) {
+	fprintf(stderr,"anim_time: End velocity must be non-negative.\n");
+	return 1;
+    }
+    if (v0>3*slope) {
+	fprintf(stderr,"anim_time: Start velocity must be not be greater than %f units/s for this path.\n", 3.0*slope);
+	return 1;
+    }
+    if (v1>3*slope) {
+	fprintf(stderr,"anim_time: End velocity must not be greater than %f for this path.\n", 3.0*slope);
+	return 1;
+    }
+
+    a = ((v1+v0) - 2.0*slope)/(time*time);
+    b = (3*slope - (v1+2.0*v0))/time;
+    c = v0;
+
+    temp2 = 1.0/slope;
+    if (verbose) {
+	printf("%.12e\t%.12e\t%.12e\t%.12e\n",start,x[0],y[0],z[0]);
+	for (i=1; i<plen-1; i++){
+	    temp0 = gettime(l[i],a,b,c,l[i]*temp2);
+	    printf("%.12e\t%.12e\t%.12e\t%.12e\n",temp0+start,x[i],y[i],z[i]);
+	}
+	printf("%.12e\t%.12e\t%.12e\t%.12e\n",end,x[plen-1],y[plen-1],z[plen-1]);
+    } else {
+	printf("%.12e\n",start);
+	for (i=1; i<plen-1; i++){
+	    temp0 = gettime(l[i],a,b,c,l[i]*temp2);
+	    printf("%.12e\n",temp0+start);
+	}
+	printf("%.12e\n",end);
+    }
+
+    bu_free((char *) l, "l[]");
+    bu_free((char *) x, "x[]");
+    bu_free((char *) y, "y[]");
+    bu_free((char *) z, "z[]");
+    return( 0 );
+}
+
+/* code to read command line arguments*/
+#define OPT_STR "ds:e:i:f:qm:v"
+int get_args(int argc, char **argv)
+{
+    int c;
+
+    while ( (c=bu_getopt(argc,argv,OPT_STR)) != EOF) {
+	switch(c){
+	case 's':
+	    sscanf(bu_optarg,"%lf",&inv0);
+	    v0_set = TIME_ABSOLUTE;
+	    break;
+	case 'e':
+	    sscanf(bu_optarg,"%lf",&inv1);
+	    v1_set = TIME_ABSOLUTE;
+	    break;
+	case 'i':
+	    sscanf(bu_optarg,"%lf",&inv0);
+	    v0_set = TIME_RELATIVE;
+	    if ((inv0>3.0)||(inv0<0.0)) {
+		fprintf(stderr,"anim_time: -i argument must lie between 0.0 and 3.0\n");
+		return 0;
+	    }
+	    break;
+	case 'f':
+	    sscanf(bu_optarg,"%lf",&inv1);
+	    v1_set = TIME_RELATIVE;
+	    if ((inv1>3.0)||(inv1<0.0)) {
+		fprintf(stderr,"anim_time: -f argument must lie between 0.0 and 3.0\n");
+		return 0;
+	    }
+	    break;
+	case 'q':
+	    query = 1;
+	    break;
+	case 'm':
+	    sscanf(bu_optarg,"%d",&maxlines);
+	    domem = 1;
+	    break;
+	case 'v':
+	    verbose = 1;
+	    break;
+	case 'd':
+	    debug = 1;
+	    break;
+	default:
+	    fprintf(stderr,"Unknown option: -%c\n",c);
+	    return 0;
+	}
+    }
+    return 1;
+}
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+14.12
+log
+@update copyright to 2007
+@
+text
+@d8 2
+a9 3
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+d14 1
+a14 1
+ * General Public License for more details.
+d16 2
+a17 2
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+@
+
+
+14.11
+log
+@stdlib.h and exit()
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 1993-2006 United States Government as represented by
+@
+
+
+14.10
+log
+@update copyright to 2006
+@
+text
+@d38 1
+a38 1
+
+d41 1
+d47 1
+a50 1
+
+d114 1
+a114 1
+    if (!get_args(argc,argv))
+d116 2
+d164 1
+a164 1
+	exit(-1);
+d168 1
+a168 1
+	exit(-1);
+d199 1
+a199 1
+	exit(-1);
+d203 1
+a203 1
+	exit(-1);
+d207 1
+a207 1
+	exit (-1);
+d211 1
+a211 1
+	exit(-1);
+d263 1
+a263 1
+		exit(-1);
+d271 1
+a271 1
+		exit(-1);
+d289 1
+a289 1
+	    return(0);
+d292 1
+a292 1
+    return(1);
+@
+
+
+14.9
+log
+@trailing ws
+@
+text
+@d4 1
+a4 1
+ * Copyright (C) 1993-2005 United States Government as represented by
+@
+
+
+14.8
+log
+@M-x indent-region
+@
+text
+@d25 1
+a25 1
+ *  given starting and ending times, and optionally specified starting 
+d27 1
+a27 1
+ *	
+d30 1
+a30 1
+ *  
+d106 1
+a106 1
+	
+d147 1
+a147 1
+		
+@
+
+
+14.8.6.1
+log
+@merge changes from HEAD aka rel-7-6-4 to the rel-7-6-branch just in case someone peeks a gander or tries to continue/build the branch
+@
+text
+@d25 1
+a25 1
+ *  given starting and ending times, and optionally specified starting
+d27 1
+a27 1
+ *
+d30 1
+a30 1
+ *
+d106 1
+a106 1
+
+d147 1
+a147 1
+
+@
+
+
+14.7
+log
+@update copyright to 2005
+@
+text
+@d74 12
+a85 20
+	fastf_t old,new,temp;
+	int countdown,success;
+	countdown = MAXITS;
+
+	old = init;
+	success = 0;
+	while(countdown-->0){
+		temp = (3.0*a*old+2.0*b)*old+c;
+		if (temp<DIVIDE_TOL){
+			new = 0.75*old;
+		} else {
+		 	new = old - (((a*old+b)*old+c)*old-dist)/temp;
+		}
+		if (((new-old)<DELTA)&&((old-new)<DELTA)){
+			success = 1;
+			break;
+		}
+		if (debug)
+			printf("c: %d %f\t%f\n",countdown,new,new-old);
+		old = new;
+d87 10
+a96 2
+	if (!success) fprintf(stderr,"warning - max iterations reached\n");
+	return (new);
+d103 3
+a105 3
+	fastf_t *l, *x, *y, *z;
+	fastf_t temp0,temp1,temp2,start=0.0,end,v0,v1;
+	int i,j , num,plen;
+d108 1
+a108 1
+	fastf_t time,dist,slope,a,b,c;
+d111 1
+a111 1
+	plen = 0;
+d113 2
+a114 2
+	if (!get_args(argc,argv))
+		fprintf(stderr,"Usage: anim_time [-s#] [-e#] [-d] < in.table\n");
+d116 30
+a145 2
+	if (!domem) {
+		maxlines = MAXLEN;
+a146 28
+
+	l = (fastf_t *) bu_malloc(maxlines*sizeof(fastf_t),"l[]");
+	if (verbose) {
+		x = (fastf_t *) bu_malloc(maxlines*sizeof(fastf_t),"x[]");
+		y = (fastf_t *) bu_malloc(maxlines*sizeof(fastf_t),"y[]");
+		z = (fastf_t *) bu_malloc(maxlines*sizeof(fastf_t),"z[]");
+	} else {
+		x = (fastf_t *) bu_malloc(2*sizeof(fastf_t),"x[]");
+		y = (fastf_t *) bu_malloc(2*sizeof(fastf_t),"y[]");
+		z = (fastf_t *) bu_malloc(2*sizeof(fastf_t),"z[]");
+	}
+	l[0] = 0.0;
+
+	while(plen<maxlines){
+		i = (verbose) ? plen : plen%2;
+		j = (verbose) ? (plen-1) : (plen+1)%2;
+		num = scanf("%lf %lf %lf %lf",&end,x+i,y+i,z+i);
+		if (num<4)
+			break;
+		if(plen){
+			temp0 = x[i]-x[j];
+			temp1 = y[i]-y[j];
+			temp2 = z[i]-z[j];
+			l[plen] = sqrt(temp0*temp0+temp1*temp1+temp2*temp2);
+			l[plen] += l[plen-1];
+		} else {
+			start = end;
+		}
+d148 2
+a149 10
+		plen++;
+	}
+
+	time = end - start;
+	dist = l[plen-1];
+
+	if (query){
+		printf("%f\n",dist);
+		return(0);
+	}
+d151 2
+a152 9
+	if (time < DIVIDE_TOL){
+		fprintf(stderr,"anim_time: time too small. Only %f s.\n",time);
+		exit(-1);
+	}
+	if (dist < DIVIDE_TOL){
+		fprintf(stderr,"anim_time: pathlength too small. Only %f\n",dist);
+		exit(-1);
+	}
+	slope = dist/time;
+d154 83
+a236 68
+	switch (v0_set) {
+	case TIME_ABSOLUTE:
+		v0 = inv0;
+		break;
+	case TIME_RELATIVE:
+		v0 = slope*inv0;
+		break;
+	default:
+	case TIME_NONE:
+		v0 = slope;
+		break;
+	}
+
+	switch (v1_set) {
+	case TIME_ABSOLUTE:
+		v1 = inv1;
+		break;
+	case TIME_RELATIVE:
+		v1 = slope*inv1;
+		break;
+	default:
+	case TIME_NONE:
+		v1 = slope;
+		break;
+	}
+	if (v0<0.0) {
+		fprintf(stderr,"anim_time: Start velocity must be non-negative.\n");
+		exit(-1);
+	}
+	if (v1<0.0) {
+		fprintf(stderr,"anim_time: End velocity must be non-negative.\n");
+		exit(-1);
+	}
+	if (v0>3*slope) {
+		fprintf(stderr,"anim_time: Start velocity must be not be greater than %f units/s for this path.\n", 3.0*slope);
+		exit (-1);
+	}
+	if (v1>3*slope) {
+		fprintf(stderr,"anim_time: End velocity must not be greater than %f for this path.\n", 3.0*slope);
+		exit(-1);
+	}
+
+	a = ((v1+v0) - 2.0*slope)/(time*time);
+	b = (3*slope - (v1+2.0*v0))/time;
+	c = v0;
+
+	temp2 = 1.0/slope;
+	if (verbose) {
+		printf("%.12e\t%.12e\t%.12e\t%.12e\n",start,x[0],y[0],z[0]);
+		for (i=1; i<plen-1; i++){
+			temp0 = gettime(l[i],a,b,c,l[i]*temp2);
+			printf("%.12e\t%.12e\t%.12e\t%.12e\n",temp0+start,x[i],y[i],z[i]);
+		}
+		printf("%.12e\t%.12e\t%.12e\t%.12e\n",end,x[plen-1],y[plen-1],z[plen-1]);
+	} else {
+		printf("%.12e\n",start);
+		for (i=1; i<plen-1; i++){
+			temp0 = gettime(l[i],a,b,c,l[i]*temp2);
+			printf("%.12e\n",temp0+start);
+		}
+		printf("%.12e\n",end);
+	}
+
+	bu_free((char *) l, "l[]");
+	bu_free((char *) x, "x[]");
+	bu_free((char *) y, "y[]");
+	bu_free((char *) z, "z[]");
+	return( 0 );
+d243 1
+a243 1
+	int c;
+d245 42
+a286 43
+	while ( (c=bu_getopt(argc,argv,OPT_STR)) != EOF) {
+		switch(c){
+		case 's':
+			sscanf(bu_optarg,"%lf",&inv0);
+			v0_set = TIME_ABSOLUTE;
+			break;
+		case 'e':
+			sscanf(bu_optarg,"%lf",&inv1);
+			v1_set = TIME_ABSOLUTE;
+			break;
+		case 'i':
+			sscanf(bu_optarg,"%lf",&inv0);
+			v0_set = TIME_RELATIVE;
+			if ((inv0>3.0)||(inv0<0.0)) {
+				fprintf(stderr,"anim_time: -i argument must lie between 0.0 and 3.0\n");
+				exit(-1);
+			}
+			break;
+		case 'f':
+			sscanf(bu_optarg,"%lf",&inv1);
+			v1_set = TIME_RELATIVE;
+			if ((inv1>3.0)||(inv1<0.0)) {
+				fprintf(stderr,"anim_time: -f argument must lie between 0.0 and 3.0\n");
+				exit(-1);
+			}
+			break;
+		case 'q':
+			query = 1;
+			break;
+		case 'm':
+			sscanf(bu_optarg,"%d",&maxlines);
+			domem = 1;
+			break;
+		case 'v':
+			verbose = 1;
+			break;
+		case 'd':
+			debug = 1;
+			break;
+		default:
+			fprintf(stderr,"Unknown option: -%c\n",c);
+			return(0);
+		}
+d288 2
+a289 1
+	return(1);
+@
+
+
+14.6
+log
+@tidy up a lil bit
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 1993-2004 United States Government as represented by
+@
+
+
+14.5
+log
+@remove the old copyright notice section as it's been supplanted (and copyright is now claimable in the us via assignmgent)
+@
+text
+@a33 2
+ *  
+ *
+@
+
+
+14.4
+log
+@remove the old distribution notice section
+@
+text
+@a35 3
+ *  Copyright Notice -
+ *      This software is Copyright (C) 1993-2004 by the United States Army
+ *      in all countries except the USA.  All rights reserved.
+@
+
+
+14.3
+log
+@break up the doxygen marker to appease emacs M-x indent-region'ing
+@
+text
+@a34 4
+ *  Distribution Notice -
+ *      Re-distribution of this software is restricted, as described in
+ *      your "Statement of Terms and Conditions for the Release of
+ *      The BRL-CAD Pacakge" agreement.
+@
+
+
+14.2
+log
+@assign copyright and GPL license
+@
+text
+@d21 2
+a22 1
+ **//** @@file anim_time.c
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@d1 2
+a2 1
+/*			A N I M _ T I M E . C
+d4 18
+@
+
+
+1.3
+log
+@replace the wrapped config.h block with common.h
+@
+text
+@d280 10
+@
+
+
+1.2
+log
+@obliterate externs.h
+@
+text
+@d25 1
+a25 3
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+@
+
+
+1.1
+log
+@Vast reorganization begins.  Sources moved from top-level directories into src/.
+@
+text
+@a32 1
+#include "externs.h"
+@
+

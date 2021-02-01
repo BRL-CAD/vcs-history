@@ -1,0 +1,333 @@
+head	11.8;
+access;
+symbols
+	ansi-20040405-merged:11.5.2.1
+	postmerge-20040405-ansi:11.6
+	premerge-20040404-ansi:11.5
+	postmerge-autoconf:11.5
+	autoconf-freeze:11.5
+	premerge-autoconf:11.5
+	postmerge-20040315-windows:11.5
+	premerge-20040315-windows:11.5
+	windows-20040315-freeze:11.5
+	autoconf-20031203:11.5
+	autoconf-20031202:11.5
+	autoconf-branch:11.5.0.10
+	phong-branch:11.5.0.8
+	photonmap-branch:11.5.0.6
+	rel-6-1-DP:11.5
+	windows-branch:11.5.0.4
+	rel-6-0-2:11.3
+	ansi-branch:11.5.0.2
+	rel-6-0-1-branch:11.3.0.2
+	hartley-6-0-post:11.4
+	hartley-6-0-pre:11.3
+	rel-6-0-1:11.3
+	rel-6-0:11.3
+	rel-5-4:11.1
+	offsite-5-3-pre:11.2
+	rel-5-3:11.1
+	rel-5-2:11.1
+	rel-5-1-branch:11.1.0.2
+	rel-5-1:11.1
+	rel-5-0:11.1
+	rel-5-0-beta:11.1
+	rel-4-5:11.1
+	ctj-4-5-post:11.1
+	ctj-4-5-pre:11.1
+	rel-4-4:11.1
+	rel-4-0:10.1;
+locks; strict;
+comment	@ * @;
+
+
+11.8
+date	2004.05.21.16.38.54;	author morrison;	state dead;
+branches;
+next	11.7;
+
+11.7
+date	2004.05.10.15.30.50;	author erikg;	state Exp;
+branches;
+next	11.6;
+
+11.6
+date	2004.04.05.05.46.01;	author morrison;	state Exp;
+branches;
+next	11.5;
+
+11.5
+date	2002.08.20.17.08.50;	author jra;	state Exp;
+branches
+	11.5.2.1;
+next	11.4;
+
+11.4
+date	2002.08.15.20.56.01;	author hartley;	state Exp;
+branches;
+next	11.3;
+
+11.3
+date	2001.08.10.20.44.36;	author jra;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	2000.08.24.22.46.21;	author mike;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	95.01.04.10.21.02;	author mike;	state Rel4_4;
+branches;
+next	10.2;
+
+10.2
+date	94.08.11.20.09.06;	author gdurf;	state Exp;
+branches;
+next	10.1;
+
+10.1
+date	91.10.12.06.52.41;	author mike;	state Rel4_0;
+branches;
+next	1.1;
+
+1.1
+date	91.01.03.20.45.24;	author butler;	state Exp;
+branches;
+next	;
+
+11.5.2.1
+date	2002.09.19.18.02.29;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@dist
+@
+
+
+11.8
+log
+@moved to src/tools/
+@
+text
+@/* 
+ * rlemandl.c - Compute images of the Mandelbrot set in RLE format
+ * 
+ * Author:	John W. Peterson
+ * 		Computer Science Dept.
+ * 		University of Utah
+ * Date:	Mon Nov  9 1987
+ * Copyright (c) 1987, University of Utah
+ */
+
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+
+#if HAVE_UNISTD_H
+#include <unistd.h>
+#endif
+
+#include <stdlib.h>
+
+#include <stdio.h>
+#include <math.h>
+
+#include "machine.h"
+#include "rle.h"
+
+int
+main(int argc, char **argv)
+{
+    char *out_fname = NULL;
+    float real, imaginary, width, step;
+    float ypos, xpos;
+    rle_pixel ** rows;
+    int xsize = 256, ysize = 256;
+    int x_pixel, y_pixel;
+    int oflag = 0, junk, verbose = 0;
+    register int iter;
+    /* May want to use floats...whatever's fastest */
+    register double z_r, z_i, z_rs, z_is;
+    
+    if (! scanargs(argc, argv,
+	         "% v%- s%-xsize!dysize!d o%-outfile!s real!f image!f width!f",
+		   &verbose, 
+		   &junk, &xsize, &ysize, &oflag, &out_fname,
+		   &real, &imaginary, &width ))
+	exit( -2 );
+
+    step = width / (float) xsize;
+
+    xpos = real - width / 2.0;
+    ypos = imaginary - (step / 2.0) * (float) ysize;
+
+    /* Re-use real as left margin */
+    real = xpos;
+
+    /* Change the default rle_dflt_hdr struct to match what we need */
+    rle_dflt_hdr.rle_file = rle_open_f("rlemandl", out_fname, "w");
+   
+    rle_dflt_hdr.xmax = xsize - 1;
+    rle_dflt_hdr.ymax = ysize - 1;
+    rle_dflt_hdr.ncolors = 1;	/* One output channel */
+    rle_dflt_hdr.alpha = 0;	/* No coverage (alpha) */
+
+    rle_addhist( argv, (rle_hdr *)0, &rle_dflt_hdr );
+
+    /* Allocate storage for the output row */
+    if (rle_row_alloc( &rle_dflt_hdr, &rows ))
+    {
+	fprintf( stderr, "rlemandl: malloc failed\n" );
+	exit( -2 );
+    }
+
+    /* Create the header in the output file */
+    rle_put_setup( &rle_dflt_hdr );
+
+    for (y_pixel = 0; y_pixel < ysize; y_pixel++)
+    {
+	xpos = real;
+	for (x_pixel = 0; x_pixel < xsize; x_pixel++)
+	{
+	    z_r = 0;
+	    z_i = 0;
+	    iter = 0;
+	    while (iter < 255 && ((z_rs = z_r * z_r) + (z_is = z_i * z_i)) < 4)
+	    {
+		z_i = 2 * z_r*z_i + ypos;
+		z_r = z_rs - z_is + xpos;
+		iter++;
+	    }
+	    rows[0][x_pixel] = (rle_pixel) iter == 1 ? 0 : iter;
+	    xpos += step;
+	}
+	rle_putrow( rows, xsize + 1, &rle_dflt_hdr );
+	if (verbose)
+	    if ((y_pixel % 50) == 0)
+		fprintf(stderr, "line %d...\n", y_pixel);
+	ypos += step;
+    }
+    rle_puteof( &rle_dflt_hdr );
+    exit( 0 );
+}
+@
+
+
+11.7
+log
+@change conf.h to a wrapped config.h
+@
+text
+@@
+
+
+11.6
+log
+@merge of ansi-6-0-branch into head
+@
+text
+@d11 5
+a15 1
+#include "conf.h"
+@
+
+
+11.5
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d26 1
+a26 3
+main( argc, argv )
+int argc;
+char **argv;
+@
+
+
+11.5.2.1
+log
+@Initial ANSIfication
+@
+text
+@d26 3
+a28 1
+main(int argc, char **argv)
+@
+
+
+11.4
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d26 3
+a28 1
+main(int argc, char **argv)
+@
+
+
+11.3
+log
+@lint
+@
+text
+@d26 1
+a26 3
+main( argc, argv )
+int argc;
+char **argv;
+@
+
+
+11.2
+log
+@
+lint
+@
+text
+@d13 6
+@
+
+
+11.1
+log
+@Release_4.4
+@
+text
+@d19 1
+a19 1
+void
+@
+
+
+10.2
+log
+@Altered #defines and #includes to conform to BRL-CAD standards
+@
+text
+@@
+
+
+10.1
+log
+@Release_4.0
+@
+text
+@d11 2
+d15 2
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@@

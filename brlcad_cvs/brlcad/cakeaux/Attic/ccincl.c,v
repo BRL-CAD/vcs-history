@@ -1,0 +1,506 @@
+head	11.3;
+access;
+symbols
+	ansi-20040405-merged:11.2
+	postmerge-20040405-ansi:11.2
+	premerge-20040404-ansi:11.2
+	postmerge-autoconf:11.2
+	autoconf-freeze:11.2
+	premerge-autoconf:11.2
+	ansi-20040316-freeze:11.2
+	postmerge-20040315-windows:11.2
+	premerge-20040315-windows:11.2
+	windows-20040315-freeze:11.2
+	autoconf-20031203:11.2
+	autoconf-20031202:11.2
+	autoconf-branch:11.2.0.14
+	phong-branch:11.2.0.12
+	photonmap-branch:11.2.0.10
+	rel-6-1-DP:11.2
+	windows-branch:11.2.0.8
+	rel-6-0-2:11.2
+	ansi-branch:11.2.0.6
+	rel-6-0-1-branch:11.2.0.4
+	hartley-6-0-post:11.2
+	hartley-6-0-pre:11.2
+	rel-6-0-1:11.2
+	rel-6-0:11.2
+	rel-5-4:11.2
+	offsite-5-3-pre:11.2
+	rel-5-3:11.2
+	rel-5-2:11.2
+	rel-5-1-branch:11.2.0.2
+	rel-5-1:11.2
+	rel-5-0:11.2
+	rel-5-0-beta:11.2
+	rel-4-5:11.2
+	ctj-4-5-post:11.1
+	ctj-4-5-pre:11.1
+	rel-4-4:1.3
+	rel-4-0:1.2;
+locks; strict;
+comment	@ * @;
+
+
+11.3
+date	2004.05.19.15.45.58;	author morrison;	state dead;
+branches;
+next	11.2;
+
+11.2
+date	97.08.18.20.03.27;	author jra;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	95.01.05.06.03.12;	author mike;	state Rel4_4;
+branches;
+next	1.3;
+
+1.3
+date	94.11.03.14.34.03;	author mike;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	91.07.03.22.28.32;	author mike;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	91.07.03.22.25.03;	author mike;	state Exp;
+branches;
+next	;
+
+
+desc
+@cakeaux program
+@
+
+
+11.3
+log
+@cake is no more and theres no incentive to maintain it any more so .. buh bye.
+@
+text
+@/*
+**	Ccincl main file.
+*/
+
+static	char
+rcs_id[] = "$Header: /cvs/brlcad/cakeaux/ccincl.c,v 11.2 1997/08/18 20:03:27 jra Exp $";
+
+#include	<ctype.h>
+#include	<stdio.h>
+#include	<sys/types.h>
+#include	<sys/stat.h>
+#include	"std.h"
+
+typedef	struct	stat	Stat;
+
+#define	MAXDIRS		10
+#define	MAXSTOPS	10
+#define	MAXIGNORES	10
+#define	MAXFILES	64
+#define	MAXBUF		512
+
+char	*dir_list[MAXDIRS];
+char	*stop_list[MAXSTOPS];
+char	*ign_list[MAXIGNORES];
+char	*file_list[MAXFILES];
+bool	search_list[MAXFILES];
+ino_t	ino_list[MAXFILES];
+int	dircount = 0;
+int	stopcount = 0;
+int	igncount = 0;
+int	filecount = 0;
+
+char	*currdir = ".";
+char	*filename;
+Stat	statbuf;
+int	rflag = FALSE;
+int	fflag = FALSE;
+int	errorcount = 0;
+
+
+/*
+**	Tell the unfortunate user how to use ccincl.
+*/
+
+void
+usage()
+{
+	printf("Usage: ccincl [-rf] [-ifile] [-sfile] [-Cdir] [-Idir] ... file ...\n");
+	exit(1);
+}
+
+main(argc, argv)
+int	argc;
+char	**argv;
+{
+	extern	FILE	*yyin;
+	register	int	i;
+
+	dir_list[dircount++] = ".";
+	while (argc > 1 && argv[1][0] == '-')
+	{
+		for (i = 1; argv[1][i] != '\0'; i++)
+		{
+			switch (argv[1][i])
+			{
+
+		case 'f':
+				fflag = TRUE;
+				break;
+		case 'r':
+				rflag = TRUE;
+				break;
+		case 'i':
+				if (i != 1)
+					usage();
+
+				ign_list[igncount++] = &argv[1][2];
+				file_list[filecount] = &argv[1][2];
+
+				if (stat(&argv[1][2], &statbuf) != 0)
+				{
+					printf("ccincl: cannot find %s\n", &argv[1][2]);
+					exit(1);
+				}
+
+				search_list[filecount] = FALSE;
+				ino_list[filecount] = statbuf.st_ino;
+				filecount++;
+				goto nextword;
+		case 's':
+				if (i != 1)
+					usage();
+
+				stop_list[stopcount++] = &argv[1][2];
+				file_list[filecount] = &argv[1][2];
+
+				if (stat(&argv[1][2], &statbuf) != 0)
+				{
+					printf("ccincl: cannot find %s\n", &argv[1][2]);
+					exit(1);
+				}
+
+				search_list[filecount] = FALSE;
+				ino_list[filecount] = statbuf.st_ino;
+				filecount++;
+				goto nextword;
+		case 'C':
+				if (i != 1)
+					usage();
+
+				currdir = &argv[1][2];
+				goto nextword;
+		case 'I':
+				if (i != 1)
+					usage();
+
+				dir_list[dircount++] = &argv[1][2];
+				goto nextword;
+		default:
+				usage();
+			}
+		}
+
+nextword:
+		argc--;
+		argv++;
+	}
+
+	dir_list[dircount++] = "/usr/include";
+	if (dircount > MAXDIRS)
+	{
+		printf("ccincl: too many dir_list.\n");
+		exit(1);
+	}
+
+	if (argc < 2)
+		usage();
+	
+	while (argc > 1)
+	{
+		file_list[filecount] = argv[1];
+		if (stat(argv[1], &statbuf) != 0)
+		{
+			printf("ccincl: cannot find %s\n", argv[1]);
+			exit(1);
+		}
+
+		search_list[filecount] = TRUE;
+		ino_list[filecount] = statbuf.st_ino;
+		filecount++;
+		argc--;
+		argv++;
+	}
+	
+	for (i = 0; i < filecount; i++)
+	{
+		if (! search_list[i])
+			continue;
+
+		filename = file_list[i];
+		if ((yyin = fopen(filename, "r")) == NULL)
+		{
+			fflush(stdout);
+			perror("ccincl");
+			printf("ccincl: cannot open %s\n", filename);
+			exit(1);
+		}
+
+		yylex();
+		fclose(yyin);
+	}
+
+	exit(errorcount);
+}
+
+void
+process(line)
+register	char	*line;
+{
+	extern	char	*malloc();
+	extern	int	yylineno;
+	char		buf[MAXBUF];
+	register	char	*s, *start;
+	register	int	i, startdir;
+	register	bool	index;
+	register	char	endchar;
+	register	bool	found;
+
+	for (s = line+1; *s != '\0' && isspace(*s); s++)
+		;
+	
+	if (strndiff(s, "include", 7))
+		return;
+	
+	for (s += 7; *s != '\0' && isspace(*s); s++)
+		;
+	
+	if (*s == '<')
+		endchar = '>', startdir = 1;
+	else
+		endchar = '"', startdir = 0;
+
+	start = s+1;
+	for (s = start; *s != '\0' && *s != endchar; s++)
+		;
+
+	if (*s != endchar)
+	{
+		printf("ccincl: %s(%d) bad include syntax\n", filename, yylineno);
+		errorcount++;
+		return;
+	}
+
+	/* terminate arg (now pointed to by start) */
+	*s = '\0';
+
+	/* handle absolute pathnames */
+	if (*start == '/')
+	{
+		sprintf(buf, "%s", start);
+		goto end;
+	}
+
+	/* handle relative pathnames */
+	if (*start == '.')
+	{
+		sprintf(buf, "%s/%s", currdir, start);
+		goto end;
+	}
+
+	/* handle implicit pathnames */
+	found = FALSE;
+	for (i = startdir; i < dircount; i++)
+	{
+		if (i == 0)
+		{
+			if (streq(currdir, "."))
+				strcpy(buf, "");
+			else
+			{
+				strcpy(buf, dir_list[i]);
+				strcat(buf, "/");
+			}
+
+			strcat(buf, start);
+		}
+		else
+		{
+			strcpy(buf, dir_list[i]);
+			strcat(buf, "/");
+			strcat(buf, start);
+		}
+
+		if (strlen(buf) > MAXBUF)
+		{
+			printf("ccincl: buffer length exceeded\n");
+			exit(1);
+		}
+
+		if (stat(buf, &statbuf) == 0)
+		{
+			found = TRUE;
+			break;
+		}
+	}
+
+	if (! found)
+	{
+		printf("ccincl: cannot find %s\n", start);
+		errorcount++;
+		return;
+	}
+
+end:
+	if (stat(buf, &statbuf) != 0)
+	{
+		printf("ccincl: cannot stat %s\n", buf);
+		errorcount++;
+		return;
+	}
+
+	found = FALSE;
+	for (i = 0; i < filecount; i++)
+		if (ino_list[i] == statbuf.st_ino)
+		{
+			found = TRUE;
+			index = i;
+			break;
+		}
+
+	if (! found)
+	{
+		index = filecount;
+		ino_list[filecount]    = statbuf.st_ino;
+		search_list[filecount] = FALSE;
+		file_list[filecount]   = malloc(strlen(buf)+1);
+		strcpy(file_list[filecount], buf);
+		filecount++;
+	}
+
+	for (i = 0; i < igncount; i++)
+		if (streq(file_list[index], ign_list[i]))
+			return;
+
+	if (fflag)
+		printf("%s: ", filename);
+
+	printf("%s\n", file_list[index]);
+
+	if (rflag)
+	{
+		for (i = 0; i < stopcount; i++)
+			if (streq(buf, stop_list[i]))
+				return;
+
+		search_list[filecount] = TRUE;
+	}
+}
+@
+
+
+11.2
+log
+@Minor Mods for IRIX 6.4
+@
+text
+@d6 1
+a6 1
+rcs_id[] = "$Header: /m/cad/cakeaux/RCS/ccincl.c,v 11.1 1995/01/05 06:03:12 mike Rel4_4 jra $";
+@
+
+
+11.1
+log
+@Release_4_4
+@
+text
+@d6 1
+a6 1
+rcs_id[] = "$Header: /m/cad/cakeaux/RCS/ccincl.c,v 1.3 94/11/03 14:34:03 mike Exp $";
+d40 12
+d176 1
+a317 10
+}
+
+/*
+**	Tell the unfortunate user how to use ccincl.
+*/
+
+usage()
+{
+	printf("Usage: ccincl [-rf] [-ifile] [-sfile] [-Cdir] [-Idir] ... file ...\n");
+	exit(1);
+@
+
+
+1.3
+log
+@Eliminated 'when' and 'otherwise' macros, for Irix 6.0
+@
+text
+@d6 1
+a6 1
+rcs_id[] = "$Header: /m/cad/cakeaux/RCS/ccincl.c,v 1.2 91/07/03 22:28:32 mike Exp Locker: mike $";
+@
+
+
+1.2
+log
+@
+@
+text
+@d6 1
+a6 1
+rcs_id[] = "$Header: /m/cad/cakeaux/RCS/ccincl.c,v 1.1 91/07/03 22:25:03 mike Exp $";
+d55 1
+a55 1
+		when 'f':
+d57 2
+a58 1
+		when 'r':
+d60 2
+a61 1
+		when 'i':
+d78 1
+a78 1
+		when 's':
+d95 1
+a95 1
+		when 'C':
+d101 1
+a101 1
+		when 'I':
+d107 1
+a107 1
+		otherwise:
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d6 1
+a6 1
+rcs_id[] = "$Header$";
+d45 1
+a45 1
+	reg	int	i;
+d163 1
+a163 1
+reg	char	*line;
+d168 5
+a172 5
+	reg	char	*s, *start;
+	reg	int	i, startdir;
+	reg	bool	index;
+	reg	char	endchar;
+	reg	bool	found;
+@

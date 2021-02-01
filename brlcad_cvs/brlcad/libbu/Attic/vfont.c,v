@@ -1,0 +1,582 @@
+head	11.11;
+access;
+symbols
+	ansi-20040405-merged:11.8.2.1
+	postmerge-20040405-ansi:11.9
+	premerge-20040404-ansi:11.8
+	postmerge-autoconf:11.8
+	autoconf-freeze:11.8
+	premerge-autoconf:11.8
+	ansi-20040316-freeze:11.8.2.1
+	postmerge-20040315-windows:11.8
+	premerge-20040315-windows:11.8
+	windows-20040315-freeze:11.8
+	autoconf-20031203:11.8
+	autoconf-20031202:11.8
+	autoconf-branch:11.8.0.10
+	phong-branch:11.8.0.8
+	photonmap-branch:11.8.0.6
+	rel-6-1-DP:11.8
+	windows-branch:11.8.0.4
+	rel-6-0-2:11.6
+	ansi-branch:11.8.0.2
+	rel-6-0-1-branch:11.6.0.2
+	hartley-6-0-post:11.7
+	hartley-6-0-pre:11.6
+	rel-6-0-1:11.6
+	rel-6-0:11.6
+	rel-5-4:11.4
+	offsite-5-3-pre:11.6
+	rel-5-3:11.4
+	rel-5-2:11.4
+	rel-5-1-branch:11.4.0.2
+	rel-5-1:11.4
+	rel-5-0:11.3
+	rel-5-0-beta:11.3
+	rel-4-5:11.1
+	ctj-4-5-post:11.1
+	ctj-4-5-pre:11.1
+	rel-4-4:11.1
+	rel-4-0:10.1
+	rel-3-5:9.1
+	rel-3-0:8.1;
+locks; strict;
+comment	@ * @;
+
+
+11.11
+date	2004.05.21.18.06.25;	author morrison;	state dead;
+branches;
+next	11.10;
+
+11.10
+date	2004.05.10.15.30.44;	author erikg;	state Exp;
+branches;
+next	11.9;
+
+11.9
+date	2004.04.05.07.46.16;	author morrison;	state Exp;
+branches;
+next	11.8;
+
+11.8
+date	2002.08.20.17.07.42;	author jra;	state Exp;
+branches
+	11.8.2.1;
+next	11.7;
+
+11.7
+date	2002.08.15.20.54.55;	author hartley;	state Exp;
+branches;
+next	11.6;
+
+11.6
+date	2000.07.11.01.22.25;	author mike;	state Exp;
+branches;
+next	11.5;
+
+11.5
+date	2000.07.07.05.20.14;	author cjohnson;	state Exp;
+branches;
+next	11.4;
+
+11.4
+date	2000.03.28.18.55.11;	author mike;	state Exp;
+branches;
+next	11.3;
+
+11.3
+date	98.09.14.15.59.15;	author bparker;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	98.08.22.23.11.06;	author mike;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	95.01.04.10.04.15;	author mike;	state Rel4_4;
+branches;
+next	10.2;
+
+10.2
+date	94.08.11.03.14.49;	author gdurf;	state Exp;
+branches;
+next	10.1;
+
+10.1
+date	91.10.12.06.37.48;	author mike;	state Rel4_0;
+branches;
+next	9.1;
+
+9.1
+date	89.05.19.05.50.22;	author mike;	state Rel3_5;
+branches;
+next	8.1;
+
+8.1
+date	88.10.05.00.29.08;	author mike;	state Rel3_0;
+branches;
+next	1.2;
+
+1.2
+date	88.05.22.03.12.19;	author mike;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	88.05.22.03.09.08;	author mike;	state Exp;
+branches;
+next	;
+
+11.8.2.1
+date	2002.09.19.18.01.14;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@Library routine for handling Berkeley VFONT data,
+in a machine-independent way.
+@
+
+
+11.11
+log
+@moved to src/
+@
+text
+@/*
+ *			V F O N T . C
+ *
+ *  Function -
+ *
+ *	Provide a machine-independent interface to files containing
+ *	Berkeley VFONT format fonts, stored with VAX byte ordering
+ *	and word alignment.
+ *
+ *  Author -
+ *	Michael John Muuss
+ *  
+ *  Source -
+ *	SECAD/VLD Computing Consortium, Bldg 394
+ *	The U. S. Army Ballistic Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005-5066
+ *  
+ *  Distribution Status -
+ *	Public Domain, Distribution Unlimited
+ */
+#ifndef lint
+static const char libbu_vfont_RCSid[] = "@@(#)$Header: /n/xoff/cvs/brlcad/libbu/vfont.c,v 11.10 2004/05/10 15:30:44 erikg Exp $ (BRL)";
+#endif
+
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+
+#include <stdio.h>
+#include "machine.h"
+#include "externs.h"
+#include "vfont-if.h"
+#include "bu.h"
+
+#define FONTDIR2	"/usr/lib/vfont"
+#define DEFAULT_FONT	"nonie.r.12"
+#define FONTNAMESZ	128
+
+/*
+ * Forward Definitions
+ */
+int vax_gshort(unsigned char *);
+
+/*
+ *			V F O N T _ G E T
+ *
+ *  Fetch the named font, and return a struct vfont pointer.
+ *
+ *  First the filename provided is used, then the BRLCAD font
+ *  directory is searched (for places where "system" directories
+ *  are considered sacred), and then finally the ordinary
+ *  font directory is searched.
+ *
+ *  The font files are treated as pure byte streams, and are expected
+ *  to be in VAX order.
+ *
+ *  VFONT_NULL is returned on error.  On ordinary errors, the function
+ *  is silent.  On extraordinary errors, a remark is placed on stderr.
+ */
+struct vfont *
+vfont_get(char *font)
+{
+	register struct vfont	*vfp = VFONT_NULL;
+	register FILE		*fp = NULL;
+	register int	i;
+	char		fname[FONTNAMESZ];
+	unsigned char	header[2*5];		/* 5 16-bit vax shorts */
+	unsigned char	dispatch[10*256];	/* 256 10-byte structs */
+	int		magic;
+	int		size;
+
+	if( font == NULL )
+		font = DEFAULT_FONT;
+
+	/* Open the file and read in the header information. */
+	if( (fp = fopen( font, "r" )) == NULL )  {
+		sprintf( fname, "%s/%s", (char *)bu_brlcad_path("vfont"), font );
+		if( (fp = fopen( fname, "r" )) == NULL )  {
+			sprintf( fname, "%s/%s", FONTDIR2, font );
+			if( (fp = fopen( fname, "r" )) == NULL )  {
+				return(VFONT_NULL);
+			}
+		}
+	}
+	if( fread( (char *)header, sizeof(header), 1, fp ) != 1 ||
+	    fread( (char *)dispatch, sizeof(dispatch), 1, fp ) != 1 )  {
+		fprintf(stderr, "vfont_get(%s):  header read error\n", fname );
+	    	fclose(fp);
+	    	return(VFONT_NULL);
+	}
+	magic = vax_gshort( &header[0*2] ) & 0xFFFF;
+	size = vax_gshort( &header[1*2] ) & 0xFFFF;	/* unsigned short */
+
+	if( magic != 0436 )  {
+		fprintf(stderr, "vfont_get(%s):  bad magic number 0%o\n",
+			fname, magic );
+		fclose(fp);
+		return(VFONT_NULL);
+	}
+
+	if( (vfp = (struct vfont *)malloc(sizeof(struct vfont))) == VFONT_NULL )  {
+		fprintf(stderr,"vfont_get(%s):  malloc failure 1\n", fname );
+		fclose(fp);
+		return(VFONT_NULL);
+	}
+
+	/* Read in the bit maps */
+	if( (vfp->vf_bits = malloc(size)) == (char *)0 )  {
+		fprintf(stderr,"vfont_get(%s):  malloc failure 2 (%d)\n",
+			fname, size);
+		fclose(fp);
+		free( (char *)vfp);
+		return(VFONT_NULL);
+	}
+	if( fread( vfp->vf_bits, size, 1, fp ) != 1 )  {
+		fprintf(stderr,"vfont_get(%s):  bitmap read error\n", fname );
+		fclose(fp);
+		free( vfp->vf_bits );
+		free( (char *)vfp );
+		return(VFONT_NULL);
+	}
+
+	/*
+	 *  Convert VAX data in header[] and dispatch[] arrays to
+	 *  native machine form.
+	 */
+	vfp->vf_maxx = vax_gshort( &header[2*2] );
+	vfp->vf_maxy = vax_gshort( &header[3*2] );
+	vfp->vf_xtend = vax_gshort( &header[4*2] );
+
+	for( i=0; i<255; i++ )  {
+		register struct vfont_dispatch	*vdp = &(vfp->vf_dispatch[i]);
+		register unsigned char		*cp = &dispatch[i*10];
+
+		vdp->vd_addr = vax_gshort( &cp[0] );
+		vdp->vd_nbytes = vax_gshort( &cp[2] );
+		vdp->vd_up = SXT( cp[4] );
+		vdp->vd_down = SXT( cp[5] );
+		vdp->vd_left = SXT( cp[6] );
+		vdp->vd_right = SXT( cp[7] );
+		vdp->vd_width = vax_gshort( &cp[8] );
+	}
+	fclose(fp);
+	return(vfp);
+}
+
+/*
+ *			V A X _ G S H O R T
+ *
+ *  Obtain a 16-bit signed integer from two adjacent characters,
+ *  stored in VAX order, regardless of word alignment.
+ */
+int
+vax_gshort(unsigned char *msgp)
+{
+	register unsigned char *p = (unsigned char *) msgp;
+	register int	i;
+
+	if( (i = (p[1] << 8) | p[0]) & 0x8000 )
+		return(i | ~0xFFFF);	/* Sign extend */
+	return(i);
+}
+
+/*
+ *			V F O N T _ F R E E
+ *
+ *  Return the storage associated with a struct vfont
+ */
+void
+vfont_free(register struct vfont *vfp)
+{
+	free( vfp->vf_bits );
+	free( (char *)vfp );
+}
+@
+
+
+11.10
+log
+@change conf.h to a wrapped config.h
+@
+text
+@d22 1
+a22 1
+static const char libbu_vfont_RCSid[] = "@@(#)$Header: /cvs/brlcad/libbu/vfont.c,v 11.9 2004/04/05 07:46:16 morrison Exp $ (BRL)";
+@
+
+
+11.9
+log
+@merge of ansi-6-0-branch into HEAD
+@
+text
+@d22 1
+a22 1
+static const char libbu_vfont_RCSid[] = "@@(#)$Header$ (BRL)";
+d25 5
+a29 1
+#include "conf.h"
+@
+
+
+11.8
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d22 1
+a22 1
+static const char libbu_vfont_RCSid[] = "@@(#)$Header: /c/CVS/brlcad/libbu/vfont.c,v 11.6 2000/07/11 01:22:25 mike Exp $ (BRL)";
+d59 1
+a59 2
+vfont_get( font )
+char *font;
+d152 1
+a152 2
+vax_gshort(msgp)
+unsigned char *msgp;
+d168 1
+a168 2
+vfont_free(vfp)
+register struct vfont	*vfp;
+@
+
+
+11.8.2.1
+log
+@Initial ANSIfication
+@
+text
+@d22 1
+a22 1
+static const char libbu_vfont_RCSid[] = "@@(#)$Header: /c/CVS/brlcad/libbu/vfont.c,v 11.8 2002/08/20 17:07:42 jra Exp $ (BRL)";
+d59 2
+a60 1
+vfont_get(char *font)
+d153 2
+a154 1
+vax_gshort(unsigned char *msgp)
+d170 2
+a171 1
+vfont_free(register struct vfont *vfp)
+@
+
+
+11.7
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d59 2
+a60 1
+vfont_get(char *font)
+d153 2
+a154 1
+vax_gshort(unsigned char *msgp)
+d170 2
+a171 1
+vfont_free(register struct vfont *vfp)
+@
+
+
+11.6
+log
+@
+lint
+@
+text
+@d22 1
+a22 1
+static const char libbu_vfont_RCSid[] = "@@(#)$Header: /c/CVS/brlcad/libbu/vfont.c,v 11.5 2000/07/07 05:20:14 cjohnson Exp $ (BRL)";
+d59 1
+a59 2
+vfont_get( font )
+char *font;
+d152 1
+a152 2
+vax_gshort(msgp)
+unsigned char *msgp;
+d168 1
+a168 2
+vfont_free(vfp)
+register struct vfont	*vfp;
+@
+
+
+11.5
+log
+@LINT
+@
+text
+@d22 1
+a22 1
+static const char libbu_vfont_RCSid[] = "@@(#)$Header: /c/CVS/brlcad/libbu/vfont.c,v 11.4 2000/03/28 18:55:11 mike Exp $ (BRL)";
+d40 1
+a40 1
+int vax_gshort(char *);
+d154 1
+a154 1
+char *msgp;
+@
+
+
+11.4
+log
+@
+Put libbu_filename_ prefixes on RCSid variables.
+@
+text
+@d22 1
+a22 1
+static char libbu_vfont_RCSid[] = "@@(#)$Header: /c/CVS/brlcad/libbu/vfont.c,v 11.3 1998/09/14 15:59:15 bparker Exp $ (BRL)";
+d31 1
+d36 5
+@
+
+
+11.3
+log
+@*- fix typos
+@
+text
+@d22 1
+a22 1
+static char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/libbu/vfont.c,v 11.2 1998/08/22 23:11:06 mike Exp $ (BRL)";
+@
+
+
+11.2
+log
+@No longer modified by newbindir.sh, calls bu_brlcad_path() instead.
+@
+text
+@d22 1
+a22 1
+static char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/libbu/vfont.c,v 11.1 1995/01/04 10:04:15 mike Rel4_4 $ (BRL)";
+d70 1
+a70 1
+		sprintf( fname, "%s/%s", bu_brlcad_path("vfont"), font );
+@
+
+
+11.1
+log
+@Release_4.4
+@
+text
+@d22 1
+a22 1
+static char RCSid[] = "@@(#)$Header: /m/cad/libfont/RCS/vfont.c,v 10.2 94/08/11 03:14:49 gdurf Exp $ (BRL)";
+a31 1
+#define FONTDIR1	"/usr/brlcad/vfont"
+d70 1
+a70 1
+		sprintf( fname, "%s/%s", FONTDIR1, font );
+@
+
+
+10.2
+log
+@Added includes
+@
+text
+@d22 1
+a22 1
+static char RCSid[] = "@@(#)$Header: /m/cad/libfont/RCS/vfont.c,v 10.1 1991/10/12 06:37:48 mike Rel4_0 gdurf $ (BRL)";
+@
+
+
+10.1
+log
+@Release_4.0
+@
+text
+@d22 1
+a22 1
+static char RCSid[] = "@@(#)$Header: /n/wolf/m/cad/libfont/RCS/vfont.c,v 9.1 89/05/19 05:50:22 mike Rel3_5 $ (BRL)";
+d25 2
+d28 2
+a30 2
+
+extern char	*malloc();
+@
+
+
+9.1
+log
+@Release_3.5
+@
+text
+@d22 1
+a22 1
+static char RCSid[] = "@@(#)$Header: vfont.c,v 8.1 88/10/05 00:29:08 mike Rel3_0 $ (BRL)";
+@
+
+
+8.1
+log
+@Release_3.0
+@
+text
+@d22 1
+a22 1
+static char RCSid[] = "@@(#)$Header: vfont.c,v 1.2 88/05/22 03:12:19 mike Exp $ (BRL)";
+@
+
+
+1.2
+log
+@Made "size" an unsigned short, as it should have been.
+@
+text
+@d22 1
+a22 1
+static char RCSid[] = "@@(#)$Header: vfont.c,v 1.1 88/05/22 03:09:08 mike Locked $ (BRL)";
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d22 1
+a22 1
+static char RCSid[] = "@@(#)$Header$ (BRL)";
+d83 2
+a84 2
+	magic = vax_gshort( &header[0*2] );
+	size = vax_gshort( &header[1*2] );
+@

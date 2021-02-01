@@ -1,0 +1,922 @@
+head	14.13;
+access;
+symbols
+	rel-7-10-4:14.11
+	STABLE:14.11.0.2
+	rel-7-10-2:14.11
+	rel-7-10-0:14.11
+	rel-7-8-4:14.7
+	rel-7-8-2:14.7
+	rel-7-8-0:14.7
+	trimnurbs-branch:14.7.0.2
+	help:14.7
+	temp_tag:14.5
+	bobWinPort-20051223-freeze:14.3
+	postmerge-20051223-bobWinPort:14.5
+	premerge-20051223-bobWinPort:14.5
+	rel-7-6-6:14.5
+	rel-7-6-4:14.5
+	rel-7-6-2:14.3
+	rel-7-6-branch:14.3.0.6
+	rel-7-6-0:14.3
+	rel-7-4-2:14.3
+	rel-7-4-branch:14.3.0.4
+	bobWinPort:14.3.0.2
+	rel-7-4-0:14.3
+	rel-7-2-6:14.3
+	rel-7-2-4:14.3
+	rel-7-2-2:14.3
+	rel-7-2-0:14.3
+	rel-7-0-4:14.2
+	rel-7-0-2:14.2
+	rel-7-0-1:14.2
+	opensource-post:14.2
+	opensource-pre:1.1
+	rel-7-0-branch:1.1.0.2
+	rel-7-0:1.1;
+locks; strict;
+comment	@ * @;
+
+
+14.13
+date	2007.11.21.20.49.14;	author erikgreenwald;	state Exp;
+branches;
+next	14.12;
+
+14.12
+date	2007.11.21.18.55.37;	author erikgreenwald;	state Exp;
+branches;
+next	14.11;
+
+14.11
+date	2007.02.02.08.48.30;	author brlcad;	state Exp;
+branches;
+next	14.10;
+
+14.10
+date	2007.01.27.01.41.55;	author brlcad;	state Exp;
+branches;
+next	14.9;
+
+14.9
+date	2007.01.23.01.13.57;	author brlcad;	state Exp;
+branches;
+next	14.8;
+
+14.8
+date	2007.01.20.14.37.07;	author brlcad;	state Exp;
+branches;
+next	14.7;
+
+14.7
+date	2006.02.27.10.08.41;	author brlcad;	state Exp;
+branches;
+next	14.6;
+
+14.6
+date	2006.01.18.06.46.28;	author brlcad;	state Exp;
+branches;
+next	14.5;
+
+14.5
+date	2005.10.23.04.44.39;	author brlcad;	state Exp;
+branches;
+next	14.4;
+
+14.4
+date	2005.09.21.19.05.37;	author brlcad;	state Exp;
+branches;
+next	14.3;
+
+14.3
+date	2005.01.30.20.31.34;	author brlcad;	state Exp;
+branches
+	14.3.6.1;
+next	14.2;
+
+14.2
+date	2004.12.21.03.45.41;	author butler;	state Exp;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.32;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.15.22.00;	author morrison;	state Exp;
+branches;
+next	;
+
+14.3.6.1
+date	2005.11.13.13.46.21;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.13
+log
+@pass bu_exit a NULL instead of an empty string
+@
+text
+@/*                       W A V E L E T . C
+ * BRL-CAD
+ *
+ * Copyright (c) 1998-2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@file wavelet.c
+ *
+ *      This program performs a wavelet transformation on data.
+ *      Transformations possible are decompositions and reconstructions.
+ *      Currently, only the Haar wavelet is supported.
+ *
+ *	Options
+ *	-D		decompose
+ *	-R		reconstruct
+ *	-1		one-dimensional transform
+ *	-2		two-dimensional transform
+ *	-# n		n-elements/channels per sample (eg 3 for a pix file)
+ *	-t[cdfils]	data type
+ *	-D level	debug
+ *	-s		squaresize of original image/dataset (power of 2)
+ *	-R n		Restart with average image size n
+ *	-n		number of scanlines
+ *	-w		width of dataset
+ *	-S		level/limit of transform ...
+ *	-W			(size of avg img in transformed data output)
+ *
+ *
+ *  Author -
+ *      Lee Butler
+ *      Christopher Sean Morrison
+ *
+ *  Source -
+ *      The U. S. Army Research Laboratory
+ *      Aberdeen Proving Ground, Maryland  21005-5068  USA
+ *
+ ***********************************************************************/
+
+#include "common.h"
+
+#include <stdlib.h>
+#include <stdio.h>
+#include <unistd.h>
+
+#include "machine.h"
+#include "bu.h"
+#include "vmath.h"
+#include "bn.h"
+#include "fb.h"
+
+
+#define CHAR	1
+#define SHORT	2
+#define INT	3
+#define LONG	4
+#define FLOAT	5
+#define DOUBLE	6
+
+#define DECOMPOSE 1
+#define RECONSTRUCT -1
+
+/* declarations to support use of bu_getopt() system call */
+char *options = "W:S:s:w:n:t:#:D:12drR:";
+extern char *bu_optarg;
+extern int bu_optind, bu_opterr, bu_getopt(int, char *const *, const char *);
+
+char *progname = "(noname)";
+int img_space=1;
+int debug;
+unsigned long width = 512;
+unsigned long height = 512;
+unsigned long channels = 3;
+int value_type = CHAR;
+int value_size = sizeof(char);
+int avg_size = 0;
+unsigned long limit = 0;
+int	decomp_recon;
+
+
+/*
+ *	U S A G E --- tell user how to invoke this program, then exit
+ */
+void
+usage(char *s)
+{
+	if (s) (void)fputs(s, stderr);
+
+	(void) fprintf(stderr,
+"Usage:\n\
+	%s {-d | -r} [-2] [-t datatype] [-# channels]\n\
+	[-w width] [-n scanlines] [-s number_of_samples]\n\
+	< datastream > wavelets\n",
+			progname);
+	bu_exit (1, NULL);
+}
+
+/*
+ *	P A R S E _ A R G S --- Parse through command line flags
+ */
+int
+parse_args(int ac, char **av)
+{
+	int  c;
+	char *strrchr(const char *, int);
+
+	if ( (progname=strrchr(*av, '/')) )
+		progname++;
+	else
+		progname = *av;
+
+
+	/* Turn off bu_getopt's error messages */
+	bu_opterr = 0;
+
+	/* get all the option flags from the command line */
+	while ((c=bu_getopt(ac,av,options)) != EOF)
+		switch (c) {
+		case '1': img_space=1; break;
+		case '2': img_space=2; break;
+		case 'd': decomp_recon = DECOMPOSE;
+			break;
+		case 'r': decomp_recon = RECONSTRUCT;
+			break;
+		case 'D': debug=atoi(bu_optarg); break;
+		case 'R': avg_size = atoi(bu_optarg); break;
+		case '#': channels = atoi(bu_optarg);
+			break;
+		case 't': {
+			switch (*bu_optarg) {
+			case 'c': value_type = CHAR;
+				value_size = sizeof(char);
+				break;
+			case 'd': value_type = DOUBLE;
+				value_size = sizeof(double);
+				break;
+			case 'f': value_type = FLOAT;
+				value_size = sizeof(float);
+				break;
+			case 'i': value_type = INT;
+				value_size = sizeof(int);
+				break;
+			case 'l': value_type = LONG;
+				value_size = sizeof(long);
+				break;
+			case 's': value_type = SHORT;
+				value_size = sizeof(short);
+				break;
+			}
+			break;
+		}
+		case 'n': height = atoi(bu_optarg); break;
+		case 'w': width = atoi(bu_optarg); break;
+		case 's': width = height = atoi(bu_optarg); break;
+		case 'W': limit = atoi(bu_optarg); break;
+		case 'S': limit = atoi(bu_optarg); break;
+		case '?':
+		case 'h':
+		default	: fprintf(stderr, "Bad or help flag specified %c\n", c);
+			usage("");
+			 break;
+		}
+
+	return(bu_optind);
+}
+
+
+void
+wlt_decompose_1d(void)
+{
+	genptr_t buf, tbuf;
+	unsigned long int i, n;
+	unsigned long int sample_size;	/* size of data type x #values/sample */
+	unsigned long int scanline_size;	/* # bytes in a scanline */
+
+	sample_size = value_size * channels;
+	scanline_size = sample_size * width;
+
+	buf = bu_malloc( scanline_size, "wavelet buf");
+	tbuf = bu_malloc( scanline_size >> 1, "wavelet buf");
+
+	if (debug)
+		fprintf(stderr, "1D decompose:\n\tdatatype_size:%d channels:%lu width:%lu height:%lu limit:%lu\n",
+			value_size, channels, width, height, limit);
+
+
+	for (i=0 ; i < height ; i++) {
+
+		n = fread(buf, sample_size, width, stdin);
+		if (n  != width ) {
+			fprintf(stderr,
+				"read failed line %lu got %lu not %lu\n",
+				 i, n, width);
+			bu_exit (-1, NULL);
+		}
+
+		switch (value_type) {
+		case DOUBLE:
+			bn_wlt_haar_1d_double_decompose(tbuf, buf, width,
+				channels, limit);
+			break;
+		case FLOAT:
+			bn_wlt_haar_1d_float_decompose(tbuf, buf, width,
+				channels, limit);
+			break;
+		case CHAR:
+			bn_wlt_haar_1d_char_decompose(tbuf, buf, width,
+				channels, limit);
+			break;
+		case SHORT:
+			bn_wlt_haar_1d_short_decompose(tbuf, buf, width,
+				channels, limit);
+			break;
+		case INT:
+			bn_wlt_haar_1d_int_decompose(tbuf, buf, width,
+				channels, limit);
+			break;
+		case LONG:
+			bn_wlt_haar_1d_long_decompose(tbuf, buf, width,
+				channels, limit);
+			break;
+		}
+
+		fwrite(buf, sample_size, width, stdout);
+	}
+}
+
+void
+wlt_decompose_2d(void)
+{
+	genptr_t buf, tbuf;
+	unsigned long int sample_size;
+	unsigned long int scanline_size;
+
+	sample_size = value_size * channels;
+	scanline_size = sample_size * width;
+
+	buf = bu_malloc( scanline_size * height, "wavelet buf");
+	tbuf = bu_malloc( scanline_size, "wavelet buf");
+
+	if (debug)
+		fprintf(stderr, "2D decompose:\n\tdatatype_size:%d channels:%lu width:%lu height:%lu limit:%lu\n",
+			value_size, channels, width, height, limit);
+
+
+	if (width != height) {
+		fprintf(stderr, "Two dimensional decomposition requires square image\n");
+		fprintf(stderr, "%lu x %lu image specified\n", width, height);
+		bu_exit (-1, NULL);
+	}
+
+	if (fread(buf, scanline_size, height, stdin) != height) {
+		fprintf(stderr, "read error getting %lux%lu bytes\n", scanline_size, height);
+		bu_exit (-1, NULL);
+	}
+
+	switch (value_type) {
+	case DOUBLE:
+		bn_wlt_haar_2d_double_decompose(tbuf, buf, width,
+			channels, limit);
+		break;
+	case FLOAT:
+		bn_wlt_haar_2d_float_decompose(tbuf, buf, width,
+			channels, limit);
+		break;
+	case CHAR:
+		bn_wlt_haar_2d_char_decompose(tbuf, buf, width,
+			channels, limit);
+		break;
+	case SHORT:
+		bn_wlt_haar_2d_short_decompose(tbuf, buf, width,
+			channels, limit);
+		break;
+	case INT:
+		bn_wlt_haar_2d_int_decompose(tbuf, buf, width,
+			channels, limit);
+		break;
+	case LONG:
+		bn_wlt_haar_2d_long_decompose(tbuf, buf, width,
+			channels, limit);
+		break;
+	}
+	fwrite(buf, scanline_size, width, stdout);
+}
+
+
+void
+wlt_reconstruct_1d(void)
+{
+	genptr_t buf, tbuf;
+	unsigned long int i, n;
+	unsigned long int sample_size;	/* size of data type x #values/sample */
+	unsigned long int scanline_size;	/* # bytes in a scanline */
+
+	sample_size = value_size * channels;
+	scanline_size = sample_size * width;
+
+	buf = bu_malloc( scanline_size, "wavelet buf");
+	tbuf = bu_malloc( scanline_size >> 1, "wavelet buf");
+
+	if (debug)
+		fprintf(stderr, "1D reconstruct:\n\tdatatype_size:%d channels:%lu width:%lu height:%lu limit:%lu\n",
+			value_size, channels, width, height, limit);
+
+
+	for (i=0 ; i < height ; i++) {
+
+
+		n = fread(buf, sample_size, width, stdin);
+		if (n  != width ) {
+			fprintf(stderr,
+				"read failed line %lu got %lu not %lu\n",
+				 i, n, width);
+			bu_exit (-1, NULL);
+		}
+
+		switch (value_type) {
+		case DOUBLE:
+			bn_wlt_haar_1d_double_reconstruct(tbuf, buf, width,
+				channels, avg_size, limit);
+			break;
+		case FLOAT:
+			bn_wlt_haar_1d_float_reconstruct(tbuf, buf, width,
+				channels, avg_size, limit);
+			break;
+		case CHAR:
+			bn_wlt_haar_1d_char_reconstruct(tbuf, buf, width,
+				channels, avg_size, limit);
+			break;
+		case SHORT:
+			bn_wlt_haar_1d_short_reconstruct(tbuf, buf, width,
+				channels, avg_size, limit);
+			break;
+		case INT:
+			bn_wlt_haar_1d_int_reconstruct(tbuf, buf, width,
+				channels, avg_size, limit);
+			break;
+		case LONG:
+			bn_wlt_haar_1d_long_reconstruct(tbuf, buf, width,
+				channels, avg_size, limit);
+			break;
+		}
+
+		fwrite(buf, sample_size, width, stdout);
+	}
+}
+
+
+void
+wlt_reconstruct_2d(void)
+{
+	genptr_t buf, tbuf;
+	unsigned long int sample_size;
+	unsigned long int scanline_size;
+
+	sample_size = value_size * channels;
+	scanline_size = sample_size * width;
+
+	buf = bu_malloc( scanline_size * height, "wavelet buf");
+	tbuf = bu_malloc( scanline_size, "wavelet buf");
+
+	if (debug)
+		fprintf(stderr, "2D reconstruct:\n\tdatatype_size:%d channels:%lu width:%lu height:%lu limit:%lu\n",
+			value_size, channels, width, height, limit);
+
+	if (width != height) {
+		fprintf(stderr, "Two dimensional decomposition requires square image\n");
+		fprintf(stderr, "%lu x %lu image specified\n", width, height);
+		bu_exit (-1, NULL);
+	}
+
+	if (fread(buf, scanline_size, height, stdin) != height) {
+		fprintf(stderr, "read error getting %lux%lu bytes\n", scanline_size, height);
+		bu_exit (-1, NULL);
+	}
+
+	switch (value_type) {
+	case DOUBLE:
+		bn_wlt_haar_2d_double_reconstruct((double *)tbuf, (double *)buf, width,
+			channels, avg_size, limit);
+		break;
+	case FLOAT:
+		bn_wlt_haar_2d_float_reconstruct(tbuf, buf, width,
+			channels, avg_size, limit);
+		break;
+	case CHAR:
+		bn_wlt_haar_2d_char_reconstruct(tbuf, buf, width,
+			channels, avg_size, limit);
+		break;
+	case SHORT:
+		bn_wlt_haar_2d_short_reconstruct(tbuf, buf, width,
+			channels, avg_size, limit);
+		break;
+	case INT:
+		bn_wlt_haar_2d_int_reconstruct(tbuf, buf, width,
+			channels, avg_size, limit);
+		break;
+	case LONG:
+		bn_wlt_haar_2d_long_reconstruct(tbuf, buf, width,
+			channels, avg_size, limit);
+		break;
+	}
+	fwrite(buf, scanline_size, width, stdout);
+}
+
+
+/*
+ *	M A I N
+ *
+ *	Call parse_args to handle command line arguments first, then
+ *	process input.
+ */
+int
+main(int ac, char **av)
+{
+
+	/* parse command flags, and make sure there are arguments
+	 * left over for processing.
+	 */
+	if ( parse_args(ac, av) < ac) usage("Excess arguments ignored.\n");
+
+	if (isatty(fileno(stdout))) usage("Redirect input/output\n");
+
+	if ( !value_type)
+		usage("Must specify data type\n");
+
+	if (decomp_recon == DECOMPOSE) {
+		/* set some defaults */
+		if (avg_size == 0) avg_size = width;
+		if (limit == 0) limit = 1;
+
+		if (img_space == 1) wlt_decompose_1d();
+		else wlt_decompose_2d();
+		return 0;
+	} else if (decomp_recon == RECONSTRUCT) {
+		/* set some defaults */
+		if (avg_size == 0) avg_size = 1;
+		if (limit == 0) limit = width;
+
+		if (img_space == 1) wlt_reconstruct_1d();
+		else wlt_reconstruct_2d();
+		return 0;
+	}
+	usage("must specify either decompose (-d) or reconstruct (-r)\n");
+	return -1;
+}
+
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+14.12
+log
+@exit->bu_exit where applicable
+@
+text
+@d107 1
+a107 1
+	bu_exit (1, "");
+d206 1
+a206 1
+			bu_exit (-1, "");
+d261 1
+a261 1
+		bu_exit (-1, "");
+d266 1
+a266 1
+		bu_exit (-1, "");
+d326 1
+a326 1
+			bu_exit (-1, "");
+d381 1
+a381 1
+		bu_exit (-1, "");
+d386 1
+a386 1
+		bu_exit (-1, "");
+@
+
+
+14.11
+log
+@convert all of the lingering getopt calls to bu_getopt (as well as the related getopt globals optind, opterr, optarg) -- libbu's getopt has the benefit of being re-entrant and is portable to environments where getopt() may not be available.
+@
+text
+@d107 1
+a107 1
+	exit(1);
+d206 1
+a206 1
+			exit(-1);
+d261 1
+a261 1
+		exit(-1);
+d266 1
+a266 1
+		exit(-1);
+d326 1
+a326 1
+			exit(-1);
+d381 1
+a381 1
+		exit(-1);
+d386 1
+a386 1
+		exit(-1);
+@
+
+
+14.10
+log
+@ws. lots and lots of ws.  see sh/ws.sh for details (cases 'abcdeg').
+@
+text
+@d78 1
+a78 1
+extern int bu_optind, opterr, bu_getopt(int, char *const *, const char *);
+d126 1
+a126 1
+	opterr = 0;
+@
+
+
+14.9
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@a179 2
+
+
+a298 6
+
+
+
+
+
+
+a360 3
+
+
+
+a460 2
+
+
+@
+
+
+14.8
+log
+@update copyright to 2007
+@
+text
+@d8 2
+a9 3
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+d14 1
+a14 1
+ * General Public License for more details.
+d16 2
+a17 2
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+@
+
+
+14.7
+log
+@stdlib.h and exit()
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 1998-2006 United States Government as represented by
+@
+
+
+14.6
+log
+@update copyright to 2006
+@
+text
+@d53 1
+d55 1
+d58 1
+d65 1
+@
+
+
+14.5
+log
+@trailing ws
+@
+text
+@d4 1
+a4 1
+ * Copyright (C) 1998-2005 United States Government as represented by
+@
+
+
+14.4
+log
+@needs bu.h for bu_getopt
+@
+text
+@d46 1
+a46 1
+ *  
+d98 1
+a98 1
+	(void) fprintf(stderr, 
+d121 1
+a121 1
+	
+d186 1
+a186 1
+	
+d197 1
+a197 1
+	
+d202 1
+a202 1
+			fprintf(stderr, 
+d311 1
+a311 1
+	
+d328 1
+a328 1
+			fprintf(stderr, 
+@
+
+
+14.3
+log
+@update copyright to 2005
+@
+text
+@d72 1
+a72 1
+/* declarations to support use of getopt() system call */
+d74 2
+a75 2
+extern char *optarg;
+extern int optind, opterr, getopt(int, char *const *, const char *);
+d122 1
+a122 1
+	/* Turn off getopt's error messages */
+d126 1
+a126 1
+	while ((c=getopt(ac,av,options)) != EOF)
+d134 3
+a136 3
+		case 'D': debug=atoi(optarg); break;
+		case 'R': avg_size = atoi(optarg); break;
+		case '#': channels = atoi(optarg);
+d139 1
+a139 1
+			switch (*optarg) {
+d161 5
+a165 5
+		case 'n': height = atoi(optarg); break;
+		case 'w': width = atoi(optarg); break;
+		case 's': width = height = atoi(optarg); break;
+		case 'W': limit = atoi(optarg); break;
+		case 'S': limit = atoi(optarg); break;
+d173 1
+a173 1
+	return(optind);
+@
+
+
+14.3.6.1
+log
+@merge changes from HEAD aka rel-7-6-4 to the rel-7-6-branch just in case someone peeks a gander or tries to continue/build the branch
+@
+text
+@d46 1
+a46 1
+ *
+d72 1
+a72 1
+/* declarations to support use of bu_getopt() system call */
+d74 2
+a75 2
+extern char *bu_optarg;
+extern int bu_optind, opterr, bu_getopt(int, char *const *, const char *);
+d98 1
+a98 1
+	(void) fprintf(stderr,
+d121 2
+a122 2
+
+	/* Turn off bu_getopt's error messages */
+d126 1
+a126 1
+	while ((c=bu_getopt(ac,av,options)) != EOF)
+d134 3
+a136 3
+		case 'D': debug=atoi(bu_optarg); break;
+		case 'R': avg_size = atoi(bu_optarg); break;
+		case '#': channels = atoi(bu_optarg);
+d139 1
+a139 1
+			switch (*bu_optarg) {
+d161 5
+a165 5
+		case 'n': height = atoi(bu_optarg); break;
+		case 'w': width = atoi(bu_optarg); break;
+		case 's': width = height = atoi(bu_optarg); break;
+		case 'W': limit = atoi(bu_optarg); break;
+		case 'S': limit = atoi(bu_optarg); break;
+d173 1
+a173 1
+	return(bu_optind);
+d186 1
+a186 1
+
+d197 1
+a197 1
+
+d202 1
+a202 1
+			fprintf(stderr,
+d311 1
+a311 1
+
+d328 1
+a328 1
+			fprintf(stderr,
+@
+
+
+14.2
+log
+@GPL license changes
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 1998-2004 United States Government as represented by
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@d1 21
+a21 2
+/*
+ *                 W A V E L E T . C
+a49 9
+ *  
+ *  Distribution Notice -
+ *      Re-distribution of this software is restricted, as described in
+ *      your "Statement of Terms and Conditions for the Release of
+ *      The BRL-CAD Package" agreement.
+ *
+ *  Copyright Notice -
+ *      This software is Copyright (C) 1998-2004 by the United States Army
+ *      in all countries except the USA.  All rights reserved.
+@
+
+
+1.1
+log
+@Vast reorganization begins.  Sources moved from top-level directories into src/.
+@
+text
+@d460 10
+@
+

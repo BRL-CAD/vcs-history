@@ -1,0 +1,367 @@
+head	1.9;
+access;
+symbols
+	ansi-20040405-merged:1.8
+	postmerge-20040405-ansi:1.8
+	premerge-20040404-ansi:1.8
+	postmerge-autoconf:1.8
+	autoconf-freeze:1.8
+	premerge-autoconf:1.8
+	postmerge-20040315-windows:1.8
+	premerge-20040315-windows:1.8
+	windows-20040315-freeze:1.8
+	autoconf-20031203:1.8
+	autoconf-20031202:1.8
+	autoconf-branch:1.8.0.12
+	phong-branch:1.8.0.10
+	photonmap-branch:1.8.0.8
+	rel-6-1-DP:1.8
+	windows-branch:1.8.0.6
+	rel-6-0-2:1.8
+	ansi-branch:1.8.0.4
+	rel-6-0-1-branch:1.8.0.2
+	hartley-6-0-post:1.8
+	hartley-6-0-pre:1.8
+	rel-6-0-1:1.8
+	rel-6-0:1.7
+	rel-5-4:1.7
+	offsite-5-3-pre:1.7
+	rel-5-3:1.7
+	rel-5-2:1.7
+	rel-5-1-branch:1.7.0.2
+	rel-5-1:1.7
+	rel-5-0:1.7
+	rel-5-0-beta:1.7;
+locks; strict;
+comment	@# @;
+
+
+1.9
+date	2004.05.21.16.41.21;	author morrison;	state dead;
+branches;
+next	1.8;
+
+1.8
+date	2002.06.19.20.18.03;	author butler;	state Exp;
+branches;
+next	1.7;
+
+1.7
+date	99.04.09.21.26.08;	author bparker;	state Exp;
+branches;
+next	1.6;
+
+1.6
+date	99.04.07.17.02.10;	author bparker;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	99.03.18.18.24.43;	author bparker;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	99.03.09.22.03.55;	author bparker;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	99.01.19.22.29.15;	author bparker;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	98.12.18.22.03.07;	author bparker;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	98.05.26.14.42.46;	author bparker;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.9
+log
+@moved to src/tclscripts/
+@
+text
+@#
+#			A P P L Y . T C L
+#
+#	Procedures to apply commands to one or more display managers.
+#
+#	Author - Robert G. Parker
+#
+
+proc mged_apply { id cmd } {
+    global mged_gui
+
+    if {$mged_gui($id,apply_to) == 1} {
+	mged_apply_local $id $cmd
+    } elseif {$mged_gui($id,apply_to) == 2} {
+	mged_apply_using_list $id $cmd
+    } elseif {$mged_gui($id,apply_to) == 3} {
+	mged_apply_all $mged_gui($id,active_dm) $cmd
+    } else {
+	mged_apply_active $id $cmd
+    }
+}
+
+proc mged_apply_active { id cmd } {
+    global mged_gui
+
+    winset $mged_gui($id,active_dm)
+    catch { uplevel #0 $cmd } msg
+
+    return $msg
+}
+
+proc mged_apply_local { id cmd } {
+    global mged_gui
+
+    winset $mged_gui($id,top).ul
+    catch { uplevel #0 $cmd } msg
+
+    winset $mged_gui($id,top).ur
+    catch { uplevel #0 $cmd } msg
+
+    winset $mged_gui($id,top).ll
+    catch { uplevel #0 $cmd } msg
+
+    winset $mged_gui($id,top).lr
+    catch { uplevel #0 $cmd } msg
+
+    winset $mged_gui($id,active_dm)
+
+    return $msg
+}
+
+proc mged_apply_using_list { id cmd } {
+    global mged_gui
+
+    set msg ""
+    foreach dm $mged_gui($id,apply_list) {
+	winset $dm
+	catch { uplevel #0 $cmd } msg
+    }
+
+    winset $mged_gui($id,active_dm)
+
+    return $msg
+}
+
+proc mged_apply_all { win cmd } {
+    set msg ""
+    foreach dm [get_dm_list] {
+	winset $dm
+	catch { uplevel #0 $cmd } msg
+    }
+
+    winset $win
+
+    return $msg
+}
+
+## - mged_shaded_mode_helper
+#
+# Automatically set GUI state for shaded_mode.
+#
+proc mged_shaded_mode_helper {val} {
+    global mged_gui
+    global mged_players
+
+    if {$val < 0 || 2 < $val} {
+	# do nothing
+	return
+    }
+
+    # the gui variables must be either 0 or 1
+    if {$val} {
+	set val 1
+    } else {
+	set val 0
+    }
+
+    foreach id $mged_players {
+	set mged_gui($id,zbuffer) $val
+	set mged_gui($id,zclip) $val
+	set mged_gui($id,lighting) $val
+
+	mged_apply_local $id "dm set zbuffer $val; dm set zclip $val; dm set lighting $val"
+    }
+
+    return ""
+}
+@
+
+
+1.8
+log
+@SURVICE mods
+@
+text
+@@
+
+
+1.7
+log
+@*- call mged_apply_all with pathname of display manager window
+@
+text
+@d77 31
+@
+
+
+1.6
+log
+@*- mged_apply_active proc
+*- mods to mged_apply
+@
+text
+@d17 1
+a17 1
+	mged_apply_all $cmd
+d66 1
+a66 3
+proc mged_apply_all { cmd } {
+    global mged_gui
+
+d73 1
+a73 1
+    winset $mged_gui($id,active_dm)
+@
+
+
+1.5
+log
+@*- initialize msg
+*- set current display manager to the active display manager
+	in calls to mged_apply_local, mged_apply_using_list
+	and mged_apply_all
+@
+text
+@d19 1
+a19 2
+	winset $mged_gui($id,active_dm)
+	catch { uplevel #0 $cmd }
+d21 9
+@
+
+
+1.4
+log
+@*- cleanup
+@
+text
+@d47 1
+d53 2
+d59 3
+d66 2
+@
+
+
+1.3
+log
+@*- cleanup variables
+@
+text
+@a19 1
+#	catch [list uplevel #0 $cmd]
+a27 1
+#    catch [list uplevel #0 $cmd]
+a30 1
+#    catch [list uplevel #0 $cmd]
+a33 1
+#    catch [list uplevel #0 $cmd]
+a36 1
+#    catch [list uplevel #0 $cmd] msg
+a48 1
+#	catch [list uplevel #0 $cmd] msg
+a57 1
+#	catch [list uplevel #0 $cmd] msg
+@
+
+
+1.2
+log
+@*- simplify command execution
+@
+text
+@d10 1
+a10 3
+    global mged_active_dm
+    global mged_dm_loc
+    global mged_apply_to
+d12 1
+a12 1
+    if {$mged_apply_to($id) == 1} {
+d14 1
+a14 1
+    } elseif {$mged_apply_to($id) == 2} {
+d16 1
+a16 1
+    } elseif {$mged_apply_to($id) == 3} {
+d19 1
+a19 1
+	winset $mged_active_dm($id)
+d26 1
+a26 2
+    global mged_top
+    global mged_active_dm
+d28 1
+a28 1
+    winset $mged_top($id).ul
+d32 1
+a32 1
+    winset $mged_top($id).ur
+d36 1
+a36 1
+    winset $mged_top($id).ll
+d40 1
+a40 1
+    winset $mged_top($id).lr
+d44 1
+a44 1
+    winset $mged_active_dm($id)
+d50 1
+a50 1
+    global mged_apply_list
+d52 1
+a52 1
+    foreach dm $mged_apply_list($id) {
+@
+
+
+1.1
+log
+@*- Procedures to apply commands to one or more display managers
+@
+text
+@d22 2
+a23 1
+	catch [list uplevel #0 $cmd]
+d32 2
+a33 1
+    catch [list uplevel #0 $cmd]
+d36 2
+a37 1
+    catch [list uplevel #0 $cmd]
+d40 2
+a41 1
+    catch [list uplevel #0 $cmd]
+d44 2
+a45 1
+    catch [list uplevel #0 $cmd] msg
+d57 2
+a58 1
+	catch [list uplevel #0 $cmd] msg
+d67 2
+a68 1
+	catch [list uplevel #0 $cmd] msg
+@

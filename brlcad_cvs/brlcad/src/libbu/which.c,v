@@ -1,0 +1,1113 @@
+head	14.18;
+access;
+symbols
+	rel-7-10-4:14.16
+	STABLE:14.16.0.2
+	rel-7-10-2:14.16
+	rel-7-10-0:14.11
+	rel-7-8-4:14.8
+	rel-7-8-2:14.7
+	rel-7-8-0:14.7
+	trimnurbs-branch:14.7.0.2
+	help:14.7
+	temp_tag:14.6
+	bobWinPort-20051223-freeze:14.3.2.1
+	postmerge-20051223-bobWinPort:14.6
+	premerge-20051223-bobWinPort:14.6
+	rel-7-6-6:14.6
+	rel-7-6-4:14.5
+	rel-7-6-2:14.4
+	rel-7-6-branch:14.4.0.4
+	rel-7-6-0:14.4
+	rel-7-4-2:14.4.2.2
+	rel-7-4-branch:14.4.0.2
+	bobWinPort:14.3.0.2;
+locks; strict;
+comment	@ * @;
+
+
+14.18
+date	2007.11.08.04.15.47;	author brlcad;	state Exp;
+branches;
+next	14.17;
+
+14.17
+date	2007.09.14.15.21.06;	author erikgreenwald;	state Exp;
+branches;
+next	14.16;
+
+14.16
+date	2007.05.20.20.24.08;	author brlcad;	state Exp;
+branches;
+next	14.15;
+
+14.15
+date	2007.05.13.18.48.45;	author brlcad;	state Exp;
+branches;
+next	14.14;
+
+14.14
+date	2007.05.13.08.18.59;	author brlcad;	state Exp;
+branches;
+next	14.13;
+
+14.13
+date	2007.05.13.07.16.36;	author brlcad;	state Exp;
+branches;
+next	14.12;
+
+14.12
+date	2007.05.13.07.11.14;	author brlcad;	state Exp;
+branches;
+next	14.11;
+
+14.11
+date	2007.01.23.01.13.34;	author brlcad;	state Exp;
+branches;
+next	14.10;
+
+14.10
+date	2007.01.21.04.45.42;	author brlcad;	state Exp;
+branches;
+next	14.9;
+
+14.9
+date	2007.01.20.14.36.51;	author brlcad;	state Exp;
+branches;
+next	14.8;
+
+14.8
+date	2006.08.31.23.16.39;	author lbutler;	state Exp;
+branches;
+next	14.7;
+
+14.7
+date	2006.01.18.06.46.16;	author brlcad;	state Exp;
+branches;
+next	14.6;
+
+14.6
+date	2005.12.02.22.10.39;	author erikgreenwald;	state Exp;
+branches;
+next	14.5;
+
+14.5
+date	2005.10.23.04.44.32;	author brlcad;	state Exp;
+branches;
+next	14.4;
+
+14.4
+date	2005.08.16.20.33.48;	author brlcad;	state Exp;
+branches
+	14.4.2.1
+	14.4.4.1;
+next	14.3;
+
+14.3
+date	2005.08.15.20.57.41;	author bob1961;	state Exp;
+branches
+	14.3.2.1;
+next	14.2;
+
+14.2
+date	2005.07.26.00.50.15;	author brlcad;	state Exp;
+branches;
+next	14.1;
+
+14.1
+date	2005.07.24.19.54.31;	author brlcad;	state Exp;
+branches;
+next	;
+
+14.3.2.1
+date	2005.09.08.16.23.20;	author bob1961;	state Exp;
+branches;
+next	;
+
+14.4.2.1
+date	2005.08.16.20.33.48;	author brlcad;	state dead;
+branches;
+next	14.4.2.2;
+
+14.4.2.2
+date	2005.08.16.21.03.49;	author brlcad;	state Exp;
+branches;
+next	;
+
+14.4.4.1
+date	2005.11.13.13.46.15;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.18
+log
+@minor tweaks, preventive null terminating of strncmp'd strings
+@
+text
+@/*                         W H I C H . C
+ * BRL-CAD
+ *
+ * Copyright (c) 2005-2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This library is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@addtogroup bu_log */
+/** @@{ */
+/** @@file which.c
+ *
+ * Routine to provide BSD "which" functionality, locating binaries of
+ * specified programs from the user's PATH. This is useful to locate
+ * binaries and resources at run-time.
+ *
+ * Author -
+ *   Christopher Sean Morrison
+ *
+ * Source -
+ *   BRL-CAD Open Source
+ */
+#include "common.h"
+
+/* system headers */
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+
+/* common headers */
+#include "bu.h"
+
+
+/* how big should PATH from getenv ever be */
+#define MAXPATHENV 32767
+
+/** container for path match results */
+static char bu_which_result[MAXPATHLEN] = {0};
+
+
+/**
+ * b u _ w h i c h
+ *
+ * returns the first USER path match to a given executable cmd name.
+ *
+ * caller should not free the result, though it will not be preserved
+ * between calls either.  the caller should strdup the result if they
+ * need to keep it around.
+ */
+const char *
+bu_which(const char *cmd)
+{
+    static const char *gotpath = NULL;
+
+    char PATH[MAXPATHENV];
+
+    char *directory = NULL;
+    char *position = NULL;
+
+    if (bu_debug & BU_DEBUG_PATHS) {
+	bu_log("bu_which: [%s]\n", cmd);
+    }
+
+    if (!cmd || (strlen(cmd) == 0)) {
+	return 0;
+    }
+
+    /* start fresh */
+    memset(PATH, 0, MAXPATHENV);
+    memset(bu_which_result, 0, MAXPATHLEN);
+
+    /* check for full/relative path match */
+    strncpy(bu_which_result, cmd, MAXPATHLEN-1);
+    if (strcmp(bu_which_result, cmd) != 0) {
+	if (bu_debug & BU_DEBUG_PATHS) {
+	    bu_log("command [%s] is too long\n", cmd);
+	}
+	return NULL;
+    }
+
+    if (bu_file_exists(bu_which_result) && strchr(bu_which_result, BU_DIR_SEPARATOR)) {
+	return bu_which_result;
+    }
+
+    /* load up the PATH from the caller's user environment */
+    gotpath = getenv("PATH");
+    if (gotpath) {
+	strncpy(PATH, gotpath, MAXPATHENV-1);
+
+	/* make sure it fit, we have a problem if it did not */
+	if (strcmp(PATH, gotpath) != 0) {
+	    position = strrchr(PATH, BU_PATH_SEPARATOR);
+	    if (position) {
+		position = '\0';
+	    } else {
+		/* too much and no separator? wtf. */
+		if (bu_debug & BU_DEBUG_PATHS) {
+		    bu_log("path contains invalid data?\n");
+		}
+		return NULL;
+	    }
+	}
+
+	if (bu_debug & BU_DEBUG_PATHS) {
+	    bu_log("PATH is %s\n", PATH);
+	}
+    } else {
+	if (bu_debug & BU_DEBUG_PATHS) {
+	    bu_log("PATH is NULL\n");
+	}
+	return NULL;
+    }
+
+    /* search for the executable */
+    directory = PATH;
+    do {
+	position = strchr(directory, BU_PATH_SEPARATOR);
+	if (position) {
+	    *position = '\0';
+	}
+
+	/* empty means use current dir */
+	if (strlen(directory) == 0) {
+	    directory = ".";
+	}
+
+	snprintf(bu_which_result, MAXPATHLEN, "%s/%s", directory, cmd);
+	if (bu_file_exists(bu_which_result)) {
+	    return bu_which_result;
+	}
+
+	if (position) {
+	    directory = position + 1;
+	} else {
+	    directory = NULL;
+	}
+    } while (directory); /* iterate over PATH directories */
+
+    /* no path or no match */
+    if (bu_debug & BU_DEBUG_PATHS) {
+	bu_log("no %s in %s\n", cmd, gotpath ? gotpath : "(no path)");
+    }
+
+    return NULL;
+}
+/** @@} */
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+14.17
+log
+@removed trailing whitespace
+@
+text
+@d84 1
+a84 1
+    strncpy(bu_which_result, cmd, MAXPATHLEN);
+d99 1
+a99 1
+	strncpy(PATH, gotpath, MAXPATHENV);
+@
+
+
+14.16
+log
+@clean up debug to indicate the function name, remove the latter checking statement (since bu_file_exists has its own)
+@
+text
+@d137 1
+a137 1
+	
+@
+
+
+14.15
+log
+@rewrite bu_which/bu_whereis routines so that they just return the first match encountered instead of all matches.  this simplifies the caller interface and makes it easier to implement them in a manner that does not require heap allocation.
+@
+text
+@d72 1
+a72 1
+	bu_log("WHICH: [%s]\n", cmd);
+d75 1
+a75 1
+    if (!cmd) {
+d91 1
+a137 4
+	if (bu_debug & BU_DEBUG_PATHS) {
+	    bu_log("Checking [%s]\n", directory);
+	}
+
+@
+
+
+14.14
+log
+@init everything
+@
+text
+@d25 2
+a26 4
+ * specified programs from the user's PATH (i.e.  not necessarily the
+ * system path).  This is useful to locate system binaries and
+ * resources at run-time such as where the current binary is being
+ * executed from.
+d28 2
+a29 2
+ *  Author -
+ *	Christopher Sean Morrison
+d31 2
+a32 3
+ *  Source -
+ *	The U. S. Army Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005-5068  USA
+d36 1
+a39 9
+#ifdef HAVE_SYS_TYPES_H
+#  include <sys/types.h>
+#endif
+#ifdef HAVE_SYS_SYSCTL_H
+#  ifdef HAVE_SYS_PARAM_H
+#    include <sys/param.h>
+#  endif
+#  include <sys/sysctl.h>
+#endif
+d41 1
+a41 1
+#include "machine.h"
+d45 9
+a53 1
+/** b u _ w h i c h
+d55 1
+a55 4
+ * Sets argv array of path matches to the given executable cmd name
+ * returning up to lim number of occurances found.  the user path is
+ * obtained getenv(PATH) or in its absense, via the sysctl
+ * ``user.cs_path'' string.
+d57 3
+a59 5
+ * It is the callers responsibility to allocate sufficient memory to
+ * the argv array itself (lim elements), memory for the array contents
+ * will be automatically allocated as needed.  It is the callers
+ * responsibility to free the array contents with bu_free_array() as
+ * well as the argv array itself.
+d61 2
+a62 1
+int bu_which(char *argv[], int lim, const char *cmd)
+d64 3
+a66 4
+    char *PATH = NULL;
+    int free_path = 0;
+    char *curr_path = NULL;
+    int max_length = 0;
+d69 1
+a69 6
+    char *fullname = NULL;
+
+    int found_it = 0;
+    int found_count = 0;
+
+    int i = 0;
+d79 34
+a112 3
+    if (lim <= 0) {
+	return 0;
+    }
+d114 8
+a121 2
+    if (!argv) {
+	bu_bomb("bu_which was given a null array?\n");
+d124 7
+a130 51
+    if (bu_file_exists(cmd)) {
+	/* add the finding */
+	argv[found_count] = bu_malloc(strlen(cmd) * sizeof(char) + 1, "bu_which argv entry");
+	strncpy(argv[found_count], cmd, strlen(cmd) + 1);
+	found_count++;
+    }
+
+    /* use getenv() if it is available to get the PATH */
+#ifdef HAVE_GETENV
+#  define bu_which_found_path 1
+    PATH = getenv("PATH");
+    goto found_path;
+#endif  /* HAVE_GETENV */
+
+    /* otherwise use sysctl() to get the PATH */
+#if defined(HAVE_SYSCTL) && defined(CTL_USER) && defined(USER_CS_PATH)
+#  define bu_which_found_path 1
+    {
+	int mib[2];
+	size_t len;
+	mib[0] = CTL_USER;
+	mib[1] = USER_CS_PATH;
+
+	if (sysctl(mib, 2, NULL, &len, NULL, 0) != 0) {
+	    perror("sysctl unable to read user.cs_path");
+	    return 0;
+	}
+	if (len > 0) {
+	    PATH = bu_calloc(len, sizeof(char), "bu_which PATH");
+	    free_path = 1;
+	}
+	if (sysctl(mib, 2, PATH, &len, NULL, 0) != 0) {
+	    perror("sysctl unable to get user.cs_path");
+	    return 0;
+	}
+	goto found_path;
+    }
+#endif  /* HAVE_SYSCTL */
+
+    /* sanity check, make sure we have _some_ means to get a PATH */
+#ifndef bu_which_found_path
+#  error "Do not know how to read the PATH environment variable on this system"
+#endif
+
+ found_path:
+
+    if (!PATH) {
+	/* no path, no match */
+	bu_log("Unable to read the environment PATH\n");
+	return 0;
+    }
+d132 7
+a138 20
+    /* something big enough to hold any path */
+    max_length = strlen(PATH) + strlen(cmd) + 1;
+    fullname = (char *)bu_calloc(max_length+1, sizeof(char), "bu_which fullname");
+
+    /* search the PATH for the executable */
+    for (curr_path = PATH; ; *curr_path++ = BU_PATH_SEPARATOR) {
+	directory = curr_path;
+
+	if ((curr_path = strchr(curr_path, BU_PATH_SEPARATOR)) != NULL) {
+	    *curr_path = '\0';
+
+	    /* equal means empty, so use current directory */
+	    if (directory == curr_path) {
+		directory = ".";
+	    }
+	} else {
+	    /* did not find a path separator, so this is the last element in the list */
+	    if (strlen(directory) == 0) {
+		directory = ".";
+	    }
+d141 3
+a143 19
+	(void)snprintf(fullname, max_length, "%s/%s", directory, cmd);
+
+	if (bu_file_exists(fullname)) {
+	    found_it = 0;
+
+	    /* make sure it is a new unique path */
+	    for (i = 0; i < found_count; i++) {
+		if (strncmp(argv[i], fullname, max_length) == 0) {
+		    found_it = 1;
+		    break;
+		}
+	    }
+
+	    /* add the finding if not previously added result */
+	    if (!found_it) {
+		argv[found_count] = bu_malloc(max_length, "bu_which argv entry");
+		strncpy(argv[found_count], fullname, max_length);
+		found_count++;
+	    }
+d146 4
+a149 2
+	if (!curr_path) {
+	    break;
+d151 1
+a151 4
+	if (found_count >= lim) {
+	    break;
+	}
+    } /* end loop over PATH directories */
+d153 3
+a155 8
+    bu_free(fullname, "bu_which fullname");
+    fullname = NULL;
+
+    /* free up the temporary resources */
+#ifdef HAVE_SYSCTL
+    if (free_path && PATH) {
+	bu_free(PATH, "bu_which PATH");
+	PATH = NULL;
+a156 1
+#endif
+d158 1
+a158 1
+    return found_count;
+@
+
+
+14.13
+log
+@ws
+@
+text
+@d71 1
+a71 1
+    char *PATH = {0};
+d73 2
+a74 2
+    char *curr_path;
+    int max_length;
+d76 2
+a77 2
+    char *directory;
+    char *fullname = {0};
+d79 1
+a79 1
+    int found_it;
+d82 1
+a82 1
+    int i;
+@
+
+
+14.12
+log
+@use bu_debug & BU_DEBUG_PATHS
+@
+text
+@d71 4
+a74 35
+  char *PATH = {0};
+  int free_path = 0;
+  char *curr_path;
+  int max_length;
+
+  char *directory;
+  char *fullname = {0};
+
+  int found_it;
+  int found_count = 0;
+
+  int i;
+
+  if (bu_debug & BU_DEBUG_PATHS) {
+      bu_log("WHICH: [%s]\n", cmd);
+  }
+
+  if (!cmd) {
+    return 0;
+  }
+
+  if (lim <= 0) {
+    return 0;
+  }
+
+  if (!argv) {
+    bu_bomb("bu_which was given a null array?\n");
+  }
+
+  if (bu_file_exists(cmd)) {
+    /* add the finding */
+    argv[found_count] = bu_malloc(strlen(cmd) * sizeof(char) + 1, "bu_which argv entry");
+    strncpy(argv[found_count], cmd, strlen(cmd) + 1);
+    found_count++;
+  }
+d76 32
+a107 1
+  /* use getenv() if it is available to get the PATH */
+d110 2
+a111 2
+  PATH = getenv("PATH");
+  goto found_path;
+d114 1
+a114 1
+  /* otherwise use sysctl() to get the PATH */
+d117 20
+a136 20
+ {
+   int mib[2];
+   size_t len;
+   mib[0] = CTL_USER;
+   mib[1] = USER_CS_PATH;
+
+   if (sysctl(mib, 2, NULL, &len, NULL, 0) != 0) {
+     perror("sysctl unable to read user.cs_path");
+     return 0;
+   }
+   if (len > 0) {
+     PATH = bu_calloc(len, sizeof(char), "bu_which PATH");
+     free_path = 1;
+   }
+   if (sysctl(mib, 2, PATH, &len, NULL, 0) != 0) {
+     perror("sysctl unable to get user.cs_path");
+     return 0;
+   }
+   goto found_path;
+ }
+d139 1
+a139 1
+ /* sanity check, make sure we have _some_ means to get a PATH */
+d146 4
+a149 47
+  if (!PATH) {
+    /* no path, no match */
+    bu_log("Unable to read the environment PATH\n");
+    return 0;
+  }
+
+  /* something big enough to hold any path */
+  max_length = strlen(PATH) + strlen(cmd) + 1;
+  fullname = (char *)bu_calloc(max_length+1, sizeof(char), "bu_which fullname");
+
+  /* search the PATH for the executable */
+  for (curr_path = PATH; ; *curr_path++ = BU_PATH_SEPARATOR) {
+    directory = curr_path;
+
+    if ((curr_path = strchr(curr_path, BU_PATH_SEPARATOR)) != NULL) {
+      *curr_path = '\0';
+
+      /* equal means empty, so use current directory */
+      if (directory == curr_path) {
+	directory = ".";
+      }
+    } else {
+      /* did not find a path separator, so this is the last element in the list */
+      if (strlen(directory) == 0) {
+	directory = ".";
+      }
+    }
+
+    (void)snprintf(fullname, max_length, "%s/%s", directory, cmd);
+
+    if (bu_file_exists(fullname)) {
+      found_it = 0;
+
+      /* make sure it is a new unique path */
+      for (i = 0; i < found_count; i++) {
+	if (strncmp(argv[i], fullname, max_length) == 0) {
+	  found_it = 1;
+	  break;
+	}
+      }
+
+      /* add the finding if not previously added result */
+      if (!found_it) {
+	argv[found_count] = bu_malloc(max_length, "bu_which argv entry");
+	strncpy(argv[found_count], fullname, max_length);
+	found_count++;
+      }
+d152 50
+a201 7
+    if (!curr_path) {
+      break;
+    }
+    if (found_count >= lim) {
+      break;
+    }
+  } /* end loop over PATH directories */
+d203 2
+a204 2
+  bu_free(fullname, "bu_which fullname");
+  fullname = NULL;
+d206 1
+a206 1
+  /* free up the temporary resources */
+d208 4
+a211 4
+  if (free_path && PATH) {
+    bu_free(PATH, "bu_which PATH");
+    PATH = NULL;
+  }
+d214 1
+a214 1
+  return found_count;
+@
+
+
+14.11
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@d84 4
+@
+
+
+14.10
+log
+@ugh, what tedium.  put some effort towards cleaning up the doxygen labels and making the headers more consistent.  also exclusively using @@ for doxygen instead of \ to try to keep things more consistent.
+@
+text
+@d9 1
+a9 2
+ * as published by the Free Software Foundation; either version 2 of
+ * the License, or (at your option) any later version.
+d14 1
+a14 1
+ * Library General Public License for more details.
+@
+
+
+14.9
+log
+@update copyright to 2007
+@
+text
+@d22 1
+a22 1
+/*@@{*/
+d213 1
+a213 1
+/*@@}*/
+@
+
+
+14.8
+log
+@Doxygen comments
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 2005-2006 United States Government as represented by
+@
+
+
+14.7
+log
+@update copyright to 2006
+@
+text
+@d21 2
+d213 10
+@
+
+
+14.6
+log
+@openbsd requires sys/param.h for all the preprocessor symbols...
+@
+text
+@d4 1
+a4 1
+ * Copyright (C) 2005 United States Government as represented by
+@
+
+
+14.5
+log
+@trailing ws
+@
+text
+@d45 3
+@
+
+
+14.4
+log
+@remove the SNPRINTF define since it should be safe to use snprintf() now that it's properly accounted for in config_win.h as a compat function
+@
+text
+@d147 1
+a147 1
+ 
+@
+
+
+14.4.4.1
+log
+@merge changes from HEAD aka rel-7-6-4 to the rel-7-6-branch just in case someone peeks a gander or tries to continue/build the branch
+@
+text
+@d147 1
+a147 1
+
+@
+
+
+14.4.2.1
+log
+@file which.c was added on branch rel-7-4-branch on 2005-08-16 21:03:49 +0000
+@
+text
+@d1 207
+@
+
+
+14.4.2.2
+log
+@merge in changes through Aug10 for 7.4.2 release
+@
+text
+@a0 207
+/*                         W H I C H . C
+ * BRL-CAD
+ *
+ * Copyright (C) 2005 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * as published by the Free Software Foundation; either version 2 of
+ * the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Library General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@file which.c
+ *
+ * Routine to provide BSD "which" functionality, locating binaries of
+ * specified programs from the user's PATH (i.e.  not necessarily the
+ * system path).  This is useful to locate system binaries and
+ * resources at run-time such as where the current binary is being
+ * executed from.
+ *
+ *  Author -
+ *	Christopher Sean Morrison
+ *
+ *  Source -
+ *	The U. S. Army Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005-5068  USA
+ */
+#include "common.h"
+
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+#ifdef HAVE_SYS_TYPES_H
+#  include <sys/types.h>
+#endif
+#ifdef HAVE_SYS_SYSCTL_H
+#  include <sys/sysctl.h>
+#endif
+
+#include "machine.h"
+#include "bu.h"
+
+
+/** b u _ w h i c h
+ *
+ * Sets argv array of path matches to the given executable cmd name
+ * returning up to lim number of occurances found.  the user path is
+ * obtained getenv(PATH) or in its absense, via the sysctl
+ * ``user.cs_path'' string.
+ *
+ * It is the callers responsibility to allocate sufficient memory to
+ * the argv array itself (lim elements), memory for the array contents
+ * will be automatically allocated as needed.  It is the callers
+ * responsibility to free the array contents with bu_free_array() as
+ * well as the argv array itself.
+ */
+int bu_which(char *argv[], int lim, const char *cmd)
+{
+  char *PATH = {0};
+  int free_path = 0;
+  char *curr_path;
+  int max_length;
+
+  char *directory;
+  char *fullname = {0};
+
+  int found_it;
+  int found_count = 0;
+
+  int i;
+
+  if (!cmd) {
+    return 0;
+  }
+
+  if (lim <= 0) {
+    return 0;
+  }
+
+  if (!argv) {
+    bu_bomb("bu_which was given a null array?\n");
+  }
+
+  if (bu_file_exists(cmd)) {
+    /* add the finding */
+    argv[found_count] = bu_malloc(strlen(cmd) * sizeof(char) + 1, "bu_which argv entry");
+    strncpy(argv[found_count], cmd, strlen(cmd) + 1);
+    found_count++;
+  }
+
+  /* use getenv() if it is available to get the PATH */
+#ifdef HAVE_GETENV
+#  define bu_which_found_path 1
+  PATH = getenv("PATH");
+  goto found_path;
+#endif  /* HAVE_GETENV */
+
+  /* otherwise use sysctl() to get the PATH */
+#if defined(HAVE_SYSCTL) && defined(CTL_USER) && defined(USER_CS_PATH)
+#  define bu_which_found_path 1
+ {
+   int mib[2];
+   size_t len;
+   mib[0] = CTL_USER;
+   mib[1] = USER_CS_PATH;
+
+   if (sysctl(mib, 2, NULL, &len, NULL, 0) != 0) {
+     perror("sysctl unable to read user.cs_path");
+     return 0;
+   }
+   if (len > 0) {
+     PATH = bu_calloc(len, sizeof(char), "bu_which PATH");
+     free_path = 1;
+   }
+   if (sysctl(mib, 2, PATH, &len, NULL, 0) != 0) {
+     perror("sysctl unable to get user.cs_path");
+     return 0;
+   }
+   goto found_path;
+ }
+#endif  /* HAVE_SYSCTL */
+
+ /* sanity check, make sure we have _some_ means to get a PATH */
+#ifndef bu_which_found_path
+#  error "Do not know how to read the PATH environment variable on this system"
+#endif
+
+ found_path:
+
+  if (!PATH) {
+    /* no path, no match */
+    bu_log("Unable to read the environment PATH\n");
+    return 0;
+  }
+
+  /* something big enough to hold any path */
+  max_length = strlen(PATH) + strlen(cmd) + 1;
+  fullname = (char *)bu_calloc(max_length+1, sizeof(char), "bu_which fullname");
+ 
+  /* search the PATH for the executable */
+  for (curr_path = PATH; ; *curr_path++ = BU_PATH_SEPARATOR) {
+    directory = curr_path;
+
+    if ((curr_path = strchr(curr_path, BU_PATH_SEPARATOR)) != NULL) {
+      *curr_path = '\0';
+
+      /* equal means empty, so use current directory */
+      if (directory == curr_path) {
+	directory = ".";
+      }
+    } else {
+      /* did not find a path separator, so this is the last element in the list */
+      if (strlen(directory) == 0) {
+	directory = ".";
+      }
+    }
+
+    (void)snprintf(fullname, max_length, "%s/%s", directory, cmd);
+
+    if (bu_file_exists(fullname)) {
+      found_it = 0;
+
+      /* make sure it is a new unique path */
+      for (i = 0; i < found_count; i++) {
+	if (strncmp(argv[i], fullname, max_length) == 0) {
+	  found_it = 1;
+	  break;
+	}
+      }
+
+      /* add the finding if not previously added result */
+      if (!found_it) {
+	argv[found_count] = bu_malloc(max_length, "bu_which argv entry");
+	strncpy(argv[found_count], fullname, max_length);
+	found_count++;
+      }
+    }
+
+    if (!curr_path) {
+      break;
+    }
+    if (found_count >= lim) {
+      break;
+    }
+  } /* end loop over PATH directories */
+
+  bu_free(fullname, "bu_which fullname");
+  fullname = NULL;
+
+  /* free up the temporary resources */
+#ifdef HAVE_SYSCTL
+  if (free_path && PATH) {
+    bu_free(PATH, "bu_which PATH");
+    PATH = NULL;
+  }
+#endif
+
+  return found_count;
+}
+@
+
+
+14.3
+log
+@Use SNPRINTF macro defined in bu.h
+@
+text
+@d166 1
+a166 1
+    (void)SNPRINTF(fullname, max_length, "%s/%s", directory, cmd);
+@
+
+
+14.3.2.1
+log
+@Mods for windows port
+@
+text
+@d166 1
+a166 1
+    (void)snprintf(fullname, max_length, "%s/%s", directory, cmd);
+@
+
+
+14.2
+log
+@some systems (e.g. linux) have sysctl but do not have CTL_USER or USER_CS_PATH. bah, humbug.
+@
+text
+@d166 1
+a166 1
+    (void)snprintf(fullname, max_length, "%s/%s", directory, cmd);
+@
+
+
+14.1
+log
+@add initial whereis and which functionality to libbu via whereis.c and which.c respectively.  the difference of course being that bu_whereis() searches the system path, while bu_which() searches the user path.  still could use some more work to clean up the paths being returned, but it is functional for an initial implementation.
+@
+text
+@d107 1
+a107 1
+#ifdef HAVE_SYSCTL
+@
+

@@ -1,0 +1,453 @@
+head	11.10;
+access;
+symbols
+	ansi-20040405-merged:11.7.2.1
+	postmerge-20040405-ansi:11.8
+	premerge-20040404-ansi:11.7
+	postmerge-autoconf:11.7
+	autoconf-freeze:11.7
+	premerge-autoconf:11.7
+	postmerge-20040315-windows:11.7
+	premerge-20040315-windows:11.7
+	windows-20040315-freeze:11.7
+	autoconf-20031203:11.7
+	autoconf-20031202:11.7
+	autoconf-branch:11.7.0.10
+	phong-branch:11.7.0.8
+	photonmap-branch:11.7.0.6
+	rel-6-1-DP:11.7
+	windows-branch:11.7.0.4
+	rel-6-0-2:11.5
+	ansi-branch:11.7.0.2
+	rel-6-0-1-branch:11.5.0.2
+	hartley-6-0-post:11.6
+	hartley-6-0-pre:11.5
+	rel-6-0-1:11.5
+	rel-6-0:11.2;
+locks; strict;
+comment	@ * @;
+
+
+11.10
+date	2004.05.21.17.33.44;	author morrison;	state dead;
+branches;
+next	11.9;
+
+11.9
+date	2004.05.10.15.30.49;	author erikg;	state Exp;
+branches;
+next	11.8;
+
+11.8
+date	2004.04.05.05.45.58;	author morrison;	state Exp;
+branches;
+next	11.7;
+
+11.7
+date	2002.08.20.17.08.34;	author jra;	state Exp;
+branches
+	11.7.2.1;
+next	11.6;
+
+11.6
+date	2002.08.15.20.55.46;	author hartley;	state Exp;
+branches;
+next	11.5;
+
+11.5
+date	2002.05.17.12.42.24;	author morrison;	state Exp;
+branches;
+next	11.4;
+
+11.4
+date	2002.05.14.20.41.03;	author morrison;	state Exp;
+branches;
+next	11.3;
+
+11.3
+date	2002.05.02.19.00.58;	author morrison;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	2001.08.11.13.17.46;	author butler;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	2001.08.06.15.54.44;	author morrison;	state Exp;
+branches;
+next	;
+
+11.7.2.1
+date	2002.09.19.18.02.12;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+11.10
+log
+@moved to src/proc-db/
+@
+text
+@/*	G L O B E . C
+ *
+ * Creates a set of concentric "shells" that, when put together, comprise a
+ * unified solid spherical object.  Kinda like an onion, not a cake, an onion.
+ *
+ */
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+
+#include <stdio.h>
+#include <math.h>
+#include "machine.h"
+#include "bu.h"
+#include "vmath.h"
+#include "bn.h"
+#include "raytrace.h"
+#include "rtgeom.h"
+#include "wdb.h"
+
+char *progname ="globe";
+
+void usage(void)
+{
+	fprintf(stderr, "Usage: %s db_file.g [stepSize [finalSize [initialSize]]]\n", progname);
+	exit(-1);
+}
+
+int
+main(int ac, char *av[])
+{
+	struct rt_wdb *db_fp;
+	point_t p1;
+	int is_region;
+	unsigned char rgb[3];
+	struct wmember wm_hd; /* defined in wdb.h */
+	struct wmember bigList;
+	double initialSize=900.0;
+	double finalSize=1000.0;
+	double stepSize=10.0;
+	double currentSize=0.0;
+	int counter=0;
+	char name[256]="";
+	char solidName[256]="";
+	char prevSolid[256]="";
+	char shaderparams[256]="";
+
+	progname = *av;
+
+	if (ac < 2) usage();
+
+	if (ac > 2) stepSize=(double)atof(av[2]);
+	if (ac > 3) finalSize=(double)atof(av[3]);
+	if (ac > 4) initialSize=(double)atof(av[4]);
+
+	if ((db_fp = wdb_fopen(av[1])) == NULL) {
+		perror(av[1]);
+		exit(-1);
+	}
+
+	mk_id(db_fp, "Globe Database"); /* create the database header record */
+
+	/* make a region that is the union of these two objects
+	 * To accomplish this, we need to create a linked list of the
+	 * items that make up the combination.  The wm_hd structure serves
+	 * as the head of the list of items.
+	 */
+	BU_LIST_INIT(&wm_hd.l);
+	BU_LIST_INIT(&bigList.l);
+
+	/* 
+	 * make the CORE of the globe with a given color 
+	 ***************/
+	VSET(p1, 0.0, 0.0, 0.0);
+	VSET(rgb, 130, 253, 194); /* some green */
+	is_region = 1;
+	/* make a sphere centered at 1.0, 2.0, 3.0 with radius .75 */
+	mk_sph(db_fp, "land.s", p1, initialSize);
+	mk_addmember("land.s", &wm_hd.l, NULL, WMOP_UNION);
+	mk_lcomb(db_fp, "land.c", &wm_hd, 0, "", "", rgb, 0);
+	mk_addmember("land.s", &wm_hd.l, NULL, WMOP_UNION);
+	mk_lcomb(db_fp, "land.r", &wm_hd, is_region, "plastic", "di=.8 sp=.2", rgb, 0);
+
+	/* 
+	 * make the AIR of the globe with a given color 
+	 ***************/
+	VSET(rgb, 130, 194, 253); /* a light blue */
+	sprintf(prevSolid, "land.s");
+	for (counter=0, currentSize=initialSize+stepSize; currentSize < finalSize; counter += 1, currentSize+=stepSize) {
+	  BU_LIST_INIT(&wm_hd.l);
+
+	  sprintf(solidName, "air.%d.s", counter);
+	  mk_sph(db_fp, solidName , p1, currentSize);
+	  mk_addmember(solidName, &wm_hd.l, NULL, WMOP_UNION);
+	  mk_addmember(prevSolid, &wm_hd.l, NULL, WMOP_SUBTRACT);
+
+		/* make the spatial combination */
+	  sprintf(name, "air.%d.c", counter);
+		mk_lcomb(db_fp, name, &wm_hd, 0, NULL, NULL, NULL, 0);
+
+	  mk_addmember(name, &wm_hd.l, NULL, WMOP_UNION);
+
+		/*	  sprintf(shaderparams, "{alpha %f}", (float)1.0 - (((float)finalSize/(float)currentSize)-(float)1.0));  */
+
+		/* make the spatial region */
+	  sprintf(name, "air.%d.r", counter);
+		sprintf(shaderparams, "{tr %f}", (float)currentSize/(float)finalSize); 
+	  mk_lcomb(db_fp,
+						 name,	/* Name of the db element created */
+						 &wm_hd,		/* list of elements & boolean operations */
+						 is_region,	/* Flag:  This is a region */
+						 "plastic",	/* optical shader */
+						 shaderparams, /* shader parameters */
+						 rgb,		/* item color */
+						 0);		/* inherit (override) flag */
+		
+		/* add the region to a master region list */
+	  mk_addmember(name, &bigList.l, NULL, WMOP_UNION);
+		
+		/* keep track of the last combination we made for the next iteration */
+	  sprintf(prevSolid, "%s", solidName);
+	}
+	
+	/* make one final air region that comprises all the air regions */
+	mk_lcomb(db_fp, "air.c", &bigList, 0, NULL, NULL, NULL, 0);
+	
+	/* Create the master globe region
+	 *
+	 * In this case we are going to make it a region (hence the
+	 * is_region flag is set, and we provide shader parameter information.
+	 *
+	 * When making a combination that is NOT a region, the region flag
+	 * argument is 0, and the strings for optical shader, and shader
+	 * parameters should (in general) be null pointers.
+	 */
+	
+	/* add the land to the main globe object that gets created at the end */
+	BU_LIST_INIT(&wm_hd.l);
+	mk_addmember("land.r", &wm_hd.l, NULL, WMOP_UNION);
+	mk_addmember("air.c", &wm_hd.l, NULL, WMOP_UNION);
+	
+	mk_lcomb(db_fp,
+					 "globe.r",	/* Name of the db element created */
+					 &wm_hd,		/* list of elements & boolean operations */
+					 is_region,	/* Flag:  This is a region */
+					 NULL,	/* optical shader */
+					 NULL, /* shader parameters */
+					 NULL,		/* item color */
+					 0);		/* inherit (override) flag */
+	
+	wdb_close(db_fp);
+	return 0;
+}
+@
+
+
+11.9
+log
+@change conf.h to a wrapped config.h
+@
+text
+@@
+
+
+11.8
+log
+@merge of ansi-6-0-branch into head
+@
+text
+@d7 5
+a11 1
+#include "conf.h"
+@
+
+
+11.7
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d21 1
+a21 1
+void usage()
+@
+
+
+11.7.2.1
+log
+@Initial ANSIfication
+@
+text
+@d21 1
+a21 1
+void usage(void)
+@
+
+
+11.6
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d21 1
+a21 1
+void usage(void)
+@
+
+
+11.5
+log
+@added matrix parameter to mk_addmember()
+@
+text
+@d21 1
+a21 1
+void usage()
+@
+
+
+11.4
+log
+@Set the program name (was noname)
+@
+text
+@d77 1
+a77 1
+	mk_addmember("land.s", &wm_hd.l, WMOP_UNION);
+d79 1
+a79 1
+	mk_addmember("land.s", &wm_hd.l, WMOP_UNION);
+d92 2
+a93 2
+	  mk_addmember(solidName, &wm_hd.l, WMOP_UNION);
+	  mk_addmember(prevSolid, &wm_hd.l, WMOP_SUBTRACT);
+d99 1
+a99 1
+	  mk_addmember(name, &wm_hd.l, WMOP_UNION);
+d116 1
+a116 1
+	  mk_addmember(name, &bigList.l, WMOP_UNION);
+d137 2
+a138 2
+	mk_addmember("land.r", &wm_hd.l, WMOP_UNION);
+	mk_addmember("air.c", &wm_hd.l, WMOP_UNION);
+@
+
+
+11.3
+log
+@Reworked the globe generator to properly create shells and appropriate sub-geometry now.  Unveiled in liboptical appears to be a bug that occurs after four transparent layers are displayed.  This occurs with both the phong and flat shaders (with slightly different results).  The resulting shade ends up being a default color value (flat color of object for phong, and white for flat).
+@
+text
+@d19 1
+a19 1
+char *progname ="(noname)";
+@
+
+
+11.2
+log
+@misc comipler warning changes
+@
+text
+@d1 1
+a1 1
+/*	W D B _ E X A M P L E . C
+d3 2
+a4 4
+ *  Create a BRL-CAD geometry database from C code.
+ * 
+ *  Note that this is for writing (creating/appending) a database.  
+ *  There is currently no API for modifying a database.
+a5 3
+ *  Note that since the values in the database are stored in millimeters.
+ *  This constrains the arguments to the mk_* routines to also be in 
+ *  millimeters.
+d38 1
+a38 1
+	double stepSize=1.0;
+d42 2
+a43 1
+	char prevName[256]="";
+d59 1
+a59 1
+	mk_id(db_fp, "Sphere Database"); /* create the database header record */
+d69 3
+a71 1
+	/* make a sphere centered at 1.0, 2.0, 3.0 with radius .75 */
+d75 5
+a79 6
+
+
+	sprintf(name, "land.s");
+
+	mk_sph(db_fp, name, p1, initialSize);
+	mk_addmember(name, &wm_hd.l, WMOP_UNION);
+a80 1
+	mk_addmember("land.r", &bigList.l, WMOP_UNION);
+d82 3
+d86 1
+a86 1
+	sprintf(prevName, "land.s");
+d90 9
+a98 2
+	  sprintf(name, "air.%d.s", counter);
+	  mk_sph(db_fp, name , p1, currentSize);
+a99 1
+	  mk_addmember(prevName, &wm_hd.l, WMOP_SUBTRACT);
+d101 3
+d105 1
+a105 3
+/*	  sprintf(shaderparams, "", (float)finalSize/currentSize); */
+	  /* can also use d for delta and s for scale */
+
+d107 9
+a115 7
+		   name,	/* Name of the db element created */
+		   &wm_hd,		/* list of elements & boolean operations */
+		   is_region,	/* Flag:  This is a region */
+		   "plastic",	/* optical shader */
+		   shaderparams, /* shader parameters */
+		   rgb,		/* item color */
+		   0);		/* inherit (override) flag */
+d117 3
+a119 1
+	  sprintf(prevName, "%s", name);
+d121 6
+a126 3
+
+
+	/* Create the combination
+d134 6
+d141 8
+a148 8
+		 "air.r",	/* Name of the db element created */
+		 &bigList,		/* list of elements & boolean operations */
+		 is_region,	/* Flag:  This is a region */
+		 NULL,	/* optical shader */
+		 NULL, /* shader parameters */
+		 NULL,		/* item color */
+		 0);		/* inherit (override) flag */
+
+@
+
+
+11.1
+log
+@Globe is a testing proc that is being used to test effects of compound boundary-fitted solids (layered sphere sheels) with rt.
+@
+text
+@d97 1
+a97 1
+	  sprintf(shaderparams, "", (float)finalSize/currentSize);
+@
+

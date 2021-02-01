@@ -1,0 +1,637 @@
+head	11.11;
+access;
+symbols
+	ansi-20040405-merged:11.8.2.1
+	postmerge-20040405-ansi:11.9
+	premerge-20040404-ansi:11.8
+	postmerge-autoconf:11.8
+	autoconf-freeze:11.8
+	premerge-autoconf:11.8
+	postmerge-20040315-windows:11.8
+	premerge-20040315-windows:11.8
+	windows-20040315-freeze:11.8
+	autoconf-20031203:11.8
+	autoconf-20031202:11.8
+	autoconf-branch:11.8.0.10
+	phong-branch:11.8.0.8
+	photonmap-branch:11.8.0.6
+	rel-6-1-DP:11.8
+	windows-branch:11.8.0.4
+	rel-6-0-2:11.6
+	ansi-branch:11.8.0.2
+	rel-6-0-1-branch:11.6.0.2
+	hartley-6-0-post:11.7
+	hartley-6-0-pre:11.6
+	rel-6-0-1:11.6
+	rel-6-0:11.6
+	rel-5-4:11.3
+	offsite-5-3-pre:11.5
+	rel-5-3:11.3
+	rel-5-2:11.3
+	rel-5-1-branch:11.3.0.2
+	rel-5-1:11.3
+	rel-5-0:11.2
+	rel-5-0-beta:11.2
+	rel-4-5:11.1
+	ctj-4-5-post:11.1
+	ctj-4-5-pre:11.1
+	rel-4-4:11.1
+	rel-4-0:10.1
+	rel-3-5:9.1;
+locks; strict;
+comment	@ * @;
+
+
+11.11
+date	2004.05.21.14.57.41;	author morrison;	state dead;
+branches;
+next	11.10;
+
+11.10
+date	2004.05.10.15.30.50;	author erikg;	state Exp;
+branches;
+next	11.9;
+
+11.9
+date	2004.04.05.05.46.01;	author morrison;	state Exp;
+branches;
+next	11.8;
+
+11.8
+date	2002.08.20.17.08.58;	author jra;	state Exp;
+branches
+	11.8.2.1;
+next	11.7;
+
+11.7
+date	2002.08.15.20.56.11;	author hartley;	state Exp;
+branches;
+next	11.6;
+
+11.6
+date	2001.08.10.20.57.06;	author butler;	state Exp;
+branches;
+next	11.5;
+
+11.5
+date	2000.09.01.03.23.49;	author mike;	state Exp;
+branches;
+next	11.4;
+
+11.4
+date	2000.08.23.19.04.33;	author mike;	state Exp;
+branches;
+next	11.3;
+
+11.3
+date	2000.01.31.16.03.08;	author jra;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	98.09.22.03.22.25;	author mike;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	95.01.04.10.12.04;	author mike;	state Rel4_4;
+branches;
+next	10.2;
+
+10.2
+date	94.08.23.15.05.40;	author gdurf;	state Exp;
+branches;
+next	10.1;
+
+10.1
+date	91.10.12.06.48.14;	author mike;	state Rel4_0;
+branches;
+next	9.4;
+
+9.4
+date	91.09.30.19.55.35;	author butler;	state Exp;
+branches;
+next	9.3;
+
+9.3
+date	91.06.18.14.40.53;	author mmark;	state Exp;
+branches;
+next	9.2;
+
+9.2
+date	91.02.09.00.56.49;	author mike;	state Exp;
+branches;
+next	9.1;
+
+9.1
+date	89.05.19.06.09.30;	author mike;	state Rel3_5;
+branches;
+next	1.3;
+
+1.3
+date	89.05.08.17.21.01;	author phil;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	89.04.29.00.37.25;	author mike;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	89.04.29.00.30.26;	author mike;	state Exp;
+branches;
+next	;
+
+11.8.2.1
+date	2002.09.19.18.02.37;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@Lee Butler's Hex Dump program
+@
+
+
+11.11
+log
+@moved to src/util/
+@
+text
+@/*				H D 
+ *
+ *    Give a good ole' CPM style Hex dump of a file or standard input.
+ *
+ *    Author -
+ *	Lee A. Butler	butler@@BRL.MIL
+ *
+ *    Options
+ *    h    help
+ *    o    offset from begining of data from which to start dump
+ *
+ *  Distribution Status -
+ *	Public Domain, Distribution Unlimitied.
+ */
+#ifndef lint
+static const char RCSid[] = "@@(#)$Header: /n/xoff/cvs/brlcad/util/hd.c,v 11.10 2004/05/10 15:30:50 erikg Exp $ (BRL)";
+#endif
+
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+
+#include <stdio.h>
+#ifdef HAVE_STRING_H
+#include <string.h>
+#else
+#include <strings.h>
+#endif
+#include <ctype.h>
+
+#include "machine.h"
+#include "externs.h"		/* For getopt and strtol */
+
+/* declarations to support use of getopt() system call */
+static char	*options = "o:";
+static char	*progname = "(noname)";
+
+static long offset=0;	 /* offset from begining of file from which to start */
+
+#define DUMPLEN 16    /* number of bytes to dump on one line */
+
+/*
+ *    D U M P --- Dump file in hex
+ */
+void dump(FILE *fd)
+{
+	register int	i;
+	register char	*p;
+	int		bytes;
+	long		addr = 0L;
+	static char	buf[DUMPLEN];    /* input buffer */
+
+	if (offset != 0)  {	/* skip over "offset" bytes first */
+	    if (fseek(fd, offset, 0)) {	
+
+	    	/* If fseek fails, try reading our way to the desired offset.
+	    	 * The fseek will fail if we're reading from a pipe.
+		 */
+
+		addr=0;
+		while (addr < offset) {
+			if ((i=fread(buf, 1, sizeof(buf), fd)) == 0) {
+				fprintf(stderr,"%s: offset exceeds end of input!\n", progname);
+				exit(-1);
+			}
+			else addr += i;
+		}
+	    } else addr = offset;
+	}
+
+	/* dump address, Hex of buffer and ASCII of buffer */
+	while ((bytes=fread(buf, 1, sizeof(buf), fd)) > 0) {
+
+		/* print the offset into the file */
+		printf("%08lx", addr);
+
+		/* produce the hexadecimal dump */
+		for (i=0,p=buf ; i < DUMPLEN ; ++i) {
+			if (i < bytes) {
+				if (i%4 == 0) printf("  %02x", *p++ & 0x0ff);
+				else printf(" %02x", *p++ & 0x0ff);
+			}
+			else {
+				if (i%4 == 0) printf("    ");
+				else printf("   ");
+			}
+		}
+
+		/* produce the ASCII dump */
+		printf(" |");
+		for (i=0, p=buf ; i < bytes ; ++i,++p) {
+			if (isascii(*p) && isprint(*p)) putchar(*p);
+			else putchar('.');
+		}
+		printf("|\n");
+		addr += DUMPLEN;
+	}
+}
+
+/*
+ *	U S A G E --- Print helpful message and bail out
+ */
+void usage(void)
+{
+	(void) fprintf(stderr,"Usage: %s [-o offset] [file...]\n", progname);
+	exit(1);
+}
+
+/*    M A I N
+ *
+ *    Parse arguemnts and  call 'dump' to perform primary task.
+ */
+int
+main(int ac, char **av)
+{
+	int  c, optlen, files;
+	FILE *fd;
+	char *eos;
+	long newoffset;
+
+	progname = *av;
+
+	/* Get # of options & turn all the option flags off */
+	optlen = strlen(options);
+
+	for (c=0 ; c < optlen ; c++)  /* NIL */;
+
+	/* Turn off getopt's error messages */
+	opterr = 0;
+
+	/* get all the option flags from the command line */
+	while ((c=getopt(ac,av,options)) != EOF)
+		if (c == 'o'){
+			newoffset = strtol(optarg, &eos, 0);
+
+			if (eos != optarg) 
+				offset = newoffset;
+			else
+				fprintf(stderr,"%s: error parsing offset \"%s\"\n",
+					progname, optarg);
+		}
+		else usage();
+
+	if (offset%DUMPLEN != 0) offset -= offset % DUMPLEN;
+
+	if (optind >= ac ) {
+		/* no file left, try processing stdin */
+		if (isatty(fileno(stdin))) usage();
+		else dump(stdin);
+	}
+	else {
+		/* process each remaining arguments */
+		for (files = ac-optind; optind < ac; optind++) {
+			if ((fd=fopen(av[optind], "r")) == (FILE *)NULL) {
+				perror(av[optind]);
+				exit (-1);
+			}
+			if (files > 1) printf("/**** %s ****/\n", av[optind]);
+			dump(fd);
+			(void)fclose(fd);
+		}
+	}
+	return 0;
+}
+@
+
+
+11.10
+log
+@change conf.h to a wrapped config.h
+@
+text
+@d16 1
+a16 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/util/hd.c,v 11.9 2004/04/05 05:46:01 morrison Exp $ (BRL)";
+@
+
+
+11.9
+log
+@merge of ansi-6-0-branch into head
+@
+text
+@d16 1
+a16 1
+static const char RCSid[] = "@@(#)$Header$ (BRL)";
+d19 5
+a23 1
+#include "conf.h"
+@
+
+
+11.8
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d16 1
+a16 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/util/hd.c,v 11.6 2001/08/10 20:57:06 butler Exp $ (BRL)";
+d43 1
+a43 2
+void dump(fd)
+FILE *fd;
+d101 1
+a101 1
+void usage()
+d112 1
+a112 3
+main(ac,av)
+int ac;
+char *av[];
+@
+
+
+11.8.2.1
+log
+@Initial ANSIfication
+@
+text
+@d16 1
+a16 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/util/hd.c,v 11.8 2002/08/20 17:08:58 jra Exp $ (BRL)";
+d43 2
+a44 1
+void dump(FILE *fd)
+d102 1
+a102 1
+void usage(void)
+d113 3
+a115 1
+main(int ac, char **av)
+@
+
+
+11.7
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d43 2
+a44 1
+void dump(FILE *fd)
+d102 1
+a102 1
+void usage(void)
+d113 3
+a115 1
+main(int ac, char **av)
+@
+
+
+11.6
+log
+@Misc compiler warnings eliminated
+@
+text
+@d16 1
+a16 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/util/hd.c,v 11.5 2000/09/01 03:23:49 mike Exp $ (BRL)";
+d43 1
+a43 2
+void dump(fd)
+FILE *fd;
+d101 1
+a101 1
+void usage()
+d112 1
+a112 3
+main(ac,av)
+int ac;
+char *av[];
+@
+
+
+11.5
+log
+@
+Lint fix
+@
+text
+@d16 1
+a16 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/util/hd.c,v 11.4 2000/08/23 19:04:33 mike Exp $ (BRL)";
+d22 5
+@
+
+
+11.4
+log
+@
+const RCSid
+@
+text
+@d16 1
+a16 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/util/hd.c,v 11.3 2000/01/31 16:03:08 jra Exp $ (BRL)";
+d107 1
+d159 1
+@
+
+
+11.3
+log
+@Eliminated some unused variables
+@
+text
+@d16 1
+a16 1
+static char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/util/hd.c,v 11.2 1998/09/22 03:22:25 mike Exp $ (BRL)";
+@
+
+
+11.2
+log
+@Fixed printf args
+@
+text
+@d16 1
+a16 1
+static char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/util/hd.c,v 11.1 1995/01/04 10:12:04 mike Rel4_4 $ (BRL)";
+a28 1
+static char	 optflags[sizeof(options)];
+d121 1
+a121 1
+	for (c=0 ; c < optlen ; optflags[c++] = '\0')  /* NIL */;
+@
+
+
+11.1
+log
+@Release_4.4
+@
+text
+@d16 1
+a16 1
+static char RCSid[] = "@@(#)$Header: /m/cad/util/RCS/hd.c,v 10.2 94/08/23 15:05:40 gdurf Exp $ (BRL)";
+d135 2
+a136 1
+				fprintf(stderr,"%s: error parsing offset \"%s\"\n", optarg);
+@
+
+
+10.2
+log
+@Factored ifdefs
+@
+text
+@d16 1
+a16 1
+static char RCSid[] = "@@(#)$Header: /m/cad/util/RCS/hd.c,v 10.1 1991/10/12 06:48:14 mike Rel4_0 gdurf $ (BRL)";
+@
+
+
+10.1
+log
+@Release_4.0
+@
+text
+@d16 1
+a16 1
+static char RCSid[] = "@@(#)$Header: /n/wolf/m/cad/util/RCS/hd.c,v 9.4 91/09/30 19:55:35 butler Exp $ (BRL)";
+d19 2
+d24 2
+a25 5
+#ifdef BSD
+long atol();	/* best we can do... */
+#else
+long strtol();
+#endif
+a29 2
+extern char	*optarg;
+extern int	optind, opterr, getopt();
+a129 3
+#ifdef BSD
+			offset = atol(optarg);
+#else
+a135 1
+#endif
+@
+
+
+9.4
+log
+@altered so that we try to get to the desired offset via an "fseek()" first,
+and only if that fails, do we "fread()" our way to the desired offset.
+@
+text
+@d16 1
+a16 1
+static char RCSid[] = "@@(#)$Header: /n/wolf/m/cad/util/RCS/hd.c,v 9.3 91/06/18 14:40:53 mmark Exp $ (BRL)";
+@
+
+
+9.3
+log
+@fixed usage msg
+@
+text
+@d16 1
+a16 1
+static char RCSid[] = "@@(#)$Header: /m/cad/util/RCS/hd.c,v 9.2 91/02/09 00:56:49 mike Exp $ (BRL)";
+d51 7
+a57 1
+	if (offset != 0) {	/* skip over "offset" bytes first */
+d66 1
+@
+
+
+9.2
+log
+@lint
+@
+text
+@d16 1
+a16 1
+static char RCSid[] = "@@(#)$Header: /m/cad/util/RCS/hd.c,v 9.1 89/05/19 06:09:30 mike Rel3_5 $ (BRL)";
+d96 1
+a96 1
+	(void) fprintf(stderr,"Usage: %s [ -o offset ] file [file...]\n", progname);
+@
+
+
+9.1
+log
+@Release_3.5
+@
+text
+@d16 1
+a16 1
+static char RCSid[] = "@@(#)$Header: hd.c,v 1.3 89/05/08 17:21:01 phil Exp $ (BRL)";
+d109 1
+a109 1
+	FILE *fd, *fopen();
+@
+
+
+1.3
+log
+@use atol() on generic BSD since strtol doesn't exist
+anyone want to add one to libsysv?
+@
+text
+@d16 1
+a16 1
+static char RCSid[] = "@@(#)$Header: hd.c,v 1.2 89/04/29 00:37:25 phil Locked $ (BRL)";
+@
+
+
+1.2
+log
+@Added RCS header
+@
+text
+@d16 1
+a16 1
+static char RCSid[] = "@@(#)$Header$ (BRL)";
+d22 6
+d111 1
+a111 1
+	long strtol(), newoffset;
+d126 3
+d135 1
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d12 2
+d15 4
+@

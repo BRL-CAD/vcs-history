@@ -1,0 +1,781 @@
+head	11.14;
+access;
+symbols
+	ansi-20040405-merged:11.11.2.1
+	postmerge-20040405-ansi:11.12
+	premerge-20040404-ansi:11.11
+	postmerge-autoconf:11.11
+	autoconf-freeze:11.11
+	premerge-autoconf:11.11
+	ansi-20040316-freeze:11.11.2.1
+	postmerge-20040315-windows:11.11
+	premerge-20040315-windows:11.11
+	windows-20040315-freeze:11.11
+	autoconf-20031203:11.11
+	autoconf-20031202:11.11
+	autoconf-branch:11.11.0.10
+	phong-branch:11.11.0.8
+	photonmap-branch:11.11.0.6
+	rel-6-1-DP:11.11
+	windows-branch:11.11.0.4
+	rel-6-0-2:11.9
+	ansi-branch:11.11.0.2
+	rel-6-0-1-branch:11.9.0.2
+	hartley-6-0-post:11.10
+	hartley-6-0-pre:11.9
+	rel-6-0-1:11.9
+	rel-6-0:11.9
+	rel-5-4:11.4
+	offsite-5-3-pre:11.8
+	rel-5-3:11.4
+	rel-5-2:11.4
+	rel-5-1-branch:11.4.0.2
+	rel-5-1:11.4
+	rel-5-0:11.3
+	rel-5-0-beta:11.2
+	rel-4-5:11.1
+	ctj-4-5-post:11.1
+	ctj-4-5-pre:11.1
+	rel-4-4:11.1;
+locks; strict;
+comment	@ * @;
+
+
+11.14
+date	2004.05.21.18.06.24;	author morrison;	state dead;
+branches;
+next	11.13;
+
+11.13
+date	2004.05.10.15.30.44;	author erikg;	state Exp;
+branches;
+next	11.12;
+
+11.12
+date	2004.04.05.07.46.16;	author morrison;	state Exp;
+branches;
+next	11.11;
+
+11.11
+date	2002.08.20.17.07.40;	author jra;	state Exp;
+branches
+	11.11.2.1;
+next	11.10;
+
+11.10
+date	2002.08.15.20.54.53;	author hartley;	state Exp;
+branches;
+next	11.9;
+
+11.9
+date	2001.07.20.13.47.59;	author morrison;	state Exp;
+branches;
+next	11.8;
+
+11.8
+date	2000.10.24.17.47.32;	author mike;	state Exp;
+branches;
+next	11.7;
+
+11.7
+date	2000.10.24.15.30.23;	author mike;	state Exp;
+branches;
+next	11.6;
+
+11.6
+date	2000.08.21.02.02.34;	author butler;	state Exp;
+branches;
+next	11.5;
+
+11.5
+date	2000.07.10.23.01.48;	author mike;	state Exp;
+branches;
+next	11.4;
+
+11.4
+date	99.11.24.21.44.30;	author mike;	state Exp;
+branches;
+next	11.3;
+
+11.3
+date	99.06.03.01.39.16;	author mike;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	98.09.14.15.59.18;	author bparker;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	95.01.04.09.58.34;	author mike;	state Rel4_4;
+branches;
+next	1.4;
+
+1.4
+date	94.12.30.10.44.50;	author stay;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	94.11.04.06.04.59;	author mike;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	94.08.10.19.43.43;	author gdurf;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	94.06.07.15.07.39;	author cjohnson;	state Exp;
+branches;
+next	;
+
+11.11.2.1
+date	2002.09.19.18.01.12;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@A standardixed tokenizer (lexagraphical analyzer)
+@
+
+
+11.14
+log
+@moved to src/
+@
+text
+@/*		R T L E X . C
+ *
+ *  Author -
+ *	Christopher T. Johnson
+ *  
+ *  Source -
+ *	Geometric Solutions, Inc.
+ *  
+ *  Distribution Status -
+ *	Public Domain, Distribution Unlimited.
+ */
+#ifndef lint
+static const char RCSid[] = "@@(#)$Header: /n/xoff/cvs/brlcad/libbu/lex.c,v 11.13 2004/05/10 15:30:44 erikg Exp $ (ARL)";
+#endif
+
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+
+#include <stdio.h>
+#include <ctype.h>
+#include <string.h>
+#include "machine.h"
+#include "externs.h"
+#include "bu.h"
+
+static int bu_lex_reading_comment = 0;
+
+/*
+ *			B U _ L E X _ G E T O N E
+ */
+static char *
+bu_lex_getone(int *used, struct bu_vls *rtstr)
+{
+	register char *cp;
+	register char *sp;
+	register char *unit;
+	int	number;
+
+	number = 1;
+	*used = 0;
+
+	BU_CK_VLS(rtstr);
+	cp = bu_vls_addr(rtstr);
+top:
+	if (bu_lex_reading_comment) {
+		for(;;) {
+			register char tc;
+			tc = *cp; cp++;
+			if (!tc) {
+				return 0;
+			}
+			if (tc != '*') continue;
+			if (*cp != '/') continue;
+			cp++;	/* Skip the '/' */
+			break;
+		}
+		bu_lex_reading_comment = 0;
+	}
+		
+	/*
+	 * skip leading blanks
+	 */
+	for (; *cp && isspace(*cp); cp++);
+	/*
+	 * Is this a comment?  '#' to end of line is.
+	 */
+	if (!*cp || *cp == '#') {
+		return 0;
+	}
+	/*
+	 * Is this a 'C' multi-line comment?
+	 */
+	if (*cp == '/' && *(cp+1)=='*') {
+		cp += 2;
+		bu_lex_reading_comment = 1;
+		goto top;
+	}
+	/*
+	 * cp points to the first non-blank character.
+	 */
+	sp = cp;		/* start pointer */
+	while (*cp) {
+		register char tc;
+
+		tc = *cp; cp++;
+		/*
+		 * Numbers come in the following forms
+		 *	[0-9]*
+		 *	[0-9]*.[0-9][0-9]*
+		 *	[0-9]*.[0-9][0-9]*{e|E}{+|-}[0-9][0-9]*
+		 */
+		if (number) {
+			/*
+			 * We have not seen anything to make this NOT
+			 * a number.
+			 */
+			if (isdigit(tc)) {
+				if (number == 5 || number == 6) number = 7;
+				if (number == 3) number = 4;
+				if (number == 1) number = 2;
+				continue;
+			}
+			if (number==2 && tc == '.') {
+				/*
+				 * [0-9][0-9]*.
+				 */
+				number = 3;
+				continue;
+			}
+			if (number == 4 && (tc == 'e' || tc == 'E')) {
+				/*
+				 * [0-9][0-9]*.[0-9][0-9]*{e|E}
+				 */
+				number = 5;
+				continue;
+			}
+			if (number == 5 && (tc == '+' || tc == '-')) {
+				/*
+				 * [0-9][0-9]*.[0-9][0-9]*{e|E}{+|-}
+				 */
+				number = 6;
+				continue;
+			}
+			if (number == 3) break;
+			number = 0;
+		}
+		if (!isalnum(tc) && tc != '.' && tc != '_') break;
+	}
+	if (number ==  6) --cp;	/* subtract off the + or - */
+	if (number == 3) --cp;  /* subtract off the . */
+	/*
+	 * All spaces have been skipped. (sp)
+	 * if we had NUMBER. or NUMBERe{+|-} that has be replaced (cp)
+	 */
+	*used = cp - sp -1;
+	if (*used == 0) *used = 1;
+	unit = (char *)bu_malloc(*used+1, "unit token");
+	strncpy(unit,sp,*used);
+	unit[*used] = '\0';
+	*used = sp-bu_vls_addr(rtstr) + *used;
+	if (*used == 0) *used = 1;
+	return unit;
+}
+
+/*
+ *			B U _ L E X
+ */
+int
+bu_lex(
+	union bu_lex_token *token,
+	struct bu_vls *rtstr,
+	struct bu_lex_key *keywords,
+	struct bu_lex_key *symbols)
+{
+	char *unit;
+	char *cp;
+	int used;
+
+	/*
+	 * get a unit of information from rtstr.
+	 */
+	used = 0;
+	unit = bu_lex_getone(&used, rtstr);
+
+	/*
+	 * Was line empty or commented out.
+	 */
+	if (!unit) {
+		if (used) bu_bomb("bu_lex: Null unit, and something used.\n");
+		return BU_LEX_NEED_MORE;
+	}
+
+	/*
+	 * Decide if this unit is a symbol, number or identifier.
+	 */
+	if (isdigit(*unit)) {
+		/*
+		 * Humm, this could be a number.
+		 * 	octal -- 0[0-7]*
+		 *	hex   -- 0x[0-9a-f]*
+		 *	dec   -- [0-9][0-9]*
+		 *	dbl   -- [0-9][0-9]*.[0-9]*{{E|e}{+|-}[0-9][0-9]*}
+		 */
+		if (*unit == '0') { 	/* any of the above */
+			/*
+			 * 	octal -- 0[0-7]*
+			 */
+			for (cp=unit; *cp && *cp>='0' && *cp <='7'; cp++);
+			if (!*cp) {	/* We have an octal value */
+				token->type = BU_LEX_INT;
+				sscanf(unit,"%o", (unsigned int *)&token->t_int.value);
+				bu_free(unit,"unit token");
+				return used;
+			}
+			/*
+			 * if it is not an octal number, maybe it is
+			 * a hex number?"
+			 *	hex   -- 0x[0-9a-f]*
+			 */
+			cp=unit+1;
+			if (*cp == 'x' || *cp == 'X') {
+				for(;*cp && isxdigit(*cp);cp++);
+				if (!*cp) {
+					token->type = BU_LEX_INT;
+					sscanf(unit,"%x",(unsigned int *)&token->t_int.value);
+					bu_free(unit, "unit token");
+					return used;
+				}
+			}
+		}
+		/*
+		 * This could be a decimal number, a double or an identifier.
+		 *	dec   -- [0-9][0-9]*
+		 */
+		for (cp=unit; *cp && isdigit(*cp); cp++);
+		if (!*cp) {
+			token->type = BU_LEX_INT;
+			sscanf(unit,"%d", &token->t_int.value);
+			bu_free(unit, "unit token");
+			return used;
+		}
+		/*
+		 * if we are here, then this is either a double or
+		 * an identifier.
+		 *	dbl   -- [0-9][0-9]*.[0-9]*{{E|e}{+|-}[0-9][0-9]*}
+		 *
+		 * *cp should be a '.'
+		 */
+		if (*cp == '.') {
+			for(cp++;*cp &&isdigit(*cp);cp++);
+			if (*cp == 'e' || *cp == 'E') cp++;
+			if (*cp == '+' || *cp == '-') cp++;
+			for(;*cp &&isdigit(*cp);cp++);
+			if (!*cp) {
+				token->type = BU_LEX_DOUBLE;
+				sscanf(unit, "%lg", &token->t_dbl.value);
+				bu_free(unit, "unit token");
+				return used;
+			}
+		}
+		/*
+		 * Oh well, I guess it was not a number.  That means it
+		 * must be something else.
+		 */
+	}
+	/*
+	 * We either have an identifier, keyword, or symbol.
+	 */
+	if (symbols) {
+		if (!*(unit+1) ) {	/* single character, good choice for a symbol. */
+			register struct bu_lex_key *sp;
+			for (sp=symbols;sp->tok_val;sp++) {
+				if (*sp->string == *unit) {
+					token->type = BU_LEX_SYMBOL;
+					token->t_key.value = sp->tok_val;
+					bu_free(unit, "unit token");
+					return used;
+				}
+			}
+		}
+	}
+	if (keywords) {
+		register struct bu_lex_key *kp;
+		for (kp=keywords;kp->tok_val; kp++) {
+			if (strcmp(kp->string, unit) == 0) {
+				token->type = BU_LEX_KEYWORD;
+				token->t_key.value = kp->tok_val;
+				bu_free(unit, "unit token");
+				return used;
+			}
+		}
+	}
+	token->type = BU_LEX_IDENT;
+	token->t_id.value = unit;
+	return used;
+}
+@
+
+
+11.13
+log
+@change conf.h to a wrapped config.h
+@
+text
+@d13 1
+a13 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/libbu/lex.c,v 11.12 2004/04/05 07:46:16 morrison Exp $ (ARL)";
+@
+
+
+11.12
+log
+@merge of ansi-6-0-branch into HEAD
+@
+text
+@d13 1
+a13 1
+static const char RCSid[] = "@@(#)$Header$ (ARL)";
+d16 5
+a20 1
+#include "conf.h"
+@
+
+
+11.11
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d13 1
+a13 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/libbu/lex.c,v 11.9 2001/07/20 13:47:59 morrison Exp $ (ARL)";
+d31 1
+a31 3
+bu_lex_getone(used, rtstr)
+int *used;
+struct bu_vls *rtstr;
+@
+
+
+11.11.2.1
+log
+@Initial ANSIfication
+@
+text
+@d13 1
+a13 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/libbu/lex.c,v 11.11 2002/08/20 17:07:40 jra Exp $ (ARL)";
+d31 3
+a33 1
+bu_lex_getone(int *used, struct bu_vls *rtstr)
+@
+
+
+11.10
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d31 3
+a33 1
+bu_lex_getone(int *used, struct bu_vls *rtstr)
+@
+
+
+11.9
+log
+@compile warning quell (unsigned int *) cast
+@
+text
+@d13 1
+a13 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/libbu/lex.c,v 11.8 2000/10/24 17:47:32 mike Exp $ (ARL)";
+d31 1
+a31 3
+bu_lex_getone(used, rtstr)
+int *used;
+struct bu_vls *rtstr;
+@
+
+
+11.8
+log
+@
+rtlex.h has been absorbed into h/bu.h
+@
+text
+@d13 1
+a13 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/libbu/lex.c,v 11.7 2000/10/24 15:30:23 mike Exp $ (ARL)";
+d192 1
+a192 1
+				sscanf(unit,"%o",&token->t_int.value);
+d206 1
+a206 1
+					sscanf(unit,"%x",&token->t_int.value);
+@
+
+
+11.7
+log
+@
+moved librt/rtlex.c to libbu/lex.c
+@
+text
+@d13 1
+a13 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/libbu/lex.c,v 11.6 2000/08/21 02:02:34 butler Exp $ (ARL)";
+a23 1
+#include "rtlex.h"
+@
+
+
+11.6
+log
+@Massive compilation warnings eliminated
+@
+text
+@d13 1
+a13 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/librt/rtlex.c,v 11.5 2000/07/10 23:01:48 mike Exp $ (ARL)";
+d23 1
+a23 2
+#include "vmath.h"
+#include "raytrace.h"
+d26 1
+a26 1
+static int rt_lex_reading_comment = 0;
+d29 1
+a29 1
+ *			R T _ G E T O N E
+d32 1
+a32 1
+rt_getone(used, rtstr)
+d47 1
+a47 1
+	if (rt_lex_reading_comment) {
+d59 1
+a59 1
+		rt_lex_reading_comment = 0;
+d77 1
+a77 1
+		rt_lex_reading_comment = 1;
+d148 1
+a148 1
+ *			R T _ L E X
+d151 5
+a155 5
+rt_lex(token, rtstr, keywords, symbols)
+union rt_lex_token *token;
+struct bu_vls *rtstr;
+struct rt_lex_key *keywords;
+struct rt_lex_key *symbols;
+d165 1
+a165 1
+	unit = rt_getone(&used, rtstr);
+d171 2
+a172 2
+		if (used) rt_bomb("rt_lex: Null unit, and something used.\n");
+		return RT_LEX_NEED_MORE;
+d192 1
+a192 1
+				token->type = RT_LEX_INT;
+d206 1
+a206 1
+					token->type = RT_LEX_INT;
+d219 1
+a219 1
+			token->type = RT_LEX_INT;
+d237 1
+a237 1
+				token->type = RT_LEX_DOUBLE;
+d253 1
+a253 1
+			register struct rt_lex_key *sp;
+d256 1
+a256 1
+					token->type = RT_LEX_SYMBOL;
+d265 1
+a265 1
+		register struct rt_lex_key *kp;
+d268 1
+a268 1
+				token->type = RT_LEX_KEYWORD;
+d275 1
+a275 1
+	token->type = RT_LEX_IDENT;
+@
+
+
+11.5
+log
+@
+Added "const" to RCSid string, to silence warnings of unused variable
+on GCC compilers
+@
+text
+@d13 1
+a13 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/librt/rtlex.c,v 11.4 1999/11/24 21:44:30 mike Exp $ (ARL)";
+d20 1
+@
+
+
+11.4
+log
+@
+Removed includes of compat header files rtstring.h and rtlist.h
+@
+text
+@d13 1
+a13 1
+static char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/librt/rtlex.c,v 11.3 1999/06/03 01:39:16 mike Exp $ (ARL)";
+@
+
+
+11.3
+log
+@
+sed4
+@
+text
+@d13 1
+a13 1
+static char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/librt/rtlex.c,v 11.2 1998/09/14 15:59:18 bparker Exp $ (ARL)";
+a23 1
+#include "rtstring.h"
+@
+
+
+11.2
+log
+@*- fix typos
+@
+text
+@d13 1
+a13 1
+static char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/librt/rtlex.c,v 11.1 1995/01/04 09:58:34 mike Rel4_4 $ (ARL)";
+d35 1
+a35 1
+struct rt_vls *rtstr;
+d45 2
+a46 2
+	RT_VLS_CHECK(rtstr);
+	cp = rt_vls_addr(rtstr);
+d140 1
+a140 1
+	unit = (char *)rt_malloc(*used+1, "unit token");
+d143 1
+a143 1
+	*used = sp-rt_vls_addr(rtstr) + *used;
+d154 1
+a154 1
+struct rt_vls *rtstr;
+d195 1
+a195 1
+				rt_free(unit,"unit token");
+d209 1
+a209 1
+					rt_free(unit, "unit token");
+d222 1
+a222 1
+			rt_free(unit, "unit token");
+d240 1
+a240 1
+				rt_free(unit, "unit token");
+d259 1
+a259 1
+					rt_free(unit, "unit token");
+d271 1
+a271 1
+				rt_free(unit, "unit token");
+@
+
+
+11.1
+log
+@Release_4.4
+@
+text
+@d13 1
+a13 1
+static char RCSid[] = "@@(#)$Header: /m/cad/librt/RCS/rtlex.c,v 1.4 94/12/30 10:44:50 stay Exp $ (ARL)";
+d194 1
+a194 1
+				sscanf(unit,"%lo",&token->t_int.value);
+d208 1
+a208 1
+					sscanf(unit,"%lx",&token->t_int.value);
+d221 1
+a221 1
+			sscanf(unit,"%ld", &token->t_int.value);
+@
+
+
+1.4
+log
+@some compilers do not allow initialization during register varliable declaration (i.e. vax)
+@
+text
+@d13 1
+a13 1
+static char RCSid[] = "@@(#)$Header: /m/cad/librt/RCS/rtlex.c,v 1.3 94/11/04 06:04:59 mike Exp Locker: stay $ (ARL)";
+@
+
+
+1.3
+log
+@Irix 6
+@
+text
+@d13 1
+a13 1
+static char RCSid[] = "@@(#)$Header$ (ARL)";
+d86 3
+a88 2
+		register char tc=*cp;
+		cp++;
+@
+
+
+1.2
+log
+@Added include of conf.h
+@
+text
+@d3 8
+d12 4
+d21 3
+d26 1
+d28 6
+a33 2
+char *
+getone(used, rtstr)
+d146 4
+d165 1
+a165 1
+	unit = getone(&used, rtstr);
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d4 2
+@

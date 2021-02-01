@@ -1,0 +1,297 @@
+head	11.6;
+access;
+symbols
+	ansi-20040405-merged:11.4.2.1
+	postmerge-20040405-ansi:11.5
+	premerge-20040404-ansi:11.4
+	postmerge-autoconf:11.4
+	autoconf-freeze:11.4
+	premerge-autoconf:11.4
+	postmerge-20040315-windows:11.4
+	premerge-20040315-windows:11.4
+	windows-20040315-freeze:11.4
+	autoconf-20031203:11.4
+	autoconf-20031202:11.4
+	autoconf-branch:11.4.0.10
+	phong-branch:11.4.0.8
+	photonmap-branch:11.4.0.6
+	rel-6-1-DP:11.4
+	windows-branch:11.4.0.4
+	rel-6-0-2:11.2
+	ansi-branch:11.4.0.2
+	rel-6-0-1-branch:11.2.0.2
+	hartley-6-0-post:11.3
+	hartley-6-0-pre:11.2
+	rel-6-0-1:11.2
+	rel-6-0:11.2
+	rel-5-4:11.1
+	offsite-5-3-pre:11.2
+	rel-5-3:11.1
+	rel-5-2:11.1
+	rel-5-1-branch:11.1.0.2
+	rel-5-1:11.1
+	rel-5-0:11.1
+	rel-5-0-beta:11.1
+	rel-4-5:11.1
+	ctj-4-5-post:11.1
+	ctj-4-5-pre:11.1
+	rel-4-4:11.1
+	rel-4-0:1.1
+	rel-3-5:1.1
+	rel-3-0:1.1
+	rel-2-3:1.1
+	rel-2-0:1.1
+	rel-1-24:1.1
+	rel-1-20:1.1
+	rel-1-10:1.1;
+locks; strict;
+comment	@ * @;
+
+
+11.6
+date	2004.05.21.14.57.42;	author morrison;	state dead;
+branches;
+next	11.5;
+
+11.5
+date	2004.04.05.05.46.02;	author morrison;	state Exp;
+branches;
+next	11.4;
+
+11.4
+date	2002.08.20.17.08.58;	author jra;	state Exp;
+branches
+	11.4.2.1;
+next	11.3;
+
+11.3
+date	2002.08.15.20.56.11;	author hartley;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	2000.09.01.03.23.49;	author mike;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	95.01.04.10.12.06;	author mike;	state Rel4_4;
+branches;
+next	1.1;
+
+1.1
+date	86.04.16.23.11.19;	author mike;	state Exp;
+branches;
+next	;
+
+11.4.2.1
+date	2002.09.19.18.02.37;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@low pass filter
+@
+
+
+11.6
+log
+@moved to src/util/
+@
+text
+@/*
+ *  Read 3 .pix files, and do a 3D low-pass filter on them.
+ *  
+ *  Mike Muuss, BRL.
+ *
+ *  $Revision: 11.5 $
+ */
+#include <stdio.h>
+
+#define MAX_LINE	1024		/* Max pixels/line */
+static int scanbytes;			/* # of bytes of scanline */
+
+unsigned char *in1, *in2, *in3;
+
+/* Output line */
+unsigned char out1[MAX_LINE*3];
+
+static int nlines;		/* Number of input lines */
+static int pix_line;		/* Number of pixels/line */
+
+char usage[] = "Usage: lowp file1.pix file2.pix file3.pix [width] > out.pix\n";
+
+int infd1, infd2, infd3;		/* input fd's */
+
+int
+main(int argc, char **argv)
+{
+	static int x,y;
+
+	if( argc < 2 )  {
+		fprintf(stderr,"%s", usage);
+		exit(1);
+	}
+
+	nlines = 512;
+	if( (infd1 = open( argv[1], 0 )) < 0 )  {
+		perror( argv[1] );
+		exit(3);
+	}
+	if( (infd2 = open( argv[2], 0 )) < 0 )  {
+		perror( argv[2] );
+		exit(3);
+	}
+	if( (infd3 = open( argv[3], 0 )) < 0 )  {
+		perror( argv[3] );
+		exit(3);
+	}
+	if( argc == 5 )
+		nlines = atoi(argv[4] );
+
+	pix_line = nlines;	/* Square pictures */
+	scanbytes = nlines * pix_line * 3;
+	in1 = (unsigned char  *) malloc( scanbytes );
+	in2 = (unsigned char  *) malloc( scanbytes );
+	in3 = (unsigned char  *) malloc( scanbytes );
+	if( read( infd1, in1, scanbytes ) != scanbytes )
+		exit(0);
+	if( read( infd2, in2, scanbytes ) != scanbytes )
+		exit(0);
+	if( read( infd3, in3, scanbytes ) != scanbytes )
+		exit(0);
+
+	/* First and last are black */
+	bzero( out1, pix_line*3 );
+	write( 1, out1, pix_line*3 );
+
+	for( y=1; y < nlines-2; y++ )  {
+		static unsigned char *op;
+
+		op = out1+3;
+
+		/* do (width-2)*3 times, borders are black */
+		for( x=3; x < (pix_line-2)*3; x++ )  {
+			register int i;
+			register unsigned char *a, *b, *c;
+
+			i = (y*pix_line)*3+x;
+			a = in1+i;
+			b = in2+i;
+			c = in3+i;
+			i = pix_line*3;
+			*op++ = ( (int)
+a[-i-3]    + a[-i  ]*3  + a[-i+3]    +
+a[  -3]*3  + a[   0]*5  + a[   3]*3  +
+a[ i-3]    + a[ i  ]*3  + a[ i+3]    +
+
+b[-i-3]*3  + b[-i  ]*5  + b[-i+3]*3  +
+b[  -3]*5  + b[   0]*10 + b[   3]*5  +
+b[ i-3]*3  + b[ i  ]*5  + b[ i+3]*3  +
+
+c[-i-3]    + c[-i  ]*3  + c[-i+3]    +
+c[  -3]*3  + c[   0]*5  + c[   3]*3  +
+c[ i-3]    + c[ i  ]*3  + c[ i+3]
+				) / 84;
+		}
+		write( 1, out1, pix_line*3 );
+	}
+
+	/* First and last are black */
+	bzero( out1, pix_line*3 );
+	write( 1, out1, pix_line*3 );
+}
+@
+
+
+11.5
+log
+@merge of ansi-6-0-branch into head
+@
+text
+@d6 1
+a6 1
+ *  $Revision$
+@
+
+
+11.4
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d6 1
+a6 1
+ *  $Revision: 11.2 $
+d26 1
+a26 3
+main(argc, argv)
+int argc;
+char **argv;
+@
+
+
+11.4.2.1
+log
+@Initial ANSIfication
+@
+text
+@d6 1
+a6 1
+ *  $Revision: 11.4 $
+d26 3
+a28 1
+main(int argc, char **argv)
+@
+
+
+11.3
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d26 3
+a28 1
+main(int argc, char **argv)
+@
+
+
+11.2
+log
+@
+Lint fix
+@
+text
+@d6 1
+a6 1
+ *  $Revision: 11.1 $
+d26 1
+a26 3
+main(argc, argv)
+int argc;
+char **argv;
+@
+
+
+11.1
+log
+@Release_4.4
+@
+text
+@d6 1
+a6 1
+ *  $Revision: 1.1 $
+d25 1
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d6 1
+a6 1
+ *  $Revision: $
+@

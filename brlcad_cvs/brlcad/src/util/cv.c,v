@@ -1,0 +1,484 @@
+head	14.10;
+access;
+symbols
+	rel-7-10-4:14.10
+	STABLE:14.10.0.2
+	rel-7-10-2:14.10
+	rel-7-10-0:14.9
+	rel-7-8-4:14.7
+	rel-7-8-2:14.7
+	rel-7-8-0:14.7
+	trimnurbs-branch:14.7.0.2
+	help:14.7
+	temp_tag:14.5
+	bobWinPort-20051223-freeze:14.4
+	postmerge-20051223-bobWinPort:14.5
+	premerge-20051223-bobWinPort:14.5
+	rel-7-6-6:14.5
+	rel-7-6-4:14.5
+	rel-7-6-2:14.4
+	rel-7-6-branch:14.4.0.6
+	rel-7-6-0:14.4
+	rel-7-4-2:14.4
+	rel-7-4-branch:14.4.0.4
+	bobWinPort:14.4.0.2
+	rel-7-4-0:14.4
+	rel-7-2-6:14.3
+	rel-7-2-4:14.3
+	rel-7-2-2:14.3
+	rel-7-2-0:14.3
+	rel-7-0-4:14.2
+	rel-7-0-2:14.2
+	rel-7-0-1:14.2
+	opensource-post:14.2
+	opensource-pre:1.3
+	rel-7-0-branch:1.3.0.2
+	rel-7-0:1.3;
+locks; strict;
+comment	@ * @;
+
+
+14.10
+date	2007.07.26.01.13.59;	author brlcad;	state Exp;
+branches;
+next	14.9;
+
+14.9
+date	2007.01.23.01.13.55;	author brlcad;	state Exp;
+branches;
+next	14.8;
+
+14.8
+date	2007.01.20.14.37.05;	author brlcad;	state Exp;
+branches;
+next	14.7;
+
+14.7
+date	2006.02.27.10.08.41;	author brlcad;	state Exp;
+branches;
+next	14.6;
+
+14.6
+date	2006.01.18.06.46.27;	author brlcad;	state Exp;
+branches;
+next	14.5;
+
+14.5
+date	2005.10.23.04.44.39;	author brlcad;	state Exp;
+branches;
+next	14.4;
+
+14.4
+date	2005.06.30.00.08.37;	author erikgreenwald;	state Exp;
+branches
+	14.4.6.1;
+next	14.3;
+
+14.3
+date	2005.01.30.20.31.32;	author brlcad;	state Exp;
+branches;
+next	14.2;
+
+14.2
+date	2004.12.21.03.45.40;	author butler;	state Exp;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.32;	author morrison;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2004.08.02.23.01.53;	author morrison;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2004.06.08.22.04.43;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.15.21.44;	author morrison;	state Exp;
+branches;
+next	;
+
+14.4.6.1
+date	2005.11.13.13.46.20;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.10
+log
+@remove ephemeral data like phone numbers and addresses, including the misleading 'source' statements on code that is continually evolving and receiving contributions from many many sources
+@
+text
+@/*                            C V . C
+ * BRL-CAD
+ *
+ * Copyright (c) 1991-2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@file cv.c
+ *
+ *  Author -
+ *	Michael John Muuss
+ *
+ */
+#ifndef lint
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/cv.c,v 14.9 2007/01/23 01:13:55 brlcad Exp $ (BRL)";
+#endif
+
+#include "common.h"
+
+#include <stdlib.h>
+#include <stdio.h>
+#include <math.h>
+
+#ifdef HAVE_UNISTD_H
+#  include <unistd.h>
+#endif
+
+#include "machine.h"
+#include "bu.h"
+#include "vmath.h"
+#include "raytrace.h"
+
+
+char usage[] = "\
+Usage: cv in_pat out_pat [[infile] outfile]\n\
+\n\
+Where a pattern is: [h|n][s|u] c|s|i|l|d|8|16|32|64\n\
+e.g., hui is host unsigned int, nl is network (signed) long\n\
+";
+
+int	in_cookie;
+int	out_cookie;
+
+int	iitem;
+int	oitem;
+
+int	inbytes;
+int	outbytes;
+
+FILE	*infp;
+FILE	*outfp;
+
+genptr_t	ibuf;
+genptr_t	obuf;
+
+int
+main(int argc, char **argv)
+{
+	int	m;
+	int	n;
+
+	if( argc < 3 || argc > 5 )  {
+		fputs( usage, stderr );
+		return 1;
+	}
+
+	in_cookie = bu_cv_cookie( argv[1] );
+	out_cookie = bu_cv_cookie( argv[2] );
+
+	if( argc >= 5 )  {
+		if( (outfp = fopen( argv[4], "w" )) == NULL )  {
+			perror(argv[4]);
+			return 2;
+		}
+	} else {
+		outfp = stdout;
+	}
+
+	if( argc >= 4 )  {
+		if( (infp = fopen( argv[3], "r" )) == NULL )  {
+			perror(argv[3]);
+			return 3;
+		}
+	} else {
+		infp = stdin;
+	}
+
+	if( isatty(fileno(outfp)) )  {
+		fprintf(stderr, "cv: trying to send binary output to terminal\n");
+		return 5;
+	}
+
+	iitem = bu_cv_itemlen( in_cookie );
+	oitem = bu_cv_itemlen( out_cookie );
+#define NITEMS	(64*1024)
+	inbytes = NITEMS*iitem;
+	outbytes = NITEMS*oitem;
+
+	ibuf = (genptr_t)bu_malloc( inbytes, "cv input buffer" );
+	obuf = (genptr_t)bu_malloc( outbytes, "cv output buffer" );
+
+	while( !feof( infp ) )  {
+		if( (n = fread( ibuf, iitem, NITEMS, infp )) <= 0 )
+			break;
+		m = bu_cv_w_cookie( obuf, out_cookie, outbytes, ibuf, in_cookie, n );
+		if( m != n )  {
+			fprintf(stderr, "cv: bu_cv_w_cookie() ret=%d, count=%d\n", m, n );
+			return 4;
+		}
+		m = fwrite( obuf, oitem, n, outfp );
+		if( m != n )  {
+			perror("fwrite");
+			fprintf(stderr, "cv: fwrite() ret=%d, count=%d\n", m, n );
+			return 5;
+		}
+	}
+	fclose(infp);
+	fclose(outfp);
+
+	return 0;
+}
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+14.9
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@a24 4
+ *  Source -
+ *	SECAD/VLD Computing Consortium, Bldg 394
+ *	The U. S. Army Ballistic Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005-5066
+d27 1
+a27 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/cv.c,v 14.8 2007/01/20 14:37:05 brlcad Exp $ (BRL)";
+@
+
+
+14.8
+log
+@update copyright to 2007
+@
+text
+@d8 2
+a9 3
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+d14 1
+a14 1
+ * General Public License for more details.
+d16 2
+a17 2
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+d31 1
+a31 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/cv.c,v 14.7 2006/02/27 10:08:41 brlcad Exp $ (BRL)";
+@
+
+
+14.7
+log
+@stdlib.h and exit()
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 1991-2006 United States Government as represented by
+d32 1
+a32 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/cv.c,v 14.6 2006/01/18 06:46:27 brlcad Exp $ (BRL)";
+@
+
+
+14.6
+log
+@update copyright to 2006
+@
+text
+@d32 1
+a32 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/cv.c,v 14.5 2005/10/23 04:44:39 brlcad Exp $ (BRL)";
+d37 1
+d42 1
+a42 1
+# include <unistd.h>
+d50 1
+d81 1
+a81 1
+		exit(1);
+d90 1
+a90 1
+			exit(2);
+d99 1
+a99 1
+			exit(3);
+d107 1
+a107 1
+		exit(5);
+d125 1
+a125 1
+			exit(4);
+d131 1
+a131 1
+			exit(5);
+@
+
+
+14.5
+log
+@trailing ws
+@
+text
+@d4 1
+a4 1
+ * Copyright (C) 1991-2005 United States Government as represented by
+d32 1
+a32 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/cv.c,v 14.4 2005/06/30 00:08:37 erikgreenwald Exp $ (BRL)";
+@
+
+
+14.4
+log
+@added missing includes
+@
+text
+@d25 1
+a25 1
+ *  
+d32 1
+a32 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/cv.c,v 14.3 2005/01/30 20:31:32 brlcad Exp $ (BRL)";
+@
+
+
+14.4.6.1
+log
+@merge changes from HEAD aka rel-7-6-4 to the rel-7-6-branch just in case someone peeks a gander or tries to continue/build the branch
+@
+text
+@d25 1
+a25 1
+ *
+d32 1
+a32 1
+static const char RCSid[] = "@@(#)$Header$ (BRL)";
+@
+
+
+14.3
+log
+@update copyright to 2005
+@
+text
+@d32 1
+a32 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/cv.c,v 14.2 2004/12/21 03:45:40 butler Exp $ (BRL)";
+d39 5
+@
+
+
+14.2
+log
+@GPL license changes
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 1991-2004 United States Government as represented by
+d32 1
+a32 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/util/cv.c,v 14.1 2004/11/16 19:42:32 morrison Exp $ (BRL)";
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@d1 21
+a21 2
+/*
+ *			C V . C
+a29 4
+ *  
+ *  Copyright Notice -
+ *	This software is Copyright (C) 1991-2004 by the United States Army.
+ *	All rights reserved.
+d32 1
+a32 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/util/cv.c,v 1.3 2004/08/02 23:01:53 morrison Exp $ (BRL)";
+@
+
+
+1.3
+log
+@replace the wrapped config.h block with common.h
+@
+text
+@d17 1
+a17 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/util/cv.c,v 1.2 2004/06/08 22:04:43 morrison Exp $ (BRL)";
+d117 10
+@
+
+
+1.2
+log
+@obliterate externs.h
+@
+text
+@d17 1
+a17 1
+static const char RCSid[] = "@@(#)$Header$ (BRL)";
+d20 1
+a20 3
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+@
+
+
+1.1
+log
+@Vast reorganization begins.  Sources moved from top-level directories into src/.
+@
+text
+@d17 1
+a17 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/util/cv.c,v 11.10 2004/05/10 15:30:50 erikg Exp $ (BRL)";
+a23 1
+
+a26 1
+#include "externs.h"
+@
+

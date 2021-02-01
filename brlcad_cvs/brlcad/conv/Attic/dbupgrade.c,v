@@ -1,0 +1,600 @@
+head	1.10;
+access;
+symbols
+	ansi-20040405-merged:1.5.2.2
+	postmerge-20040405-ansi:1.8
+	premerge-20040404-ansi:1.7
+	postmerge-autoconf:1.7
+	autoconf-freeze:1.7
+	premerge-autoconf:1.7
+	ansi-20040316-freeze:1.5.2.1
+	postmerge-20040315-windows:1.7
+	premerge-20040315-windows:1.7
+	windows-20040315-freeze:1.5.4.1
+	autoconf-20031203:1.7
+	autoconf-20031202:1.7
+	autoconf-branch:1.7.0.4
+	phong-branch:1.7.0.2
+	photonmap-branch:1.6.0.2
+	rel-6-1-DP:1.5
+	windows-branch:1.5.0.4
+	rel-6-0-2:1.3
+	ansi-branch:1.5.0.2
+	rel-6-0-1-branch:1.3.0.2
+	hartley-6-0-post:1.4
+	hartley-6-0-pre:1.3
+	rel-6-0-1:1.3
+	rel-6-0:1.3;
+locks; strict;
+comment	@ * @;
+
+
+1.10
+date	2004.05.24.04.16.11;	author morrison;	state dead;
+branches;
+next	1.9;
+
+1.9
+date	2004.05.10.15.30.41;	author erikg;	state Exp;
+branches;
+next	1.8;
+
+1.8
+date	2004.04.05.07.49.36;	author morrison;	state Exp;
+branches;
+next	1.7;
+
+1.7
+date	2003.08.06.20.19.04;	author jra;	state Exp;
+branches;
+next	1.6;
+
+1.6
+date	2002.12.03.19.56.41;	author jra;	state Exp;
+branches
+	1.6.2.1;
+next	1.5;
+
+1.5
+date	2002.08.20.17.07.20;	author jra;	state Exp;
+branches
+	1.5.2.1
+	1.5.4.1;
+next	1.4;
+
+1.4
+date	2002.08.15.20.54.33;	author hartley;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2001.11.09.21.29.47;	author jra;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2001.11.07.00.55.27;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2001.10.04.15.18.22;	author jra;	state Exp;
+branches;
+next	;
+
+1.5.2.1
+date	2002.09.19.18.00.35;	author morrison;	state Exp;
+branches;
+next	1.5.2.2;
+
+1.5.2.2
+date	2004.03.17.21.15.54;	author morrison;	state Exp;
+branches;
+next	;
+
+1.5.4.1
+date	2004.03.11.23.40.29;	author morrison;	state Exp;
+branches;
+next	;
+
+1.6.2.1
+date	2003.08.26.14.03.20;	author justin;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.10
+log
+@moved to src/conv/
+@
+text
+@/******conv/dbupgrade.c
+ *
+ *	NAME
+ *		dbupgrade: program to upgrade database files to the current version
+ *
+ *      COPYRIGHT
+ *               Re-distribution of this software is restricted, as described in your
+ *               "Statement of Terms and Conditions for the Release of The BRL-CAD
+ *               Package" agreement.
+ *
+ *               Portions of this software and the associated databases and images are
+ *               Copyright (C) 1985, 1986, 1987, 1988, 1989, 1991, 1994, 1995, 2000, 2001
+ *               by the United States Army in all countries except the USA. Unauthorized
+ *               redistribution in any form is prohibited. Recipients of this
+ *               distribution are authorized unlimited use within their corporation,
+ *               organization, or agency.
+ *
+ *               The mark "BRL-CAD" is a Registered Trademark of the United States Army.
+ *               All rights reserved.
+ *
+ *               There is no warranty or other guarantee of fitness for this software,
+ *               it is provided solely "as is".  Bug reports or fixes must be sent
+ *               to ARL, which may or may not act on them.
+ *
+ *               This software was developed by and is proprietary to the United States
+ *               Government, and any use of the software without the written permission
+ *               of the US Army Research Laboratory is strictly prohibited. Any
+ *               unauthorized use of the software will be construed as an infringement of
+ *               the Government's rights and will subject the unauthorized user to
+ *               action(s) for infringement damages. (BRL MFR 380-15, Feb-88)
+ *
+ *               The software in the "contributed" directory is Public Domain, Distribution
+ *               Unlimited.  In addition, certain other modules in the BRL-CAD package
+ *               bear this designation.  Files so marked are available for unlimited use.
+ *	USAGE
+ *		dbupgrade input.g output.g
+ *
+ *	DESCRIPTION
+ *		Dbupgrade takes one input file and one output file name.
+ *		It recognizes the version of the BRL-CAD database provided
+ *		as input and converts it to the current database version.
+ *		This code is intended to be upgraded as new database versions
+ *		are created. Currently, only db version 4 can be upgraded.
+ */
+
+
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+
+#ifdef USE_STRING_H
+#include <string.h>
+#else
+#include <strings.h>
+#endif
+
+#include <stdio.h>
+
+#include "machine.h"
+#include "bu.h"
+#include "vmath.h"
+#include "bn.h"
+#include "raytrace.h"
+#include "rtgeom.h"
+#include "mater.h"
+
+
+int
+main(int argc, char **argv)
+{
+	struct rt_wdb	*fp;
+	struct db_i	*dbip;
+	struct db_i	*dbip4;
+	struct directory	*dp;
+	struct bn_tol tol;
+	struct mater *mp;
+	struct bu_vls colortab;
+	char name[17];
+	int reverse=0;
+	int in_arg=1;
+	int out_arg=2;
+	long	errors = 0, skipped = 0;
+	name[16] = '\0';
+
+	/* this tolerance structure is only used for converting polysolids to BOT's
+	 * use zero distance to avoid losing any polysolid facets
+	 */
+        tol.magic = BN_TOL_MAGIC;
+        tol.dist = 0.0;
+        tol.dist_sq = tol.dist * tol.dist;
+        tol.perp = 1e-6;
+        tol.para = 1 - tol.perp;
+
+	bu_debug = BU_DEBUG_COREDUMP;
+
+	rt_init_resource( &rt_uniresource, 0, NULL );
+
+	if( argc != 3 && argc != 4 )  {
+		fprintf(stderr, "Usage: %s input.g output.g\n", argv[0]);
+		return 1;
+	}
+
+	if( argc == 4 ) {
+		/* undocumented option to revert to an old db version
+		 * currently, can only revert to db version 4
+		 */
+		if( strcmp( argv[1], "-r" ) ) {
+			fprintf(stderr, "Usage: %s input.g output.g\n", argv[0]);
+			return 1;
+		} else {
+			reverse = 1;
+			in_arg = 2;
+			out_arg = 3;
+		}
+	}
+
+	if( !reverse ) {
+		if( (dbip = db_open( argv[in_arg], "r" )) == DBI_NULL )  {
+			perror( argv[in_arg] );
+			return 2;
+		}
+
+		if( (fp = wdb_fopen( argv[out_arg] )) == NULL )  {
+			perror( argv[out_arg] );
+			return 3;
+		}
+	} else {
+		if( (dbip = db_open( argv[in_arg], "r" )) == DBI_NULL )  {
+			perror( argv[in_arg] );
+			return 2;
+		}
+		if( (dbip4 = db_create( argv[out_arg], 4 )) == DBI_NULL ) {
+			bu_log( "Failed to create output database (%s)\n", argv[out_arg] );
+			return 3;
+		}
+
+		if( (fp = wdb_dbopen( dbip4, RT_WDB_TYPE_DB_DISK )) == RT_WDB_NULL ) {
+			bu_log( "db_dbopen() failed for %s\n", argv[out_arg] );
+			return 4;
+		}
+		
+	}
+
+	if( !reverse ) {
+		if( dbip->dbi_version == 5 ) {
+			bu_log( "This database (%s) is already at the current version\n",
+				argv[in_arg] );
+			return 5;
+		}
+		if( dbip->dbi_version != 4 ) {
+			bu_log( "Input database version not recognized!!!!\n" );
+			return 4;
+		}
+	} else if( reverse ) {
+		if( dbip->dbi_version != 5 ) {
+			bu_log( "Can only revert from db version 5\n" );
+			return 6;
+		}
+	}
+
+
+	RT_CK_DBI(dbip);
+	db_dirbuild( dbip );
+
+        if( (strcmp( dbip->dbi_title, "Untitled v4 BRL-CAD Database" )==0) && (dbip->dbi_version == 4) ) {
+		dbip->dbi_title=bu_strdup( "Untitled BRL-CAD Database" );
+        }
+	db_update_ident( fp->dbip, dbip->dbi_title, dbip->dbi_local2base );
+
+	/* set regionid color table */
+	if( rt_material_head != MATER_NULL ) {
+		bu_vls_init( &colortab );
+		for( mp = rt_material_head; mp != MATER_NULL; mp = mp->mt_forw )  {
+			bu_vls_printf( &colortab, "{%d %d %d %d %d} ", mp->mt_low, mp->mt_high,
+				       mp->mt_r, mp->mt_g, mp->mt_b);
+		}
+		db5_update_attribute("_GLOBAL", "regionid_colortable", bu_vls_addr(&colortab), fp->dbip);
+		bu_vls_free( &colortab );
+	}
+	
+
+	/* Retrieve every item in the input database */
+	FOR_ALL_DIRECTORY_START(dp, dbip)  {
+		struct rt_db_internal	intern;
+		int id;
+		int ret;
+
+		if( reverse && dp->d_major_type != DB5_MAJORTYPE_BRLCAD ) {
+			bu_log( "\t%s not supported in version4 databases, not converted\n",
+				dp->d_namep);
+			skipped++;
+			continue;
+		}
+		id = rt_db_get_internal( &intern, dp, dbip, NULL, &rt_uniresource );
+		if( id < 0 )  {
+			fprintf(stderr,
+				"%s: rt_db_get_internal(%s) failure, skipping\n",
+				argv[0], dp->d_namep);
+			errors++;
+			continue;
+		}
+		if( id == ID_COMBINATION ) {
+			struct rt_comb_internal *comb;
+			char *ptr;
+
+			comb = (struct rt_comb_internal *)intern.idb_ptr;
+			RT_CK_COMB( comb );
+
+			/* Convert "plastic" to "phong" in the shader string */
+			while( (ptr=strstr( bu_vls_addr( &comb->shader), "plastic" )) != NULL ) {
+				strncpy( ptr, "phong  ", 7 );
+			}
+		}
+		if ( id == ID_HF ) {
+			if (rt_hf_to_dsp( &intern, &rt_uniresource )) {
+				fprintf(stderr,
+					"%s: Conversion from HF to DSP failed for solid %s\n",
+					argv[0], dp->d_namep );
+				errors++;
+				continue;
+			}
+		}
+		if( id == ID_POLY)
+		{
+			if( rt_pg_to_bot( &intern, &tol, &rt_uniresource ) )
+			{
+				fprintf( stderr, "%s: Conversion from polysolid to BOT failed for solid %s\n",
+					argv[0], dp->d_namep );
+				errors++;
+				continue;
+			}
+		}
+
+		/* to insure null termination */
+		strncpy( name, dp->d_namep, 16 );
+		ret = wdb_put_internal( fp, name, &intern, 1.0 );
+		if( ret < 0 )  {
+			fprintf(stderr,
+				"%s: wdb_put_internal(%s) failure, skipping\n",
+				argv[0], dp->d_namep);
+			rt_db_free_internal( &intern, &rt_uniresource );
+			errors++;
+			continue;
+		}
+		rt_db_free_internal( &intern, &rt_uniresource );
+	} FOR_ALL_DIRECTORY_END
+
+	wdb_close( fp );
+	db_close( dbip );
+
+	fprintf(stderr, "%ld objects failed to convert\n", errors);
+	return 0;
+}
+@
+
+
+1.9
+log
+@change conf.h to a wrapped config.h
+@
+text
+@@
+
+
+1.8
+log
+@merge of ansi-6-0-branch into HEAD
+@
+text
+@d47 5
+a51 1
+#include "conf.h"
+@
+
+
+1.7
+log
+@Changed tolerance distance to zero to avoid losing any polysolid facets
+in conversion to BOT's
+@
+text
+@d67 1
+a67 3
+main(argc, argv)
+int	argc;
+char	**argv;
+@
+
+
+1.6
+log
+@dbi_title needed to be malloced memory
+@
+text
+@d85 3
+a87 1
+        /* XXX These need to be improved */
+d89 1
+a89 1
+        tol.dist = 0.005;
+@
+
+
+1.6.2.1
+log
+@updated for merging
+@
+text
+@d85 1
+a85 3
+	/* this tolerance structure is only used for converting polysolids to BOT's
+	 * use zero distance to avoid losing any polysolid facets
+	 */
+d87 1
+a87 1
+        tol.dist = 0.0;
+@
+
+
+1.5
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d164 1
+a164 1
+          dbip->dbi_title="Untitled BRL-CAD Database";
+a251 57
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+@
+
+
+1.5.4.1
+log
+@sync to HEAD...
+@
+text
+@d85 1
+a85 3
+	/* this tolerance structure is only used for converting polysolids to BOT's
+	 * use zero distance to avoid losing any polysolid facets
+	 */
+d87 1
+a87 1
+        tol.dist = 0.0;
+d164 1
+a164 1
+		dbip->dbi_title=bu_strdup( "Untitled BRL-CAD Database" );
+d252 57
+@
+
+
+1.5.2.1
+log
+@Initial ANSIfication
+@
+text
+@d67 3
+a69 1
+main(int argc, char **argv)
+@
+
+
+1.5.2.2
+log
+@sync branch with HEAD
+@
+text
+@d83 1
+a83 3
+	/* this tolerance structure is only used for converting polysolids to BOT's
+	 * use zero distance to avoid losing any polysolid facets
+	 */
+d85 1
+a85 1
+        tol.dist = 0.0;
+d162 1
+a162 1
+		dbip->dbi_title=bu_strdup( "Untitled BRL-CAD Database" );
+d250 57
+@
+
+
+1.4
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d67 3
+a69 1
+main(int argc, char **argv)
+@
+
+
+1.3
+log
+@Now converts regionid colortable also
+@
+text
+@d67 1
+a67 3
+main(argc, argv)
+int	argc;
+char	**argv;
+@
+
+
+1.2
+log
+@If the database still happens to have the default v4 title, remove the "v4" reference from it (since it is no longer a v4 database).
+@
+text
+@d63 1
+a63 1
+
+d76 2
+d167 12
+@
+
+
+1.1
+log
+@Initial version. Code to upgrade database version to current version
+@
+text
+@d161 3
+@
+

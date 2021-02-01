@@ -1,0 +1,700 @@
+head	14.15;
+access;
+symbols
+	rel-7-10-4:14.12
+	STABLE:14.12.0.2
+	rel-7-10-2:14.12
+	rel-7-10-0:14.12
+	rel-7-8-4:14.8
+	rel-7-8-2:14.8
+	rel-7-8-0:14.8
+	trimnurbs-branch:14.8.0.2
+	help:14.8
+	temp_tag:14.6
+	bobWinPort-20051223-freeze:14.4
+	postmerge-20051223-bobWinPort:14.6
+	premerge-20051223-bobWinPort:14.6
+	rel-7-6-6:14.6
+	rel-7-6-4:14.6
+	rel-7-6-2:14.4
+	rel-7-6-branch:14.4.0.6
+	rel-7-6-0:14.4
+	rel-7-4-2:14.4
+	rel-7-4-branch:14.4.0.4
+	bobWinPort:14.4.0.2
+	rel-7-4-0:14.4
+	rel-7-2-6:14.4
+	rel-7-2-4:14.4
+	rel-7-2-2:14.3
+	rel-7-2-0:14.3
+	rel-7-0-4:14.2
+	rel-7-0-2:14.2
+	rel-7-0-1:14.2
+	opensource-post:14.2
+	opensource-pre:1.3
+	rel-7-0-branch:1.3.0.2
+	rel-7-0:1.3;
+locks; strict;
+comment	@ * @;
+
+
+14.15
+date	2007.11.21.20.49.13;	author erikgreenwald;	state Exp;
+branches;
+next	14.14;
+
+14.14
+date	2007.11.21.18.55.37;	author erikgreenwald;	state Exp;
+branches;
+next	14.13;
+
+14.13
+date	2007.11.21.15.29.35;	author erikgreenwald;	state Exp;
+branches;
+next	14.12;
+
+14.12
+date	2007.02.02.08.48.30;	author brlcad;	state Exp;
+branches;
+next	14.11;
+
+14.11
+date	2007.01.27.01.41.53;	author brlcad;	state Exp;
+branches;
+next	14.10;
+
+14.10
+date	2007.01.23.01.13.55;	author brlcad;	state Exp;
+branches;
+next	14.9;
+
+14.9
+date	2007.01.20.14.37.05;	author brlcad;	state Exp;
+branches;
+next	14.8;
+
+14.8
+date	2006.02.27.10.08.41;	author brlcad;	state Exp;
+branches;
+next	14.7;
+
+14.7
+date	2006.01.18.06.46.27;	author brlcad;	state Exp;
+branches;
+next	14.6;
+
+14.6
+date	2005.10.23.04.44.39;	author brlcad;	state Exp;
+branches;
+next	14.5;
+
+14.5
+date	2005.09.21.19.05.37;	author brlcad;	state Exp;
+branches;
+next	14.4;
+
+14.4
+date	2005.05.04.04.03.05;	author brlcad;	state Exp;
+branches
+	14.4.6.1;
+next	14.3;
+
+14.3
+date	2005.01.30.20.31.33;	author brlcad;	state Exp;
+branches;
+next	14.2;
+
+14.2
+date	2004.12.21.03.45.40;	author butler;	state Exp;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.32;	author morrison;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2004.08.02.23.01.53;	author morrison;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2004.06.08.22.04.44;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.15.21.44;	author morrison;	state Exp;
+branches;
+next	;
+
+14.4.6.1
+date	2005.11.13.13.46.20;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.15
+log
+@pass bu_exit a NULL instead of an empty string
+@
+text
+@/*                       D S P _ A D D . C
+ * BRL-CAD
+ *
+ * Copyright (c) 2004-2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@file dsp_add.c
+ *
+ */
+
+/*	D S P _ A D D . C --- add 2 files of network unsigned shorts
+ *
+ *	Options
+ *	h	help
+ */
+#include "common.h"
+
+#include <stdlib.h>
+#include <stdio.h>
+#include <sys/stat.h>
+#include <unistd.h>
+
+#include "machine.h"
+#include "bu.h"
+#include "vmath.h"
+#include "bn.h"
+
+
+/* declarations to support use of bu_getopt() system call */
+char *options = "h";
+extern char *bu_optarg;
+extern int bu_optind, bu_opterr;
+
+/* , bu_getopt(int, char *const *, const char *);*/
+
+char *progname = "(noname)";
+
+#define ADD_STYLE_INT 0
+#define ADD_STYLE_FLOAT 1
+int style = ADD_STYLE_INT;
+
+/*
+ *	U S A G E --- tell user how to invoke this program, then exit
+ */
+void usage(char *s)
+{
+	if (s) (void)fputs(s, stderr);
+
+	(void) fprintf(stderr, "Usage: %s [ -%s ] dsp_1 dsp_2 > dsp_3\n",
+			progname, options);
+	bu_exit (1, NULL);
+}
+
+/*
+ *	P A R S E _ A R G S --- Parse through command line flags
+ */
+int parse_args(int ac, char *av[])
+{
+	int  c;
+	char *strrchr(const char *, int);
+
+	if (  ! (progname=strrchr(*av, '/'))  )
+		progname = *av;
+	else
+		++progname;
+
+	/* Turn off bu_getopt's error messages */
+	bu_opterr = 0;
+
+	/* get all the option flags from the command line */
+	while ((c=bu_getopt(ac,av,options)) != EOF)
+		switch (c) {
+		case '?'	:
+		case 'h'	:
+		default		: usage("Bad or help flag specified\n"); break;
+		}
+
+	return(bu_optind);
+}
+
+
+void
+swap_bytes(unsigned short *buf, unsigned long count)
+{
+	register unsigned short *p;
+
+	for (p = &buf[count-1] ; p >= buf ; p--)
+		*p = ((*p << 8) & 0x0ff00) | (*p >> 8);
+}
+
+
+/*
+ *  A D D _ F L O A T
+ *
+ *  Perform floating point addition and re-normalization of the data.
+ *
+ */
+void
+add_float(unsigned short *buf1, unsigned short *buf2, unsigned long count)
+{
+	register unsigned short *p, *q, *e;
+	register double *dbuf, *d;
+	double min, max, k;
+
+	dbuf = bu_malloc(sizeof(double) * count, "buffer of double");
+
+	min = MAX_FASTF;
+	max = -MAX_FASTF;
+	e = &buf1[count];
+
+	/* add everything, keeping track of the min/max values found */
+	for (d=dbuf, p=buf1, q=buf2 ; p < e ; p++, q++, d++) {
+		*d = *p + *q;
+		if (*d > max) max = *d;
+		if (*d < min) min = *d;
+	}
+
+	/* now we convert back to unsigned shorts in the range 1 .. 65535 */
+
+	k = 65534.0 / (max - min);
+
+	bu_log("min: %g scale: %g\n", min - k, k);
+
+	for (d=dbuf, p=buf1, q=buf2 ; p < e ; p++, q++, d++)
+		*p = (unsigned short)  ((*d - min) * k) + 1;
+
+	bu_free(dbuf, "buffer of double");
+}
+
+/*
+ *  A D D _ I N T
+ *
+ *  Perform simple integer addition to the input streams.
+ *  Issue warning on overflow.
+ *
+ *  Result:	buf1 contents modified
+ */
+void
+add_int(unsigned short *buf1, unsigned short *buf2, unsigned long count)
+{
+	register int int_value;
+	int i;
+	unsigned short s;
+
+	for (i=0; i < count ; i++) {
+		int_value = buf1[i] + buf2[i];
+		s = (unsigned short)int_value;
+
+		if (s != int_value) {
+			bu_log("overflow (%d+%d) == %d at %d\n",
+			       buf1[i], buf2[i], int_value, i );
+		}
+		buf1[i] = s;
+	}
+
+}
+
+
+/*
+ *	M A I N
+ *
+ *	Call parse_args to handle command line arguments first, then
+ *	process input.
+ */
+int
+main(int ac, char *av[])
+{
+	int next_arg;
+	FILE *in1, *in2;
+	unsigned short *buf1, *buf2;
+	unsigned long count;
+	int in_cookie, out_cookie;
+	int conv;
+	struct stat sb;
+
+	next_arg = parse_args(ac, av);
+
+	if (isatty(fileno(stdout))) usage("Redirect standard output\n");
+
+	if (next_arg >= ac) usage("No files specified\n");
+
+
+	/* Open the files */
+
+	if (stat(av[next_arg], &sb) ||
+	    (in1 = fopen(av[next_arg], "r"))  == (FILE *)NULL) {
+		perror(av[next_arg]);
+		return -1;
+	}
+
+	count = (unsigned long)sb.st_size;
+	buf1 = bu_malloc((size_t)sb.st_size, "buf1");
+
+	next_arg++;
+
+	if (stat(av[next_arg], &sb) ||
+	    (in2 = fopen(av[next_arg], "r"))  == (FILE *)NULL) {
+		perror(av[next_arg]);
+		return -1;
+	}
+
+	if (sb.st_size != count)
+		bu_exit( EXIT_FAILURE, "**** ERROR **** file size mis-match\n");
+
+	buf2 = bu_malloc((size_t)sb.st_size, "buf2");
+
+	count = count >> 1; /* convert count of char to count of short */
+
+	/* Read the terrain data */
+	fread(buf1, sizeof(short), count, in1);
+	fclose(in1);
+
+	fread(buf2, sizeof(short), count, in2);
+	fclose(in2);
+
+
+	/* Convert from network to host format */
+	in_cookie = bu_cv_cookie("nus");
+	out_cookie = bu_cv_cookie("hus");
+	conv = (bu_cv_optimize(in_cookie) != bu_cv_optimize(out_cookie));
+
+	if (conv) {
+		swap_bytes(buf1, count);
+		swap_bytes(buf2, count);
+	}
+
+
+	/* add the two datasets together */
+
+	switch (style) {
+	case ADD_STYLE_FLOAT	: add_float(buf1, buf2, count); break;
+	case ADD_STYLE_INT	: add_int(buf1, buf2, count); break;
+	default			: fprintf(stderr,
+					"Error: Unknown add style\n");
+				break;
+	}
+
+
+	/* convert back to network format & write out */
+	if (conv) {
+		swap_bytes(buf1, count);
+		swap_bytes(buf2, count);
+	}
+
+	if (fwrite(buf1, sizeof(short), count, stdout) != count) {
+		fprintf(stderr, "Error writing data\n");
+		return -1;
+	}
+
+	return 0;
+}
+
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+14.14
+log
+@exit->bu_exit where applicable
+@
+text
+@d64 1
+a64 1
+	bu_exit (1, "");
+@
+
+
+14.13
+log
+@change bu_bomb to bu_exit when the sky isn't really falling
+@
+text
+@d64 1
+a64 1
+	exit(1);
+@
+
+
+14.12
+log
+@convert all of the lingering getopt calls to bu_getopt (as well as the related getopt globals optind, opterr, optarg) -- libbu's getopt has the benefit of being re-entrant and is portable to environments where getopt() may not be available.
+@
+text
+@d216 1
+a216 1
+		bu_bomb("**** ERROR **** file size mis-match\n");
+@
+
+
+14.11
+log
+@ws. lots and lots of ws.  see sh/ws.sh for details (cases 'abcdeg').
+@
+text
+@d45 1
+a45 1
+extern int bu_optind, opterr;
+d81 1
+a81 1
+	opterr = 0;
+@
+
+
+14.10
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@a229 1
+
+@
+
+
+14.9
+log
+@update copyright to 2007
+@
+text
+@d8 2
+a9 3
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+d14 1
+a14 1
+ * General Public License for more details.
+d16 2
+a17 2
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+@
+
+
+14.8
+log
+@stdlib.h and exit()
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 2004-2006 United States Government as represented by
+@
+
+
+14.7
+log
+@update copyright to 2006
+@
+text
+@d32 1
+@
+
+
+14.6
+log
+@trailing ws
+@
+text
+@d4 1
+a4 1
+ * Copyright (C) 2004-2005 United States Government as represented by
+@
+
+
+14.5
+log
+@needs bu.h for bu_getopt
+@
+text
+@d45 1
+a45 1
+extern int bu_optind, opterr; 
+d47 1
+a47 1
+/* , bu_getopt(int, char *const *, const char *);*/ 
+d107 1
+a107 1
+ *  
+d146 1
+a146 1
+ *  Perform simple integer addition to the input streams.  
+d190 1
+a190 1
+	
+d203 1
+a203 1
+	    
+d214 1
+a214 1
+	    
+@
+
+
+14.4
+log
+@cast stat size to a safe type in case off_t is a 64bit type
+@
+text
+@d42 1
+a42 1
+/* declarations to support use of getopt() system call */
+d44 2
+a45 2
+extern char *optarg;
+extern int optind, opterr; 
+d47 1
+a47 1
+/* , getopt(int, char *const *, const char *);*/ 
+d80 1
+a80 1
+	/* Turn off getopt's error messages */
+d84 1
+a84 1
+	while ((c=getopt(ac,av,options)) != EOF)
+d91 1
+a91 1
+	return(optind);
+@
+
+
+14.4.6.1
+log
+@merge changes from HEAD aka rel-7-6-4 to the rel-7-6-branch just in case someone peeks a gander or tries to continue/build the branch
+@
+text
+@d42 1
+a42 1
+/* declarations to support use of bu_getopt() system call */
+d44 2
+a45 2
+extern char *bu_optarg;
+extern int bu_optind, opterr;
+d47 1
+a47 1
+/* , bu_getopt(int, char *const *, const char *);*/
+d80 1
+a80 1
+	/* Turn off bu_getopt's error messages */
+d84 1
+a84 1
+	while ((c=bu_getopt(ac,av,options)) != EOF)
+d91 1
+a91 1
+	return(bu_optind);
+d107 1
+a107 1
+ *
+d146 1
+a146 1
+ *  Perform simple integer addition to the input streams.
+d190 1
+a190 1
+
+d203 1
+a203 1
+
+d214 1
+a214 1
+
+@
+
+
+14.3
+log
+@update copyright to 2005
+@
+text
+@d204 2
+a205 2
+	count = sb.st_size;
+	buf1 = bu_malloc(sb.st_size, "buf1");
+d218 1
+a218 1
+	buf2 = bu_malloc(sb.st_size, "buf2");
+@
+
+
+14.2
+log
+@GPL license changes
+@
+text
+@d4 2
+a5 2
+ * Copyright (c) 2004 United States Government as represented by the
+ * U.S. Army Research Laboratory.
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@d1 24
+@
+
+
+1.3
+log
+@replace the wrapped config.h block with common.h
+@
+text
+@d243 10
+@
+
+
+1.2
+log
+@obliterate externs.h
+@
+text
+@d6 1
+a6 3
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+@
+
+
+1.1
+log
+@Vast reorganization begins.  Sources moved from top-level directories into src/.
+@
+text
+@a9 2
+
+
+a14 1
+#include "externs.h"
+@
+

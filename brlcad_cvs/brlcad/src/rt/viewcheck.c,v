@@ -1,0 +1,1058 @@
+head	14.16;
+access;
+symbols
+	rel-7-10-4:14.14
+	STABLE:14.14.0.2
+	stable-branch:14.4
+	rel-7-10-2:14.14
+	rel-7-10-0:14.11
+	rel-7-8-4:14.9
+	rel-7-8-2:14.9
+	rel-7-8-0:14.9
+	trimnurbs-branch:14.9.0.2
+	help:14.9
+	temp_tag:14.8
+	bobWinPort-20051223-freeze:14.7
+	postmerge-20051223-bobWinPort:14.8
+	premerge-20051223-bobWinPort:14.8
+	rel-7-6-6:14.8
+	rel-7-6-4:14.8
+	rel-7-6-2:14.7
+	rel-7-6-branch:14.7.0.4
+	rel-7-6-0:14.7
+	rel-7-4-2:14.6
+	rel-7-4-branch:14.6.0.2
+	bobWinPort:14.7.0.2
+	rel-7-4-0:14.6
+	rel-7-2-6:14.5
+	rel-7-2-4:14.4
+	rel-7-2-2:14.4
+	rel-7-2-0:14.4
+	rel-7-0-4:14.3
+	rel-7-0-2:14.3
+	rel-7-0-1:14.2
+	opensource-post:14.2
+	opensource-pre:1.2
+	rel-7-0-branch:1.2.0.2
+	rel-7-0:1.2;
+locks; strict;
+comment	@ * @;
+
+
+14.16
+date	2007.12.14.20.28.37;	author brlcad;	state Exp;
+branches;
+next	14.15;
+
+14.15
+date	2007.09.15.16.23.20;	author brlcad;	state Exp;
+branches;
+next	14.14;
+
+14.14
+date	2007.07.03.01.16.36;	author brlcad;	state Exp;
+branches;
+next	14.13;
+
+14.13
+date	2007.04.30.21.43.48;	author brlcad;	state Exp;
+branches;
+next	14.12;
+
+14.12
+date	2007.04.17.03.23.57;	author brlcad;	state Exp;
+branches;
+next	14.11;
+
+14.11
+date	2007.01.23.01.13.46;	author brlcad;	state Exp;
+branches;
+next	14.10;
+
+14.10
+date	2007.01.20.14.37.00;	author brlcad;	state Exp;
+branches;
+next	14.9;
+
+14.9
+date	2006.01.18.06.46.24;	author brlcad;	state Exp;
+branches;
+next	14.8;
+
+14.8
+date	2005.10.23.04.44.38;	author brlcad;	state Exp;
+branches;
+next	14.7;
+
+14.7
+date	2005.08.15.21.42.08;	author bob1961;	state Exp;
+branches
+	14.7.4.1;
+next	14.6;
+
+14.6
+date	2005.06.14.17.31.14;	author bob1961;	state Exp;
+branches;
+next	14.5;
+
+14.5
+date	2005.06.07.02.42.54;	author brlcad;	state Exp;
+branches;
+next	14.4;
+
+14.4
+date	2005.01.30.20.31.10;	author brlcad;	state Exp;
+branches;
+next	14.3;
+
+14.3
+date	2004.12.24.01.40.00;	author brlcad;	state Exp;
+branches;
+next	14.2;
+
+14.2
+date	2004.12.21.06.38.22;	author morrison;	state Exp;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.31;	author morrison;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2004.08.02.23.01.52;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.15.20.47;	author morrison;	state Exp;
+branches;
+next	;
+
+14.7.4.1
+date	2005.11.13.13.46.19;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.16
+log
+@quell warnings, add the missing partition head pointer to the overlap callback
+@
+text
+@/*                     V I E W C H E C K . C
+ * BRL-CAD
+ *
+ * Copyright (c) 1988-2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@file viewcheck.c
+ *
+ *  Ray Tracing program RTCHECK bottom half.
+ *
+ *  This module outputs overlapping partitions, no other information.
+ *  The partitions are written to the output file (typically stdout)
+ *  as BRL-UNIX-plot 3-D floating point lines, so that they can be
+ *  processed by any tool that reads UNIX-plot.  Because the BRL UNIX
+ *  plot format is defined in a machine independent way, this program
+ *  can be run anywhere, and the results piped back for local viewing,
+ *  for example, on a workstation.
+ *
+ *  ToDo: It would be nice if we could pass in (1) an overlap depth
+ *  tolerance, (2) choose either region pair or solid pair grouping.
+ *
+ *  Authors -
+ *	Michael John Muuss
+ *	Gary S. Moss
+ *
+ *  Source -
+ *	SECAD/VLD Computing Consortium, Bldg 394
+ *	The U. S. Army Ballistic Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005
+ *
+ */
+#ifndef lint
+static const char RCScheckview[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/rt/viewcheck.c,v 14.15 2007/09/15 16:23:20 brlcad Exp $ (BRL)";
+#endif
+
+#include "common.h"
+
+#include <stdio.h>
+#include <string.h>
+
+#include "machine.h"
+#include "vmath.h"
+#include "raytrace.h"
+#include "plot3.h"
+
+#define OVLP_TOL	0.1
+
+extern int	rpt_overlap;		/* report overlapping region names */
+int		use_air = 0;		/* Handling of air in librt */
+extern int	rt_text_mode;
+
+
+/* Viewing module specific "set" variables */
+struct bu_structparse view_parse[] = {
+	{"",	0, (char *)0,	0,		BU_STRUCTPARSE_FUNC_NULL }
+};
+
+extern FILE	*outfp;
+
+
+const char title[] = "RT Check";
+const char usage[] = "Usage:  rtcheck [options] model.g objects...\n\
+Options:\n\
+ -s #       Square grid size in pixels (default 512)\n\
+ -w # -n #  Grid size width and height in pixels\n\
+ -V #       View (pixel) aspect ratio (width/height)\n\
+ -a #       Azimuth in degrees\n\
+ -e #       Elevation in degrees\n\
+ -g #       Grid cell width\n\
+ -G #       Grid cell height\n\
+ -M         Read matrix, cmds on stdin\n\
+ -N #	    Set NMG debug flags\n\
+ -o file.pl Specify UNIX-plot output file\n\
+ -x #       Set librt debug flags\n\
+ -X #       Set rt debug flags\n\
+ -r         Report only unique overlaps\n\
+ -P #       Set number of processors\n\
+";
+
+static int	noverlaps;		/* Number of overlaps seen */
+static int	overlap_count;		/* Number of overlap pairs seen */
+static int	unique_overlap_count;	/* Number of unique overlap pairs seen */
+
+/*
+ *  For each unique pair of regions that we find an overlap for
+ *  we build up one of these structures.
+ *  Note that we could also discriminate at the solid pair level.
+ */
+struct overlap_list {
+	struct overlap_list *next;	/* next one */
+	const char 	*reg1;		/* overlapping region 1 */
+	const char	*reg2;		/* overlapping region 2 */
+	long	count;			/* number of time reported */
+	double	maxdepth;		/* maximum overlap depth */
+};
+static struct overlap_list *olist=NULL;	/* root of the list */
+
+
+/*
+ *			H I T
+ *
+ * Null function -- handle a hit
+ */
+/*ARGSUSED*/
+int
+hit(struct application *ap, register struct partition *PartHeadp, struct seg *segHeadp)
+{
+	return	1;
+}
+
+/*
+ *			M I S S
+ *
+ *  Null function -- handle a miss
+ */
+/*ARGSUSED*/
+int
+miss(struct application *ap)
+{
+	return	0;
+}
+
+/*
+ *			O V E R L A P
+ *
+ *  Write end points of partition to the standard output.
+ *  If this routine return !0, this partition will be dropped
+ *  from the boolean evaluation.
+ */
+int
+overlap(struct application *ap, struct partition *pp, struct region *reg1, struct region *reg2, struct partition *hp)
+{
+	register struct xray	*rp = &ap->a_ray;
+	register struct hit	*ihitp = pp->pt_inhit;
+	register struct hit	*ohitp = pp->pt_outhit;
+	vect_t	ihit;
+	vect_t	ohit;
+	double depth;
+
+	VJOIN1( ihit, rp->r_pt, ihitp->hit_dist, rp->r_dir );
+	VJOIN1( ohit, rp->r_pt, ohitp->hit_dist, rp->r_dir );
+	depth = ohitp->hit_dist - ihitp->hit_dist;
+	if( depth < OVLP_TOL )
+		return(0);
+
+	bu_semaphore_acquire( BU_SEM_SYSCALL );
+	pdv_3line( outfp, ihit, ohit );
+	noverlaps++;
+	bu_semaphore_release( BU_SEM_SYSCALL );
+
+	if( !rpt_overlap ) {
+		bu_log("OVERLAP %d: %s\nOVERLAP %d: %s\nOVERLAP %d: depth %gmm\nOVERLAP %d: in_hit_point (%g,%g,%g) mm\nOVERLAP %d: out_hit_point (%g,%g,%g) mm\n------------------------------------------------------------\n",
+			noverlaps,reg1->reg_name,
+			noverlaps,reg2->reg_name,
+			noverlaps,depth,
+			noverlaps,ihit[X],ihit[Y],ihit[Z],
+			noverlaps,ohit[X],ohit[Y],ohit[Z]);
+
+	/* If we report overlaps, don't print if already noted once.
+	 * Build up a linked list of known overlapping regions and compare
+	 * againt it.
+	 */
+	} else {
+		struct overlap_list	*prev_ol = (struct overlap_list *)0;
+		struct overlap_list	*op;		/* overlap list */
+		struct overlap_list     *new_op;
+		new_op =(struct overlap_list *)bu_malloc(sizeof(struct overlap_list),"overlap list");
+
+		/* look for it in our list */
+		bu_semaphore_acquire( BU_SEM_SYSCALL );
+		for( op=olist; op; prev_ol=op, op=op->next ) {
+
+			/* if we already have an entry for this region pair,
+			 * we increase the counter and return
+			 */
+			if( (strcmp(reg1->reg_name,op->reg1) == 0) && (strcmp(reg2->reg_name,op->reg2) == 0) ) {
+				op->count++;
+				if( depth > op->maxdepth )
+					op->maxdepth = depth;
+				bu_semaphore_release( BU_SEM_SYSCALL );
+				bu_free( (char *) new_op, "overlap list");
+				return	0;	/* already on list */
+			}
+		}
+
+		for( op=olist; op; prev_ol=op, op=op->next ) {
+			/* if this pair was seen in reverse, decrease the unique counter */
+			if ( (strcmp(reg1->reg_name, op->reg2) == 0) && (strcmp(reg2->reg_name, op->reg1) == 0) ) {
+				unique_overlap_count--;
+				break;
+			}
+		}
+
+		/* we have a new overlapping region pair */
+		overlap_count++;
+		unique_overlap_count++;
+
+		op = new_op;
+		if( olist )		/* previous entry exists */
+			prev_ol->next = op;
+		else
+			olist = op;	/* finally initialize root */
+		op->reg1 = reg1->reg_name;
+		op->reg2 = reg2->reg_name;
+		op->maxdepth = depth;
+		op->next = NULL;
+		op->count = 1;
+		bu_semaphore_release( BU_SEM_SYSCALL );
+	}
+
+	/* useful debugging */
+	if (0) {
+		struct overlap_list	*op;		/* overlap list */
+		bu_log("PRINTING LIST::reg1==%s, reg2==%s\n", reg1->reg_name, reg2->reg_name);
+		for (op=olist; op; op=op->next) {
+			bu_log("\tpair: %s  %s  %d matches\n", op->reg1, op->reg2, op->count);
+		}
+	}
+
+	return(0);	/* No further consideration to this partition */
+}
+
+/*
+ *  			V I E W _ I N I T
+ *
+ *  Called once for this run.
+ */
+int
+view_init(register struct application *ap, char *file, char *obj, int minus_o)
+{
+	ap->a_hit = hit;
+	ap->a_miss = miss;
+	ap->a_overlap = overlap;
+	ap->a_logoverlap = rt_silent_logoverlap;
+	ap->a_onehit = 0;
+	if( !minus_o)			/* Needs to be set to  stdout */
+		outfp = stdout;
+
+	if (rt_text_mode)
+	    pl_setOutputMode(PL_OUTPUT_MODE_TEXT);
+
+	return	0;		/* No framebuffer needed */
+}
+
+/*
+ *			V I E W _ 2 I N I T
+ *
+ *  Called at the beginning of each frame
+ */
+void
+view_2init(register struct application *ap)
+{
+	register struct rt_i *rtip = ap->a_rt_i;
+
+	pdv_3space( outfp, rtip->rti_pmin, rtip->rti_pmax );
+	noverlaps = 0;
+	overlap_count = 0;
+	unique_overlap_count = 0;
+}
+
+
+/*
+ *	P R I N T _ O V E R L A P _ S U M M A R Y
+ *
+ *  Print out a summary of the overlaps found
+ */
+static void print_overlap_summary(void) {
+	register struct overlap_list *op=0, *backop=0;
+	int object_counter=0;
+
+	/* if there are any overlaps, print out a summary report, otherwise just
+	 * print out that there were zero overlaps
+	 */
+	if (noverlaps) {
+
+		bu_log("==========================================\n");
+		bu_log("SUMMARY\n");
+
+		bu_log("\t%d overlap%s detected\n", noverlaps, (noverlaps==1)?"":"s");
+		bu_log("\t%d unique overlapping pair%s (%d ordered pair%s)\n", unique_overlap_count, (unique_overlap_count==1)?"":"s", overlap_count, (overlap_count==1)?"":"s");
+
+		if (olist)	{
+			bu_log("\tOverlapping objects: ");
+
+			for (op=olist; op ; op=op->next) {
+
+				/* iterate over the list and see if we already printed this one */
+				for ( backop=olist; (backop!=op) && (backop); backop=backop->next ) {
+					if ((strcmp(op->reg1, backop->reg1) == 0) || (strcmp(op->reg1, backop->reg2) == 0)) break;
+				}
+				/* if we got to the end of the list (backop points to the match) */
+				if (!backop || (backop==op)) {
+					bu_log("%s  ", op->reg1);
+					object_counter++;
+				}
+
+				/* iterate over the list again up to where we are to see if the second
+				 * region was already printed */
+				for (backop=olist; backop; backop=backop->next) {
+					if ((strcmp(op->reg2, backop->reg1) == 0) || (strcmp(op->reg2, backop->reg2) == 0)) break;
+				}
+				if ( !backop || (backop==op)) {
+					bu_log("%s  ", op->reg2);
+					object_counter++;
+				}
+			}
+			bu_log("\n\t%d unique overlapping object%s detected\n", object_counter, (object_counter==1)?"":"s");
+		}
+	}
+	else {
+		bu_log("%d overlap%s detected\n\n", noverlaps, (noverlaps==1)?"":"s");
+	}
+}
+
+/*
+ *			V I E W _ E N D
+ *
+ *  Called at the end of each frame
+ */
+void
+view_end(void) {
+	pl_flush(outfp);
+	fflush(outfp);
+	/*	bu_log("%d overlap%c detected\n\n", noverlaps, (noverlaps==1)?(char)NULL:'s');*/
+
+	/*        bu_log("\nocount==%d, unique_ocount==%d\n\n", overlap_count, unique_overlap_count);*/
+
+	if( rpt_overlap ) {
+		/* using counters instead of the actual variables to be able to
+		 * summarize after checking for matching pairs
+		 */
+		int overlap_counter=overlap_count;
+		int unique_overlap_counter=unique_overlap_count;
+		register struct overlap_list *op=0, *backop=0, *nextop=0;
+
+		/* iterate over the overlap pairs and output one OVERLAP section
+		 * per unordered pair.  a summary is output at the end.
+		 */
+		bu_log("OVERLAP PAIRS\n------------------------------------------\n");
+		for ( op=olist; op; op=op->next ) {
+
+			/* !!! would/should not need to do this..  need a doubly-linked
+			 * list so we can go backwards.  we look through the list and
+			 * see if we hit the reverse previously.
+			 */
+			for ( backop=olist; (backop!=op) && (backop); backop=backop->next ) {
+				if ((strcmp(op->reg2, backop->reg1) == 0) && (strcmp(op->reg1, backop->reg2) == 0)) break;
+			}
+			if (backop && (backop!=op)) continue;
+
+			bu_log("%s and %s overlap\n", op->reg1, op->reg2);
+
+			nextop=(struct overlap_list *)NULL;
+			/* if there are still matching pairs to search for */
+			if (overlap_counter > unique_overlap_counter) {
+
+				/* iterate until end of pairs or we find a
+				 * reverse matching pair (done inside loop
+				 * explicitly)*/
+				for ( nextop=op; nextop ; nextop=nextop->next) {
+					if ((strcmp(op->reg1, nextop->reg2) == 0) &&
+							(strcmp(op->reg2, nextop->reg1) == 0))
+						break;
+				}
+				/* when we leave the loop, nextop is either
+				 * null (hit end of list) or the matching
+				 * reverse pair */
+			}
+
+			bu_log("\t<%s, %s>: %d overlap%c detected, maximum depth is %gmm\n", op->reg1, op->reg2, op->count, op->count>1 ? 's' : (char) 0, op->maxdepth);
+			if (nextop) {
+				bu_log("\t<%s, %s>: %d overlap%c detected, maximum depth is %gmm\n", nextop->reg1, nextop->reg2, nextop->count, nextop->count>1 ? 's' : (char) 0, nextop->maxdepth);
+				/* counter the decrement below to account for
+				 * the matched reverse pair
+				 */
+				unique_overlap_counter++;
+			}
+
+			/* decrement so we may stop scanning for unique overlaps asap */
+			unique_overlap_counter--;
+			overlap_counter--;
+		}
+
+		/* print out a summary of the overlaps that were found */
+		print_overlap_summary();
+
+		/* free our structures */
+		op = olist;
+		while( op ) {
+			/* free struct */
+			nextop = op->next;
+			bu_free( (char *)op, "overlap_list" );
+			op = nextop;
+		}
+		olist = (struct overlap_list *)NULL;
+	}
+	bu_log("\n");
+}
+
+/*
+ *	Stubs
+ */
+void view_pixel(void) {}
+
+void view_eol(void) {}
+
+void view_setup(void) {}
+void view_cleanup(void) {}
+void application_init (void) {}
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+14.15
+log
+@more c89 embracing.  c89 provides string.h for all of the various str*() and mem*() functions, so remove the check for its presence.  there is still likely to be work required for strict c89 conformance for the various bsd strings.h functions that may be in use.
+@
+text
+@d46 1
+a46 1
+static const char RCScheckview[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/rt/viewcheck.c,v 14.14 2007/07/03 01:16:36 brlcad Exp $ (BRL)";
+d144 1
+a144 1
+overlap(struct application *ap, struct partition *pp, struct region *reg1, struct region *reg2)
+@
+
+
+14.14
+log
+@quell more compilation warnings, thx IriX64
+@
+text
+@d46 1
+a46 1
+static const char RCScheckview[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/rt/viewcheck.c,v 14.13 2007/04/30 21:43:48 brlcad Exp $ (BRL)";
+d52 2
+a53 5
+#ifdef HAVE_STRING_H
+#  include <string.h>
+#else
+#  include <strings.h>
+#endif
+@
+
+
+14.13
+log
+@the tracers support the -R option, which turns reporting on/off
+@
+text
+@d46 1
+a46 1
+static const char RCScheckview[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/rt/viewcheck.c,v 14.12 2007/04/17 03:23:57 brlcad Exp $ (BRL)";
+d295 2
+a296 2
+		bu_log("\t%d overlap%c detected\n", noverlaps, (noverlaps==1)?(char)NULL:'s');
+		bu_log("\t%d unique overlapping pair%c (%d ordered pair%c)\n", unique_overlap_count, (unique_overlap_count==1)?(char)NULL:'s', overlap_count, (overlap_count==1)?(char)NULL:'s');
+d323 1
+a323 1
+			bu_log("\n\t%d unique overlapping object%c detected\n", object_counter, (object_counter==1)?(char)NULL:'s');
+d327 1
+a327 1
+		bu_log("%d overlap%c detected\n\n", noverlaps, (noverlaps==1)?(char)NULL:'s');
+@
+
+
+14.12
+log
+@redo the client-side version reporting to use the new brlcad_version() interface, utilizing a per-binary title as needed, instead of the former vers.sh setup.
+@
+text
+@d33 1
+a33 3
+ *  tolerance, (2) choose either region pair or solid pair grouping
+ *  and (3) set the verbosity, e.g. whether to print *every* overlap
+ *  or not.
+d46 1
+a46 1
+static const char RCScheckview[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/rt/viewcheck.c,v 14.11 2007/01/23 01:13:46 brlcad Exp $ (BRL)";
+@
+
+
+14.11
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@d48 1
+a48 1
+static const char RCScheckview[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/rt/viewcheck.c,v 14.10 2007/01/20 14:37:00 brlcad Exp $ (BRL)";
+d78 3
+a80 1
+char usage[] = "Usage:  rtcheck [options] model.g objects...\n\
+@
+
+
+14.10
+log
+@update copyright to 2007
+@
+text
+@d8 2
+a9 3
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+d14 1
+a14 1
+ * General Public License for more details.
+d16 2
+a17 2
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+d48 1
+a48 1
+static const char RCScheckview[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/rt/viewcheck.c,v 14.9 2006/01/18 06:46:24 brlcad Exp $ (BRL)";
+@
+
+
+14.9
+log
+@update copyright to 2006
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 1988-2006 United States Government as represented by
+d49 1
+a49 1
+static const char RCScheckview[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/rt/viewcheck.c,v 14.8 2005/10/23 04:44:38 brlcad Exp $ (BRL)";
+@
+
+
+14.8
+log
+@trailing ws
+@
+text
+@d4 1
+a4 1
+ * Copyright (C) 1988-2005 United States Government as represented by
+d49 1
+a49 1
+static const char RCScheckview[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/rt/viewcheck.c,v 14.7 2005/08/15 21:42:08 bob1961 Exp $ (BRL)";
+@
+
+
+14.7
+log
+@Add support for outputting plot in text mode
+@
+text
+@d41 1
+a41 1
+ *  
+d46 1
+a46 1
+ *  
+d49 1
+a49 1
+static const char RCScheckview[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/rt/viewcheck.c,v 14.6 2005/06/14 17:31:14 bob1961 Exp $ (BRL)";
+d149 1
+a149 1
+{	
+d177 1
+a177 1
+	 * Build up a linked list of known overlapping regions and compare 
+d190 2
+a191 2
+			/* if we already have an entry for this region pair, 
+			 * we increase the counter and return 
+d200 1
+a200 1
+			} 
+d202 1
+a202 1
+		
+d210 1
+a210 1
+		
+d214 1
+a214 1
+		
+d236 1
+a236 1
+	
+d271 1
+a271 1
+	
+d287 1
+a287 1
+	
+d292 1
+a292 1
+		
+d295 1
+a295 1
+		
+d298 1
+a298 1
+		
+d301 1
+a301 1
+			
+d326 1
+a326 1
+	} 
+d342 1
+a342 1
+	
+d344 1
+a344 1
+	
+d352 1
+a352 1
+		
+d354 1
+a354 1
+		 * per unordered pair.  a summary is output at the end. 
+d358 1
+a358 1
+			
+d367 1
+a367 1
+			
+d369 1
+a369 1
+			
+d373 1
+a373 1
+				
+d375 1
+a375 1
+				 * reverse matching pair (done inside loop 
+d378 1
+a378 1
+					if ((strcmp(op->reg1, nextop->reg2) == 0) && 
+d381 2
+a382 2
+				}	
+				/* when we leave the loop, nextop is either 
+d386 1
+a386 1
+			
+d390 2
+a391 2
+				/* counter the decrement below to account for 
+				 * the matched reverse pair 
+d395 1
+a395 1
+			
+d400 1
+a400 1
+		
+d403 1
+a403 1
+		
+@
+
+
+14.7.4.1
+log
+@merge changes from HEAD aka rel-7-6-4 to the rel-7-6-branch just in case someone peeks a gander or tries to continue/build the branch
+@
+text
+@d41 1
+a41 1
+ *
+d46 1
+a46 1
+ *
+d49 1
+a49 1
+static const char RCScheckview[] = "@@(#)$Header$ (BRL)";
+d149 1
+a149 1
+{
+d177 1
+a177 1
+	 * Build up a linked list of known overlapping regions and compare
+d190 2
+a191 2
+			/* if we already have an entry for this region pair,
+			 * we increase the counter and return
+d200 1
+a200 1
+			}
+d202 1
+a202 1
+
+d210 1
+a210 1
+
+d214 1
+a214 1
+
+d236 1
+a236 1
+
+d271 1
+a271 1
+
+d287 1
+a287 1
+
+d292 1
+a292 1
+
+d295 1
+a295 1
+
+d298 1
+a298 1
+
+d301 1
+a301 1
+
+d326 1
+a326 1
+	}
+d342 1
+a342 1
+
+d344 1
+a344 1
+
+d352 1
+a352 1
+
+d354 1
+a354 1
+		 * per unordered pair.  a summary is output at the end.
+d358 1
+a358 1
+
+d367 1
+a367 1
+
+d369 1
+a369 1
+
+d373 1
+a373 1
+
+d375 1
+a375 1
+				 * reverse matching pair (done inside loop
+d378 1
+a378 1
+					if ((strcmp(op->reg1, nextop->reg2) == 0) &&
+d381 2
+a382 2
+				}
+				/* when we leave the loop, nextop is either
+d386 1
+a386 1
+
+d390 2
+a391 2
+				/* counter the decrement below to account for
+				 * the matched reverse pair
+d395 1
+a395 1
+
+d400 1
+a400 1
+
+d403 1
+a403 1
+
+@
+
+
+14.6
+log
+@Remove space after the escape
+@
+text
+@d49 1
+a49 1
+static const char RCScheckview[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/rt/viewcheck.c,v 14.5 2005/06/07 02:42:54 brlcad Exp $ (BRL)";
+d69 2
+d255 4
+@
+
+
+14.5
+log
+@add -g and -G to the usage
+@
+text
+@d49 1
+a49 1
+static const char RCScheckview[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/rt/viewcheck.c,v 14.4 2005/01/30 20:31:10 brlcad Exp $ (BRL)";
+d85 1
+a85 1
+ -G #       Grid cell height\n\ 
+@
+
+
+14.4
+log
+@update copyright to 2005
+@
+text
+@d49 1
+a49 1
+static const char RCScheckview[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/rt/viewcheck.c,v 14.3 2004/12/24 01:40:00 brlcad Exp $ (BRL)";
+d84 2
+@
+
+
+14.3
+log
+@add the mysteriously missing gpl header..
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 1988-2004 United States Government as represented by
+d49 1
+a49 1
+static const char RCScheckview[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/rt/viewcheck.c,v 14.2 2004/12/21 06:38:22 morrison Exp $ (BRL)";
+@
+
+
+14.2
+log
+@remove the old copyright notice section
+@
+text
+@d1 21
+a21 2
+/*
+ *			V I E W C H E C K
+d49 1
+a49 1
+static const char RCScheckview[] = "@@(#)$Header: /cvs/brlcad/src/rt/viewcheck.c,v 14.1 2004/11/16 19:42:31 morrison Exp $ (BRL)";
+a53 2
+
+
+d56 3
+a58 1
+#include <string.h>
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@a27 3
+ *  Copyright Notice -
+ *	This software is Copyright (C) 1988-2004 by the United States Army.
+ *	All rights reserved.
+d30 1
+a30 1
+static const char RCScheckview[] = "@@(#)$Header: /cvs/brlcad/src/rt/viewcheck.c,v 1.2 2004/08/02 23:01:52 morrison Exp $ (BRL)";
+@
+
+
+1.2
+log
+@replace the wrapped config.h block with common.h
+@
+text
+@d33 1
+a33 1
+static const char RCScheckview[] = "@@(#)$Header: /cvs/brlcad/src/rt/viewcheck.c,v 1.1 2004/05/20 15:20:47 morrison Exp $ (BRL)";
+d403 10
+@
+
+
+1.1
+log
+@Vast reorganization begins.  Sources moved from top-level directories into src/.
+@
+text
+@d33 1
+a33 1
+static const char RCScheckview[] = "@@(#)$Header: /cvs/brlcad/rt/viewcheck.c,v 11.22 2004/05/10 15:30:49 erikg Exp $ (BRL)";
+d36 1
+a36 3
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+@
+

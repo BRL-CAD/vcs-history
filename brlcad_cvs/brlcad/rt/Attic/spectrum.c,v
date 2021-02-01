@@ -1,0 +1,2579 @@
+head	1.22;
+access;
+symbols
+	rel-4-5:1.16
+	ctj-4-5-post:1.16
+	ctj-4-5-pre:1.16;
+locks; strict;
+comment	@ * @;
+
+
+1.22
+date	98.11.17.19.15.24;	author mike;	state dead;
+branches;
+next	1.21;
+
+1.21
+date	98.10.09.05.52.30;	author mike;	state Exp;
+branches;
+next	1.20;
+
+1.20
+date	98.10.09.02.01.21;	author mike;	state Exp;
+branches;
+next	1.19;
+
+1.19
+date	98.10.07.22.29.27;	author mike;	state Exp;
+branches;
+next	1.18;
+
+1.18
+date	98.10.07.07.36.27;	author mike;	state Exp;
+branches;
+next	1.17;
+
+1.17
+date	98.09.30.04.31.16;	author mike;	state Exp;
+branches;
+next	1.16;
+
+1.16
+date	96.04.06.04.29.47;	author mike;	state Exp;
+branches;
+next	1.15;
+
+1.15
+date	96.04.06.01.00.31;	author mike;	state Exp;
+branches;
+next	1.14;
+
+1.14
+date	96.03.16.00.50.43;	author mike;	state Exp;
+branches;
+next	1.13;
+
+1.13
+date	96.03.14.07.25.56;	author mike;	state Exp;
+branches;
+next	1.12;
+
+1.12
+date	96.03.14.04.58.24;	author mike;	state Exp;
+branches;
+next	1.11;
+
+1.11
+date	96.03.09.05.16.47;	author mike;	state Exp;
+branches;
+next	1.10;
+
+1.10
+date	96.03.01.06.02.38;	author mike;	state Exp;
+branches;
+next	1.9;
+
+1.9
+date	96.02.28.03.21.17;	author mike;	state Exp;
+branches;
+next	1.8;
+
+1.8
+date	96.02.27.23.44.20;	author mike;	state Exp;
+branches;
+next	1.7;
+
+1.7
+date	96.02.27.23.43.18;	author mike;	state Exp;
+branches;
+next	1.6;
+
+1.6
+date	96.02.27.23.38.20;	author mike;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	96.02.27.23.37.06;	author mike;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	96.02.27.23.32.33;	author mike;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	96.02.27.23.27.59;	author mike;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	96.02.27.22.34.01;	author mike;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	96.02.27.09.19.35;	author mike;	state Exp;
+branches;
+next	;
+
+
+desc
+@spectrum.c
+@
+
+
+1.22
+log
+@Moved rttherm and it's pieces into ../rttherm directory
+@
+text
+@/*
+ *			S P E C T R U M . C
+ *
+ *  An application of the 'tabdata' package to spectral data.
+ *
+ *  Author -
+ *	Michael John Muuss
+ *  
+ *  Source -
+ *	The U. S. Army Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005-5068  USA
+ *  
+ *  Distribution Status -
+ *	Public Domain, Distribution Unlimited.
+ *
+ *  Inspired by -
+ *	Roy Hall and his book "Illumination and Color in Computer
+ *	Generated Imagery", Springer Verlag, New York, 1989.
+ *	ISBN 0-387-96774-5
+ *
+ *  With thanks to Russ Moulton Jr, EOSoft Inc. for his "rad.c" module.
+ */
+#ifndef lint
+static char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/rt/spectrum.c,v 1.21 1998/10/09 05:52:30 mike Exp mike $ (ARL)";
+#endif
+
+#include <stdio.h>
+#include <math.h>
+#include "machine.h"
+#include "vmath.h"
+#include "rtstring.h"
+#include "raytrace.h"
+#include "tabdata.h"
+#include "spectrum.h"
+
+/* This is the data for the CIE_XYZ curves take from Judd and
+ *  Wyszecki (1975), table 2.6, these are for the 1931 standard
+ *  observer with a 2-degree visual field.
+ *  From Roy Hall, pg 228.
+ */
+static CONST double	rt_CIE_XYZ[81][4] = {
+    {380, 0.0014, 0.0000, 0.0065}, {385, 0.0022, 0.0001, 0.0105},
+    {390, 0.0042, 0.0001, 0.0201}, {395, 0.0076, 0.0002, 0.0362},
+    {400, 0.0143, 0.0004, 0.0679}, {405, 0.0232, 0.0006, 0.1102},
+    {410, 0.0435, 0.0012, 0.2074}, {415, 0.0776, 0.0022, 0.3713},
+    {420, 0.1344, 0.0040, 0.6456}, {425, 0.2148, 0.0073, 1.0391},
+    {430, 0.2839, 0.0116, 1.3856}, {435, 0.3285, 0.0168, 1.6230},
+    {440, 0.3483, 0.0230, 1.7471}, {445, 0.3481, 0.0298, 1.7826},
+    {450, 0.3362, 0.0380, 1.7721}, {455, 0.3187, 0.0480, 1.7441},
+    {460, 0.2908, 0.0600, 1.6692}, {465, 0.2511, 0.0739, 1.5281},
+    {470, 0.1954, 0.0910, 1.2876}, {475, 0.1421, 0.1126, 1.0419},
+    {480, 0.0956, 0.1390, 0.8130}, {485, 0.0580, 0.1693, 0.6162},
+    {490, 0.0320, 0.2080, 0.4652}, {495, 0.0147, 0.2586, 0.3533},
+    {500, 0.0049, 0.3230, 0.2720}, {505, 0.0024, 0.4073, 0.2123},
+    {510, 0.0093, 0.5030, 0.1582}, {515, 0.0291, 0.6082, 0.1117},
+    {520, 0.0633, 0.7100, 0.0782}, {525, 0.1096, 0.7932, 0.0573},
+    {530, 0.1655, 0.8620, 0.0422}, {535, 0.2257, 0.9149, 0.0298},
+    {540, 0.2904, 0.9540, 0.0203}, {545, 0.3597, 0.9803, 0.0134},
+    {550, 0.4334, 0.9950, 0.0087}, {555, 0.5121, 1.0000, 0.0057},
+    {560, 0.5945, 0.9950, 0.0039}, {565, 0.6784, 0.9786, 0.0027},
+    {570, 0.7621, 0.9520, 0.0021}, {575, 0.8425, 0.9154, 0.0018},
+    {580, 0.9163, 0.8700, 0.0017}, {585, 0.9786, 0.8163, 0.0014},
+    {590, 1.0263, 0.7570, 0.0011}, {595, 1.0567, 0.6949, 0.0010},
+    {600, 1.0622, 0.6310, 0.0008}, {605, 1.0456, 0.5668, 0.0006},
+    {610, 1.0026, 0.5030, 0.0003}, {615, 0.9384, 0.4412, 0.0002},
+    {620, 0.8544, 0.3810, 0.0002}, {625, 0.7514, 0.3210, 0.0001},
+    {630, 0.6424, 0.2650, 0.0000}, {635, 0.5419, 0.2170, 0.0000},
+    {640, 0.4479, 0.1750, 0.0000}, {645, 0.3608, 0.1382, 0.0000},
+    {650, 0.2835, 0.1070, 0.0000}, {655, 0.2187, 0.0816, 0.0000},
+    {660, 0.1649, 0.0610, 0.0000}, {665, 0.1212, 0.0446, 0.0000},
+    {670, 0.0874, 0.0320, 0.0000}, {675, 0.0636, 0.0232, 0.0000},
+    {680, 0.0468, 0.0170, 0.0000}, {685, 0.0329, 0.0119, 0.0000},
+    {690, 0.0227, 0.0082, 0.0000}, {695, 0.0158, 0.0057, 0.0000},
+    {700, 0.0114, 0.0041, 0.0000}, {705, 0.0081, 0.0029, 0.0000},
+    {710, 0.0058, 0.0021, 0.0000}, {715, 0.0041, 0.0015, 0.0000},
+    {720, 0.0029, 0.0010, 0.0000}, {725, 0.0020, 0.0007, 0.0000},
+    {730, 0.0014, 0.0005, 0.0000}, {735, 0.0010, 0.0004, 0.0000},
+    {740, 0.0007, 0.0002, 0.0000}, {745, 0.0005, 0.0002, 0.0000},
+    {750, 0.0003, 0.0001, 0.0000}, {755, 0.0002, 0.0001, 0.0000},
+    {760, 0.0002, 0.0001, 0.0000}, {765, 0.0001, 0.0000, 0.0000},
+    {770, 0.0001, 0.0000, 0.0000}, {775, 0.0001, 0.0000, 0.0000},
+    {780, 0.0000, 0.0000, 0.0000}
+};
+
+/*
+ *			R T _ S P E C T _ M A K E _ C I E _ X Y Z
+ *
+ *  Given as input a spectral sampling distribution,
+ *  generate the 3 curves to match the human eye's response
+ *  in CIE color parameters X, Y, and Z.
+ *  XYZ space can be readily converted to RGB with a 3x3 matrix.
+ *
+ *  The tabulated data is linearly interpolated.
+ *
+ *  Pointers to the three spectral weighting functions are "returned",
+ *  storage for the X, Y, and Z curves is allocated by this routine
+ *  and must be freed by the caller.
+ */
+void
+rt_spect_make_CIE_XYZ( x, y, z, tabp )
+struct rt_tabdata		**x;
+struct rt_tabdata		**y;
+struct rt_tabdata		**z;
+CONST struct rt_table	*tabp;
+{
+	struct rt_tabdata	*a, *b, *c;
+	fastf_t	xyz_scale;
+	int	i;
+	int	j;
+
+	RT_CK_TABLE(tabp);
+
+	RT_GET_TABDATA( a, tabp );
+	RT_GET_TABDATA( b, tabp );
+	RT_GET_TABDATA( c, tabp );
+	*x = a;
+	*y = b;
+	*z = c;
+
+	/* No CIE data below 380 nm */
+	for( j=0; tabp->x[j] < 380 && j < tabp->nx; j++ )  {
+		a->y[j] = b->y[j] = c->y[j] = 0;
+	}
+
+	/* Traverse the CIE table.  Produce as many output values as possible
+	 * before advancing to next CIE table entry.
+	 */
+	for( i = 0; i < 81-1; i++ )  {
+		FAST fastf_t	fract;		/* fraction from [i] to [i+1] */
+
+again:
+		if( j >= tabp->nx )  break;
+		if( tabp->x[j] < rt_CIE_XYZ[i][0] ) rt_bomb("rt_spect_make_CIE_XYZ assertion1 failed\n");
+		if( tabp->x[j] >= rt_CIE_XYZ[i+1][0] )  continue;
+		/* The CIE table has 5nm spacing */
+		fract = (tabp->x[j] - rt_CIE_XYZ[i][0] ) / 5;
+		if( fract < 0 || fract > 1 )  rt_bomb("rt_spect_make_CIE_XYZ assertion2 failed\n");
+		a->y[j] = (1-fract) * rt_CIE_XYZ[i][1] + fract * rt_CIE_XYZ[i+1][1];
+		b->y[j] = (1-fract) * rt_CIE_XYZ[i][2] + fract * rt_CIE_XYZ[i+1][2];
+		c->y[j] = (1-fract) * rt_CIE_XYZ[i][3] + fract * rt_CIE_XYZ[i+1][3];
+		j++;
+		goto again;
+	}
+
+	/* No CIE data above 780 nm */
+	for( ; j < tabp->nx; j++ )  {
+		a->y[j] = b->y[j] = c->y[j] = 0;
+	}
+
+	/* Normalize the curves so that area under Y curve is 1.0 */
+	xyz_scale = rt_tabdata_area2( b );
+	if( fabs(xyz_scale) < VDIVIDE_TOL )  {
+		rt_log("rt_spect_make_CIE_XYZ(): Area = 0 (no luminance) in this part of the spectrum, skipping normalization step\n");
+		return;
+	}
+	xyz_scale = 1 / xyz_scale;
+	rt_tabdata_scale( a, a, xyz_scale );
+	rt_tabdata_scale( b, b, xyz_scale );
+	rt_tabdata_scale( c, c, xyz_scale );
+}
+
+static CONST double rt_NTSC_R[][2] = {
+	{543, 0.0001},
+	{552, 0.05},
+	{562, 0.2},
+	{572, 0.4},
+	{577, 0.6},
+	{580, 0.8},
+	{583, 0.9},
+	{587, 0.95},
+	{590, 1.0},
+	{598, 1.0},
+	{601, 0.95},
+	{605, 0.9},
+	{610, 0.8},
+	{620, 0.6},
+	{630, 0.4},
+	{640, 0.26},
+	{650, 0.2},
+	{670, 0.1},
+	{690, 0.05},
+	{730, 0.0001},
+	{-1, -1}
+};
+
+static CONST double rt_NTSC_G[][2] = {
+	{456, 0.0001},
+	{475, 0.05},
+	{480, 0.1},
+	{492, 0.2},
+	{507, 0.4},
+	{515, 0.6},
+	{522, 0.8},
+	{528, 0.9},
+	{531, 0.95},
+	{537, 1.0},
+	{545, 1.0},
+	{548, 0.95},
+	{551, 0.9},
+	{555, 0.8},
+	{562, 0.6},
+	{572, 0.4},
+	{582, 0.2},
+	{591, 0.1},
+	{603, 0.05},
+	{630, 0.0001},
+	{-1, -1}
+};
+
+static CONST double rt_NTSC_B[][2] = {
+	{347, 0.0001},
+	{373, 0.05},
+	{385, 0.1},
+	{396, 0.2},
+	{409, 0.4},
+	{415, 0.6},
+	{423, 0.8},
+	{430, 0.9},
+	{433, 0.95},
+	{440, 1.0},
+	{450, 1.0},
+	{457, 0.95},
+	{460, 0.9},
+	{466, 0.8},
+	{470, 0.6},
+	{479, 0.4},
+	{492, 0.2},
+	{503, 0.1},
+	{515, 0.05},
+	{543, 0.0001},
+	{-1, -1}
+};
+
+struct rt_tabdata *rt_NTSC_r_tabdata;
+struct rt_tabdata *rt_NTSC_g_tabdata;
+struct rt_tabdata *rt_NTSC_b_tabdata;
+
+/* XXX Move to librt/tabdata.c */
+/*
+ *			R T _ T A B D A T A _ F R O M _ A R R A Y
+ *
+ *  Given an array of (x,y) pairs, build the relevant rt_table and
+ *  rt_tabdata structures.
+ *  The table is terminated by an x value <= 0.
+ *  Consistent with the interpretation of the spans,
+ *  invent a final span ending x value.
+ */
+struct rt_tabdata *
+rt_tabdata_from_array( array )
+CONST double *array;
+{
+	register CONST double	*dp;
+	int			len = 0;
+	struct rt_table		*tabp;
+	struct rt_tabdata	*data;
+	register int		i;
+
+	/* First, find len */
+	for( dp = array; *dp > 0; dp += 2 )	/* NIL */ ;
+	len = (dp - array) >> 1;
+
+	/* Second, build rt_table */
+	RT_GET_TABLE( tabp, len );
+	for( i = 0; i < len; i++ )  {
+		tabp->x[i] = array[i<<1];
+	}
+	tabp->x[len] = tabp->x[len-1] + 1;	/* invent span end */
+
+	/* Third, build rt_tabdata (last input "y" is ignored) */
+	RT_GET_TABDATA( data, tabp );
+	for( i = 0; i < len-1; i++ )  {
+		data->y[i] = array[(i<<1)+1];
+	}
+	return data;
+}
+
+/*
+ *			R T _ S P E C T _ M A K E _ N T S C _ R G B
+ *
+ *  Using the "Representative set of camera taking sensitivities"
+ *  for a NTSC television camera, from Benson "Television Engineering
+ *  Handbook" page 4.58, convert an RGB value in range 0..1 to
+ *  a spectral curve also in range 0..1.
+ *
+ *  These curves should be used in converting spectral samples
+ *  to NTSC RGB values.
+ */
+void
+rt_spect_make_NTSC_RGB( rp, gp, bp, tabp )
+struct rt_tabdata		**rp;
+struct rt_tabdata		**gp;
+struct rt_tabdata		**bp;
+CONST struct rt_table		*tabp;
+{
+	RT_CK_TABLE(tabp);
+
+	/* Convert array of number pairs into rt_tabdata & rt_table */
+	rt_NTSC_r_tabdata = rt_tabdata_from_array( &rt_NTSC_R[0][0] );
+	rt_NTSC_g_tabdata = rt_tabdata_from_array( &rt_NTSC_G[0][0] );
+	rt_NTSC_b_tabdata = rt_tabdata_from_array( &rt_NTSC_B[0][0] );
+
+bu_log("ntsc_R: area=%g\n", rt_tabdata_area2(rt_NTSC_r_tabdata) );
+	rt_pr_table_and_tabdata( "/dev/tty", rt_NTSC_r_tabdata );
+bu_log("ntsc_G: area=%g\n", rt_tabdata_area2(rt_NTSC_g_tabdata) );
+	rt_pr_table_and_tabdata( "/dev/tty", rt_NTSC_g_tabdata );
+bu_log("ntsc_B: area=%g\n", rt_tabdata_area2(rt_NTSC_b_tabdata) );
+	rt_pr_table_and_tabdata( "/dev/tty", rt_NTSC_b_tabdata );
+
+	/* Resample original NTSC curves to match given rt_table sampling */
+#if 0
+	/* just to test the routine */
+	*rp = rt_tabdata_resample_avg( tabp, rt_NTSC_r_tabdata );
+	*gp = rt_tabdata_resample_avg( tabp, rt_NTSC_g_tabdata );
+	*bp = rt_tabdata_resample_avg( tabp, rt_NTSC_b_tabdata );
+#else
+	/* use this one for real */
+	*rp = rt_tabdata_resample_max( tabp, rt_NTSC_r_tabdata );
+	*gp = rt_tabdata_resample_max( tabp, rt_NTSC_g_tabdata );
+	*bp = rt_tabdata_resample_max( tabp, rt_NTSC_b_tabdata );
+#endif
+}
+
+/*
+ *			R T _ S P E C T _ R E F L E C T A N C E _ R G B
+ *
+ *  Given reflectance data (in range 0..1) in terms of RGB color,
+ *  convert that to a spectral reflectance curve.
+ *
+ *  The assumption here is that the spectrum is made up of exactly three
+ *  non-overlapping bands, and the reflectance is constant over each:
+ *
+ *	red	572nm to 1,000,000nm	(includes the full IR band)
+ *	green	492nm to 572nm		(just green)
+ *	blue	1nm to 492nm		(includes Ultraviolet)
+ *
+ *  As the caller may be doing a lot of this, the caller is expected
+ *  to provide a pointer to a valid rt_tabdata structure which is
+ *  to be filled in.  Allowing caller to re-cycle them rather than
+ *  doing constant malloc/free cycle.
+ */
+void
+rt_spect_reflectance_rgb( curve, rgb )
+struct rt_tabdata	*curve;
+CONST point_t		rgb;
+{
+	register int	i;
+	register CONST struct rt_table	*tabp;
+
+	RT_CK_TABDATA(curve);
+	tabp = curve->table;
+	RT_CK_TABLE(tabp);
+
+	/* Fill in blue values, everything up to but not including 492nm */
+	for( i=0; i < tabp->nx; i++ )  {
+		if( tabp->x[i] >= 492 )  break;
+		curve->y[i] = rgb[2];
+	}
+
+	/* Fill in green values, everything up to but not including 572nm */
+	for( ; i < tabp->nx; i++ )  {
+		if( tabp->x[i] >= 572 )  break;
+		curve->y[i] = rgb[1];
+	}
+
+	/* Fill in red values, everything from here up to end of table */
+	for( ; i < tabp->nx; i++ )  {
+		curve->y[i] = rgb[0];
+	}
+}
+
+/*
+ *  These are the NTSC primaries with D6500 white point for use as
+ *  the default initialization as given in sect 5.1.1 Color
+ *  Correction for Display.
+ *  From Roy Hall, page 228.
+ *  Gives the XYZ coordinates of the NTSC primaries and D6500 white.
+ *  Note:  X+Y+Z=1 for primaries (cf. equations of pg.54)
+ */
+CONST static point_t      rgb_NTSC[4] = {
+    {0.670,     0.330,      0.000},     /* red */
+    {0.210,     0.710,      0.080},     /* green */
+    {0.140,     0.080,      0.780},     /* blue */
+    {0.313,     0.329,      0.358}};    /* white */
+
+/*
+ *			R T _ M A K E _ N T S C _ X Y Z 2 R G B
+ *
+ *  Create the map from 
+ *  CIE XYZ perceptual space into
+ *  an idealized RGB space assuming NTSC primaries with D6500 white.
+ *  Only high-quality television-studio monitors are like this, but...
+ */
+void
+rt_make_ntsc_xyz2rgb( xyz2rgb )
+mat_t	xyz2rgb;
+{
+	mat_t	rgb2xyz;
+	point_t	tst, new;
+
+	if( rt_clr__cspace_to_xyz( rgb_NTSC, rgb2xyz ) == 0 )
+		rt_bomb("rt_make_ntsc_xyz2rgb() can't initialize color space\n");
+	mat_inv( xyz2rgb, rgb2xyz );
+
+#if 1
+	/* Verify that it really works, I'm a skeptic */
+	VSET( tst, 1, 1, 1 );
+	MAT3X3VEC( new, rgb2xyz, tst );
+	VPRINT( "white_rgb (i)", tst );
+	VPRINT( "white_xyz (o)", new );
+
+	VSET( tst, 0.313,     0.329,      0.358);
+	MAT3X3VEC( new, xyz2rgb, tst );
+	VPRINT( "white_xyz (i)", tst );
+	VPRINT( "white_rgb (o)", new );
+
+	VSET( tst, 1, 0, 0 );
+	MAT3X3VEC( new, rgb2xyz, tst );
+	VPRINT( "red_rgb (i)", tst );
+	VPRINT( "red_xyz (o)", new );
+
+	VSET( tst, 0.670,     0.330,      0.000);
+	MAT3X3VEC( new, xyz2rgb, tst );
+	VPRINT( "red_xyz (i)", tst );
+	VPRINT( "red_rgb (o)", new );
+
+	VSET( tst, 0, 1, 0 );
+	MAT3X3VEC( new, rgb2xyz, tst );
+	VPRINT( "grn_rgb (i)", tst );
+	VPRINT( "grn_xyz (o)", new );
+
+	VSET( tst, 0.210,     0.710,      0.080);
+	MAT3X3VEC( new, xyz2rgb, tst );
+	VPRINT( "grn_xyz (i)", tst );
+	VPRINT( "grn_rgb (o)", new );
+
+	VSET( tst, 0, 0, 1 );
+	MAT3X3VEC( new, rgb2xyz, tst );
+	VPRINT( "blu_rgb (i)", tst );
+	VPRINT( "blu_xyz (o)", new );
+
+	VSET( tst, 0.140,     0.080,      0.780);
+	MAT3X3VEC( new, xyz2rgb, tst );
+	VPRINT( "blu_xyz (i)", tst );
+	VPRINT( "blu_rgb (o)", new );
+#endif
+}
+
+/* ****************************************************************
+ * clr__cspace_to_xyz (cspace, t_mat)
+ *  CLR_XYZ       cspace[4]   (in)  - the color space definition,
+ *                                      3 primaries and white
+ *  double        t_mat[3][3] (mod) - the color transformation
+ *
+ * Builds the transformation from a set of primaries to the CIEXYZ
+ *  color space.  This is the basis for the generation of the color
+ *  transformations in the CLR_ routine set.  The method used is
+ *  that detailed in Sect 3.2 Colorimetry and the RGB monitor.
+ *  Returns RGB to XYZ matrix.
+ *  From Roy Hall, pg 239-240.
+ *
+ *  The RGB white point of (1,1,1) times this matrix gives the
+ *  (Y=1 normalized) XYZ white point of (0.951368, 1, 1.08815)
+ *  From Roy Hall, pg 54.
+ *	MAT3X3VEC( xyz, rgb2xyz, rgb );
+ *
+ *  Returns -
+ *	0 if there is a singularity.
+ *	!0 if OK
+ */
+int
+rt_clr__cspace_to_xyz (cspace, rgb2xyz)
+CONST point_t	cspace[4];
+mat_t		rgb2xyz;
+{
+	int     ii, jj, kk, tmp_i, ind[3];
+	fastf_t  mult, white[3], scale[3];
+	mat_t	t_mat;
+
+	/* Might want to enforce X+Y+Z=1 for 4 inputs.  Roy does, on pg 229. */
+
+	/* normalize the white point to Y=1 */
+#define WHITE	3
+	if (cspace[WHITE][Y] <= 0.0) return 0;
+	white[0] = cspace[WHITE][X] / cspace[WHITE][Y];
+	white[1] = 1.0;
+	white[2] = cspace[WHITE][Z] / cspace[WHITE][Y];
+
+#define tmat(a,b)	t_mat[(a)*4+(b)]
+	mat_idn(t_mat);
+	for (ii=0; ii<=2; ii++) {
+		tmat(0,ii) = cspace[ii][X];
+		tmat(1,ii) = cspace[ii][Y];
+		tmat(2,ii) = cspace[ii][Z];
+		ind[ii] = ii;
+	}
+
+	/* gaussian elimination  with partial pivoting */
+	for (ii=0; ii<2; ii++) {
+		for (jj=ii+1; jj<=2; jj++)  {
+			if (fabs(tmat(ind[jj],ii)) > fabs(tmat(ind[ii],ii))) {
+				tmp_i=ind[jj];
+				ind[jj]=ind[ii];
+				ind[ii]=tmp_i;
+			}
+		}
+		if (tmat(ind[ii],ii) == 0.0) return 0;
+
+		for (jj=ii+1; jj<=2; jj++) {
+			mult = tmat(ind[jj],ii) / tmat(ind[ii],ii);
+			for (kk=ii+1; kk<=2; kk++)
+			tmat(ind[jj],kk) -= tmat(ind[ii],kk) * mult;
+			white[ind[jj]] -= white[ind[ii]] * mult;
+		}
+	}
+	if (tmat(ind[2],2) == 0.0) return 0;
+
+	/* back substitution to solve for scale */
+	scale[ind[2]] = white[ind[2]] / tmat(ind[2],2);
+	scale[ind[1]] = (white[ind[1]] - (tmat(ind[1],2) *
+			scale[ind[2]])) / tmat(ind[1],1);
+	scale[ind[0]] = (white[ind[0]] - (tmat(ind[0],1) *
+			scale[ind[1]]) - (tmat(ind[0],2) *
+			scale[ind[2]])) / tmat(ind[0],0);
+
+	/* build matrix.  Embed 3x3 in BRL-CAD 4x4 */
+	for (ii=0; ii<=2; ii++) {
+		rgb2xyz[0*4+ii] = cspace[ii][X] * scale[ii];
+		rgb2xyz[1*4+ii] = cspace[ii][Y] * scale[ii];
+		rgb2xyz[2*4+ii] = cspace[ii][Z] * scale[ii];
+			rgb2xyz[3*4+ii] = 0;
+	}
+	rgb2xyz[12] = rgb2xyz[13] = rgb2xyz[14];
+	rgb2xyz[15] = 1;
+
+	return 1;
+}
+
+#define C1	3.7415E4    /* watts um^4 cm^-2 */
+#define C2	14387.86    /* um K */ 	
+/* Russ gives these values at 37,415 and 14,388 */
+/* Handbook of Physics and Chem gives these values as 37,403 and 14,384 */
+/* Aircraft Combat Surv gives these values as 37,483.2 and 14,387.86 */
+
+/* Requires wavelength _w in um, not nm, returns units: W / cm**2 / um */
+#define	PLANCK(_w,_tempK)	\
+	(C1/(_w*_w*_w*_w*_w*(exp(C2/(_w*_tempK))-1)))
+
+/*
+ *			R T _ S P E C T _ B L A C K _ B O D Y
+ *
+ *  Integrate Planck's Radiation Formula for a black body radiator
+ *  across the given spectrum.
+ *  Returns radiant emittance in W/cm**2 for each wavelength interval.
+ *
+ *  Based upon code kindly provided by Russ Moulton, Jr., EOSoft Inc.
+ *  Compute at 'n-1' wavelengths evenly spaced between ax and bx.
+ */
+void
+rt_spect_black_body( data, temp, n )
+struct rt_tabdata	*data;
+double			temp;		/* Degrees Kelvin */
+unsigned int		n;		/* # wavelengths to eval at */
+{
+	CONST struct rt_table	*tabp;
+	int				j;
+
+	RT_CK_TABDATA(data);
+	tabp = data->table;
+	RT_CK_TABLE(tabp);
+if(rt_g.debug) rt_log("rt_spect_black_body( x%x, %g degK ) %g um to %g um\n", data, temp,
+tabp->x[0] * 0.001,	/* nm to um */
+tabp->x[tabp->nx] * 0.001	/* nm to um */
+);
+
+	if( n < 3 )  n = 3;
+
+	for( j = 0; j < tabp->nx; j++ )  {
+		double	ax;		/* starting wavelength, um */
+		double	bx;		/* ending wavelength, um */
+		double	dx;		/* wavelength interval, um */
+		double	w_sum;		/* sum over wavelengths */
+		double	wavlen;		/* current wavelength */
+		unsigned long i;
+
+		ax = tabp->x[j] * 0.001;	/* nm to um */
+		bx = tabp->x[j+1] * 0.001;	/* nm to um */
+		dx = (bx - ax) / (double)n;
+
+		w_sum = 0;
+		wavlen = ax;
+		for (i=0; i<n; i++)  {
+			w_sum += PLANCK(wavlen, temp);
+			wavlen += dx;
+		}
+		w_sum *= dx;
+
+		data->y[j] = w_sum;
+	}
+}
+
+/*
+ *			R T _ S P E C T _ B L A C K _ B O D Y _ F A S T
+ *
+ *  Returns radiant emittance for each spectral interval in the given
+ *  spectrum in units of watts/cm**2.
+ *  Integrate each wavelength interval of spectral radiant emittance,
+ *  by fitting with a rectangle (approximating curve with a horizontal line).
+ *  For narrow spacing in wavelength this is OK, but with large spacing
+ *  this tends to over-predict the power by 20%, due to the sharp
+ *  (exponential) slope of the curve.
+ *  With coarse spacing, or when unsure, use rt_spect_black_body().
+ */
+void
+rt_spect_black_body_fast( data, temp )
+struct rt_tabdata	*data;
+double			temp;		/* Degrees Kelvin */
+{
+	CONST struct rt_table	*tabp;
+	int				j;
+
+	RT_CK_TABDATA(data);
+	tabp = data->table;
+	RT_CK_TABLE(tabp);
+if(rt_g.debug) rt_log("rt_spect_black_body_fast( x%x, %g degK )\n", data, temp );
+
+	for( j = 0; j < tabp->nx; j++ )  {
+		data->y[j] = PLANCK( (tabp->x[j]*0.001), temp ) *
+			(tabp->x[j+1] - tabp->x[j]) * 0.001;
+	}
+}
+
+/*
+ *			R T _ S P E C T _ B L A C K _ B O D Y _ P O I N T S
+ *
+ *  Returns point-sampled values of spectral radiant emittance,
+ *  in units of watts/cm**2/um,
+ *  straight from Planck's black-body radiation formula.
+ */
+void
+rt_spect_black_body_points( data, temp )
+struct rt_tabdata	*data;
+double			temp;		/* Degrees Kelvin */
+{
+	CONST struct rt_table	*tabp;
+	int				j;
+
+	RT_CK_TABDATA(data);
+	tabp = data->table;
+	RT_CK_TABLE(tabp);
+if(rt_g.debug) rt_log("rt_spect_black_body_points( x%x, %g degK )\n", data, temp );
+
+	for( j = 0; j < tabp->nx; j++ )  {
+		data->y[j] = PLANCK( (tabp->x[j]*0.001), temp );
+	}
+}
+
+/*
+ *			R T _ S P E C T _ C U R V E _ T O _ X Y Z
+ *
+ *  Convenience routine.
+ *  Serves same function as Roy Hall's CLR_spect_to_xyz(), pg 233.
+ *  The normalization xyz_scale = 1.0 / rt_tabdata_area2( cie_y );
+ *  has been folded into rt_spect_make_CIE_XYZ();
+ */
+void
+rt_spect_curve_to_xyz( xyz, tabp, cie_x, cie_y, cie_z )
+point_t			xyz;
+CONST struct rt_tabdata	*tabp;
+CONST struct rt_tabdata	*cie_x;
+CONST struct rt_tabdata	*cie_y;
+CONST struct rt_tabdata	*cie_z;
+{
+	FAST fastf_t	tab_area;
+
+	RT_CK_TABDATA(tabp);
+
+#if 0
+	tab_area = rt_tabdata_area2( tabp );
+rt_log(" tab_area = %g\n", tab_area);
+	if( fabs(tab_area) < VDIVIDE_TOL )  {
+		rt_log("rt_spect_curve_to_xyz(): Area = 0 (no luminance) in this part of the spectrum\n");
+		VSETALL( xyz, 0 );
+		return;
+	}
+	tab_area = 1 / tab_area;
+#else
+	/* This is what Roy says to do, but I'm not certain */
+	tab_area = 1;
+#endif
+
+	xyz[X] = rt_tabdata_mul_area2( tabp, cie_x ) * tab_area;
+	xyz[Y] = rt_tabdata_mul_area2( tabp, cie_y ) * tab_area;
+	xyz[Z] = rt_tabdata_mul_area2( tabp, cie_z ) * tab_area;
+}
+
+/*
+ *			R T _ S P E C T _ R G B _ T O _ C U R V E
+ *
+ *  Using the "Representative set of camera taking sensitivities"
+ *  for a NTSC television camera, from Benson "Television Engineering
+ *  Handbook" page 4.58, convert an RGB value in range 0..1 to
+ *  a spectral curve also in range 0..1.
+ *
+ *  XXX This is completely wrong, don't do this.
+ */
+void
+rt_spect_rgb_to_curve( tabp, rgb, ntsc_r, ntsc_g, ntsc_b )
+struct rt_tabdata	*tabp;
+CONST point_t		rgb;
+CONST struct rt_tabdata	*ntsc_r;
+CONST struct rt_tabdata	*ntsc_g;
+CONST struct rt_tabdata	*ntsc_b;
+{
+	rt_tabdata_blend3( tabp,
+		rgb[0], ntsc_r,
+		rgb[1], ntsc_g,
+		rgb[2], ntsc_b );
+}
+
+/*
+ *			R T _ S P E C T _ X Y Z _ T O _ C U R V E
+ *
+ *  Values of the curve will be normalized to 0..1 range;
+ *  caller must scale into meaningful units.
+ *
+ *  Convenience routine.
+XXX This routine is probably wrong.  Or at least, it needs different curves.
+XXX Converting rgb to a curve, directly, should be easy.
+ */
+void
+rt_spect_xyz_to_curve( tabp, xyz, cie_x, cie_y, cie_z )
+struct rt_tabdata	*tabp;
+CONST point_t		xyz;
+CONST struct rt_tabdata	*cie_x;
+CONST struct rt_tabdata	*cie_y;
+CONST struct rt_tabdata	*cie_z;
+{
+	rt_tabdata_blend3( tabp,
+		xyz[X], cie_x,
+		xyz[Y], cie_y,
+		xyz[Z], cie_z );
+}
+
+#if 0
+main()
+{
+	struct rt_tabdata	*x, *y, *z;
+	struct rt_table	*tabp;
+
+#if 0
+	tabp = rt_table_make_uniform( 200, 360.0, 800.0 );
+
+	rt_spect_make_CIE_XYZ( &x, &y, &z, tabp );
+	
+	rt_pr_table_and_tabdata( "/tmp/x", x );
+	rt_pr_table_and_tabdata( "/tmp/y", y );
+	rt_pr_table_and_tabdata( "/tmp/z", z );
+#endif
+
+	tabp = rt_table_make_uniform( 100, 3.0, 3000.0 );
+
+	RT_GET_TABDATA( x, tabp );
+	rt_spect_black_body_points( x, 10000.0 );
+	rt_pr_table_and_tabdata( "/tmp/x", x );
+
+	RT_GET_TABDATA( y, tabp );
+	rt_spect_black_body( y, 10000.0, 3 );
+	rt_pr_table_and_tabdata( "/tmp/y", y );
+
+	RT_GET_TABDATA( z, tabp );
+	rt_spect_black_body_fast( z, 10000.0 );
+	rt_pr_table_and_tabdata( "/tmp/z", z );
+}
+#endif
+@
+
+
+1.21
+log
+@Changed rt_tabdata_resample(), which had bad aliasing, into
+rt_tabdata_resample_max() and rt_tabdata_resample_avg().
+@
+text
+@d24 1
+a24 1
+static char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/rt/spectrum.c,v 1.20 1998/10/09 02:01:21 mike Exp $ (ARL)";
+@
+
+
+1.20
+log
+@Tweaked NTSC camera curves by eye
+@
+text
+@d24 1
+a24 1
+static char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/rt/spectrum.c,v 1.19 1998/10/07 22:29:27 mike Exp $ (ARL)";
+d310 11
+a320 3
+	*rp = rt_tabdata_resample( tabp, rt_NTSC_r_tabdata );
+	*gp = rt_tabdata_resample( tabp, rt_NTSC_g_tabdata );
+	*bp = rt_tabdata_resample( tabp, rt_NTSC_b_tabdata );
+d324 2
+d386 2
+d703 2
+@
+
+
+1.19
+log
+@Added new function rt_spect_reflectance_rgb()
+@
+text
+@d24 1
+a24 1
+static char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/rt/spectrum.c,v 1.18 1998/10/07 07:36:27 mike Exp $ (ARL)";
+d170 1
+a170 1
+	{588, 0.95},
+d172 1
+a172 1
+	{600, 1.0},
+d224 1
+a224 1
+	{467, 0.8},
+d234 3
+a236 3
+static struct rt_tabdata *rt_NTSC_r_tabdata;
+static struct rt_tabdata *rt_NTSC_g_tabdata;
+static struct rt_tabdata *rt_NTSC_b_tabdata;
+@
+
+
+1.18
+log
+@Added rt_spect_make_NTSC_RGB() and related support tables and routines.
+@
+text
+@d24 1
+a24 1
+static char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/rt/spectrum.c,v 1.17 1998/09/30 04:31:16 mike Exp $ (ARL)";
+d284 3
+d298 10
+a307 6
+	rt_NTSC_r_tabdata = rt_tabdata_from_array( rt_NTSC_R );
+	rt_NTSC_g_tabdata = rt_tabdata_from_array( rt_NTSC_G );
+	rt_NTSC_b_tabdata = rt_tabdata_from_array( rt_NTSC_B );
+bu_log("ntsc_R:\n");rt_pr_table_and_tabdata( "/dev/tty", rt_NTSC_r_tabdata );
+bu_log("ntsc_G:\n");rt_pr_table_and_tabdata( "/dev/tty", rt_NTSC_g_tabdata );
+bu_log("ntsc_B:\n");rt_pr_table_and_tabdata( "/dev/tty", rt_NTSC_b_tabdata );
+d316 46
+d392 1
+a392 1
+#if 0
+d396 34
+a429 2
+	VPRINT( "white_xyz", new );
+	VSET( tst, 0.951368, 1, 1.08815);
+d431 2
+a432 1
+	VPRINT( "white_rgb", new );
+@
+
+
+1.17
+log
+@Added some CONSTs
+@
+text
+@d24 1
+a24 1
+static char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/rt/spectrum.c,v 1.16 1996/04/06 04:29:47 mike Exp $ (ARL)";
+d162 146
+d596 22
+@
+
+
+1.16
+log
+@Fixed bug in CIE maker.
+First (non-working) draft of curve to/from xyz routines
+@
+text
+@d24 1
+a24 1
+static char RCSid[] = "@@(#)$Header: /m/cad/rt/RCS/spectrum.c,v 1.15 1996/04/06 01:00:31 mike Exp mike $ (ARL)";
+d417 3
+d424 4
+a427 4
+struct rt_tabdata	*tabp;
+struct rt_tabdata	*cie_x;
+struct rt_tabdata	*cie_y;
+struct rt_tabdata	*cie_z;
+d459 2
+d466 3
+a468 3
+struct rt_tabdata	*cie_x;
+struct rt_tabdata	*cie_y;
+struct rt_tabdata	*cie_z;
+@
+
+
+1.15
+log
+@Split off librt/tabdata.c
+@
+text
+@a1 1
+ *			T A B L E . C
+a2 1
+    ...about to be split....
+d4 1
+a4 2
+ *  This should perhaps be called the "table" package, as it's use is
+ *  really much more general than just storing spectral curves.
+d24 1
+a24 1
+static char RCSid[] = "@@(#)$Header: /m/cad/rt/RCS/spectrum.c,v 1.14 1996/03/16 00:50:43 mike Exp mike $ (ARL)";
+d132 1
+a132 1
+		if( j >= tabp->nx )  return;
+d411 58
+@
+
+
+1.14
+log
+@On the way to table.c
+@
+text
+@d27 1
+a27 1
+static char RCSid[] = "@@(#)$Header: /m/cad/rt/RCS/spectrum.c,v 1.13 1996/03/14 07:25:56 mike Exp $ (ARL)";
+d36 1
+a38 217
+/*
+ *			R T _ C K _ T A B L E
+ */
+void
+rt_ck_table( tabp )
+CONST struct rt_table	*tabp;
+{
+	register int	i;
+
+	RT_CK_TABLE(tabp);
+
+	if( tabp->nx < 2 ) rt_bomb("rt_ck_table() less than 2 wavelengths\n");
+
+	for( i=0; i < tabp->nx; i++ )  {
+		if( tabp->x[i] >= tabp->x[i+1] )
+			rt_bomb("rt_ck_table() wavelengths not in strictly ascending order\n");
+	}
+}
+
+/*
+ *			R T _ T A B L E _ M A K E _ U N I F O R M
+ *
+ *  Set up an independent "table margin" from 'first' to 'last',
+ *  inclusive, using 'num' uniformly spaced samples.  Num >= 1.
+ */
+struct rt_table *
+rt_table_make_uniform( num, first, last )
+int	num;
+double	first;
+double	last;
+{
+	struct rt_table	*tabp;
+	fastf_t			*fp;
+	fastf_t			delta;
+	int			j;
+
+	if( first >= last )  rt_bomb("rt_table_make_uniform() first >= last\n");
+
+	RT_GET_TABLE( tabp, num );
+
+	delta = (last - first) / (double)num;
+
+	fp = &tabp->x[0];
+	for( j = num; j > 0; j-- )  {
+		*fp++ = first;
+		first += delta;
+	}
+	tabp->x[num] = last;
+}
+
+/*
+ *			R T _ T A B D A T A _ A D D
+ *
+ *  Sum the values from two data tables.
+ */
+void
+rt_tabdata_add( out, in1, in2 )
+struct rt_tabdata		*out;
+CONST struct rt_tabdata	*in1;
+CONST struct rt_tabdata	*in2;
+{
+	register int		j;
+	register fastf_t	*op, *i1, *i2;
+
+	RT_CK_TABDATA( out );
+	RT_CK_TABDATA( in1 );
+	RT_CK_TABDATA( in2 );
+
+	if( in1->table != in2->table || in1->table != out->table )
+		rt_bomb("rt_tabdata_add(): samples drawn from different tables\n");
+	if( in1->ny != in2->ny || in1->ny != out->ny )
+		rt_bomb("rt_tabdata_add(): different tabdata lengths?\n");
+
+	op = out->y;
+	i1 = in1->y;
+	i2 = in2->y;
+	for( j = in1->ny; j > 0; j-- )
+		*op++ = *i1++ + *i2++;
+	/* VADD2N( out->y, i1->y, i2->y, in1->ny ); */
+}
+
+/*
+ *			R T _ T A B D A T A _ M U L
+ *
+ *  Element-by-element multiply the values from two data tables.
+ */
+void
+rt_tabdata_mul( out, in1, in2 )
+struct rt_tabdata		*out;
+CONST struct rt_tabdata	*in1;
+CONST struct rt_tabdata	*in2;
+{
+	register int		j;
+	register fastf_t	*op, *i1, *i2;
+
+	RT_CK_TABDATA( out );
+	RT_CK_TABDATA( in1 );
+	RT_CK_TABDATA( in2 );
+
+	if( in1->table != in2->table || in1->table != out->table )
+		rt_bomb("rt_tabdata_mul(): samples drawn from different tables\n");
+	if( in1->ny != in2->ny || in1->ny != out->ny )
+		rt_bomb("rt_tabdata_mul(): different tabdata lengths?\n");
+
+	op = out->y;
+	i1 = in1->y;
+	i2 = in2->y;
+	for( j = in1->ny; j > 0; j-- )
+		*op++ = *i1++ * *i2++;
+	/* VELMUL2N( out->y, i1->y, i2->y, in1->ny ); */
+}
+
+/*
+ *			R T _ T A B D A T A _ S C A L E
+ *
+ *  Multiply every element in a data table by a scalar value 'scale'.
+ */
+void
+rt_tabdata_scale( out, in1, scale )
+struct rt_tabdata		*out;
+CONST struct rt_tabdata	*in1;
+register double			scale;
+{
+	register int		j;
+	register fastf_t	*op, *i1;
+
+	RT_CK_TABDATA( out );
+	RT_CK_TABDATA( in1 );
+
+	if( in1->table != out->table )
+		rt_bomb("rt_tabdata_scale(): samples drawn from different tables\n");
+	if( in1->ny != out->ny )
+		rt_bomb("rt_tabdata_scale(): different tabdata lengths?\n");
+
+	op = out->y;
+	i1 = in1->y;
+	for( j = in1->ny; j > 0; j-- )
+		*op++ = *i1++ * scale;
+	/* VSCALEN( out->y, in->y, scale ); */
+}
+
+/*
+ *			R T _ T A B L E _ S C A L E
+ *
+ *  Scale the indepentent axis of a table by 'scale'.
+ */
+void
+rt_table_scale( tabp, scale )
+struct rt_table	*tabp;
+register double		scale;
+{
+	register int		j;
+	register fastf_t	*op, *i1;
+
+	RT_CK_TABLE( tabp );
+
+	op = tabp->x;
+	for( j = tabp->nx+1; j > 0; j-- )
+		*op++ *= scale;
+	/* VSCALEN( tabp->x, tabp->x, scale, tabp->nx+1 ); */
+}
+
+/*
+ *			R T _ T A B D A T A _ A R E A 1
+ *
+ *  Following interpretation #1, where y[j] stores the total (integral
+ *  or area) value within the interval, return the area under the whole curve.
+ *  This is simply totaling up the areas from each of the intervals.
+ */
+double
+rt_tabdata_area1( in )
+CONST struct rt_tabdata	*in;
+{
+	FAST fastf_t		area;
+	register fastf_t	*ip;
+	register int		j;
+
+	RT_CK_TABDATA(in);
+
+	area = 0;
+	ip = in->y;
+	for( j = in->ny; j > 0; j-- )
+		area += *ip++;
+
+	return area;
+}
+
+/*
+ *			R T _ T A B D A T A _ A R E A 2
+ *
+ *  Following interpretation #2, where y[j] stores the average
+ *  value for the interval, return the area under
+ *  the whole curve.  Since the iterval spacing need not be uniform,
+ *  sum the areas of the rectangles.
+ */
+double
+rt_tabdata_area2( in )
+CONST struct rt_tabdata	*in;
+{
+	CONST struct rt_table	*tabp;
+	FAST fastf_t		area;
+	fastf_t			width;
+	register int		j;
+
+	RT_CK_TABDATA(in);
+	tabp = in->table;
+	RT_CK_TABLE(tabp);
+
+	area = 0;
+	for( j = in->ny-1; j >= 0; j-- )  {
+		width = tabp->x[j+1] - tabp->x[j];
+		area += in->y[j] * width;
+	}
+
+	return area;
+}
+
+a296 318
+
+/*
+ *			R T _ T A B L E _ L I N _ I N T E R P
+ *
+ *  Return the value of the spectral curve at wavelength 'wl'.
+ *  Linearly interpolate between values in the input table.
+ *  Zero is returned for values outside the sampled range.
+ *
+ *  A binary search would be more efficient, as the wavelengths
+ *  are known to be sorted in ascending order.
+ */
+fastf_t
+rt_table_lin_interp( samp, wl )
+CONST struct rt_tabdata	*samp;
+register double			wl;
+{
+	CONST struct rt_table	*tabp;
+	register int			i;
+
+	RT_CK_TABDATA(samp);
+	tabp = samp->table;
+	RT_CK_TABLE(tabp);
+
+	if( wl < tabp->x[0] || wl > tabp->x[tabp->nx] )
+		return 0;
+
+	/* Search for proper interval in input spectrum */
+	for( i = 0; i < tabp->nx-1; i++ )  {
+		FAST fastf_t	fract;		/* fraction from [i] to [i+1] */
+
+		if( wl < tabp->x[i] )  rt_bomb("rt_table_lin_interp() assertion1 failed\n");
+		if( wl >= tabp->x[i+1] )  continue;
+
+		/* The interval has been found */
+		fract = (wl - tabp->x[i]) /
+			(tabp->x[i+1] - tabp->x[i]);
+		if( fract < 0 || fract > 1 )  rt_bomb("rt_spect_spect_evaluate() assertion2 failed\n");
+		return (1-fract) * samp->y[i] + fract * samp->y[i+1];
+	}
+
+	/* Assume value is constant in final interval. */
+	if( !( wl >= tabp->x[tabp->nx-1] ) )
+		rt_bomb("rt_table_lin_interp() assertion3 failed\n");
+	return samp->y[tabp->nx-1];
+}
+
+/*
+ *			R T _ T A B D A T A _ R E S A M P L E
+ *
+ *  Given a set of sampled data 'olddata', resample it for different
+ *  spectral spacing, by linearly interpolating the values.
+ *
+ *  This assumes interpretation (2) of the data, i.e. that the values
+ *  are the average value across the interval.
+ */
+struct rt_tabdata *
+rt_tabdata_resample( newtable, olddata )
+CONST struct rt_table	*newtable;
+CONST struct rt_tabdata	*olddata;
+{
+	CONST struct rt_table	*oldspect;
+	struct rt_tabdata		*newsamp;
+	int				i;
+
+	RT_CK_TABLE(newtable);
+	RT_CK_TABDATA(olddata);
+	oldspect = olddata->table;
+	RT_CK_TABLE(oldspect);
+
+	if( oldspect == newtable )  rt_log("rt_tabdata_resample() old and new spectrum structs are the same\n");
+
+	RT_GET_TABDATA( newsamp, newtable );
+
+	for( i = 0; i < newtable->nx; i++ )  {
+		newsamp->y[i] = rt_table_lin_interp( olddata, newtable->x[i] );
+	}
+	return newsamp;
+}
+
+/*
+ *			R T _ T A B L E _ W R I T E 
+ *
+ *  Write out the spectrum structure in an ASCII file,
+ *  giving the number of wavelengths (minus 1), and the
+ *  actual wavelengths.
+ */
+int
+rt_table_write( filename, tabp )
+CONST char	*filename;
+CONST struct rt_table	*tabp;
+{
+	FILE	*fp;
+	int	j;
+
+	RT_CK_TABLE(tabp);
+
+	RES_ACQUIRE( &rt_g.res_syscall );
+	fp = fopen( filename, "w" );
+	RES_RELEASE( &rt_g.res_syscall );
+
+	if( fp == NULL )  {
+		perror(filename);
+		rt_log("rt_table_write(%s, x%x) FAILED\n", filename, tabp);
+		return -1;
+	}
+
+	RES_ACQUIRE( &rt_g.res_syscall );
+	fprintf(fp, "  %d sample starts, and one end.\n", tabp->nx );
+	for( j=0; j <= tabp->nx; j++ )  {
+		fprintf( fp, "%g\n", tabp->x[j] );
+	}
+	fclose(fp);
+	RES_RELEASE( &rt_g.res_syscall );
+	return 0;
+}
+
+/*
+ *			R T _ T A B L E _ R E A D
+ *
+ *  Allocate and read in the spectrum structure from an ASCII file,
+ *  giving the number of wavelengths (minus 1), and the
+ *  actual wavelengths.
+ */
+struct rt_table *
+rt_table_read( filename )
+CONST char	*filename;
+{
+	struct rt_table	*tabp;
+	struct rt_vls		line;
+	FILE	*fp;
+	int	nw;
+	int	j;
+
+	RES_ACQUIRE( &rt_g.res_syscall );
+	fp = fopen( filename, "r" );
+	RES_RELEASE( &rt_g.res_syscall );
+
+	if( fp == NULL )  {
+		perror(filename);
+		rt_log("rt_table_read(%s) FAILED\n", filename);
+		return NULL;
+	}
+
+	rt_vls_init(&line);
+	rt_vls_gets( &line, fp );
+	nw = 0;
+	sscanf( rt_vls_addr(&line), "%d", &nw );
+	rt_vls_free(&line);
+
+	if( nw <= 0 ) rt_bomb("rt_table_read() bad nw value\n");
+
+	RT_GET_TABLE( tabp, nw );
+
+	RES_ACQUIRE( &rt_g.res_syscall );
+	for( j=0; j <= tabp->nx; j++ )  {
+		/* XXX assumes fastf_t == double */
+		fscanf( fp, "%lf", &tabp->x[j] );
+	}
+	fclose(fp);
+	RES_RELEASE( &rt_g.res_syscall );
+
+	rt_ck_table( tabp );
+
+	return tabp;
+}
+
+/*
+ *			R T _ P R _ T A B L E _ A N D _ T A B D A T A
+ *
+ *  Write out a given data table into an ASCII file,
+ *  suitable for input to GNUPLOT.
+ *	(set term postscript)
+ *	(set output "|print-postscript")
+ *	(plot "filename" with lines)
+ */
+int
+rt_pr_table_and_tabdata( filename, data )
+CONST char			*filename;
+CONST struct rt_tabdata	*data;
+{
+	FILE	*fp;
+	CONST struct rt_table	*tabp;
+	int	j;
+
+	RT_CK_TABDATA(data);
+	tabp = data->table;
+	RT_CK_TABLE(tabp);
+
+	RES_ACQUIRE( &rt_g.res_syscall );
+	fp = fopen( filename, "w" );
+	RES_RELEASE( &rt_g.res_syscall );
+
+	if( fp == NULL )  {
+		perror(filename);
+		rt_log("rt_pr_table_and_tabdata(%s, x%x) FAILED\n", filename, data );
+		return -1;
+	}
+
+	RES_ACQUIRE( &rt_g.res_syscall );
+	for( j=0; j < tabp->nx; j++ )  {
+		fprintf( fp, "%g %g\n", tabp->x[j], data->y[j] );
+	}
+	fclose(fp);
+	RES_RELEASE( &rt_g.res_syscall );
+	return 0;
+}
+
+/*
+ *			R T _ R E A D _ T A B L E _ A N D _ T A B D A T A
+ *
+ *  Read in a file which contains two columns of numbers, the first
+ *  column being the waveength, the second column being the sample value
+ *  at that wavelength.
+ *  A new rt_table structure and one rt_tabdata structure
+ *  are created, a pointer to the rt_tabdata structure is returned.
+ *  The final wavelength is guessed at.
+ */
+struct rt_tabdata *
+rt_read_table_and_tabdata( filename )
+CONST char	*filename;
+{
+	struct rt_table	*tabp;
+	struct rt_tabdata	*data;
+	struct rt_vls		line;
+	FILE	*fp;
+	char	buf[128];
+	int	count = 0;
+	int	i;
+
+	RES_ACQUIRE( &rt_g.res_syscall );
+	fp = fopen( filename, "r" );
+	RES_RELEASE( &rt_g.res_syscall );
+
+	if( fp == NULL )  {
+		perror(filename);
+		rt_log("rt_read_table_and_tabdata(%s) FAILED\n", filename);
+		return NULL;
+	}
+
+	/* First pass:  Count number of lines */
+	RES_ACQUIRE( &rt_g.res_syscall );
+	for(;;)  {
+		if( fgets( buf, sizeof(buf), fp ) == NULL )  break;
+		count++;
+	}
+	fclose(fp);
+	RES_RELEASE( &rt_g.res_syscall );
+
+	/* Allocate storage */
+	RT_GET_TABLE( tabp, count );
+	RT_GET_TABDATA( data, tabp );
+
+	/* Second pass:  Read only as much data as storage was allocated for */
+	RES_ACQUIRE( &rt_g.res_syscall );
+	fp = fopen( filename, "r" );
+	for( i=0; i < count; i++ )  {
+		buf[0] = '\0';
+		if( fgets( buf, sizeof(buf), fp ) == NULL )  {
+			rt_log("rt_read_table_and_tabdata(%s) unexpected EOF on line %d\n", filename, i);
+			break;
+		}
+		sscanf( buf, "%lf %lf", &tabp->x[i], &data->y[i] );
+	}
+	fclose(fp);
+	RES_RELEASE( &rt_g.res_syscall );
+
+	/* Complete final interval */
+	tabp->x[count] = 2 * tabp->x[count-1] - tabp->x[count-2];
+
+	rt_ck_table( tabp );
+
+	return data;
+}
+
+/*
+ *			R T _ T A B D A T A _ B I N A R Y _ R E A D
+ */
+struct rt_tabdata *
+rt_tabdata_binary_read( filename, num, tabp )
+CONST char			*filename;
+int				num;
+CONST struct rt_table	*tabp;
+{
+	struct rt_tabdata	*data;
+	char	*cp;
+	int	nbytes;
+	int	len;
+	int	fd;
+	int	i;
+
+	RT_CK_TABLE(tabp);
+
+	nbytes = RT_SIZEOF_TABDATA(tabp);
+	len = num * nbytes;
+	data = (struct rt_tabdata *)rt_malloc( len+8, "rt_tabdata[]" );
+
+	if( (fd = open(filename, 0)) <= 0 )  {
+		perror(filename);
+		rt_bomb("Unable to open rt_tabdata file\n");
+	}
+	if( read( fd, (char *)data, len ) != len )  {
+		rt_bomb("Read of rt_tabdata failed\n");
+	}
+	close(fd);
+
+	/* Connect data[i].table pointer to tabp */
+	cp = (char *)data;
+	for( i = num-1; i >= 0; i--, cp += nbytes )  {
+		register struct rt_tabdata	*sp;
+
+		sp = (struct rt_tabdata *)cp;
+		RT_CK_TABDATA(sp);
+		sp->table = tabp;
+	}
+
+	return data;
+}
+
+a446 58
+
+/*
+ *			R T _ T A B D A T A _ M A L L O C _ A R R A Y
+ *
+ *  Allocate storage for, and initialize, an array of 'num' data table
+ *  structures.
+ *  This subroutine is provided because the rt_tabdata structures
+ *  are variable length.
+ */
+struct rt_tabdata *
+rt_tabdata_malloc_array( tabp, num )
+CONST struct rt_table	*tabp;
+int	num;
+{
+	struct rt_tabdata	*data;
+	char	*cp;
+	int	i;
+	int	nw;
+	int	nbytes;
+
+	RT_CK_TABLE(tabp);
+	nw = tabp->nx;
+	nbytes = RT_SIZEOF_TABDATA(tabp);
+
+	data = (struct rt_tabdata *)rt_calloc( num,
+		nbytes, "struct rt_tabdata[]" );
+
+	cp = (char *)data;
+	for( i = 0; i < num; i++ ) {
+		register struct rt_tabdata	*sp;
+
+		sp = (struct rt_tabdata *)cp;
+		sp->magic = RT_TABDATA_MAGIC;
+		sp->ny = nw;
+		sp->table = tabp;
+		cp += nbytes;
+	}
+	return data;
+}
+
+/*
+ *			R T _ T A B D A T A _ C O P Y
+ */
+void
+rt_tabdata_copy( out, in )
+struct rt_tabdata		*out;
+CONST struct rt_tabdata	*in;
+{
+	RT_CK_TABDATA( out );
+	RT_CK_TABDATA( in );
+
+	if( in->table != out->table )
+		rt_bomb("rt_tabdata_copy(): samples drawn from different tables\n");
+	if( in->ny != out->ny )
+		rt_bomb("rt_tabdata_copy(): different tabdata lengths?\n");
+
+	bcopy( (char *)in->y, (char *)out->y, in->ny * sizeof(fastf_t) );
+}
+@
+
+
+1.13
+log
+@Added routines from Roy Hall's book to build the matrix to
+convert from RGB to XYZ space, and back again.
+@
+text
+@d2 1
+d4 1
+d27 1
+a27 1
+static char RCSid[] = "@@(#)$Header: /m/cad/rt/RCS/spectrum.c,v 1.12 1996/03/14 04:58:24 mike Exp mike $ (ARL)";
+d39 1
+a39 1
+ *			R T _ C K _ S P E C T R U M
+d42 2
+a43 2
+rt_ck_spectrum( spect )
+CONST struct rt_spectrum	*spect;
+d47 1
+a47 1
+	RT_CK_SPECTRUM(spect);
+d49 1
+a49 1
+	if( spect->nwave < 2 ) rt_bomb("rt_ck_spectrum() less than 2 wavelengths\n");
+d51 3
+a53 3
+	for( i=0; i < spect->nwave; i++ )  {
+		if( spect->wavel[i] >= spect->wavel[i+1] )
+			rt_bomb("rt_ck_spectrum() wavelengths not in strictly ascending order\n");
+d58 1
+a58 1
+ *			R T _ S P E C T _ U N I F O R M
+d60 2
+a61 3
+ *  Set up a sampling of the spectrum from 'first' to 'last',
+ *  inclusive, which are specified as wavelength in nm,
+ *  using 'num' uniformly spaced samples.  Num >= 1.
+d63 2
+a64 2
+struct rt_spectrum *
+rt_spect_uniform( num, first, last )
+d69 1
+a69 1
+	struct rt_spectrum	*spect;
+d74 1
+a74 1
+	if( first >= last )  rt_bomb("rt_spect_uniform() first >= last\n");
+d76 1
+a76 1
+	RT_GET_SPECTRUM( spect, num );
+d80 1
+a80 1
+	fp = &spect->wavel[0];
+d85 1
+a85 1
+	spect->wavel[num] = last;
+d89 1
+a89 1
+ *			R T _ S P E C T _ A D D
+d91 1
+a91 1
+ *  Sum the values from two spectral samples.
+d94 4
+a97 4
+rt_spect_add( out, in1, in2 )
+struct rt_spect_sample		*out;
+CONST struct rt_spect_sample	*in1;
+CONST struct rt_spect_sample	*in2;
+d102 13
+a114 13
+	RT_CK_SPECT_SAMPLE( out );
+	RT_CK_SPECT_SAMPLE( in1 );
+	RT_CK_SPECT_SAMPLE( in2 );
+
+	if( in1->spectrum != in2->spectrum || in1->spectrum != out->spectrum )
+		rt_bomb("rt_spect_add(): samples drawn from different spectra\n");
+	if( in1->nwave != in2->nwave || in1->nwave != out->nwave )
+		rt_bomb("rt_spect_add(): different number of wavelengths\n");
+
+	op = out->val;
+	i1 = in1->val;
+	i2 = in2->val;
+	for( j = in1->nwave; j > 0; j-- )
+d116 1
+a116 1
+	/* VADD2N( out->val, i1->val, i2->val, in1->nwave ); */
+d120 1
+a120 1
+ *			R T _ S P E C T _ M U L
+d122 1
+a122 1
+ *  Element-by-element multiply the values from two spectral samples.
+d125 4
+a128 4
+rt_spect_mul( out, in1, in2 )
+struct rt_spect_sample		*out;
+CONST struct rt_spect_sample	*in1;
+CONST struct rt_spect_sample	*in2;
+d133 13
+a145 13
+	RT_CK_SPECT_SAMPLE( out );
+	RT_CK_SPECT_SAMPLE( in1 );
+	RT_CK_SPECT_SAMPLE( in2 );
+
+	if( in1->spectrum != in2->spectrum || in1->spectrum != out->spectrum )
+		rt_bomb("rt_spect_mul(): samples drawn from different spectra\n");
+	if( in1->nwave != in2->nwave || in1->nwave != out->nwave )
+		rt_bomb("rt_spect_mul(): different number of wavelengths\n");
+
+	op = out->val;
+	i1 = in1->val;
+	i2 = in2->val;
+	for( j = in1->nwave; j > 0; j-- )
+d147 1
+a147 1
+	/* VELMUL2N( out->val, i1->val, i2->val, in1->nwave ); */
+d151 1
+a151 1
+ *			R T _ S P E C T _ S C A L E
+d153 1
+a153 1
+ *  Multiply every element in a spectral sample by a scalar value 'scale'.
+d156 3
+a158 3
+rt_spect_scale( out, in1, scale )
+struct rt_spect_sample		*out;
+CONST struct rt_spect_sample	*in1;
+d164 2
+a165 2
+	RT_CK_SPECT_SAMPLE( out );
+	RT_CK_SPECT_SAMPLE( in1 );
+d167 8
+a174 8
+	if( in1->spectrum != out->spectrum )
+		rt_bomb("rt_spect_scale(): samples drawn from different spectra\n");
+	if( in1->nwave != out->nwave )
+		rt_bomb("rt_spect_scale(): different number of wavelengths\n");
+
+	op = out->val;
+	i1 = in1->val;
+	for( j = in1->nwave; j > 0; j-- )
+d176 1
+a176 1
+	/* VSCALEN( out->val, in->val, scale ); */
+d180 1
+a180 1
+ *			R T _ S P E C T R U M _ S C A L E
+d182 1
+a182 3
+ *  Scale the indepentent axis (wavelength) of a spectrum by 'scale'.
+ *  If input spectrum is in microns (um) and you need nanometers (nm),
+ *  this routine is just the ticket.
+d185 2
+a186 2
+rt_spectrum_scale( spect, scale )
+struct rt_spectrum	*spect;
+d192 1
+a192 1
+	RT_CK_SPECTRUM( spect );
+d194 2
+a195 2
+	op = spect->wavel;
+	for( j = spect->nwave+1; j > 0; j-- )
+d197 1
+a197 1
+	/* VSCALEN( spect->wavel, spect->wavel, scale, spect->nwave+1 ); */
+d201 1
+a201 1
+ *			R T _ S P E C T _ A R E A 1
+d203 1
+a203 1
+ *  Following interpretation #1, where val[j] stores the total (integral
+d208 2
+a209 2
+rt_spect_area1( in )
+CONST struct rt_spect_sample	*in;
+d215 1
+a215 1
+	RT_CK_SPECT_SAMPLE(in);
+d218 2
+a219 2
+	ip = in->val;
+	for( j = in->nwave; j > 0; j-- )
+d226 1
+a226 1
+ *			R T _ S P E C T _ A R E A 2
+d228 2
+a229 2
+ *  Following interpretation #2, where val[j] stores the average
+ *  value value for the interval, return the area under
+d234 2
+a235 2
+rt_spect_area2( in )
+CONST struct rt_spect_sample	*in;
+d237 1
+a237 1
+	CONST struct rt_spectrum	*spect;
+d242 3
+a244 3
+	RT_CK_SPECT_SAMPLE(in);
+	spect = in->spectrum;
+	RT_CK_SPECTRUM(spect);
+d247 3
+a249 3
+	for( j = in->nwave-1; j >= 0; j-- )  {
+		width = spect->wavel[j+1] - spect->wavel[j];
+		area += in->val[j] * width;
+d319 5
+a323 5
+rt_spect_make_CIE_XYZ( x, y, z, spect )
+struct rt_spect_sample		**x;
+struct rt_spect_sample		**y;
+struct rt_spect_sample		**z;
+CONST struct rt_spectrum	*spect;
+d325 1
+a325 1
+	struct rt_spect_sample	*a, *b, *c;
+d330 1
+a330 1
+	RT_CK_SPECTRUM(spect);
+d332 3
+a334 3
+	RT_GET_SPECT_SAMPLE( a, spect );
+	RT_GET_SPECT_SAMPLE( b, spect );
+	RT_GET_SPECT_SAMPLE( c, spect );
+d340 2
+a341 2
+	for( j=0; spect->wavel[j] < 380 && j < spect->nwave; j++ )  {
+		a->val[j] = b->val[j] = c->val[j] = 0;
+d351 3
+a353 3
+		if( j >= spect->nwave )  return;
+		if( spect->wavel[j] < rt_CIE_XYZ[i][0] ) rt_bomb("rt_spect_make_CIE_XYZ assertion1 failed\n");
+		if( spect->wavel[j] >= rt_CIE_XYZ[i+1][0] )  continue;
+d355 1
+a355 1
+		fract = (spect->wavel[j] - rt_CIE_XYZ[i][0] ) / 5;
+d357 3
+a359 3
+		a->val[j] = (1-fract) * rt_CIE_XYZ[i][1] + fract * rt_CIE_XYZ[i+1][1];
+		b->val[j] = (1-fract) * rt_CIE_XYZ[i][2] + fract * rt_CIE_XYZ[i+1][2];
+		c->val[j] = (1-fract) * rt_CIE_XYZ[i][3] + fract * rt_CIE_XYZ[i+1][3];
+d365 2
+a366 2
+	for( ; j < spect->nwave; j++ )  {
+		a->val[j] = b->val[j] = c->val[j] = 0;
+d370 1
+a370 1
+	xyz_scale = rt_spect_area2( b );
+d376 3
+a378 3
+	rt_spect_scale( a, a, xyz_scale );
+	rt_spect_scale( b, b, xyz_scale );
+	rt_spect_scale( c, c, xyz_scale );
+d382 1
+a382 1
+ *   This is the NTSC primaries with D6500 white point for use as
+d515 1
+a515 1
+ *			R T _ S P E C T _ E V A L U A T E
+d525 2
+a526 2
+rt_spect_evaluate( samp, wl )
+CONST struct rt_spect_sample	*samp;
+d529 1
+a529 1
+	CONST struct rt_spectrum	*spect;
+d532 3
+a534 3
+	RT_CK_SPECT_SAMPLE(samp);
+	spect = samp->spectrum;
+	RT_CK_SPECTRUM(spect);
+d536 1
+a536 1
+	if( wl < spect->wavel[0] || wl > spect->wavel[spect->nwave] )
+d540 1
+a540 1
+	for( i = 0; i < spect->nwave-1; i++ )  {
+d543 2
+a544 2
+		if( wl < spect->wavel[i] )  rt_bomb("rt_spect_evaluate() assertion1 failed\n");
+		if( wl >= spect->wavel[i+1] )  continue;
+d547 2
+a548 2
+		fract = (wl - spect->wavel[i]) /
+			(spect->wavel[i+1] - spect->wavel[i]);
+d550 1
+a550 1
+		return (1-fract) * samp->val[i] + fract * samp->val[i+1];
+d554 3
+a556 3
+	if( !( wl >= spect->wavel[spect->nwave-1] ) )
+		rt_bomb("rt_spect_evaluate() assertion3 failed\n");
+	return samp->val[spect->nwave-1];
+d560 1
+a560 1
+ *			R T _ S P E C T _ R E S A M P L E
+d562 1
+a562 1
+ *  Given a set of sampled data 'oldsamp', resample it for different
+d568 4
+a571 4
+struct rt_spect_sample *
+rt_spect_resample( newspect, oldsamp )
+CONST struct rt_spectrum	*newspect;
+CONST struct rt_spect_sample	*oldsamp;
+d573 2
+a574 2
+	CONST struct rt_spectrum	*oldspect;
+	struct rt_spect_sample		*newsamp;
+d577 4
+a580 4
+	RT_CK_SPECTRUM(newspect);
+	RT_CK_SPECT_SAMPLE(oldsamp);
+	oldspect = oldsamp->spectrum;
+	RT_CK_SPECTRUM(oldspect);
+d582 1
+a582 1
+	if( oldspect == newspect )  rt_log("rt_spect_resample() old and new spectrum structs are the same\n");
+d584 1
+a584 1
+	RT_GET_SPECT_SAMPLE( newsamp, newspect );
+d586 2
+a587 2
+	for( i = 0; i < newspect->nwave; i++ )  {
+		newsamp->val[i] = rt_spect_evaluate( oldsamp, newspect->wavel[i] );
+d593 1
+a593 1
+ *			R T _ W R I T E _ S P E C T R U M
+d600 1
+a600 1
+rt_write_spectrum( filename, spect )
+d602 1
+a602 1
+CONST struct rt_spectrum	*spect;
+d607 1
+a607 1
+	RT_CK_SPECTRUM(spect);
+d615 1
+a615 1
+		rt_log("rt_write_spectrum(%s, x%x) FAILED\n", filename, spect);
+d620 3
+a622 3
+	fprintf(fp, "  %d sample starts, and one end.\n", spect->nwave );
+	for( j=0; j <= spect->nwave; j++ )  {
+		fprintf( fp, "%g\n", spect->wavel[j] );
+d630 1
+a630 1
+ *			R T _ R E A D _ S P E C T R U M
+d636 2
+a637 2
+struct rt_spectrum *
+rt_read_spectrum( filename )
+d640 1
+a640 1
+	struct rt_spectrum	*spect;
+d652 1
+a652 1
+		rt_log("rt_read_spectrum(%s) FAILED\n", filename);
+d662 1
+a662 1
+	if( nw <= 0 ) rt_bomb("rt_read_spectrum() bad nw value\n");
+d664 1
+a664 1
+	RT_GET_SPECTRUM( spect, nw );
+d667 1
+a667 1
+	for( j=0; j <= spect->nwave; j++ )  {
+d669 1
+a669 1
+		fscanf( fp, "%lf", &spect->wavel[j] );
+d674 1
+a674 1
+	rt_ck_spectrum( spect );
+d676 1
+a676 1
+	return spect;
+d680 1
+a680 1
+ *			R T _ W R I T E _ S P E C T _ S A M P L E
+d682 1
+a682 1
+ *  Write out a given spectral sample into an ASCII file,
+d689 1
+a689 1
+rt_write_spect_sample( filename, ss )
+d691 1
+a691 1
+CONST struct rt_spect_sample	*ss;
+d694 1
+a694 1
+	CONST struct rt_spectrum	*spect;
+d697 3
+a699 3
+	RT_CK_SPECT_SAMPLE(ss);
+	spect = ss->spectrum;
+	RT_CK_SPECTRUM(spect);
+d707 1
+a707 1
+		rt_log("rt_write_spect_sample(%s, x%x) FAILED\n", filename, ss );
+d712 2
+a713 2
+	for( j=0; j < spect->nwave; j++ )  {
+		fprintf( fp, "%g %g\n", spect->wavel[j], ss->val[j] );
+d721 1
+a721 1
+ *			R T _ R E A D _ S P E C T R U M _ A N D _ S A M P L E S
+d724 1
+a724 1
+ *  column being the wavelength, the second column being the sample value
+d726 2
+a727 2
+ *  A new rt_spectrum structure and one rt_spect_sample structure
+ *  are created, a pointer to the rt_spect_sample structure is returned.
+d730 2
+a731 2
+struct rt_spect_sample *
+rt_read_spectrum_and_samples( filename )
+d734 2
+a735 2
+	struct rt_spectrum	*spect;
+	struct rt_spect_sample	*ss;
+d748 1
+a748 1
+		rt_log("rt_read_spectrum_and_samples(%s) FAILED\n", filename);
+d762 2
+a763 2
+	RT_GET_SPECTRUM( spect, count );
+	RT_GET_SPECT_SAMPLE( ss, spect );
+d771 1
+a771 1
+			rt_log("rt_read_spectrum_and_samples(%s) unexpected EOF on line %d\n", filename, i);
+d774 1
+a774 1
+		sscanf( buf, "%lf %lf", &spect->wavel[i], &ss->val[i] );
+d780 1
+a780 1
+	spect->wavel[count] = 2 * spect->wavel[count-1] - spect->wavel[count-2];
+d782 1
+a782 1
+	rt_ck_spectrum( spect );
+d784 1
+a784 1
+	return ss;
+d787 44
+d852 2
+a853 2
+rt_spect_black_body( ss, temp, n )
+struct rt_spect_sample	*ss;
+d857 1
+a857 1
+	CONST struct rt_spectrum	*spect;
+d860 6
+a865 6
+	RT_CK_SPECT_SAMPLE(ss);
+	spect = ss->spectrum;
+	RT_CK_SPECTRUM(spect);
+if(rt_g.debug) rt_log("rt_spect_black_body( x%x, %g degK ) %g um to %g um\n", ss, temp,
+spect->wavel[0] * 0.001,	/* nm to um */
+spect->wavel[spect->nwave] * 0.001	/* nm to um */
+d870 1
+a870 1
+	for( j = 0; j < spect->nwave; j++ )  {
+d878 2
+a879 2
+		ax = spect->wavel[j] * 0.001;	/* nm to um */
+		bx = spect->wavel[j+1] * 0.001;	/* nm to um */
+d890 1
+a890 1
+		ss->val[j] = w_sum;
+d907 2
+a908 2
+rt_spect_black_body_fast( ss, temp )
+struct rt_spect_sample	*ss;
+d911 1
+a911 1
+	CONST struct rt_spectrum	*spect;
+d914 8
+a921 8
+	RT_CK_SPECT_SAMPLE(ss);
+	spect = ss->spectrum;
+	RT_CK_SPECTRUM(spect);
+if(rt_g.debug) rt_log("rt_spect_black_body_fast( x%x, %g degK )\n", ss, temp );
+
+	for( j = 0; j < spect->nwave; j++ )  {
+		ss->val[j] = PLANCK( (spect->wavel[j]*0.001), temp ) *
+			(spect->wavel[j+1] - spect->wavel[j]) * 0.001;
+d933 2
+a934 2
+rt_spect_black_body_points( ss, temp )
+struct rt_spect_sample	*ss;
+d937 1
+a937 1
+	CONST struct rt_spectrum	*spect;
+d940 4
+a943 4
+	RT_CK_SPECT_SAMPLE(ss);
+	spect = ss->spectrum;
+	RT_CK_SPECTRUM(spect);
+if(rt_g.debug) rt_log("rt_spect_black_body_points( x%x, %g degK )\n", ss, temp );
+d945 2
+a946 2
+	for( j = 0; j < spect->nwave; j++ )  {
+		ss->val[j] = PLANCK( (spect->wavel[j]*0.001), temp );
+d953 2
+a954 2
+	struct rt_spect_sample	*x, *y, *z;
+	struct rt_spectrum	*spect;
+d957 1
+a957 1
+	spect = rt_spect_uniform( 200, 360.0, 800.0 );
+d959 1
+a959 1
+	rt_spect_make_CIE_XYZ( &x, &y, &z, spect );
+d961 3
+a963 3
+	rt_write_spect_sample( "/tmp/x", x );
+	rt_write_spect_sample( "/tmp/y", y );
+	rt_write_spect_sample( "/tmp/z", z );
+d966 1
+a966 1
+	spect = rt_spect_uniform( 100, 3.0, 3000.0 );
+d968 1
+a968 1
+	RT_GET_SPECT_SAMPLE( x, spect );
+d970 1
+a970 1
+	rt_write_spect_sample( "/tmp/x", x );
+d972 1
+a972 1
+	RT_GET_SPECT_SAMPLE( y, spect );
+d974 1
+a974 1
+	rt_write_spect_sample( "/tmp/y", y );
+d976 1
+a976 1
+	RT_GET_SPECT_SAMPLE( z, spect );
+d978 1
+a978 1
+	rt_write_spect_sample( "/tmp/z", z );
+d983 1
+a983 1
+ *			R T _ G E T _ S P E C T _ S A M P L E _ A R R A Y
+d985 1
+a985 1
+ *  Allocate storage for, and initialize, an array of 'num' spectral sample
+d987 1
+a987 1
+ *  This subroutine is provided because the rt_spect_sample structures
+d990 3
+a992 3
+struct rt_spect_sample *
+rt_get_spect_sample_array( spect, num )
+CONST struct rt_spectrum	*spect;
+d995 1
+a995 1
+	struct rt_spect_sample	*ss;
+d1001 3
+a1003 3
+	RT_CK_SPECTRUM(spect);
+	nw = spect->nwave;
+	nbytes = RT_SIZEOF_SPECT_SAMPLE(spect);
+d1005 2
+a1006 2
+	ss = (struct rt_spect_sample *)rt_calloc( num,
+		nbytes, "struct rt_spect_sample[]" );
+d1008 1
+a1008 1
+	cp = (char *)ss;
+d1010 1
+a1010 1
+		register struct rt_spect_sample	*sp;
+d1012 4
+a1015 4
+		sp = (struct rt_spect_sample *)cp;
+		sp->magic = RT_SPECT_SAMPLE_MAGIC;
+		sp->nwave = nw;
+		sp->spectrum = spect;
+d1018 1
+a1018 1
+	return ss;
+d1022 1
+a1022 1
+ *			R T _ S P E C T _ C O P Y
+d1025 11
+a1035 11
+rt_spect_copy( out, in )
+struct rt_spect_sample		*out;
+CONST struct rt_spect_sample	*in;
+{
+	RT_CK_SPECT_SAMPLE( out );
+	RT_CK_SPECT_SAMPLE( in );
+
+	if( in->spectrum != out->spectrum )
+		rt_bomb("rt_spect_copy(): samples drawn from different spectra\n");
+	if( in->nwave != out->nwave )
+		rt_bomb("rt_spect_copy(): different number of wavelengths\n");
+d1037 1
+a1037 1
+	bcopy( (char *)in->val, (char *)out->val, in->nwave * sizeof(fastf_t) );
+@
+
+
+1.12
+log
+@Fixed bug in CIE indexing.
+@
+text
+@d25 1
+a25 1
+static char RCSid[] = "@@(#)$Header: /m/cad/rt/RCS/spectrum.c,v 1.11 1996/03/09 05:16:47 mike Exp mike $ (ARL)";
+d259 1
+a259 1
+ *  From Roy Hall.
+d327 1
+d370 10
+d381 133
+@
+
+
+1.11
+log
+@Added more routines
+@
+text
+@d25 1
+a25 1
+static char RCSid[] = "@@(#)$Header: /m/cad/rt/RCS/spectrum.c,v 1.10 1996/03/01 06:02:38 mike Exp mike $ (ARL)";
+d347 1
+a347 1
+	for( i = 0; i < 81; i++ )  {
+d823 1
+a823 1
+		struct rt_spect_sample	*sp;
+@
+
+
+1.10
+log
+@Fixed fscanf bug, made debug prints conditional.
+@
+text
+@d4 3
+d25 1
+a25 1
+static char RCSid[] = "@@(#)$Header: /m/cad/rt/RCS/spectrum.c,v 1.9 1996/02/28 03:21:17 mike Exp mike $ (ARL)";
+d37 19
+d179 23
+d261 1
+a261 1
+static double	rt_CIE_XYZ[81][4] = {
+d372 78
+d530 3
+d577 21
+d599 45
+d835 1
+@
+
+
+1.9
+log
+@Added more routines
+@
+text
+@d22 1
+a22 1
+static char RCSid[] = "@@(#)$Header: /m/cad/rt/RCS/spectrum.c,v 1.8 1996/02/27 23:44:20 mike Exp mike $ (ARL)";
+d402 2
+a403 1
+		fscanf( fp, "%g", spect->wavel[j] );
+d484 1
+a484 1
+rt_log("rt_spect_black_body( x%x, %g degK ) %g um to %g um\n", ss, temp,
+d538 1
+a538 1
+rt_log("rt_spect_black_body_fast( x%x, %g degK )\n", ss, temp );
+d564 1
+a564 1
+rt_log("rt_spect_black_body_points( x%x, %g degK )\n", ss, temp );
+@
+
+
+1.8
+log
+@Doc
+@
+text
+@d22 1
+a22 1
+static char RCSid[] = "@@(#)$Header: /m/cad/rt/RCS/spectrum.c,v 1.7 1996/02/27 23:43:18 mike Exp mike $ (ARL)";
+d29 1
+d327 1
+d329 3
+d333 86
+a418 1
+void
+d437 2
+a438 2
+		rt_log("rt_write_spect_sample(%s, %s) FAILED\n");
+		return;
+d447 1
+d570 1
+d599 58
+@
+
+
+1.7
+log
+@More doc
+@
+text
+@d22 1
+a22 1
+static char RCSid[] = "@@(#)$Header: /m/cad/rt/RCS/spectrum.c,v 1.6 1996/02/27 23:38:20 mike Exp mike $ (ARL)";
+d455 3
+a457 1
+ *  Returns point-samples values of spectral radiant emittance,
+d459 1
+a459 1
+ *  straight from Planck's formula.
+@
+
+
+1.6
+log
+@Doc
+@
+text
+@d22 1
+a22 1
+static char RCSid[] = "@@(#)$Header: /m/cad/rt/RCS/spectrum.c,v 1.5 1996/02/27 23:37:06 mike Exp mike $ (ARL)";
+d361 2
+a362 1
+#define C2    	1.4388E4    /* um K */ 	
+@
+
+
+1.5
+log
+@Improved parameterization.
+@
+text
+@d18 2
+d22 1
+a22 1
+static char RCSid[] = "@@(#)$Header: /m/cad/rt/RCS/spectrum.c,v 1.4 1996/02/27 23:32:33 mike Exp mike $ (ARL)";
+@
+
+
+1.4
+log
+@Improved fit by getting rid of 0.5 wavelength interval phase shift.
+@
+text
+@d20 1
+a20 1
+static char RCSid[] = "@@(#)$Header: /m/cad/rt/RCS/spectrum.c,v 1.3 1996/02/27 23:27:59 mike Exp mike $ (ARL)";
+d378 1
+a378 1
+rt_spect_black_body( ss, temp )
+d381 1
+d394 2
+d399 4
+a402 4
+		double	w_sum;
+		double	wavlen;
+		double	dx;
+		unsigned long n,i;
+a405 2
+
+		n = 3;
+d496 1
+a496 1
+	rt_spect_black_body( y, 10000.0 );
+a502 1
+
+@
+
+
+1.3
+log
+@I believe that the black body calculations are correct.
+@
+text
+@d20 1
+a20 1
+static char RCSid[] = "@@(#)$Header: /m/cad/rt/RCS/spectrum.c,v 1.2 1996/02/27 22:34:01 mike Exp mike $ (ARL)";
+d375 1
+a375 2
+ *  Compute at 'n-1' wavelengths evenly spaces between ax and bx,
+ *  taking half of the left and right-most rectangles.
+d407 3
+a409 3
+		w_sum = 0.50 * PLANCK(ax, temp);
+		wavlen = ax + dx;
+		for (i=1; i<n; i++)  {
+a412 1
+		w_sum += 0.50 * PLANCK(bx, temp);
+@
+
+
+1.2
+log
+@Added rt_spect_black_body_points()
+@
+text
+@d20 1
+a20 1
+static char RCSid[] = "@@(#)$Header: /m/cad/rt/RCS/spectrum.c,v 1.1 1996/02/27 09:19:35 mike Exp mike $ (ARL)";
+a357 8
+#if 0
+#define C 	2.9979E10 /* cm/sec */
+#define H 	6.6256E-34 /* watt sec sec */
+#define K 	1.38054E-23 /* watt-sec/degK */
+#define SIGMA 	5.6697E-12 /* watt/cm*cm degK^4 */
+#define C3	1.8837E23   /* um^3 sec^-1 cm^-2 */
+#endif
+
+d363 3
+a365 3
+#define	PLANCK(_w,_temp)	\
+	(C1/(_w*_w*_w*_w*_w*(exp(C2/(_w*_temp))-1)))
+	/* Units: W / cm**2 / um */
+d368 2
+d371 2
+a372 2
+ *  at temperature T.
+ *  Returns radiant emittance in W/cm**2
+d375 2
+a377 39
+static fastf_t
+rad(ax,bx,dx,temp)
+double	ax;		/* starting wavelength, um */
+double	bx;		/* ending wavelength, um */
+double	dx;		/* delta wavelength, um */
+double	temp;		/* Temperature, degK */
+{  
+	double	w_sum;
+	double	wavlen;
+	unsigned long n,i;
+
+	if ( (bx-ax) <=  0) 
+	{
+		printf("Inconsistent spectral band...\n");
+		return(0.0);
+	}
+
+	n = (unsigned long)((bx-ax)/dx + 0.99);
+
+	w_sum = 0.50 * PLANCK(ax, temp);
+
+	w_sum += 0.50 * PLANCK(bx, temp);
+
+	wavlen = ax + dx;
+	for (i=1; i<n; i++)
+	{
+		w_sum += PLANCK(wavlen, temp);
+		wavlen+=dx;
+	}
+	w_sum*=dx;
+
+	/*
+	printf("Temp = %6.2f  Radiant emittance %8.4e\n",temp,w_sum);
+	*/ 
+	return(w_sum);   
+}
+
+/*
+ */
+d395 23
+a417 5
+		ss->val[j] = rad(
+			spect->wavel[j] * 0.001,	/* nm to um */
+			spect->wavel[j+1] * 0.001,	/* nm to um */
+			(spect->wavel[j+1] - spect->wavel[j]) / 8 * 0.001,
+			temp );
+d422 10
+a431 2
+ *  Returns radiant emittance in units of watts/cm**2
+ *  by integrating each wavelength span of spectral radiant emittance.
+d434 1
+a434 1
+rt_spect_black_body2( ss, temp )
+d444 1
+a444 1
+rt_log("rt_spect_black_body2( x%x, %g degK )\n", ss, temp );
+d490 1
+a490 1
+	spect = rt_spect_uniform( 8, 3.0, 3000.0 );
+d501 1
+a501 1
+	rt_spect_black_body2( z, 10000.0 );
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d20 1
+a20 1
+static char RCSid[] = "@@(#)$Header$ (ARL)";
+d447 2
+a448 2
+ *  Returns spectral radiant emittance, watts/cm**2/um
+ *  straight from Planck's formula.
+d464 24
+d507 1
+a507 1
+	spect = rt_spect_uniform( 200, 10.0, 10000.0 );
+d510 1
+a510 1
+	rt_spect_black_body( x, 6500.0 );
+@

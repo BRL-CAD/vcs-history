@@ -1,0 +1,395 @@
+head	1.11;
+access;
+symbols
+	ansi-20040405-merged:1.8.2.1
+	postmerge-20040405-ansi:1.9
+	premerge-20040404-ansi:1.8
+	postmerge-autoconf:1.8
+	autoconf-freeze:1.8
+	premerge-autoconf:1.8
+	ansi-20040316-freeze:1.8.2.1
+	postmerge-20040315-windows:1.8
+	premerge-20040315-windows:1.8
+	windows-20040315-freeze:1.8
+	autoconf-20031203:1.8
+	autoconf-20031202:1.8
+	autoconf-branch:1.8.0.10
+	phong-branch:1.8.0.8
+	photonmap-branch:1.8.0.6
+	rel-6-1-DP:1.8
+	windows-branch:1.8.0.4
+	rel-6-0-2:1.6
+	ansi-branch:1.8.0.2
+	rel-6-0-1-branch:1.6.0.2
+	hartley-6-0-post:1.7
+	hartley-6-0-pre:1.6
+	rel-6-0-1:1.6
+	rel-6-0:1.6
+	rel-5-4:1.3.2.1
+	offsite-5-3-pre:1.5
+	rel-5-3:1.3.2.1
+	rel-5-2:1.3
+	rel-5-1-branch:1.3.0.2
+	rel-5-1:1.3
+	rel-5-0:1.2
+	rel-5-0-beta:1.2
+	rel-4-5:1.2
+	ctj-4-5-post:1.1
+	ctj-4-5-pre:1.1;
+locks; strict;
+comment	@ * @;
+
+
+1.11
+date	2004.05.21.18.06.23;	author morrison;	state dead;
+branches;
+next	1.10;
+
+1.10
+date	2004.05.10.15.30.44;	author erikg;	state Exp;
+branches;
+next	1.9;
+
+1.9
+date	2004.04.05.07.46.16;	author morrison;	state Exp;
+branches;
+next	1.8;
+
+1.8
+date	2002.08.20.17.07.40;	author jra;	state Exp;
+branches
+	1.8.2.1;
+next	1.7;
+
+1.7
+date	2002.08.15.20.54.52;	author hartley;	state Exp;
+branches;
+next	1.6;
+
+1.6
+date	2001.04.20.22.29.06;	author morrison;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	2001.02.20.17.18.50;	author bparker;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	2000.07.07.05.21.20;	author cjohnson;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2000.03.28.18.55.07;	author mike;	state Exp;
+branches
+	1.3.2.1;
+next	1.2;
+
+1.2
+date	97.11.22.02.58.28;	author mike;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	96.08.27.06.18.33;	author mike;	state Exp;
+branches;
+next	;
+
+1.3.2.1
+date	2001.02.20.17.18.15;	author bparker;	state Exp;
+branches;
+next	;
+
+1.8.2.1
+date	2002.09.19.18.01.12;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@getopt.c
+@
+
+
+1.11
+log
+@moved to src/
+@
+text
+@/*
+ *			G E T O P T . C
+ *
+ *  Special re-entrant version of getopt.
+ *  Everything is prefixed with bu_, to distinguish it from the various
+ *  getopt() routines found in libc.
+ *
+ *  Important note -
+ *	If bu_getopt() it going to be used more than once, it is necessary
+ *	to reinitialize bu_optind=1 before beginning on the next argument list.
+ *  
+ *  Distribution Status -
+ *	Public Domain, Distribution Unlimitied.
+ */
+#ifndef lint
+static const char libbu_getopt_RCSid[] = "@@(#)$Header: /n/xoff/cvs/brlcad/libbu/getopt.c,v 1.10 2004/05/10 15:30:44 erikg Exp $ (BRL)";
+#endif
+
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+
+#include <stdio.h>
+#ifdef USE_STRING_H
+#include <string.h>
+#else
+#include <strings.h>
+#endif
+
+#include "machine.h"
+#include "externs.h"
+#include "bu.h"
+
+int	bu_opterr = 1;		/* set to zero to suppress errors */
+int	bu_optind = 1;		/* index into parent argv vector */
+int	bu_optopt = 0;		/* character checked for validity */
+char	*bu_optarg = NULL;	/* argument associated with option */
+
+#define BADCH	(int)'?'
+#define EMSG	""
+#define tell(s)	if(bu_opterr)  { \
+		fputs(*nargv,stderr);fputs(s,stderr); \
+		fputc(bu_optopt,stderr);fputc('\n',stderr); \
+	} return(BADCH);
+
+
+/*
+ *			B U _ G E T O P T
+ *
+ * get option letter from argument vector
+ */
+int
+bu_getopt(int nargc, char *const *nargv, const char *ostr)
+{
+	static char	*place = EMSG;	/* option letter processing */
+	register char	*oli;		/* option letter list index */
+
+	if(*place=='\0') {			/* update scanning pointer */
+		if(bu_optind >= nargc || *(place = nargv[bu_optind]) != '-' ||
+		   !*++place)  {
+		   	place = EMSG;
+			return(EOF);
+		}
+		if (*place == '-') {	/* found "--" */
+			place = EMSG;
+			++bu_optind;
+			return(EOF);
+		}
+	}				/* option letter okay? */
+	if ((bu_optopt = (int)*place++) == (int)':' || !(oli = strchr(ostr,bu_optopt))) {
+#if 0
+		if(*place == '\0') {
+			++bu_optind;
+			place = EMSG;
+		}
+#else
+		++bu_optind;
+		place = EMSG;
+#endif
+		tell(": illegal option -- ");
+	}
+	if (*++oli != ':') {		/* don't need argument */
+		bu_optarg = NULL;
+		if (*place == '\0') {
+			++bu_optind;
+			place = EMSG;
+		}
+	}
+	else {				/* need an argument */
+		if (*place) bu_optarg = place;	/* no white space */
+		else if (nargc <= ++bu_optind) {	/* no arg */
+			place = EMSG;
+			tell(": option requires an argument -- ");
+		}
+	 	else bu_optarg = nargv[bu_optind];	/* white space */
+		place = EMSG;
+		++bu_optind;
+	}
+	return(bu_optopt);			/* dump back option letter */
+}
+@
+
+
+1.10
+log
+@change conf.h to a wrapped config.h
+@
+text
+@d16 1
+a16 1
+static const char libbu_getopt_RCSid[] = "@@(#)$Header: /cvs/brlcad/libbu/getopt.c,v 1.9 2004/04/05 07:46:16 morrison Exp $ (BRL)";
+@
+
+
+1.9
+log
+@merge of ansi-6-0-branch into HEAD
+@
+text
+@d16 1
+a16 1
+static const char libbu_getopt_RCSid[] = "@@(#)$Header$ (BRL)";
+d19 5
+a23 1
+#include "conf.h"
+@
+
+
+1.8
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d16 1
+a16 1
+static const char libbu_getopt_RCSid[] = "@@(#)$Header: /c/CVS/brlcad/libbu/getopt.c,v 1.6 2001/04/20 22:29:06 morrison Exp $ (BRL)";
+d51 1
+a51 4
+bu_getopt(nargc,nargv,ostr)
+int	nargc;
+char	* const nargv[];
+const char *ostr;
+@
+
+
+1.8.2.1
+log
+@Initial ANSIfication
+@
+text
+@d16 1
+a16 1
+static const char libbu_getopt_RCSid[] = "@@(#)$Header: /c/CVS/brlcad/libbu/getopt.c,v 1.8 2002/08/20 17:07:40 jra Exp $ (BRL)";
+d51 4
+a54 1
+bu_getopt(int nargc, char *const *nargv, const char *ostr)
+@
+
+
+1.7
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d51 4
+a54 1
+bu_getopt(int nargc, char *const *nargv, const char *ostr)
+@
+
+
+1.6
+log
+@CONST to const
+@
+text
+@d16 1
+a16 1
+static const char libbu_getopt_RCSid[] = "@@(#)$Header: /c/CVS/brlcad/libbu/getopt.c,v 1.5 2001/02/20 17:18:50 bparker Exp $ (BRL)";
+d51 1
+a51 4
+bu_getopt(nargc,nargv,ostr)
+int	nargc;
+char	* const nargv[];
+const char *ostr;
+@
+
+
+1.5
+log
+@*- mods to bu_getopt that reset the option
+   pointer and advance the index if an illegal
+   option is encountered
+@
+text
+@d16 1
+a16 1
+static const char libbu_getopt_RCSid[] = "@@(#)$Header: /c/CVS/brlcad/libbu/getopt.c,v 1.4 2000/07/07 05:21:20 cjohnson Exp $ (BRL)";
+d53 2
+a54 2
+char	* CONST nargv[];
+CONST char *ostr;
+@
+
+
+1.4
+log
+@LINT plus minor bug fix in bu_tcl.c
+@
+text
+@d16 1
+a16 1
+static const char libbu_getopt_RCSid[] = "@@(#)$Header: /c/CVS/brlcad/libbu/getopt.c,v 1.3 2000/03/28 18:55:07 mike Exp $ (BRL)";
+d72 1
+d77 4
+@
+
+
+1.3
+log
+@
+Put libbu_filename_ prefixes on RCSid variables.
+@
+text
+@d16 1
+a16 1
+static char libbu_getopt_RCSid[] = "@@(#)$Header: /c/CVS/brlcad/libbu/getopt.c,v 1.2 1997/11/22 02:58:28 mike Exp $ (BRL)";
+@
+
+
+1.3.2.1
+log
+@*- mods to bu_getopt that reset the option
+   pointer and advance the index if an illegal
+   option is encountered
+@
+text
+@d16 1
+a16 1
+static char libbu_getopt_RCSid[] = "@@(#)$Header: /c/CVS/brlcad/libbu/getopt.c,v 1.3 2000/03/28 18:55:07 mike Exp $ (BRL)";
+a71 1
+#if 0
+a75 4
+#else
+		++bu_optind;
+		place = EMSG;
+#endif
+@
+
+
+1.2
+log
+@Initialized global variables to zero, for safety sake.  (Irix 6.4 paranoia)
+@
+text
+@d16 1
+a16 1
+static char RCSid[] = "@@(#)$Header: /m/cad/libbu/RCS/getopt.c,v 1.1 1996/08/27 06:18:33 mike Exp $ (BRL)";
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d16 1
+a16 1
+static char RCSid[] = "@@(#)$Header: /m/cad/libsysv/RCS/getopt.c,v 11.1 95/01/04 09:50:58 mike Rel4_4 $ (BRL)";
+d34 2
+a35 2
+int	bu_optopt;		/* character checked for validity */
+char	*bu_optarg;		/* argument associated with option */
+@

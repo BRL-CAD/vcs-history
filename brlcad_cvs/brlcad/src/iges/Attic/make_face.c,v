@@ -1,0 +1,420 @@
+head	14.6;
+access;
+symbols
+	stable-branch:14.4
+	bobWinPort-20051223-freeze:14.4.2.1
+	rel-7-6-2:14.4
+	rel-7-6-branch:14.4.0.6
+	rel-7-6-0:14.4
+	rel-7-4-2:14.4
+	rel-7-4-branch:14.4.0.4
+	bobWinPort:14.4.0.2
+	rel-7-4-0:14.4
+	rel-7-2-6:14.4
+	rel-7-2-4:14.4
+	rel-7-2-2:14.4
+	rel-7-2-0:14.4
+	rel-7-0-4:14.3
+	rel-7-0-2:14.3
+	rel-7-0-1:14.3
+	opensource-post:14.3
+	opensource-pre:1.1
+	rel-7-0-branch:1.1.0.2
+	rel-7-0:1.1;
+locks; strict;
+comment	@ * @;
+
+
+14.6
+date	2005.10.27.03.36.04;	author brlcad;	state dead;
+branches;
+next	14.5;
+
+14.5
+date	2005.10.23.04.44.31;	author brlcad;	state Exp;
+branches;
+next	14.4;
+
+14.4
+date	2005.01.30.20.30.39;	author brlcad;	state Exp;
+branches
+	14.4.2.1
+	14.4.6.1;
+next	14.3;
+
+14.3
+date	2004.12.21.06.38.19;	author morrison;	state Exp;
+branches;
+next	14.2;
+
+14.2
+date	2004.12.20.20.36.29;	author morrison;	state Exp;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.13;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.15.19.15;	author morrison;	state Exp;
+branches;
+next	;
+
+14.4.2.1
+date	2005.09.13.19.06.01;	author bob1961;	state Exp;
+branches;
+next	;
+
+14.4.6.1
+date	2005.11.13.13.46.14;	author brlcad;	state dead;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.6
+log
+@moved all the geometry converter directories from src/. to src/conv/.
+@
+text
+@/*                     M A K E _ F A C E . C
+ * BRL-CAD
+ *
+ * Copyright (C) 1993-2005 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@file make_face.c
+ *  Authors -
+ *	John R. Anderson
+ *
+ *  Source -
+ *	SLAD/BVLD/VMB
+ *	The U. S. Army Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005
+ *
+ */
+#ifndef lint
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/iges/make_face.c,v 14.5 2005/10/23 04:44:31 brlcad Exp $ (BRL)";
+#endif
+
+#include "./iges_struct.h"
+#include "./iges_extern.h"
+
+fastf_t nmg_loop_plane_area();
+
+struct faceuse *
+Make_planar_face( s , entityno , face_orient )
+struct shell *s;
+int entityno;
+int face_orient;
+{
+
+	int			sol_num;	/* IGES solid type number */
+	int			no_of_edges;	/* edge count for this loop */
+	int			no_of_param_curves;
+	int			vert_count=0;	/* Actual number of vertices used to make face */
+	struct iges_edge_use	*edge_list;	/* list of edgeuses from iges loop entity */
+	struct faceuse		*fu=NULL;	/* NMG face use */
+	struct loopuse		*lu;		/* NMG loop use */
+	struct vertex		***verts;	/* list of vertices */
+	struct iges_vertex_list	*v_list;
+	int			done;
+	int			i,j,k;
+
+	/* Acquiring Data */
+
+	if( dir[entityno]->param <= pstart )
+	{
+		bu_log( "Illegal parameter pointer for entity D%07d (%s)\n" ,
+				dir[entityno]->direct , dir[entityno]->name );
+		return(0);
+	}
+
+	Readrec( dir[entityno]->param );
+	Readint( &sol_num , "" );
+	if( sol_num != 508 )
+	{
+		bu_log( "Entity #%d is not a loop (it's a %s)\n" , entityno , iges_type(sol_num) );
+		rt_bomb( "Fatal error\n" );
+	}
+
+	Readint( &no_of_edges , "" );
+	edge_list = (struct iges_edge_use *)bu_calloc( no_of_edges , sizeof( struct iges_edge_use ) ,
+			"Make_face (edge_list)" );
+	for( i=0 ; i<no_of_edges ; i++ )
+	{
+		Readint( &edge_list[i].edge_is_vertex , "" );
+		Readint( &edge_list[i].edge_de , "" );
+		Readint( &edge_list[i].index , "" );
+		Readint( &edge_list[i].orient , "" );
+		if( !face_orient ) /* need opposite orientation of edge */
+		{
+			if( edge_list[i].orient )
+				edge_list[i].orient = 0;
+			else
+				edge_list[i].orient = 1;
+		}
+		edge_list[i].root = (struct iges_param_curve *)NULL;
+		Readint( &no_of_param_curves , "" );
+		for( j=0 ; j<no_of_param_curves ; j++ )
+		{
+			struct iges_param_curve *new_crv;
+			struct iges_param_curve *crv;
+
+			Readint( &k , "" );	/* ignore iso-parametric flag */
+			new_crv = (struct iges_param_curve *)bu_malloc( sizeof( struct iges_param_curve ),
+				"Make_planar_face: new_crv" );
+			if( edge_list[i].root == (struct iges_param_curve *)NULL )
+				edge_list[i].root = new_crv;
+			else
+			{
+				crv = edge_list[i].root;
+				while( crv->next != (struct iges_param_curve *)NULL )
+					crv = crv->next;
+				crv->next = new_crv;
+			}
+			Readint( &new_crv->curve_de, "" );
+			new_crv->next = (struct iges_param_curve *)NULL;
+		}
+	}
+
+	verts = (struct vertex ***)bu_calloc( no_of_edges , sizeof( struct vertex **) ,
+		"Make_face: vertex_list **" );
+
+	for( i=0 ; i<no_of_edges ; i++ )
+	{
+		if( face_orient )
+			verts[i] = Get_vertex( &edge_list[i] );
+		else
+			verts[no_of_edges-1-i] = Get_vertex( &edge_list[i] );
+	}
+
+	/* eliminate zero length edges */
+	vert_count = no_of_edges;
+	done = 0;
+	while( !done )
+	{
+		done = 1;
+		for( i=0 ; i<vert_count ; i++ )
+		{
+			k = i + 1;
+			if( k == vert_count )
+				k = 0;
+
+			if( verts[i] == verts[k] )
+			{
+				bu_log( "Ignoring zero length edge\n" );
+				done = 0;
+				vert_count--;
+				for( j=i ; j<vert_count ; j++ )
+					verts[j] = verts[j+1];
+			}
+		}
+	}
+
+	if( vert_count )
+	{
+		plane_t			pl;		/* Plane equation for face */
+		fastf_t			area;		/* area of loop */
+		fastf_t dist;
+		vect_t min2max;
+		point_t outside_pt;
+
+		fu = nmg_cmface( s, verts, vert_count );
+
+		/* associate geometry */
+		v_list = vertex_root;
+		while( v_list != NULL )
+		{
+			for( i=0 ; i < v_list->no_of_verts ; i++ )
+			{
+				if( v_list->i_verts[i].v != NULL && v_list->i_verts[i].v->vg_p == NULL )
+				{
+					NMG_CK_VERTEX( v_list->i_verts[i].v );
+					nmg_vertex_gv( v_list->i_verts[i].v ,
+						v_list->i_verts[i].pt );
+				}
+			}
+			v_list = v_list->next;
+		}
+
+		lu = BU_LIST_FIRST( loopuse , &fu->lu_hd );
+		NMG_CK_LOOPUSE( lu );
+
+		area = nmg_loop_plane_area( lu , pl );
+		if( area < 0.0 )
+		{
+			bu_log( "Could not calculate area for face (entityno = %d)\n", entityno );
+			nmg_pr_fu_briefly( fu, "" );
+			nmg_kfu( fu );
+			fu = (struct faceuse *)NULL;
+			goto err;
+		}
+
+		nmg_face_g( fu , pl );
+		nmg_face_bb( fu->f_p , &tol );
+
+		/* find a point that is surely outside the loop */
+		VSUB2( min2max , fu->f_p->max_pt , fu->f_p->min_pt );
+		VADD2( outside_pt , fu->f_p->max_pt , min2max );
+
+		/* move it to the plane of the face */
+		dist = DIST_PT_PLANE( outside_pt , pl );
+		VJOIN1( outside_pt , outside_pt , -dist , pl );
+
+		if( nmg_class_pt_lu_except( outside_pt , lu, (struct edge *)NULL , &tol ) != NMG_CLASS_AoutB )
+		{
+			nmg_reverse_face( fu );
+			if( fu->orientation != OT_SAME )
+			{
+				fu = fu->fumate_p;
+				if( fu->orientation != OT_SAME )
+					rt_bomb( "Make_face: no OT_SAME use for a face!!!\n" );
+			}
+		}
+	}
+	else
+		bu_log( "No edges left!!\n" );
+
+  err:
+	bu_free( (char *)edge_list , "Make_face (edge_list)" );
+	bu_free( (char *)verts , "Make_face (vertexlist)" );
+	return( fu );
+}
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+14.5
+log
+@trailing ws
+@
+text
+@d32 1
+a32 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/iges/make_face.c,v 14.4 2005/01/30 20:30:39 brlcad Exp $ (BRL)";
+@
+
+
+14.4
+log
+@update copyright to 2005
+@
+text
+@d29 1
+a29 1
+ *  
+d32 1
+a32 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/iges/make_face.c,v 14.3 2004/12/21 06:38:19 morrison Exp $ (BRL)";
+d45 1
+a45 1
+{ 
+@
+
+
+14.4.6.1
+log
+@merge changes from HEAD aka rel-7-6-4 to the rel-7-6-branch just in case someone peeks a gander or tries to continue/build the branch
+@
+text
+@d32 1
+a32 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/iges/Attic/make_face.c,v 14.4 2005/01/30 20:30:39 brlcad Exp $ (BRL)";
+@
+
+
+14.4.2.1
+log
+@Remove references to librt functions
+@
+text
+@d32 1
+a32 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/iges/make_face.c,v 14.4 2005/01/30 20:30:39 brlcad Exp $ (BRL)";
+d38 2
+@
+
+
+14.3
+log
+@remove the old copyright notice section
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 1993-2004 United States Government as represented by
+d32 1
+a32 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/iges/make_face.c,v 14.2 2004/12/20 20:36:29 morrison Exp $ (BRL)";
+@
+
+
+14.2
+log
+@acquire copyright and assign GPL license
+@
+text
+@a29 3
+ *  Copyright Notice -
+ *	This software is Copyright (C) 1993-2004 by the United States Army.
+ *	All rights reserved.
+d32 1
+a32 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/iges/make_face.c,v 14.1 2004/11/16 19:42:13 morrison Exp $ (BRL)";
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@d1 21
+a21 1
+/*
+d35 1
+a35 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/iges/make_face.c,v 1.1 2004/05/20 15:19:15 morrison Exp $ (BRL)";
+@
+
+
+1.1
+log
+@Vast reorganization begins.  Sources moved from top-level directories into src/.
+@
+text
+@d15 1
+a15 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/iges/make_face.c,v 11.12 2004/02/02 17:39:05 morrison Exp $ (BRL)";
+d202 10
+@
+

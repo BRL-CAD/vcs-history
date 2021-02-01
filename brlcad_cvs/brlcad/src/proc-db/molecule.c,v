@@ -1,0 +1,701 @@
+head	14.13;
+access;
+symbols
+	rel-7-10-4:14.10
+	STABLE:14.10.0.2
+	stable-branch:14.3
+	rel-7-10-2:14.10
+	rel-7-10-0:14.10
+	rel-7-8-4:14.7
+	rel-7-8-2:14.7
+	rel-7-8-0:14.7
+	trimnurbs-branch:14.7.0.2
+	help:14.7
+	temp_tag:14.4
+	bobWinPort-20051223-freeze:14.3
+	postmerge-20051223-bobWinPort:14.4
+	premerge-20051223-bobWinPort:14.4
+	rel-7-6-6:14.4
+	rel-7-6-4:14.4
+	rel-7-6-2:14.3
+	rel-7-6-branch:14.3.0.6
+	rel-7-6-0:14.3
+	rel-7-4-2:14.3
+	rel-7-4-branch:14.3.0.4
+	bobWinPort:14.3.0.2
+	rel-7-4-0:14.3
+	rel-7-2-6:14.3
+	rel-7-2-4:14.3
+	rel-7-2-2:14.3
+	rel-7-2-0:14.3
+	rel-7-0-4:14.2
+	rel-7-0-2:14.2
+	rel-7-0-1:14.2
+	opensource-post:14.2
+	opensource-pre:1.4
+	rel-7-0-branch:1.4.0.2
+	rel-7-0:1.4;
+locks; strict;
+comment	@ * @;
+
+
+14.13
+date	2007.12.02.22.34.23;	author brlcad;	state Exp;
+branches;
+next	14.12;
+
+14.12
+date	2007.11.08.04.15.47;	author brlcad;	state Exp;
+branches;
+next	14.11;
+
+14.11
+date	2007.09.15.16.23.19;	author brlcad;	state Exp;
+branches;
+next	14.10;
+
+14.10
+date	2007.01.27.01.41.45;	author brlcad;	state Exp;
+branches;
+next	14.9;
+
+14.9
+date	2007.01.23.01.13.44;	author brlcad;	state Exp;
+branches;
+next	14.8;
+
+14.8
+date	2007.01.20.14.36.59;	author brlcad;	state Exp;
+branches;
+next	14.7;
+
+14.7
+date	2006.02.27.10.08.40;	author brlcad;	state Exp;
+branches;
+next	14.6;
+
+14.6
+date	2006.01.23.07.05.50;	author brlcad;	state Exp;
+branches;
+next	14.5;
+
+14.5
+date	2006.01.18.06.46.23;	author brlcad;	state Exp;
+branches;
+next	14.4;
+
+14.4
+date	2005.10.23.04.44.37;	author brlcad;	state Exp;
+branches;
+next	14.3;
+
+14.3
+date	2005.01.30.20.31.09;	author brlcad;	state Exp;
+branches
+	14.3.6.1;
+next	14.2;
+
+14.2
+date	2004.12.21.03.46.08;	author butler;	state Exp;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.30;	author morrison;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	2004.09.03.23.30.59;	author morrison;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2004.08.02.23.01.52;	author morrison;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2004.06.08.22.04.32;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.15.20.39;	author morrison;	state Exp;
+branches;
+next	;
+
+14.3.6.1
+date	2005.11.13.13.46.19;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.13
+log
+@woo hoo, finally got through most of the flawfinder level 4 issues related to string buffer limits (leaving issues that can probably/mostly be ignored).  these changes mostly invovlved using the n-variants of the various string processing functions so that the buffers being written to are properly clamped.
+@
+text
+@/*                      M O L E C U L E . C
+ * BRL-CAD
+ *
+ * Copyright (c) 2004-2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@file molecule.c
+ *
+ * Create a molecule from G. Adams format
+ *
+ * Author:	Paul R. Stay
+ * 		Ballistic Research Labratory
+ * 		Aberdeen Proving Ground, Md.
+ * Date:	Mon Dec 29 1986
+ */
+static const char rcs_ident[] = "$Header: /cvsroot/brlcad/brlcad/src/proc-db/molecule.c,v 14.12 2007/11/08 04:15:47 brlcad Exp $";
+
+#include "common.h"
+
+#include <stdlib.h>
+#include <stdio.h>
+#include <math.h>
+#include <string.h>
+
+#include "machine.h"
+#include "vmath.h"
+#include "raytrace.h"
+#include "wdb.h"
+
+
+struct sphere  {
+	struct sphere * next;		/* Next Sphere */
+	int	s_id;			/* Sphere id */
+	char	s_name[15];		/* Sphere name */
+	point_t	s_center;		/* Sphere Center */
+	fastf_t	s_rad;			/* Sphere radius */
+	int	s_atom_type;		/* Atom Type */
+};
+
+struct sphere *s_list = (struct sphere *) 0;
+struct sphere *s_head = (struct sphere *) 0;
+
+struct atoms  {
+	int a_id;
+	char a_name[128];
+	unsigned char red, green, blue;
+};
+
+struct atoms atom_list[50];
+
+char * matname = "plastic";
+char * matparm = "shine=100.0 diffuse=.8 specular=.2";
+
+void	read_data(void), process_sphere(int id, fastf_t *center, double rad, int sph_type);
+int	make_bond( int sp1, int sp2 );
+
+struct wmember head;
+
+static const char usage[] = "Usage: molecule db_title < mol-cube.dat > mol.g\n";
+
+struct rt_wdb	*outfp;
+
+int
+main(int argc, char **argv)
+{
+
+	if( argc != 2 )  {
+		fputs( usage, stderr );
+		return 1;
+	}
+
+	BU_LIST_INIT( &head.l );
+	outfp = wdb_fopen( "molecule.g" );
+	mk_id( outfp, argv[1] );
+	read_data();
+
+	/* Build the overall combination */
+	mk_lfcomb( outfp, "mol.g", &head, 0 );
+
+	wdb_close(outfp);
+	return 0;
+}
+
+/* File format from stdin
+ *
+ * For a ATOM DATA_TYPE ATOM_ID ATOM_NAME RED GREEN BLUE
+ * For a Sphere DATA_TYPE SPH_ID CENTER ( X, Y, Z) RADIUS ATOM_TYPE
+ * For a Bond   DATA_TYPE SPH_ID SPH_ID
+ * DATA_TYPE = 0 - Atom1 - Sphere 2 - Bond
+ * SPH_ID = integer
+ * CENTER = three float values x, y, z
+ * RADIUS = Float
+ * ATOM_TYPE = integer
+ * ATOM_NAME = Character pointer to name value.
+ */
+void
+read_data(void)
+{
+
+	int             data_type;
+	int             sphere_id;
+	point_t		center;
+	float           x, y, z;
+	float           sphere_radius;
+	int             atom_type;
+	int             b_1, b_2;
+	int red, green, blue;
+	int i = 0;
+
+
+	while (scanf(" %d", &data_type) != 0) {
+
+		switch (data_type) {
+		case (0):
+			scanf("%d", &i);
+			scanf("%128s", atom_list[i].a_name);
+			scanf("%d", &red);
+			scanf("%d", &green);
+			scanf("%d", &blue);
+			atom_list[i].red  = red;
+			atom_list[i].green  = green;
+			atom_list[i].blue  = blue;
+			break;
+		case (1):
+			scanf("%d", &sphere_id);
+			scanf("%f", &x );
+			scanf("%f", &y);
+			scanf("%f", &z);
+			scanf("%f", &sphere_radius);
+			scanf("%d", &atom_type);
+			VSET( center, x, y, z );
+			process_sphere(sphere_id, center, sphere_radius,
+				atom_type);
+			break;
+		case (2):
+			scanf("%d", &b_1);
+			scanf("%d", &b_2);
+			(void)make_bond( b_1, b_2);
+			break;
+		case (4):
+			return;
+		}
+	}
+}
+
+void
+process_sphere(int id, fastf_t *center, double rad, int sph_type)
+{
+	struct sphere * newsph = (struct sphere *)
+	    bu_malloc( sizeof ( struct sphere), "newsph" );
+	char nm[128], nm1[128];
+	unsigned char rgb[3];
+	struct wmember	reg_head;
+
+	rgb[0] = atom_list[sph_type].red;
+	rgb[1] = atom_list[sph_type].green;
+	rgb[2] = atom_list[sph_type].blue;
+
+	sprintf(nm1, "sph.%d", id );
+	mk_sph( outfp, nm1, center, rad );
+
+	/* Create a region nm to contain the solid nm1 */
+	BU_LIST_INIT( &reg_head.l );
+	(void)mk_addmember( nm1, &reg_head.l, NULL, WMOP_UNION );
+	sprintf(nm, "SPH.%d", id );
+	mk_lcomb( outfp, nm, &reg_head, 1, matname, matparm, rgb, 0 );
+
+	/* Include this region in the larger group */
+	(void)mk_addmember( nm, &head.l, NULL, WMOP_UNION );
+
+	newsph->next = ( struct sphere *)0;
+	newsph->s_id = id;
+	strncpy(newsph->s_name, nm1, sizeof(nm1) );
+	newsph->s_name[14] = '\0';
+	VMOVE( newsph->s_center, center );
+	newsph->s_rad = rad;
+	newsph->s_atom_type = sph_type;
+
+	if ( s_head == (struct sphere *) 0 )
+	{
+		s_head = s_list = newsph;
+	} else
+	{
+		s_list->next = newsph;
+		s_list = newsph;
+	}
+}
+
+int
+make_bond( int sp1, int sp2 )
+{
+	struct sphere * s1, *s2, *s_ptr;
+	point_t base;
+	vect_t height;
+	char nm[128], nm1[128];
+	unsigned char rgb[3];
+	struct wmember reg_head;
+
+	s1 = s2 = (struct sphere *) 0;
+
+	for( s_ptr = s_head; s_ptr != (struct sphere *)0; s_ptr = s_ptr->next )
+	{
+		if ( s_ptr->s_id == sp1 )
+			s1 = s_ptr;
+
+		if ( s_ptr->s_id == sp2 )
+			s2 = s_ptr;
+	}
+
+	if( s1 == (struct sphere *) 0 || s2 == (struct sphere *)0 )
+		return -1;		/* error */
+
+	VMOVE( base, s1->s_center );
+	VSUB2( height, s2->s_center, s1->s_center );
+
+	sprintf( nm, "bond.%d.%d", sp1, sp2);
+
+	rgb[0] = 191;
+	rgb[1] = 142;
+	rgb[2] = 57;
+
+#if 1
+	/* Use this for mol-cube.dat */
+	mk_rcc( outfp, nm, base, height, s1->s_rad * 0.15 );
+#else
+	/* Use this for chemical molecules */
+	mk_rcc( outfp, nm, base, height, s1->s_rad * 0.5 );
+#endif
+
+	BU_LIST_INIT( &reg_head.l );
+	(void)mk_addmember( nm, &reg_head.l, NULL, WMOP_UNION );
+	(void)mk_addmember( s1->s_name, &reg_head.l, NULL, WMOP_SUBTRACT );
+	(void)mk_addmember( s2->s_name, &reg_head.l, NULL, WMOP_SUBTRACT );
+	sprintf( nm1, "BOND.%d.%d", sp1, sp2);
+	mk_lcomb( outfp, nm1, &reg_head, 1, matname, matparm, rgb, 0 );
+	(void)mk_addmember( nm1, &head.l, NULL, WMOP_UNION );
+
+	return(0);		/* OK */
+}
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+14.12
+log
+@minor tweaks, preventive null terminating of strncmp'd strings
+@
+text
+@d29 1
+a29 1
+static const char rcs_ident[] = "$Header: /cvsroot/brlcad/brlcad/src/proc-db/molecule.c,v 14.11 2007/09/15 16:23:19 brlcad Exp $";
+d129 1
+a129 1
+			scanf("%s", atom_list[i].a_name);
+@
+
+
+14.11
+log
+@more c89 embracing.  c89 provides string.h for all of the various str*() and mem*() functions, so remove the check for its presence.  there is still likely to be work required for strict c89 conformance for the various bsd strings.h functions that may be in use.
+@
+text
+@d29 1
+a29 1
+static const char rcs_ident[] = "$Header: /cvsroot/brlcad/brlcad/src/proc-db/molecule.c,v 14.10 2007/01/27 01:41:45 brlcad Exp $";
+d187 1
+@
+
+
+14.10
+log
+@ws. lots and lots of ws.  see sh/ws.sh for details (cases 'abcdeg').
+@
+text
+@d29 1
+a29 1
+static const char rcs_ident[] = "$Header: /cvsroot/brlcad/brlcad/src/proc-db/molecule.c,v 14.9 2007/01/23 01:13:44 brlcad Exp $";
+d36 1
+a36 5
+#ifdef HAVE_STRING_H
+#  include <string.h>
+#else
+#  include <strings.h>
+#endif
+@
+
+
+14.9
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@d29 1
+a29 1
+static const char rcs_ident[] = "$Header: /cvsroot/brlcad/brlcad/src/proc-db/molecule.c,v 14.8 2007/01/20 14:36:59 brlcad Exp $";
+d142 6
+a147 6
+		        scanf("%d", &sphere_id);
+		        scanf("%f", &x );
+		        scanf("%f", &y);
+		        scanf("%f", &z);
+		        scanf("%f", &sphere_radius);
+		        scanf("%d", &atom_type);
+@
+
+
+14.8
+log
+@update copyright to 2007
+@
+text
+@d8 2
+a9 3
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+d14 1
+a14 1
+ * General Public License for more details.
+d16 2
+a17 2
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+d29 1
+a29 1
+static const char rcs_ident[] = "$Header: /cvsroot/brlcad/brlcad/src/proc-db/molecule.c,v 14.7 2006/02/27 10:08:40 brlcad Exp $";
+@
+
+
+14.7
+log
+@stdlib.h and exit()
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 2004-2006 United States Government as represented by
+d30 1
+a30 1
+static const char rcs_ident[] = "$Header: /cvsroot/brlcad/brlcad/src/proc-db/molecule.c,v 14.6 2006/01/23 07:05:50 brlcad Exp $";
+@
+
+
+14.6
+log
+@use libbu memory allocation management, get rid of null checks
+@
+text
+@d30 1
+a30 1
+static const char rcs_ident[] = "$Header: /cvsroot/brlcad/brlcad/src/proc-db/molecule.c,v 14.5 2006/01/18 06:46:23 brlcad Exp $";
+d34 3
+a36 1
+
+d38 1
+a38 1
+#include <string.h>
+d40 1
+a40 1
+#include <strings.h>
+a42 2
+#include <stdio.h>
+#include <math.h>
+d87 1
+a87 1
+		exit(1);
+@
+
+
+14.5
+log
+@update copyright to 2006
+@
+text
+@d30 1
+a30 1
+static const char rcs_ident[] = "$Header: /cvsroot/brlcad/brlcad/src/proc-db/molecule.c,v 14.4 2005/10/23 04:44:37 brlcad Exp $";
+d167 2
+a168 2
+	struct sphere * new = (struct sphere *)
+	    malloc( sizeof ( struct sphere) );
+d189 6
+a194 6
+	new->next = ( struct sphere *)0;
+	new->s_id = id;
+	strncpy(new->s_name, nm1, sizeof(nm1) );
+	VMOVE( new->s_center, center );
+	new->s_rad = rad;
+	new->s_atom_type = sph_type;
+d198 1
+a198 1
+		s_head = s_list = new;
+d201 2
+a202 2
+		s_list->next = new;
+		s_list = new;
+@
+
+
+14.4
+log
+@trailing ws
+@
+text
+@d4 1
+a4 1
+ * Copyright (C) 2004-2005 United States Government as represented by
+d30 1
+a30 1
+static const char rcs_ident[] = "$Header: /cvsroot/brlcad/brlcad/src/proc-db/molecule.c,v 14.3 2005/01/30 20:31:09 brlcad Exp $";
+@
+
+
+14.3
+log
+@update copyright to 2005
+@
+text
+@d24 1
+a24 1
+ * 
+d30 1
+a30 1
+static const char rcs_ident[] = "$Header: /cvsroot/brlcad/brlcad/src/proc-db/molecule.c,v 14.2 2004/12/21 03:46:08 butler Exp $";
+d127 1
+a127 1
+	
+d222 1
+a222 1
+			
+@
+
+
+14.3.6.1
+log
+@merge changes from HEAD aka rel-7-6-4 to the rel-7-6-branch just in case someone peeks a gander or tries to continue/build the branch
+@
+text
+@d24 1
+a24 1
+ *
+d30 1
+a30 1
+static const char rcs_ident[] = "$Header$";
+d127 1
+a127 1
+
+d222 1
+a222 1
+
+@
+
+
+14.2
+log
+@GPL license changes
+@
+text
+@d4 2
+a5 2
+ * Copyright (c) 2004 United States Government as represented by the
+ * U.S. Army Research Laboratory.
+d30 1
+a30 1
+static const char rcs_ident[] = "$Header: /cvs/brlcad/src/proc-db/molecule.c,v 14.1 2004/11/16 19:42:30 morrison Exp $";
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@d1 21
+a21 2
+/* 
+ *			M O L E C U L E . C
+d30 1
+a30 1
+static const char rcs_ident[] = "$Header: /cvs/brlcad/src/proc-db/molecule.c,v 1.4 2004/09/03 23:30:59 morrison Exp $";
+@
+
+
+1.4
+log
+@USE_STRING_H is no more.. it's HAVE_STRING_H
+@
+text
+@d11 1
+a11 1
+static const char rcs_ident[] = "$Header: /cvs/brlcad/src/proc-db/molecule.c,v 1.3 2004/08/02 23:01:52 morrison Exp $";
+d238 10
+@
+
+
+1.3
+log
+@replace the wrapped config.h block with common.h
+@
+text
+@d11 1
+a11 1
+static const char rcs_ident[] = "$Header: /cvs/brlcad/src/proc-db/molecule.c,v 1.2 2004/06/08 22:04:32 morrison Exp $";
+d16 1
+a16 1
+#ifdef USE_STRING_H
+@
+
+
+1.2
+log
+@obliterate externs.h
+@
+text
+@d11 1
+a11 1
+static const char rcs_ident[] = "$Header$";
+d13 1
+a13 3
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+@
+
+
+1.1
+log
+@Vast reorganization begins.  Sources moved from top-level directories into src/.
+@
+text
+@d11 1
+a11 1
+static const char rcs_ident[] = "$Header: /cvs/brlcad/proc-db/molecule.c,v 11.13 2004/05/10 15:30:49 erikg Exp $";
+a26 1
+#include "externs.h"
+@
+

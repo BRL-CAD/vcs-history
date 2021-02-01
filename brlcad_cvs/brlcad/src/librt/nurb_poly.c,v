@@ -1,0 +1,510 @@
+head	14.14;
+access;
+symbols
+	rel-7-10-4:14.14
+	STABLE:14.14.0.2
+	stable-branch:14.6
+	rel-7-10-2:14.14
+	rel-7-10-0:14.14
+	rel-7-8-4:14.10
+	rel-7-8-2:14.9
+	rel-7-8-0:14.9
+	trimnurbs-branch:14.9.0.2
+	help:14.9
+	temp_tag:14.8
+	bobWinPort-20051223-freeze:14.7
+	postmerge-20051223-bobWinPort:14.8
+	premerge-20051223-bobWinPort:14.8
+	rel-7-6-6:14.8
+	rel-7-6-4:14.8
+	rel-7-6-2:14.7
+	rel-7-6-branch:14.7.0.4
+	rel-7-6-0:14.7
+	rel-7-4-2:14.6
+	rel-7-4-branch:14.6.0.2
+	bobWinPort:14.7.0.2
+	rel-7-4-0:14.6
+	rel-7-2-6:14.6
+	rel-7-2-4:14.6
+	rel-7-2-2:14.6
+	rel-7-2-0:14.6
+	rel-7-0-4:14.5
+	rel-7-0-2:14.5
+	rel-7-0-1:14.5
+	opensource-post:14.5
+	opensource-pre:1.2
+	rel-7-0-branch:1.2.0.2
+	rel-7-0:1.2;
+locks; strict;
+comment	@ * @;
+
+
+14.14
+date	2007.01.27.01.41.41;	author brlcad;	state Exp;
+branches;
+next	14.13;
+
+14.13
+date	2007.01.23.01.13.38;	author brlcad;	state Exp;
+branches;
+next	14.12;
+
+14.12
+date	2007.01.21.04.45.45;	author brlcad;	state Exp;
+branches;
+next	14.11;
+
+14.11
+date	2007.01.20.14.36.55;	author brlcad;	state Exp;
+branches;
+next	14.10;
+
+14.10
+date	2006.09.16.02.04.25;	author lbutler;	state Exp;
+branches;
+next	14.9;
+
+14.9
+date	2006.01.18.06.46.17;	author brlcad;	state Exp;
+branches;
+next	14.8;
+
+14.8
+date	2005.10.23.04.44.36;	author brlcad;	state Exp;
+branches;
+next	14.7;
+
+14.7
+date	2005.08.12.22.31.08;	author lbutler;	state Exp;
+branches
+	14.7.4.1;
+next	14.6;
+
+14.6
+date	2005.01.30.20.31.03;	author brlcad;	state Exp;
+branches;
+next	14.5;
+
+14.5
+date	2004.12.21.06.38.21;	author morrison;	state Exp;
+branches;
+next	14.4;
+
+14.4
+date	2004.12.21.06.18.47;	author morrison;	state Exp;
+branches;
+next	14.3;
+
+14.3
+date	2004.12.21.05.45.24;	author morrison;	state Exp;
+branches;
+next	14.2;
+
+14.2
+date	2004.12.21.04.18.20;	author morrison;	state Exp;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.16;	author morrison;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2004.08.02.23.01.49;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.15.20.08;	author morrison;	state Exp;
+branches;
+next	;
+
+14.7.4.1
+date	2005.11.13.13.46.17;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.14
+log
+@ws. lots and lots of ws.  see sh/ws.sh for details (cases 'abcdeg').
+@
+text
+@/*                     N U R B _ P O L Y . C
+ * BRL-CAD
+ *
+ * Copyright (c) 1990-2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This library is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@addtogroup nurb */
+/** @@{ */
+/** @@file nurb_poly.c
+ *
+ *     Returns two polygons from a NURB surface.
+ *     Asumes that the surface is flat.
+ *
+ * Author -
+ *     Paul R. Stay
+ *
+ * Source -
+ *     SECAD/VLD Computing Consortium, Bldg 394
+ *     The U.S. Army Ballistic Research Laboratory
+ *     Aberdeen Proving Ground, Maryland 21005
+ *
+ */
+/** @@} */
+
+#include "common.h"
+
+
+#include <stdio.h>
+
+#include "machine.h"
+#include "vmath.h"
+#include "raytrace.h"
+#include "nurb.h"
+
+/* Algorithm -
+ * From the four corners of the surface, return the two parts split by the
+ * diagonal from the first and third corner point making sure Homogeneous
+ * points are divided.
+ */
+
+struct rt_nurb_poly *
+rt_nurb_to_poly(struct face_g_snurb *srf)
+{
+	int	coords = srf->pt_type;
+	fastf_t 	 * p1, *p2, *p3, *p4;
+	fastf_t 	uv1[2], uv2[2], uv3[2], uv4[2];
+	struct rt_nurb_poly *p, *p_head;
+
+	/* Extract the four corners from the mesh */
+
+	p1 = srf->ctl_points;
+	p2 = srf->ctl_points + coords * srf->s_size[1];
+	p3 = srf->ctl_points + (coords * srf->s_size[1] *
+	    (srf->s_size[0] - 1)) +
+	    ((srf->s_size[1] - 1) * coords);
+	p4 = srf->ctl_points + (coords * srf->s_size[1] *
+	    (srf->s_size[0] - 1));
+
+	/* If the point is rational then divide out the w component */
+	if ( RT_NURB_IS_PT_RATIONAL(srf->pt_type)) {
+		int	w_index;
+
+		if ( RT_NURB_EXTRACT_PT_TYPE( srf->pt_type) == RT_NURB_PT_XY)
+			w_index = 2;
+		else if ( RT_NURB_EXTRACT_PT_TYPE( srf->pt_type) == RT_NURB_PT_UV)
+			w_index = 2;
+		else if ( RT_NURB_EXTRACT_PT_TYPE( srf->pt_type) == RT_NURB_PT_XYZ)
+			w_index = 3;
+		else /* assume the forth coordinate */
+			w_index = 3;
+
+		p1[0] = p1[0] / p1[w_index];
+		p2[0] = p2[0] / p1[w_index];
+		p3[0] = p3[0] / p1[w_index];
+		p4[0] = p4[0] / p1[w_index];
+	}
+
+	uv1[0] = srf->u.knots[0];
+	uv1[1] = srf->v.knots[0];
+
+	uv2[0] = srf->u.knots[srf->u.k_size -1];
+	uv2[1] = srf->v.knots[0];
+
+	uv3[0] = srf->u.knots[srf->u.k_size -1];
+	uv3[1] = srf->v.knots[srf->v.k_size -1];
+
+	uv4[0] = srf->u.knots[0];
+	uv4[1] = srf->v.knots[srf->v.k_size -1];
+
+	p = rt_nurb_mk_poly(p1, p2, p3, uv1, uv2, uv3 );
+	p_head = p;
+	p = rt_nurb_mk_poly(p3, p4, p1, uv3, uv4, uv1 );
+	p->next = p_head;
+	p_head = p;
+
+	return p_head;
+}
+
+
+struct rt_nurb_poly *
+rt_nurb_mk_poly(fastf_t *v1, fastf_t *v2, fastf_t *v3, fastf_t *uv1, fastf_t *uv2, fastf_t *uv3)
+{
+	struct rt_nurb_poly *p;
+
+	p = (struct rt_nurb_poly *) bu_malloc( sizeof( struct rt_nurb_poly ),
+	    "rt_nurb_mk_poly: rt_nurb_poly struct" );
+
+	p->next = (struct rt_nurb_poly *) 0;
+
+	VMOVE( p->ply[0], v1);
+	VMOVE( p->ply[1], v2);
+	VMOVE( p->ply[2], v3);
+
+	p->uv[0][0] = uv1[0];
+	p->uv[0][1] = uv1[1];
+	p->uv[1][0] = uv2[0];
+	p->uv[1][1] = uv2[1];
+	p->uv[2][0] = uv3[0];
+	p->uv[2][1] = uv3[1];
+
+	return p;
+}
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+14.13
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@a40 1
+
+@
+
+
+14.12
+log
+@ugh, what tedium.  put some effort towards cleaning up the doxygen labels and making the headers more consistent.  also exclusively using @@ for doxygen instead of \ to try to keep things more consistent.
+@
+text
+@d9 1
+a9 2
+ * as published by the Free Software Foundation; either version 2 of
+ * the License, or (at your option) any later version.
+d14 1
+a14 1
+ * Library General Public License for more details.
+@
+
+
+14.11
+log
+@update copyright to 2007
+@
+text
+@a20 1
+
+d22 1
+a22 1
+/*@@{*/
+d24 1
+d37 1
+a37 1
+/*@@}*/
+@
+
+
+14.10
+log
+@Doxygen updates
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 1990-2006 United States Government as represented by
+@
+
+
+14.9
+log
+@update copyright to 2006
+@
+text
+@d22 1
+a22 1
+/** \addtogroup nurb */
+@
+
+
+14.8
+log
+@trailing ws
+@
+text
+@d4 1
+a4 1
+ * Copyright (C) 1990-2005 United States Government as represented by
+@
+
+
+14.7
+log
+@Doxygen changes
+@
+text
+@d27 1
+a27 1
+ * 
+d53 1
+a53 1
+ * points are divided. 
+d68 2
+a69 2
+	p3 = srf->ctl_points + (coords * srf->s_size[1] * 
+	    (srf->s_size[0] - 1)) + 
+d71 1
+a71 1
+	p4 = srf->ctl_points + (coords * srf->s_size[1] * 
+d105 1
+a105 1
+	p = rt_nurb_mk_poly(p1, p2, p3, uv1, uv2, uv3 ); 
+d107 2
+a108 2
+	p = rt_nurb_mk_poly(p3, p4, p1, uv3, uv4, uv1 ); 
+	p->next = p_head; 
+@
+
+
+14.7.4.1
+log
+@merge changes from HEAD aka rel-7-6-4 to the rel-7-6-branch just in case someone peeks a gander or tries to continue/build the branch
+@
+text
+@d27 1
+a27 1
+ *
+d53 1
+a53 1
+ * points are divided.
+d68 2
+a69 2
+	p3 = srf->ctl_points + (coords * srf->s_size[1] *
+	    (srf->s_size[0] - 1)) +
+d71 1
+a71 1
+	p4 = srf->ctl_points + (coords * srf->s_size[1] *
+d105 1
+a105 1
+	p = rt_nurb_mk_poly(p1, p2, p3, uv1, uv2, uv3 );
+d107 2
+a108 2
+	p = rt_nurb_mk_poly(p3, p4, p1, uv3, uv4, uv1 );
+	p->next = p_head;
+@
+
+
+14.6
+log
+@update copyright to 2005
+@
+text
+@d21 3
+a24 7
+ *
+ */
+
+/* 
+ *      N U R B _ T O _P O L Y . C
+ *
+ * Function -
+d37 1
+@
+
+
+14.5
+log
+@remove the old copyright notice section
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 1990-2004 United States Government as represented by
+@
+
+
+14.4
+log
+@they should have received a copy of the LGPL with LGPL'd files
+@
+text
+@a39 3
+ * Copyright Notice -
+ *     This software is Copyright (C) 1990-2004 by the United States Army.
+ *     All rights reserved.
+@
+
+
+14.3
+log
+@s/GNU Library General/GNU Lesser General/g
+@
+text
+@d17 2
+a18 2
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+@
+
+
+14.2
+log
+@assign copyright and LGPL
+@
+text
+@d8 1
+a8 1
+ * modify it under the terms of the GNU Library General Public License
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@d1 24
+@
+
+
+1.2
+log
+@replace the wrapped config.h block with common.h
+@
+text
+@d120 10
+@
+
+
+1.1
+log
+@Vast reorganization begins.  Sources moved from top-level directories into src/.
+@
+text
+@d21 1
+a21 3
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+@
+

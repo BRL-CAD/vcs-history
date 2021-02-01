@@ -1,0 +1,255 @@
+head	14.2;
+access;
+symbols
+	rel-7-10-4:14.1
+	STABLE:14.1.0.10
+	stable-branch:14.1
+	rel-7-10-2:14.1
+	rel-7-10-0:14.1
+	rel-7-8-4:14.1
+	rel-7-8-2:14.1
+	rel-7-8-0:14.1
+	trimnurbs-branch:14.1.0.8
+	help:14.1
+	temp_tag:14.1
+	bobWinPort-20051223-freeze:14.1
+	postmerge-20051223-bobWinPort:14.1
+	premerge-20051223-bobWinPort:14.1
+	rel-7-6-6:14.1
+	rel-7-6-4:14.1
+	rel-7-6-2:14.1
+	rel-7-6-branch:14.1.0.6
+	rel-7-6-0:14.1
+	rel-7-4-2:14.1
+	rel-7-4-branch:14.1.0.4
+	bobWinPort:14.1.0.2
+	rel-7-4-0:14.1
+	rel-7-2-6:14.1
+	rel-7-2-4:14.1
+	rel-7-2-2:14.1
+	rel-7-2-0:14.1
+	rel-7-0-4:14.1
+	rel-7-0-2:14.1
+	rel-7-0-1:14.1
+	opensource-post:14.1
+	opensource-pre:1.1
+	rel-7-0-branch:1.1.0.2
+	rel-7-0:1.1;
+locks; strict;
+comment	@# @;
+
+
+14.2
+date	2007.10.24.20.30.26;	author erikgreenwald;	state Exp;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.18;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.06.10.16.51.49;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.2
+log
+@Upgrade to itcl/itk 3.3
+@
+text
+@#
+# Tests for "toaster" example
+# ----------------------------------------------------------------------
+#   AUTHOR:  Michael J. McLennan
+#            Bell Labs Innovations for Lucent Technologies
+#            mmclennan@@lucent.com
+#            http://www.tcltk.com/itcl
+#
+#      RCS:  $Id: toaster.test,v 1.1 1998/07/27 18:41:26 stanton Exp $
+# ----------------------------------------------------------------------
+#            Copyright (c) 1993-1998  Lucent Technologies, Inc.
+# ======================================================================
+# See the file "license.terms" for information on usage and
+# redistribution of this file, and for a DISCLAIMER OF ALL WARRANTIES.
+
+# ----------------------------------------------------------------------
+#  Get toaster classes from "demos" directory.
+# ----------------------------------------------------------------------
+lappend auto_path toasters
+
+# ----------------------------------------------------------------------
+#  Outlets send bills to an e-mail address.  Determine this address.
+# ----------------------------------------------------------------------
+if {[info exists env(USER)]} {
+	set Owner $env(USER)
+} elseif {[info exists env(LOGNAME)]} {
+	set Owner $env(LOGNAME)
+} else {
+	set Owner [exec logname]
+}
+
+# ----------------------------------------------------------------------
+#  TOASTERS
+# ----------------------------------------------------------------------
+test {Create a toaster and plug it in} {
+	global Owner
+	Toaster original -heat 1 -outlet [Outlet #auto -owner $Owner]
+} {
+	$result == "original"
+}
+
+test {Turn up the heat setting on the toaster} {
+	original config -heat 5
+} {
+	$result == ""
+}
+
+test {Toast a few slices of bread} {
+	original toast 2
+} {
+	$result == "crumb tray: 25% full"
+}
+
+test {Clean the toaster} {
+	original clean
+} {
+	$result == "crumb tray: 0% full"
+}
+
+test {Toast a few slices of bread a few different times} {
+	original clean
+	original toast 2
+	original toast 1
+} {
+	$result == "crumb tray: 38% full"
+}
+
+test {Toast too many slices of bread and cause a fire} {
+	puts stdout ">>> should say \"== FIRE! FIRE! ==\""
+	original clean
+	original toast 2
+	original toast 2
+	original toast 2
+	original toast 2
+} {
+	$result == "crumb tray: 100% full"
+}
+
+test {Destroy the toaster} {
+	original clean
+	original toast 2
+	original toast 1
+	puts stdout ">>> should say \"15 crumbs ... what a mess!\""
+	original delete
+} {
+	$result == ""
+}
+
+# ----------------------------------------------------------------------
+#  SMART TOASTERS
+# ----------------------------------------------------------------------
+test {Create a toaster and plug it in} {
+	global Owner
+	SmartToaster deluxe -heat 4 -outlet [Outlet #auto -owner $Owner]
+} {
+	$result == "deluxe"
+}
+
+test {Toast a few slices of bread} {
+	deluxe toast 2
+} {
+	$result == "crumb tray: 20% full"
+}
+
+test {Toast a few slices of bread and look for auto-clean} {
+	deluxe clean
+	deluxe toast 2
+	deluxe toast 2
+	deluxe toast 2
+	deluxe toast 2
+	deluxe toast 2
+} {
+	$result == "crumb tray: 20% full"
+}
+
+# ----------------------------------------------------------------------
+#  PRODUCT STATISTICS
+# ----------------------------------------------------------------------
+test {Check statistics gathered by Hazard base class} {
+	set tmp [Toaster #auto]
+	set stats [Hazard :: report ::Toaster]
+	$tmp delete
+	set stats
+} {
+	$result == "::Toaster: 2 produced, 1 active, 1 accidents"
+}
+
+test {Check statistics gathered by Hazard base class} {
+	Hazard :: report ::SmartToaster
+} {
+	$result == "::SmartToaster: 1 produced, 1 active, 0 accidents"
+}
+
+test {Destroy all Toasters} {
+	foreach toaster [itcl_info objects -isa Toaster] {
+		$toaster clean
+		$toaster delete
+	}
+} {
+	$result == ""
+}
+
+test {SmartToasters should have been destroyed along with Toasters} {
+	itcl_info objects -class SmartToaster
+} {
+	$result == ""
+}
+
+# ----------------------------------------------------------------------
+#  OUTLETS
+# ----------------------------------------------------------------------
+test {Bill all customers for outlet charges} {
+	Outlet :: bill
+	puts stdout ">>> should send two bills for outlets via e-mail"
+} {
+	$result == ""
+}
+
+test {Destroy all outlets} {
+	foreach outlet [itcl_info objects -class Outlet] {
+		$outlet delete
+	}
+} {
+	$result == ""
+}
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@d9 1
+a9 1
+#      RCS:  $Id: toaster.test,v 1.1 2004/06/10 16:51:49 morrison Exp $
+@
+
+
+1.1
+log
+@moved libitcl to incrTcl, which matches their cvs module
+@
+text
+@d9 1
+a9 1
+#      RCS:  $Id: toaster.test,v 1.1 1998/07/27 18:41:26 stanton Exp $
+@
+

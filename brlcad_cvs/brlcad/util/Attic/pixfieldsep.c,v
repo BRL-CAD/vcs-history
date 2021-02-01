@@ -1,0 +1,479 @@
+head	11.8;
+access;
+symbols
+	ansi-20040405-merged:11.5.2.1
+	postmerge-20040405-ansi:11.6
+	premerge-20040404-ansi:11.5
+	postmerge-autoconf:11.5
+	autoconf-freeze:11.5
+	premerge-autoconf:11.5
+	postmerge-20040315-windows:11.5
+	premerge-20040315-windows:11.5
+	windows-20040315-freeze:11.5
+	autoconf-20031203:11.5
+	autoconf-20031202:11.5
+	autoconf-branch:11.5.0.10
+	phong-branch:11.5.0.8
+	photonmap-branch:11.5.0.6
+	rel-6-1-DP:11.5
+	windows-branch:11.5.0.4
+	rel-6-0-2:11.3
+	ansi-branch:11.5.0.2
+	rel-6-0-1-branch:11.3.0.2
+	hartley-6-0-post:11.4
+	hartley-6-0-pre:11.3
+	rel-6-0-1:11.3
+	rel-6-0:11.3
+	rel-5-4:11.1
+	offsite-5-3-pre:11.3
+	rel-5-3:11.1
+	rel-5-2:11.1
+	rel-5-1-branch:11.1.0.2
+	rel-5-1:11.1
+	rel-5-0:11.1
+	rel-5-0-beta:11.1
+	rel-4-5:11.1
+	ctj-4-5-post:11.1
+	ctj-4-5-pre:11.1
+	rel-4-4:11.1;
+locks; strict;
+comment	@ * @;
+
+
+11.8
+date	2004.05.21.14.57.53;	author morrison;	state dead;
+branches;
+next	11.7;
+
+11.7
+date	2004.05.10.15.30.51;	author erikg;	state Exp;
+branches;
+next	11.6;
+
+11.6
+date	2004.04.05.05.46.02;	author morrison;	state Exp;
+branches;
+next	11.5;
+
+11.5
+date	2002.08.20.17.09.03;	author jra;	state Exp;
+branches
+	11.5.2.1;
+next	11.4;
+
+11.4
+date	2002.08.15.20.56.13;	author hartley;	state Exp;
+branches;
+next	11.3;
+
+11.3
+date	2000.09.01.03.23.56;	author mike;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	2000.08.23.19.04.50;	author mike;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	95.01.04.10.12.42;	author mike;	state Rel4_4;
+branches;
+next	1.5;
+
+1.5
+date	94.08.23.13.16.37;	author gdurf;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	93.12.09.04.54.22;	author mike;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	93.12.09.03.03.46;	author mike;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	93.12.09.03.02.38;	author mike;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	93.09.25.08.10.06;	author mike;	state Exp;
+branches;
+next	;
+
+11.5.2.1
+date	2002.09.19.18.02.41;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@Separate pix file into separate fields
+@
+
+
+11.8
+log
+@moved to src/util/
+@
+text
+@/*
+ *			P I X F I E L D S E P . C
+ *
+ *  Separate an interlaced video image into two separate .pix files.
+ *
+ *  Author -
+ *	Michael John Muuss
+ *  
+ *  Source -
+ *	The U. S. Army Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005-5068  USA
+ *  
+ *  Distribution Status -
+ *	Public Domain, Distribution Unlimitied.
+ */
+#ifndef lint
+static const char RCSid[] = "@@(#)$Header: /n/xoff/cvs/brlcad/util/pixfieldsep.c,v 11.7 2004/05/10 15:30:51 erikg Exp $ (ARL)";
+#endif
+
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+
+#include <stdio.h>
+#include "machine.h"
+#include "externs.h"
+
+FILE	*out1;
+FILE	*out2;
+
+char	*buf;
+int	file_width = 720;
+int	bytes_per_sample = 3;
+int	doubleit = 0;
+
+char	*even_file = "even.pix";
+char	*odd_file = "odd.pix";
+
+static char usage[] = "\
+Usage: pixfieldsep [-w file_width] [-s square_size] [-# nbytes/pixel] \n\
+	[-d] [even.pix odd.pix]\n";
+
+int
+get_args(int argc, register char **argv)
+{
+	register int c;
+
+	while ( (c = getopt( argc, argv, "ds:w:#:" )) != EOF )  {
+		switch( c )  {
+		case 'd':
+			doubleit = 1;
+			break;
+		case '#':
+			bytes_per_sample = atoi(optarg);
+			break;
+		case 's':
+			/* square file size */
+			file_width = atoi(optarg);
+			break;
+		case 'w':
+			file_width = atoi(optarg);
+			break;
+
+		default:		/* '?' */
+			return(0);
+		}
+	}
+
+	if( optind < argc )  {
+		even_file = argv[optind++];
+	}
+	if( optind < argc )  {
+		odd_file = argv[optind++];
+	}
+
+	if( ++optind <= argc )
+		(void)fprintf( stderr, "pixfieldsep: excess argument(s) ignored\n" );
+
+	return(1);		/* OK */
+}
+
+int
+main(int argc, char **argv)
+{
+	register int	i;
+
+	if ( !get_args( argc, argv ) )  {
+		(void)fputs(usage, stderr);
+		exit( 1 );
+	}
+
+	if( (out1 = fopen(even_file, "w")) == NULL )  {
+		perror(even_file);
+		exit(1);
+	}
+	if( (out2 = fopen(odd_file, "w")) == NULL )  {
+		perror(odd_file);
+		exit(2);
+	}
+
+	buf = (char *)malloc( (file_width+1)*bytes_per_sample );
+
+	for(;;)  {
+		/* Even line */
+		if( fread( buf, bytes_per_sample, file_width, stdin ) != file_width )
+			break;
+		for( i=0; i <= doubleit; i++ )  {
+			if( fwrite( buf, bytes_per_sample, file_width, out1 ) != file_width )  {
+				perror("fwrite even");
+				exit(1);
+			}
+		}
+		/* Odd line */
+		if( fread( buf, bytes_per_sample, file_width, stdin ) != file_width )
+			break;
+		for( i=0; i <= doubleit; i++ )  {
+			if( fwrite( buf, bytes_per_sample, file_width, out2 ) != file_width )  {
+				perror("fwrite odd");
+				exit(1);
+			}
+		}
+	}
+	exit(0);
+}
+@
+
+
+11.7
+log
+@change conf.h to a wrapped config.h
+@
+text
+@d17 1
+a17 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/util/pixfieldsep.c,v 11.6 2004/04/05 05:46:02 morrison Exp $ (ARL)";
+@
+
+
+11.6
+log
+@merge of ansi-6-0-branch into head
+@
+text
+@d17 1
+a17 1
+static const char RCSid[] = "@@(#)$Header$ (ARL)";
+d20 5
+a24 1
+#include "conf.h"
+@
+
+
+11.5
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d17 1
+a17 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/util/pixfieldsep.c,v 11.3 2000/09/01 03:23:56 mike Exp $ (ARL)";
+d42 1
+a42 3
+get_args( argc, argv )
+int	argc;
+register char **argv;
+d81 1
+a81 3
+main(argc, argv)
+int	argc;
+char	*argv[];
+@
+
+
+11.5.2.1
+log
+@Initial ANSIfication
+@
+text
+@d17 1
+a17 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/util/pixfieldsep.c,v 11.5 2002/08/20 17:09:03 jra Exp $ (ARL)";
+d42 3
+a44 1
+get_args(int argc, register char **argv)
+d83 3
+a85 1
+main(int argc, char **argv)
+@
+
+
+11.4
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d42 3
+a44 1
+get_args(int argc, register char **argv)
+d83 3
+a85 1
+main(int argc, char **argv)
+@
+
+
+11.3
+log
+@
+Lint fix
+@
+text
+@d17 1
+a17 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/util/pixfieldsep.c,v 11.2 2000/08/23 19:04:50 mike Exp $ (ARL)";
+d42 1
+a42 3
+get_args( argc, argv )
+int	argc;
+register char **argv;
+d81 1
+a81 3
+main(argc, argv)
+int	argc;
+char	*argv[];
+@
+
+
+11.2
+log
+@
+const RCSid
+@
+text
+@d17 1
+a17 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/util/pixfieldsep.c,v 11.1 1995/01/04 10:12:42 mike Rel4_4 $ (ARL)";
+d41 1
+d82 1
+@
+
+
+11.1
+log
+@Release_4.4
+@
+text
+@d17 1
+a17 1
+static char RCSid[] = "@@(#)$Header: /m/cad/util/RCS/pixfieldsep.c,v 1.5 94/08/23 13:16:37 gdurf Exp $ (ARL)";
+@
+
+
+1.5
+log
+@Added include of conf.h
+@
+text
+@d17 1
+a17 1
+static char RCSid[] = "@@(#)$Header: /m/cad/util/RCS/pixfieldsep.c,v 1.4 1993/12/09 04:54:22 mike Exp gdurf $ (ARL)";
+@
+
+
+1.4
+log
+@Added -d option to double the scanlines.
+@
+text
+@d17 1
+a17 1
+static char RCSid[] = "@@(#)$Header: /m/cad/util/RCS/pixfieldsep.c,v 1.3 93/12/09 03:03:46 mike Exp Locker: mike $ (ARL)";
+d19 2
+@
+
+
+1.3
+log
+@Added newline to usage message
+@
+text
+@d17 1
+a17 1
+static char RCSid[] = "@@(#)$Header: /m/cad/util/RCS/pixfieldsep.c,v 1.2 93/12/09 03:02:38 mike Exp Locker: mike $ (ARL)";
+d30 1
+d37 1
+a37 1
+	[even.pix odd.pix]\n";
+d45 1
+a45 1
+	while ( (c = getopt( argc, argv, "s:w:#:" )) != EOF )  {
+d47 3
+d83 1
+d105 5
+a109 3
+		if( fwrite( buf, bytes_per_sample, file_width, out1 ) != file_width )  {
+			perror("fwrite even");
+			exit(1);
+d114 5
+a118 3
+		if( fwrite( buf, bytes_per_sample, file_width, out2 ) != file_width )  {
+			perror("fwrite odd");
+			exit(1);
+@
+
+
+1.2
+log
+@Added ability to specify file names.
+@
+text
+@d17 1
+a17 1
+static char RCSid[] = "@@(#)$Header$ (ARL)";
+d35 1
+a35 1
+Usage: pixfieldsep [-w file_width] [-s square_size] [-# nbytes/pixel] \
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d1 19
+d21 2
+d28 2
+a29 1
+int	width = 720;
+d31 44
+d79 8
+a86 2
+	if( (out1 = fopen("even.pix", "w")) == NULL )  {
+		perror("even.pix");
+d89 2
+a90 2
+	if( (out2 = fopen("odd.pix", "w")) == NULL )  {
+		perror("odd.pix");
+d94 1
+a94 1
+	buf = (char *)malloc( (width+1)*3 );
+d98 1
+a98 1
+		if( fread( buf, 3, width, stdin ) != width )
+d100 1
+a100 1
+		if( fwrite( buf, 3, width, out1 ) != width )  {
+d105 1
+a105 1
+		if( fread( buf, 3, width, stdin ) != width )
+d107 1
+a107 1
+		if( fwrite( buf, 3, width, out2 ) != width )  {
+@

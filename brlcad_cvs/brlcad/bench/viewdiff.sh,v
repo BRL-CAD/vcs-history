@@ -1,0 +1,549 @@
+head	14.5;
+access;
+symbols
+	rel-7-10-4:14.5
+	STABLE:14.5.0.2
+	rel-7-10-2:14.5
+	rel-7-10-0:14.5
+	rel-7-8-4:14.3
+	rel-7-8-2:14.3
+	rel-7-8-0:14.3
+	trimnurbs-branch:14.3.0.2
+	help:14.3
+	temp_tag:14.2
+	bobWinPort-20051223-freeze:14.1
+	postmerge-20051223-bobWinPort:14.2
+	premerge-20051223-bobWinPort:14.2
+	rel-7-6-6:14.2
+	rel-7-6-4:14.2
+	rel-7-6-2:14.1
+	rel-7-6-branch:14.1.0.6
+	rel-7-6-0:14.1
+	rel-7-4-2:14.1.4.2
+	rel-7-4-branch:14.1.0.4
+	bobWinPort:14.1.0.2;
+locks; strict;
+comment	@# @;
+
+
+14.5
+date	2007.01.20.21.29.19;	author brlcad;	state Exp;
+branches;
+next	14.4;
+
+14.4
+date	2007.01.20.14.36.40;	author brlcad;	state Exp;
+branches;
+next	14.3;
+
+14.3
+date	2006.01.18.06.46.10;	author brlcad;	state Exp;
+branches;
+next	14.2;
+
+14.2
+date	2005.10.23.04.24.41;	author brlcad;	state Exp;
+branches;
+next	14.1;
+
+14.1
+date	2005.07.16.21.32.25;	author brlcad;	state Exp;
+branches
+	14.1.4.1
+	14.1.6.1;
+next	;
+
+14.1.4.1
+date	2005.07.16.21.32.25;	author brlcad;	state dead;
+branches;
+next	14.1.4.2;
+
+14.1.4.2
+date	2005.08.16.21.03.44;	author brlcad;	state Exp;
+branches;
+next	;
+
+14.1.6.1
+date	2005.11.13.13.46.08;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.5
+log
+@header should say viewdiff.sh since it was renamed, not recheck.sh
+@
+text
+@#!/bin/sh
+#                    V I E W D I F F . S H
+# BRL-CAD
+#
+# Copyright (c) 2004-2007 United States Government as represented by
+# the U.S. Army Research Laboratory.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions
+# are met:
+#
+# 1. Redistributions of source code must retain the above copyright
+# notice, this list of conditions and the following disclaimer.
+#
+# 2. Redistributions in binary form must reproduce the above
+# copyright notice, this list of conditions and the following
+# disclaimer in the documentation and/or other materials provided
+# with the distribution.
+#
+# 3. The name of the author may not be used to endorse or promote
+# products derived from this software without specific prior written
+# permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS
+# OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+# WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+# ARE DISCLAIMED. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY
+# DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+# DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE
+# GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+# WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+# NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+# SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+#
+###
+# A Shell script to view the differences of a benchmark run,
+# displaying the results in a framebuffer window.
+#
+# The following environment variables will modify how the view diff
+# behaves (in case you're not running from a source distribution, for
+# example):
+#
+#   PIX - the directory containing the pix files to be compare
+#   PIXDIFF - the name of a pix diff tool
+#   PIXFB - the name of a pix to framebuffer tool (e.g. pix-fb)
+#
+# Authors -
+#  Mike Muuss
+#  Christopher Sean Morrison
+#
+#  @@(#)$Header: /cvsroot/brlcad/brlcad/bench/viewdiff.sh,v 14.4 2007/01/20 14:36:40 brlcad Exp $
+
+# Ensure /bin/sh
+export PATH || (echo "This isn't sh."; sh $0 $*; kill $$)
+path_to_this="`dirname $0`"
+
+echo Looking for benchmark images ...
+# find pix reference image directory if we do not already know where
+# it is.  PIX environment variable overrides
+if test "x${PIX}" = "x" ; then
+    if test -f "$path_to_this/../pix/sphflake.pix" ; then
+	echo ...found .pix image files in $path_to_this/../pix
+	PIX="$path_to_this/../pix"
+    elif test -f "$path_to_this/sphflake.pix" ; then
+	echo ...found .pix image files in $path_to_this
+	PIX="$path_to_this"
+    elif test -f "$path_to_this/../share/brlcad/pix/sphflake.pix" ; then
+	echo ...found .pix image files in $path_to_this/../share/brlcad/pix
+	PIX="$path_to_this/../share/brlcad/pix"
+    fi
+else
+    echo ...using $PIX from PIX environment variable setting
+fi
+
+
+echo Checking for pixel diff utility...
+# find pixel diff utility
+# PIXDIFF environment variable overrides
+if test "x${PIXDIFF}" = "x" ; then
+    if test -x $path_to_this/pixdiff ; then
+	echo ...found $path_to_this/pixdiff
+	PIXDIFF="$path_to_this/pixdiff"
+    elif test -x $path_to_this/../src/util/pixdiff ; then
+	echo ...found $path_to_this/../src/util/pixdiff
+	PIXDIFF="$path_to_this/../src/util/pixdiff"
+    else
+	if test -f "$path_to_this/../src/util/pixdiff.c" ; then
+	    echo ...need to build pixdiff
+
+	    for compiler in $CC gcc cc ; do
+		COMPILE="$compiler"
+
+		if test "x$COMPILE" = "x" ; then
+		    continue
+		fi
+
+		$COMPILE -o pixdiff "$path_to_this/../src/util/pixdiff.c"
+		if test "x$?" = "x0" ; then
+		    break
+		fi
+		if test -f "pixdiff" ; then
+		    break;
+		fi
+	    done
+
+	    if test -f "pixdiff" ; then
+		echo ...built pixdiff with $COMPILE -o pixdiff pixdiff.c
+		PIXDIFF="./pixdiff"
+	    fi
+	fi
+    fi
+else
+    echo ...using $PIXDIFF from PIXDIFF environment variable setting
+fi
+
+
+echo Checking for pix to framebuffer utility...
+# find pix to framebuffer utility
+# PIXFB environment variable overrides
+if test "x${PIXFB}" = "x" ; then
+    if test -x $path_to_this/pix-fb ; then
+	echo ...found $path_to_this/pix-fb
+	PIXFB="$path_to_this/pix-fb"
+    elif test -x $path_to_this/../src/fb/pix-fb ; then
+	echo ...found $path_to_this/../src/fb/pix-fb
+	PIXFB="$path_to_this/../src/fb/pix-fb"
+    else
+	if test -f "$path_to_this/../src/fb/pix-fb.c" ; then
+	    echo ...need to build pix-fb
+
+	    for compiler in $CC gcc cc ; do
+		COMPILE="$compiler"
+
+		if test "x$COMPILE" = "x" ; then
+		    continue
+		fi
+
+		$COMPILE -o pix-fb "$path_to_this/../src/fb/pix-fb.c"
+		if test "x$?" = "x0" ; then
+		    break
+		fi
+		if test -f "pix-fb" ; then
+		    break;
+		fi
+	    done
+
+	    if test -f "pix-fb" ; then
+		echo ...built pix-fb with $COMPILE -o pix-fb pix-fb.c
+		PIXFB="./pix-fb"
+	    fi
+	fi
+    fi
+else
+    echo ...using $PIXFB from PIXFB environment variable setting
+fi
+
+echo +++++ moss.pix
+${PIXDIFF} ${PIX}/moss.pix moss.pix | ${PIXFB}
+
+echo +++++ world.pix
+${PIXDIFF} ${PIX}/world.pix world.pix  | ${PIXFB}
+
+echo +++++ star.pix
+${PIXDIFF} ${PIX}/star.pix star.pix  | ${PIXFB}
+
+echo +++++ bldg391.pix
+${PIXDIFF} ${PIX}/bldg391.pix bldg391.pix  | ${PIXFB}
+
+echo +++++ m35.pix
+${PIXDIFF} ${PIX}/m35.pix m35.pix  | ${PIXFB}
+
+echo +++++ sphflake.pix
+${PIXDIFF} ${PIX}/sphflake.pix sphflake.pix  | ${PIXFB}
+
+# Local Variables:
+# mode: sh
+# tab-width: 8
+# sh-indentation: 4
+# sh-basic-offset: 4
+# indent-tabs-mode: t
+# End:
+# ex: shiftwidth=4 tabstop=8
+@
+
+
+14.4
+log
+@update copyright to 2007
+@
+text
+@d2 1
+a2 1
+#                      R E C H E C K . S H
+d52 1
+a52 1
+#  @@(#)$Header: /cvsroot/brlcad/brlcad/bench/viewdiff.sh,v 14.3 2006/01/18 06:46:10 brlcad Exp $
+@
+
+
+14.3
+log
+@update copyright to 2006
+@
+text
+@d5 1
+a5 1
+# Copyright (c) 2004-2006 United States Government as represented by
+d52 1
+a52 1
+#  @@(#)$Header: /cvsroot/brlcad/brlcad/bench/viewdiff.sh,v 14.2 2005/10/23 04:24:41 brlcad Exp $
+@
+
+
+14.2
+log
+@trailing ws
+@
+text
+@d5 1
+a5 1
+# Copyright (C) 2004-2005 United States Government as represented by
+d52 1
+a52 1
+#  @@(#)$Header: /cvsroot/brlcad/brlcad/bench/viewdiff.sh,v 14.1 2005/07/16 21:32:25 brlcad Exp $
+@
+
+
+14.1
+log
+@rename recheck.sh to viewdiff.sh and rewrite it in the process, decoupling it from machinetype.sh and improving the tool checks in the process
+@
+text
+@d15 1
+a15 1
+# 2. Redistributions in binary form must reproduce the above 
+d52 1
+a52 1
+#  @@(#)$Header: $
+d106 1
+a106 1
+	    
+d147 1
+a147 1
+	    
+@
+
+
+14.1.6.1
+log
+@merge changes from HEAD aka rel-7-6-4 to the rel-7-6-branch just in case someone peeks a gander or tries to continue/build the branch
+@
+text
+@d15 1
+a15 1
+# 2. Redistributions in binary form must reproduce the above
+d52 1
+a52 1
+#  @@(#)$Header$
+d106 1
+a106 1
+
+d147 1
+a147 1
+
+@
+
+
+14.1.4.1
+log
+@file viewdiff.sh was added on branch rel-7-4-branch on 2005-08-16 21:03:44 +0000
+@
+text
+@d1 183
+@
+
+
+14.1.4.2
+log
+@merge in changes through Aug10 for 7.4.2 release
+@
+text
+@a0 183
+#!/bin/sh
+#                      R E C H E C K . S H
+# BRL-CAD
+#
+# Copyright (C) 2004-2005 United States Government as represented by
+# the U.S. Army Research Laboratory.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions
+# are met:
+#
+# 1. Redistributions of source code must retain the above copyright
+# notice, this list of conditions and the following disclaimer.
+#
+# 2. Redistributions in binary form must reproduce the above 
+# copyright notice, this list of conditions and the following
+# disclaimer in the documentation and/or other materials provided
+# with the distribution.
+#
+# 3. The name of the author may not be used to endorse or promote
+# products derived from this software without specific prior written
+# permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS
+# OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+# WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+# ARE DISCLAIMED. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY
+# DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+# DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE
+# GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+# WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+# NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+# SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+#
+###
+# A Shell script to view the differences of a benchmark run,
+# displaying the results in a framebuffer window.
+#
+# The following environment variables will modify how the view diff
+# behaves (in case you're not running from a source distribution, for
+# example):
+#
+#   PIX - the directory containing the pix files to be compare
+#   PIXDIFF - the name of a pix diff tool
+#   PIXFB - the name of a pix to framebuffer tool (e.g. pix-fb)
+#
+# Authors -
+#  Mike Muuss
+#  Christopher Sean Morrison
+#
+#  @@(#)$Header: /cvsroot/brlcad/brlcad/bench/viewdiff.sh,v 14.1 2005/07/16 21:32:25 brlcad Exp $
+
+# Ensure /bin/sh
+export PATH || (echo "This isn't sh."; sh $0 $*; kill $$)
+path_to_this="`dirname $0`"
+
+echo Looking for benchmark images ...
+# find pix reference image directory if we do not already know where
+# it is.  PIX environment variable overrides
+if test "x${PIX}" = "x" ; then
+    if test -f "$path_to_this/../pix/sphflake.pix" ; then
+	echo ...found .pix image files in $path_to_this/../pix
+	PIX="$path_to_this/../pix"
+    elif test -f "$path_to_this/sphflake.pix" ; then
+	echo ...found .pix image files in $path_to_this
+	PIX="$path_to_this"
+    elif test -f "$path_to_this/../share/brlcad/pix/sphflake.pix" ; then
+	echo ...found .pix image files in $path_to_this/../share/brlcad/pix
+	PIX="$path_to_this/../share/brlcad/pix"
+    fi
+else
+    echo ...using $PIX from PIX environment variable setting
+fi
+
+
+echo Checking for pixel diff utility...
+# find pixel diff utility
+# PIXDIFF environment variable overrides
+if test "x${PIXDIFF}" = "x" ; then
+    if test -x $path_to_this/pixdiff ; then
+	echo ...found $path_to_this/pixdiff
+	PIXDIFF="$path_to_this/pixdiff"
+    elif test -x $path_to_this/../src/util/pixdiff ; then
+	echo ...found $path_to_this/../src/util/pixdiff
+	PIXDIFF="$path_to_this/../src/util/pixdiff"
+    else
+	if test -f "$path_to_this/../src/util/pixdiff.c" ; then
+	    echo ...need to build pixdiff
+
+	    for compiler in $CC gcc cc ; do
+		COMPILE="$compiler"
+
+		if test "x$COMPILE" = "x" ; then
+		    continue
+		fi
+
+		$COMPILE -o pixdiff "$path_to_this/../src/util/pixdiff.c"
+		if test "x$?" = "x0" ; then
+		    break
+		fi
+		if test -f "pixdiff" ; then
+		    break;
+		fi
+	    done
+	    
+	    if test -f "pixdiff" ; then
+		echo ...built pixdiff with $COMPILE -o pixdiff pixdiff.c
+		PIXDIFF="./pixdiff"
+	    fi
+	fi
+    fi
+else
+    echo ...using $PIXDIFF from PIXDIFF environment variable setting
+fi
+
+
+echo Checking for pix to framebuffer utility...
+# find pix to framebuffer utility
+# PIXFB environment variable overrides
+if test "x${PIXFB}" = "x" ; then
+    if test -x $path_to_this/pix-fb ; then
+	echo ...found $path_to_this/pix-fb
+	PIXFB="$path_to_this/pix-fb"
+    elif test -x $path_to_this/../src/fb/pix-fb ; then
+	echo ...found $path_to_this/../src/fb/pix-fb
+	PIXFB="$path_to_this/../src/fb/pix-fb"
+    else
+	if test -f "$path_to_this/../src/fb/pix-fb.c" ; then
+	    echo ...need to build pix-fb
+
+	    for compiler in $CC gcc cc ; do
+		COMPILE="$compiler"
+
+		if test "x$COMPILE" = "x" ; then
+		    continue
+		fi
+
+		$COMPILE -o pix-fb "$path_to_this/../src/fb/pix-fb.c"
+		if test "x$?" = "x0" ; then
+		    break
+		fi
+		if test -f "pix-fb" ; then
+		    break;
+		fi
+	    done
+	    
+	    if test -f "pix-fb" ; then
+		echo ...built pix-fb with $COMPILE -o pix-fb pix-fb.c
+		PIXFB="./pix-fb"
+	    fi
+	fi
+    fi
+else
+    echo ...using $PIXFB from PIXFB environment variable setting
+fi
+
+echo +++++ moss.pix
+${PIXDIFF} ${PIX}/moss.pix moss.pix | ${PIXFB}
+
+echo +++++ world.pix
+${PIXDIFF} ${PIX}/world.pix world.pix  | ${PIXFB}
+
+echo +++++ star.pix
+${PIXDIFF} ${PIX}/star.pix star.pix  | ${PIXFB}
+
+echo +++++ bldg391.pix
+${PIXDIFF} ${PIX}/bldg391.pix bldg391.pix  | ${PIXFB}
+
+echo +++++ m35.pix
+${PIXDIFF} ${PIX}/m35.pix m35.pix  | ${PIXFB}
+
+echo +++++ sphflake.pix
+${PIXDIFF} ${PIX}/sphflake.pix sphflake.pix  | ${PIXFB}
+
+# Local Variables:
+# mode: sh
+# tab-width: 8
+# sh-indentation: 4
+# sh-basic-offset: 4
+# indent-tabs-mode: t
+# End:
+# ex: shiftwidth=4 tabstop=8
+@
+
+

@@ -1,0 +1,215 @@
+head	14.2;
+access;
+symbols
+	stable-branch:14.1
+	rel-7-8-4:14.1
+	rel-7-8-2:14.1
+	rel-7-8-0:14.1
+	trimnurbs-branch:14.1.0.8
+	help:14.1
+	temp_tag:14.1
+	bobWinPort-20051223-freeze:14.1
+	postmerge-20051223-bobWinPort:14.1
+	premerge-20051223-bobWinPort:14.1
+	rel-7-6-6:14.1
+	rel-7-6-4:14.1
+	rel-7-6-2:14.1
+	rel-7-6-branch:14.1.0.6
+	rel-7-6-0:14.1
+	rel-7-4-2:14.1
+	rel-7-4-branch:14.1.0.4
+	bobWinPort:14.1.0.2
+	rel-7-4-0:14.1
+	rel-7-2-6:14.1
+	rel-7-2-4:14.1
+	rel-7-2-2:14.1
+	rel-7-2-0:14.1
+	rel-7-0-4:14.1
+	rel-7-0-2:14.1
+	rel-7-0-1:14.1
+	opensource-post:14.1
+	opensource-pre:1.1
+	rel-7-0-branch:1.1.0.2
+	rel-7-0:1.1;
+locks; strict;
+comment	@# @;
+
+
+14.2
+date	2007.03.02.21.47.11;	author brlcad;	state dead;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.23;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.14.51.55;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.2
+log
+@upgrade tcl/tk from 8.4.6 to 8.5a5; also move to a recursive configure, using AC_CONFIG_SUBDIRS to call upon tcl, tk, and enigma's configure scripts as needed instead of redoing their build systems for our purpose.  this has a rather drastic impact on the way the libraries are linked together, including the need to compile tcl/tk static so as to avoid libtool portability issues as well as letting us take advantage of their build system for reduced maintenance and easing future upgrades.  undoubtedly more build issues to be worked out with other platforms given the extent of this change.  this does move us one step closer towards correctly linking against system tcl/tk installations too.
+@
+text
+@# Commands covered:  none
+#
+# This file contains a collection of tests for the procedures in the
+# file tclGet.c.  Sourcing this file into Tcl runs the tests and
+# generates output for errors.  No output means no errors were found.
+#
+# Copyright (c) 1995-1996 Sun Microsystems, Inc.
+# Copyright (c) 1998-1999 by Scriptics Corporation.
+#
+# See the file "license.terms" for information on usage and redistribution
+# of this file, and for a DISCLAIMER OF ALL WARRANTIES.
+#
+# RCS: @@(#) $Id: get.test,v 14.1 2004/11/16 19:42:23 morrison Exp $
+
+if {[lsearch [namespace children] ::tcltest] == -1} {
+    package require tcltest
+    namespace import -force ::tcltest::*
+}
+
+test get-1.1 {Tcl_GetInt procedure} {
+    set x 44
+    incr x { 	  22}
+} {66}
+test get-1.2 {Tcl_GetInt procedure} {
+    set x 44
+    incr x -3
+} {41}
+test get-1.3 {Tcl_GetInt procedure} {
+    set x 44
+    incr x +8
+} {52}
+test get-1.4 {Tcl_GetInt procedure} {
+    set x 44
+    list [catch {incr x foo} msg] $msg
+} {1 {expected integer but got "foo"}}
+test get-1.5 {Tcl_GetInt procedure} {
+    set x 44
+    list [catch {incr x {16	 }} msg] $msg
+} {0 60}
+test get-1.6 {Tcl_GetInt procedure} {
+    set x 44
+    list [catch {incr x {16	 x}} msg] $msg
+} {1 {expected integer but got "16	 x"}}
+
+# The following tests are non-portable because they depend on
+# word size.
+
+if {wide(0x80000000) > wide(0)} {
+    test get-1.7 {Tcl_GetInt procedure} {
+	set x 44
+	list [catch {eval incr x 18446744073709551616} msg] $msg $errorCode
+    } {1 {integer value too large to represent} {ARITH IOVERFLOW {integer value too large to represent}}}
+    test get-1.8 {Tcl_GetInt procedure} {
+	set x 0
+	list [catch {incr x 18446744073709551614} msg] $msg
+    } {0 -2}
+    test get-1.9 {Tcl_GetInt procedure} {
+	set x 0
+	list [catch {incr x +18446744073709551614} msg] $msg
+    } {0 -2}
+    test get-1.10 {Tcl_GetInt procedure} {
+	set x 0
+	list [catch {incr x -18446744073709551614} msg] $msg
+    } {0 2}
+} else {
+    test get-1.11 {Tcl_GetInt procedure} {
+	set x 44
+	list [catch {incr x 4294967296} msg] $msg $errorCode
+    } {1 {integer value too large to represent} {ARITH IOVERFLOW {integer value too large to represent}}}
+    test get-1.12 {Tcl_GetInt procedure} {
+	set x 0
+	list [catch {incr x 4294967294} msg] $msg
+    } {0 -2}
+    test get-1.13 {Tcl_GetInt procedure} {
+	set x 0
+	list [catch {incr x +4294967294} msg] $msg
+    } {0 -2}
+    test get-1.14 {Tcl_GetInt procedure} {
+	set x 0
+	list [catch {incr x -4294967294} msg] $msg
+    } {0 2}
+}
+
+test get-2.1 {Tcl_GetInt procedure} {
+    format %g 1.23
+} {1.23}
+test get-2.2 {Tcl_GetInt procedure} {
+    format %g { 	 1.23 	}
+} {1.23}
+test get-2.3 {Tcl_GetInt procedure} {
+    list [catch {format %g clip} msg] $msg
+} {1 {expected floating-point number but got "clip"}}
+test get-2.4 {Tcl_GetInt procedure} {nonPortable} {
+    list [catch {format %g .000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001} msg] $msg $errorCode
+} {1 {floating-point value too small to represent} {ARITH UNDERFLOW {floating-point value too small to represent}}}
+
+test get-3.1 {Tcl_GetInt(FromObj), bad numbers} {
+    # SF bug #634856
+    set result ""
+    set numbers [list 1 +1 ++1 +-1 -+1 -1 --1 "- +1" "+12345678987654321" "++12345678987654321"]
+    foreach num $numbers {
+	lappend result [catch {format %ld $num} msg] $msg
+    }
+    set result
+} {0 1 0 1 1 {expected integer but got "++1"} 1 {expected integer but got "+-1"} 1 {expected integer but got "-+1"} 0 -1 1 {expected integer but got "--1"} 1 {expected integer but got "- +1"} 0 12345678987654321 1 {expected integer but got "++12345678987654321"}}
+test get-3.2 {Tcl_GetDouble(FromObj), bad numbers} {
+    set result ""
+    set numbers [list 1.0 +1.0 ++1.0 +-1.0 -+1.0 -1.0 --1.0 "- +1.0"]
+    foreach num $numbers {
+	lappend result [catch {format %g $num} msg] $msg
+    }
+    set result
+} {0 1 0 1 1 {expected floating-point number but got "++1.0"} 1 {expected floating-point number but got "+-1.0"} 1 {expected floating-point number but got "-+1.0"} 0 -1 1 {expected floating-point number but got "--1.0"} 1 {expected floating-point number but got "- +1.0"}}
+
+# cleanup
+::tcltest::cleanupTests
+return
+
+
+
+
+
+
+
+
+
+
+
+
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@d13 1
+a13 1
+# RCS: @@(#) $Id: get.test,v 1.1 2004/05/20 14:51:55 morrison Exp $
+@
+
+
+1.1
+log
+@Sources that are external to BRL-CAD are moved from the top level to src/other/.
+@
+text
+@d13 1
+a13 1
+# RCS: @@(#) $Id: get.test,v 1.3 2004/03/04 19:47:17 morrison Exp $
+@
+

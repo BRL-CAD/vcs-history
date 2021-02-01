@@ -1,0 +1,579 @@
+head	1.10;
+access;
+symbols
+	ansi-20040405-merged:1.7.2.1
+	postmerge-20040405-ansi:1.8
+	premerge-20040404-ansi:1.7
+	postmerge-autoconf:1.7
+	autoconf-freeze:1.7
+	premerge-autoconf:1.7
+	ansi-20040316-freeze:1.7.2.1
+	postmerge-20040315-windows:1.7
+	premerge-20040315-windows:1.7
+	windows-20040315-freeze:1.7
+	autoconf-20031203:1.7
+	autoconf-20031202:1.7
+	autoconf-branch:1.7.0.10
+	phong-branch:1.7.0.8
+	photonmap-branch:1.7.0.6
+	rel-6-1-DP:1.7
+	windows-branch:1.7.0.4
+	rel-6-0-2:1.5
+	ansi-branch:1.7.0.2
+	rel-6-0-1-branch:1.5.0.2
+	hartley-6-0-post:1.6
+	hartley-6-0-pre:1.5
+	rel-6-0-1:1.5
+	rel-6-0:1.5
+	rel-5-4:1.3
+	offsite-5-3-pre:1.4
+	rel-5-3:1.3
+	rel-5-2:1.3
+	rel-5-1-branch:1.3.0.2
+	rel-5-1:1.3
+	rel-5-0:1.3
+	rel-5-0-beta:1.3
+	rel-4-5:1.3
+	ctj-4-5-post:1.3
+	ctj-4-5-pre:1.3;
+locks; strict;
+comment	@ * @;
+
+
+1.10
+date	2004.05.24.04.13.26;	author morrison;	state dead;
+branches;
+next	1.9;
+
+1.9
+date	2004.05.10.15.30.42;	author erikg;	state Exp;
+branches;
+next	1.8;
+
+1.8
+date	2004.04.05.07.49.23;	author morrison;	state Exp;
+branches;
+next	1.7;
+
+1.7
+date	2002.08.20.17.07.24;	author jra;	state Exp;
+branches
+	1.7.2.1;
+next	1.6;
+
+1.6
+date	2002.08.15.20.54.38;	author hartley;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	2001.04.12.17.44.07;	author bparker;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	2000.08.24.03.58.30;	author mike;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	97.04.18.02.59.56;	author mike;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	97.04.17.07.20.14;	author mike;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	97.04.17.07.08.06;	author mike;	state Exp;
+branches;
+next	;
+
+1.7.2.1
+date	2002.09.19.18.00.41;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@Program to rapidly compute per-color gamma ramps and linear corrections.
+@
+
+
+1.10
+log
+@moved to src/fb/
+@
+text
+@/*
+ *			F B G A M M A M O D . C
+ *
+ *  Program to rapidly compute per-color gamma ramps and linear corrections.
+ *
+ *  Author -
+ *	Michael John Muuss
+ *  
+ *  Source -
+ *	The U. S. Army Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005-5068  USA
+ *  
+ *  Distribution Status -
+ *	Public Domain, Distribution Unlimited.
+ */
+#ifndef lint
+static const char RCSid[] = "@@(#)$Header: /n/xoff/cvs/brlcad/fb/fbgammamod.c,v 1.9 2004/05/10 15:30:42 erikg Exp $ (ARL)";
+#endif
+
+
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+
+#include <stdio.h>
+#ifdef USE_STRING_H
+#include <string.h>
+#else
+#include <strings.h>
+#endif
+#include <math.h>
+#include "machine.h"
+#include "externs.h"
+#include "fb.h"
+
+char *options = "vf:F:";
+/* externs.h includes externs for getopt and associated variables */
+
+static char usage[] = "\
+Usage: fbgammamod [-v] [-f in_file] [-F framebuffer] \
+	r+ r* r_gam g+ g* g_gam b+ b* b_gam global_pre_gam global+ global* global_post_gam\n";
+
+int	verbose = 0;
+char	*framebuffer = (char *)NULL;
+char	*input_file = NULL;
+
+ColorMap map;
+
+double	ra, rm, rg;		/* addition, multiply, gamma */
+double	ga, gm, gg;
+double	ba, bm, bg;
+double	add, mul, pre_gam, post_gam;	/* globals */
+
+/*
+ *			D O _ F I L E
+ */
+void
+do_file(void)
+{
+	char	*output_file;
+	FILE	*ifp, *ofp;
+	int	i;
+
+	if( (ifp = fopen( input_file, "r" )) == NULL )  {
+		perror(input_file);
+		exit(1);
+	}
+	output_file = (char *)malloc( strlen(input_file)+10 );
+	strcpy( output_file, "MOD_" );
+	strcat( output_file, input_file );
+
+	if( (ofp = fopen( output_file, "w" )) == NULL )  {
+		perror(output_file);
+		exit(2);
+	}
+
+	/* Shift cmap to be more useful */
+	for( i=0; i<256; i++ )  {
+		map.cm_red[i] >>= 8;
+		map.cm_green[i] >>= 8;
+		map.cm_blue[i] >>= 8;
+	}
+
+	while( !feof(ifp) )  {
+		i = map.cm_red[getc(ifp)];
+		putc( i, ofp );
+
+		i = map.cm_green[getc(ifp)];
+		putc( i, ofp );
+
+		i = map.cm_blue[getc(ifp)];
+		putc( i, ofp );
+	}
+}
+
+/*
+ *			D O _ F B
+ */
+void
+do_fb(void)
+{
+	FBIO	*fbp;
+
+	if( (fbp = fb_open( framebuffer, 0, 0 )) == FBIO_NULL ) {
+		exit( 2 );
+	}
+	if( fb_wmap( fbp, &map ) < 0 )
+		fprintf( stderr, "fbgammamod: unable to write color map\n");
+	fb_close(fbp);
+}
+
+/*
+ *			M A I N
+ */
+int
+main(int argc, char **argv)
+{
+	double	rexp, gexp, bexp;
+	double	radd, gadd, badd;
+	double	rmul, gmul, bmul;
+	double	pre_exp;
+	int	i;
+
+	/* check for flags */
+	opterr = 0;
+	while ((i=getopt(argc, argv, options)) != EOF) {
+		switch(i) {
+		case 'v':
+			verbose++;
+			break;
+		case 'F':
+			framebuffer = optarg;
+			break;
+		case 'f':
+			input_file = optarg;
+			break;
+		default:
+			fprintf( stderr, "fbgammamod: Unrecognized option '%c'\n%s",
+				i, usage);
+			exit(2);
+		}
+	}
+
+	if( optind != argc - 13 )  {
+		fprintf( stderr, usage );
+		exit(1);
+	}
+
+	/* Gobble 13 positional args */
+	ra = atof( argv[optind+0] );
+	rm = atof( argv[optind+1] );
+	rg = atof( argv[optind+2] );
+
+	ga = atof( argv[optind+3] );
+	gm = atof( argv[optind+4] );
+	gg = atof( argv[optind+5] );
+
+	ba = atof( argv[optind+6] );
+	bm = atof( argv[optind+7] );
+	bg = atof( argv[optind+8] );
+
+	pre_gam = atof( argv[optind+9] );
+	add = atof( argv[optind+10] );
+	mul = atof( argv[optind+11] );
+	post_gam = atof( argv[optind+12] );
+
+	if( verbose )  {
+		fprintf(stderr, "r+ = %g, r* = %g, r gam=%g\n", ra, rm, rg);
+		fprintf(stderr, "g+ = %g, g* = %g, g gam=%g\n", ga, gm, gg);
+		fprintf(stderr, "b+ = %g, b* = %g, b gam=%g\n", ba, bm, bg);
+		fprintf(stderr, "pre_gam = %g, + = %g, * = %g, post_gam = %g\n",
+			pre_gam, add, mul, post_gam );
+	}
+
+	/* Build the color map, per specifications */
+	pre_exp = 1.0 / pre_gam;
+	rexp = 1.0 / ( post_gam + rg - 1 );
+	gexp = 1.0 / ( post_gam + gg - 1 );
+	bexp = 1.0 / ( post_gam + bg - 1 );
+
+	radd = (ra + add) / 255.;
+	gadd = (ga + add) / 255.;
+	badd = (ba + add) / 255.;
+
+	rmul = rm * mul;
+	gmul = gm * mul;
+	bmul = bm * mul;
+
+	for( i=0; i<256; i++ )  {
+		register double	t;
+		register int	val;
+
+		if( (t = (pow( i/255.0, pre_exp) + radd) * rmul) < 0 )
+			t = 0;
+		else if( t > 1 )
+			t = 1;
+		if( (val = (int)(65535 * pow( t, rexp ))) < 0 )
+			val = 0;
+		else if( val > 65535 )
+			val = 65535;
+		map.cm_red[i] = val;
+
+		if( (t = (pow( i/255.0, pre_exp) + gadd) * gmul) < 0 )
+			t = 0;
+		else if( t > 1 )
+			t = 1;
+		if( (val = (int)(65535 * pow( t, gexp ))) < 0 )
+			val = 0;
+		else if( val > 65535 )
+			val = 65535;
+		map.cm_green[i] = val;
+
+		if( (t = (pow( i/255.0, pre_exp) + badd) * bmul) < 0 )
+			t = 0;
+		else if( t > 1 )
+			t = 1;
+		if( (val = (int)(65535 * pow( t, bexp ))) < 0 )
+			val = 0;
+		else if( val > 65535 )
+			val = 65535;
+		map.cm_blue[i] = val;
+
+		/* use cmap-fb format */
+		if( verbose )
+			fprintf(stderr, "%d	%4x %4x %4x\n", i,
+				map.cm_red[i], map.cm_green[i], map.cm_blue[i] );
+	}
+
+	if( !input_file )
+		do_fb();
+	else
+		do_file();
+	exit(0);
+}
+@
+
+
+1.9
+log
+@change conf.h to a wrapped config.h
+@
+text
+@d17 1
+a17 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/fb/fbgammamod.c,v 1.8 2004/04/05 07:49:23 morrison Exp $ (ARL)";
+@
+
+
+1.8
+log
+@merge of ansi-6-0-branch into HEAD
+@
+text
+@d17 6
+a22 1
+static const char RCSid[] = "@@(#)$Header$ (ARL)";
+a25 1
+#include "conf.h"
+@
+
+
+1.7
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d17 1
+a17 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/fb/fbgammamod.c,v 1.5 2001/04/12 17:44:07 bparker Exp $ (ARL)";
+d56 1
+a56 1
+do_file()
+d98 1
+a98 1
+do_fb()
+d114 1
+a114 3
+main( argc, argv )
+int	argc;
+char	**argv;
+@
+
+
+1.7.2.1
+log
+@Initial ANSIfication
+@
+text
+@d17 1
+a17 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/fb/fbgammamod.c,v 1.7 2002/08/20 17:07:24 jra Exp $ (ARL)";
+d56 1
+a56 1
+do_file(void)
+d98 1
+a98 1
+do_fb(void)
+d114 3
+a116 1
+main(int argc, char **argv)
+@
+
+
+1.6
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d56 1
+a56 1
+do_file(void)
+d98 1
+a98 1
+do_fb(void)
+d114 3
+a116 1
+main(int argc, char **argv)
+@
+
+
+1.5
+log
+@*- get rid of warnings
+@
+text
+@d17 1
+a17 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/fb/fbgammamod.c,v 1.4 2000/08/24 03:58:30 mike Exp $ (ARL)";
+d56 1
+a56 1
+do_file()
+d98 1
+a98 1
+do_fb()
+d114 1
+a114 3
+main( argc, argv )
+int	argc;
+char	**argv;
+@
+
+
+1.4
+log
+@
+const RCSid
+@
+text
+@d17 1
+a17 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/fb/fbgammamod.c,v 1.3 1997/04/18 02:59:56 mike Exp $ (ARL)";
+d24 5
+d113 1
+@
+
+
+1.3
+log
+@Added extra parameter:  pre-global gamma.
+@
+text
+@d17 1
+a17 1
+static char RCSid[] = "@@(#)$Header: /m/cad/fb/RCS/fbgammamod.c,v 1.2 1997/04/17 07:20:14 mike Exp mike $ (ARL)";
+@
+
+
+1.2
+log
+@Added support for processing files
+@
+text
+@d17 1
+a17 1
+static char RCSid[] = "@@(#)$Header: /m/cad/fb/RCS/fbgammamod.c,v 1.1 1997/04/17 07:08:06 mike Exp mike $ (ARL)";
+d29 1
+a29 1
+char *options = "f:F:";
+d33 2
+a34 2
+Usage: fbgammamod [-f in_file] [-F framebuffer] \
+	r+ r* r_gam g+ g* g_gam b+ b* b_gam global+ global* global_gam\n";
+d36 1
+d45 1
+a45 1
+double	add, mul, gam;	/* globals */
+d48 1
+d115 1
+d122 3
+d138 1
+a138 1
+	if( optind != argc - 12 )  {
+d143 1
+a143 1
+	/* Gobble 12 positional args */
+d156 4
+a159 3
+	add = atof( argv[optind+9] );
+	mul = atof( argv[optind+10] );
+	gam = atof( argv[optind+11] );
+d161 8
+d170 4
+a173 3
+	rexp = 1.0 / ( gam + rg - 1 );
+	gexp = 1.0 / ( gam + gg - 1 );
+	bexp = 1.0 / ( gam + bg - 1 );
+d175 3
+a177 3
+	radd = ra + add;
+	gadd = ga + add;
+	badd = ba + add;
+d187 1
+a187 1
+		if( (t = (i + radd) * rmul) < 0 )
+d189 3
+a191 3
+		else if( t > 255 )
+			t = 255;
+		if( (val = (int)(65535 * pow( t / 255, rexp ))) < 0 )
+d197 1
+a197 1
+		if( (t = (i + gadd) * gmul) < 0 )
+d199 3
+a201 3
+		else if( t > 255 )
+			t = 255;
+		if( (val = (int)(65535 * pow( t / 255, gexp ))) < 0 )
+d207 1
+a207 1
+		if( (t = (i + badd) * bmul) < 0 )
+d209 3
+a211 3
+		else if( t > 255 )
+			t = 255;
+		if( (val = (int)(65535 * pow( t / 255, bexp ))) < 0 )
+d216 5
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d17 1
+a17 1
+static char RCSid[] = "@@(#)$Header$ (ARL)";
+d29 1
+a29 1
+char *options = "F:";
+a38 2
+FBIO	*fbp;
+
+d47 57
+d126 3
+a128 1
+			break;
+a153 4
+	if( (fbp = fb_open( framebuffer, 0, 0 )) == FBIO_NULL ) {
+		exit( 2 );
+	}
+
+d202 4
+a205 3
+	if( fb_wmap( fbp, &map ) < 0 )
+		fprintf( stderr, "fbgammamod: unable to write color map\n");
+	fb_close(fbp);
+@

@@ -1,0 +1,605 @@
+head	11.8;
+access;
+symbols
+	ansi-20040405-merged:11.5.2.1
+	postmerge-20040405-ansi:11.6
+	premerge-20040404-ansi:11.5
+	postmerge-autoconf:11.5
+	autoconf-freeze:11.5
+	premerge-autoconf:11.5
+	ansi-20040316-freeze:11.5.2.1
+	postmerge-20040315-windows:11.5
+	premerge-20040315-windows:11.5
+	windows-20040315-freeze:11.5
+	autoconf-20031203:11.5
+	autoconf-20031202:11.5
+	autoconf-branch:11.5.0.10
+	phong-branch:11.5.0.8
+	photonmap-branch:11.5.0.6
+	rel-6-1-DP:11.5
+	windows-branch:11.5.0.4
+	rel-6-0-2:11.3
+	ansi-branch:11.5.0.2
+	rel-6-0-1-branch:11.3.0.2
+	hartley-6-0-post:11.4
+	hartley-6-0-pre:11.3
+	rel-6-0-1:11.3
+	rel-6-0:11.3
+	rel-5-4:11.2
+	offsite-5-3-pre:11.3
+	rel-5-3:11.2
+	rel-5-2:11.2
+	rel-5-1-branch:11.2.0.2
+	rel-5-1:11.2
+	rel-5-0:11.2
+	rel-5-0-beta:11.1
+	rel-4-5:11.1
+	ctj-4-5-post:11.1
+	ctj-4-5-pre:11.1
+	rel-4-4:11.1
+	rel-4-0:10.1
+	rel-3-5:9.1
+	rel-3-0:8.1
+	rel-2-3:7.1
+	rel-2-0:1.2
+	rel-1-24:1.2
+	rel-1-20:1.2;
+locks; strict;
+comment	@ * @;
+
+
+11.8
+date	2004.05.21.17.48.15;	author morrison;	state dead;
+branches;
+next	11.7;
+
+11.7
+date	2004.05.10.15.30.43;	author erikg;	state Exp;
+branches;
+next	11.6;
+
+11.6
+date	2004.04.05.07.46.59;	author morrison;	state Exp;
+branches;
+next	11.5;
+
+11.5
+date	2002.08.20.17.07.33;	author jra;	state Exp;
+branches
+	11.5.2.1;
+next	11.4;
+
+11.4
+date	2002.08.15.20.54.46;	author hartley;	state Exp;
+branches;
+next	11.3;
+
+11.3
+date	2000.08.24.22.55.50;	author mike;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	99.06.03.21.40.50;	author mike;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	95.01.04.10.17.46;	author mike;	state Rel4_4;
+branches;
+next	10.2;
+
+10.2
+date	94.08.24.13.34.40;	author gdurf;	state Exp;
+branches;
+next	10.1;
+
+10.1
+date	91.10.12.06.50.01;	author mike;	state Rel4_0;
+branches;
+next	9.1;
+
+9.1
+date	89.05.19.06.13.05;	author mike;	state Rel3_5;
+branches;
+next	8.2;
+
+8.2
+date	89.05.12.23.27.20;	author moss;	state Exp;
+branches;
+next	8.1;
+
+8.1
+date	88.10.05.00.51.45;	author mike;	state Rel3_0;
+branches;
+next	7.4;
+
+7.4
+date	88.09.20.15.52.41;	author moss;	state Exp;
+branches;
+next	7.3;
+
+7.3
+date	88.06.23.09.29.13;	author moss;	state Exp;
+branches;
+next	7.2;
+
+7.2
+date	88.06.23.09.21.13;	author moss;	state Exp;
+branches;
+next	7.1;
+
+7.1
+date	87.11.03.00.26.31;	author mike;	state Rel;
+branches;
+next	1.2;
+
+1.2
+date	87.02.06.12.25.46;	author moss;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	87.02.04.15.14.52;	author moss;	state Exp;
+branches;
+next	;
+
+11.5.2.1
+date	2002.09.19.18.01.02;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@This is the initial version as far as the BRL/CAD distribution is concerned.
+It is extracted from SCCS archives.
+@
+
+
+11.8
+log
+@moved to src/lgt/
+@
+text
+@/*
+	Author:		Gary S. Moss
+			U. S. Army Ballistic Research Laboratory
+			Aberdeen Proving Ground
+			Maryland 21005-5066
+			(301)278-6647 or AV-298-6647
+*/
+#ifndef lint
+static const char RCSid[] = "@@(#)$Header: /n/xoff/cvs/brlcad/lgt/fb.c,v 11.7 2004/05/10 15:30:43 erikg Exp $ (BRL)";
+#endif
+
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+
+#include <stdio.h>
+#include <fcntl.h>
+#include <assert.h>
+
+#include "machine.h"
+#include "vmath.h"
+#include "raytrace.h"
+#include "fb.h"
+#include "./hmenu.h"
+#include "./lgt.h"
+#include "./extern.h"
+#include "./screen.h"
+int		zoom;	/* Current zoom factor of frame buffer.		*/
+int		fb_Setup(char *file, int size);
+void		fb_Zoom_Window(void);
+
+/*	f b _ S e t u p ( )						*/
+int
+fb_Setup(char *file, int size)
+{
+#if SGI_WINCLOSE_BUG
+		/* XXX -- SGI BUG prohibits closing windows. */
+		static int	sgi_open = FALSE;
+		static int	sgi_size;
+		static FBIO	*sgi_iop;
+#else
+	assert( fbiop == FBIO_NULL );
+#endif
+	if( strcmp( file, "/dev/remote" ) == 0 )
+		file = "/dev/debug";
+	prnt_Event( "Opening device..." );
+#if SGI_WINCLOSE_BUG
+	if( sgi_open )
+		{
+		if( file[0] == '\0' || strncmp( file, "/dev/sgi", 8 ) == 0 )
+			{
+			if( size != sgi_size )
+				(void) fb_close( fbiop );
+			else
+				{
+				fbiop = sgi_iop;
+				return	1; /* Only open SGI once. */
+				}
+			}
+		}
+#endif
+	if(	(fbiop = fb_open(	file[0] == '\0' ? NULL : file,
+					size, size
+					)
+		) == FBIO_NULL
+	    ||	fb_ioinit( fbiop ) == -1
+	    ||	fb_wmap( fbiop, COLORMAP_NULL ) == -1
+		)
+		return	0;
+	(void) fb_setcursor( fbiop, arrowcursor, 16, 16, 0, 0 );
+	(void) fb_cursor( fbiop, 1, size/2, size/2 );
+#if SGI_WINCLOSE_BUG
+	if( strncmp( fbiop->if_name, "/dev/sgi", 8 ) == 0 )
+		{
+		sgi_open = TRUE;
+		sgi_iop = fbiop;
+		sgi_size = size;
+		}
+#endif
+	prnt_Event( (char *) NULL );
+	return	1;
+	}
+
+/*	f b _ Z o o m _ W i n d o w ( )					*/
+void
+fb_Zoom_Window(void)
+{	register int	xpos, ypos;
+	zoom = fb_getwidth( fbiop ) / grid_sz;
+	xpos = ypos = grid_sz / 2;
+	if( tty )
+		prnt_Event( "Zooming..." );
+	if( fb_zoom( fbiop, zoom, zoom ) == -1 )
+		bu_log( "Can not set zoom <%d,%d>.\n", zoom, zoom );
+	if( x_fb_origin >= grid_sz )
+		xpos += x_fb_origin;
+	if( y_fb_origin >= grid_sz )
+		ypos += y_fb_origin;
+	if( tty )
+		prnt_Event( "Windowing..." );
+	if( fb_viewport( fbiop, 0, 0, grid_sz, grid_sz ) == -1 )
+		bu_log( "Can not set viewport {<%d,%d>,<%d,%d>}.\n",
+			0, 0, grid_sz, grid_sz
+			);
+	if( fb_window( fbiop, xpos, ypos ) == -1 )
+		bu_log( "Can not set window <%d,%d>.\n", xpos, ypos );
+	if( tty )
+		prnt_Event( (char *) NULL );
+	return;
+	}
+@
+
+
+11.7
+log
+@change conf.h to a wrapped config.h
+@
+text
+@d9 1
+a9 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/lgt/fb.c,v 11.6 2004/04/05 07:46:59 morrison Exp $ (BRL)";
+@
+
+
+11.6
+log
+@merge of ansi-6-0-branch into HEAD
+@
+text
+@d9 1
+a9 1
+static const char RCSid[] = "@@(#)$Header$ (BRL)";
+d12 5
+a16 1
+#include "conf.h"
+@
+
+
+11.5
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d9 1
+a9 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/lgt/fb.c,v 11.3 2000/08/24 22:55:50 mike Exp $ (BRL)";
+d27 2
+a28 2
+int		fb_Setup();
+void		fb_Zoom_Window();
+d32 2
+a33 4
+fb_Setup( file, size )
+char	*file;
+int	size;
+	{
+d84 2
+a85 2
+fb_Zoom_Window()
+	{	register int	xpos, ypos;
+@
+
+
+11.5.2.1
+log
+@Initial ANSIfication
+@
+text
+@d9 1
+a9 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/lgt/fb.c,v 11.5 2002/08/20 17:07:33 jra Exp $ (BRL)";
+d27 2
+a28 2
+int		fb_Setup(char *file, int size);
+void		fb_Zoom_Window(void);
+d32 4
+a35 2
+fb_Setup(char *file, int size)
+{
+d86 2
+a87 2
+fb_Zoom_Window(void)
+{	register int	xpos, ypos;
+@
+
+
+11.4
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d27 2
+a28 2
+int		fb_Setup(char *file, int size);
+void		fb_Zoom_Window(void);
+d32 4
+a35 2
+fb_Setup(char *file, int size)
+{
+d86 2
+a87 2
+fb_Zoom_Window(void)
+{	register int	xpos, ypos;
+@
+
+
+11.3
+log
+@
+RCSid
+@
+text
+@d9 1
+a9 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/lgt/fb.c,v 11.2 1999/06/03 21:40:50 mike Exp $ (BRL)";
+d27 2
+a28 2
+int		fb_Setup();
+void		fb_Zoom_Window();
+d32 2
+a33 4
+fb_Setup( file, size )
+char	*file;
+int	size;
+	{
+d84 2
+a85 2
+fb_Zoom_Window()
+	{	register int	xpos, ypos;
+@
+
+
+11.2
+log
+@
+sed4
+@
+text
+@d9 1
+a9 1
+static char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/lgt/fb.c,v 11.1 1995/01/04 10:17:46 mike Rel4_4 $ (BRL)";
+@
+
+
+11.1
+log
+@Release_4.4
+@
+text
+@d9 1
+a9 1
+static char RCSid[] = "@@(#)$Header: /m/cad/lgt/RCS/fb.c,v 10.2 94/08/24 13:34:40 gdurf Exp $ (BRL)";
+d93 1
+a93 1
+		rt_log( "Can not set zoom <%d,%d>.\n", zoom, zoom );
+d101 1
+a101 1
+		rt_log( "Can not set viewport {<%d,%d>,<%d,%d>}.\n",
+d105 1
+a105 1
+		rt_log( "Can not set window <%d,%d>.\n", xpos, ypos );
+@
+
+
+10.2
+log
+@Made includes explicit, factored ifdefs
+@
+text
+@d9 1
+a9 1
+static char RCSid[] = "@@(#)$Header: /m/cad/lgt/RCS/fb.c,v 10.1 1991/10/12 06:50:01 mike Rel4_0 gdurf $ (BRL)";
+@
+
+
+10.1
+log
+@Release_4.0
+@
+text
+@d9 1
+a9 1
+static char RCSid[] = "@@(#)$Header: /m/cad/lgt/RCS/fb.c,v 9.1 89/05/19 06:13:05 mike Rel3_5 $ (BRL)";
+d12 2
+d16 8
+@
+
+
+9.1
+log
+@Release_3.5
+@
+text
+@d9 1
+a9 1
+static char RCSid[] = "@@(#)$Header: fb.c,v 8.2 89/05/12 23:27:20 moss Exp $ (BRL)";
+@
+
+
+8.2
+log
+@pre release changes
+@
+text
+@d9 1
+a9 1
+static char RCSid[] = "@@(#)$Header: fb.c,v 7.1 87/11/03 00:26:31 moss Locked $ (BRL)";
+@
+
+
+8.1
+log
+@Release_3.0
+@
+text
+@d9 1
+a9 1
+static char RCSid[] = "@@(#)$Header: fb.c,v 7.4 88/09/20 15:52:41 moss Exp $ (BRL)";
+d14 1
+a14 4
+#include "machine.h"
+#include "vmath.h"
+#include "fb.h"
+#include "./lgt.h"
+a15 1
+#include "./extern.h"
+d26 2
+a27 1
+#ifdef sgi
+d31 2
+d37 1
+a37 2
+	size = size > 512 ? 1024 : 512;
+#ifdef sgi
+a41 1
+#ifndef mips	/* XXX -- SGI BUG prohibits closing windows. */
+a44 1
+#endif
+d47 1
+a47 1
+				return	1; /* Only open SGI once.	*/
+d62 1
+a62 1
+#ifdef sgi
+@
+
+
+7.4
+log
+@Added support for distributed processing (/dev/remote).
+@
+text
+@d9 1
+a9 1
+static char RCSid[] = "@@(#)$Header: fb.c,v 7.1 87/11/03 00:26:31 moss Locked $ (BRL)";
+@
+
+
+7.3
+log
+@Smoothing out menu and prompting interface.
+@
+text
+@d35 2
+@
+
+
+7.2
+log
+@Just cleaning up.
+@
+text
+@d32 1
+d34 4
+d42 9
+a50 2
+			fbiop = sgi_iop;
+			return	1; /* Only open SGI once.		*/
+a53 3
+	if( tty )
+		prnt_Event( "Opening device..." );
+	size = size > 512 ? 1024 : 512;
+a63 2
+	if( tty )
+		prnt_Event( (char *) NULL );
+d69 1
+d72 1
+@
+
+
+7.1
+log
+@Release 2.3
+@
+text
+@d9 1
+a9 1
+static char RCSid[] = "@@(#)$Header: fb.c,v 1.2 87/02/06 12:25:46 mike Locked $ (BRL)";
+a10 7
+/*
+	Originally extracted from SCCS archive:
+		SCCS id:	@@(#) fb.c	2.1
+		Modified: 	12/10/86 at 16:03:05	G S M
+		Retrieved: 	2/4/87 at 08:53:15
+		SCCS archive:	/vld/moss/src/lgt/s.fb.c
+*/
+d42 2
+d54 3
+a56 1
+	(void) fb_cursor( fbiop, tracking_cursor, size/2, size/2 );
+d73 2
+d81 2
+d89 2
+@
+
+
+1.2
+log
+@Reorganized includes, pulled prnt_* functions out into module "prnt.c".
+@
+text
+@d9 1
+a9 1
+static char RCSid[] = "@@(#)$Header: fb.c,v 1.1 87/02/04 15:14:52 moss Locked $ (BRL)";
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d9 1
+a9 1
+static char RCSid[] = "@@(#)$Header$ (BRL)";
+d21 5
+a25 1
+#include <fb.h>
+a26 1
+#include "./screen.h"
+@

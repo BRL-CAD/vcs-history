@@ -1,0 +1,690 @@
+head	14.13;
+access;
+symbols
+	rel-7-10-4:14.11.2.1
+	STABLE:14.11.0.2
+	stable-branch:14.3
+	rel-7-10-2:14.11
+	rel-7-10-0:14.9
+	rel-7-8-4:14.6
+	rel-7-8-2:14.5
+	rel-7-8-0:14.5
+	trimnurbs-branch:14.5.0.2
+	help:14.5
+	temp_tag:14.4
+	bobWinPort-20051223-freeze:14.3
+	postmerge-20051223-bobWinPort:14.4
+	premerge-20051223-bobWinPort:14.4
+	rel-7-6-6:14.4
+	rel-7-6-4:14.4
+	rel-7-6-2:14.3
+	rel-7-6-branch:14.3.0.6
+	rel-7-6-0:14.3
+	rel-7-4-2:14.3
+	rel-7-4-branch:14.3.0.4
+	bobWinPort:14.3.0.2
+	rel-7-4-0:14.3
+	rel-7-2-6:14.3
+	rel-7-2-4:14.3
+	rel-7-2-2:14.3
+	rel-7-2-0:14.3
+	rel-7-0-4:14.2
+	rel-7-0-2:14.2
+	rel-7-0-1:14.2
+	opensource-post:14.2
+	opensource-pre:1.4
+	rel-7-0-branch:1.4.0.2
+	rel-7-0:1.4;
+locks; strict;
+comment	@ * @;
+
+
+14.13
+date	2007.12.16.18.53.50;	author brlcad;	state Exp;
+branches;
+next	14.12;
+
+14.12
+date	2007.09.15.16.23.17;	author brlcad;	state Exp;
+branches;
+next	14.11;
+
+14.11
+date	2007.07.26.01.13.58;	author brlcad;	state Exp;
+branches
+	14.11.2.1;
+next	14.10;
+
+14.10
+date	2007.05.14.21.04.32;	author brlcad;	state Exp;
+branches;
+next	14.9;
+
+14.9
+date	2007.01.27.01.41.44;	author brlcad;	state Exp;
+branches;
+next	14.8;
+
+14.8
+date	2007.01.23.01.13.42;	author brlcad;	state Exp;
+branches;
+next	14.7;
+
+14.7
+date	2007.01.20.14.36.57;	author brlcad;	state Exp;
+branches;
+next	14.6;
+
+14.6
+date	2006.07.09.19.17.16;	author brlcad;	state Exp;
+branches;
+next	14.5;
+
+14.5
+date	2006.01.18.06.46.19;	author brlcad;	state Exp;
+branches;
+next	14.4;
+
+14.4
+date	2005.10.23.04.44.37;	author brlcad;	state Exp;
+branches;
+next	14.3;
+
+14.3
+date	2005.01.30.20.31.06;	author brlcad;	state Exp;
+branches
+	14.3.6.1;
+next	14.2;
+
+14.2
+date	2004.12.21.04.17.27;	author butler;	state Exp;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.17;	author morrison;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	2004.09.03.23.30.58;	author morrison;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2004.08.02.23.01.51;	author morrison;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2004.06.08.22.04.29;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.15.20.27;	author morrison;	state Exp;
+branches;
+next	;
+
+14.3.6.1
+date	2005.11.13.13.46.18;	author brlcad;	state Exp;
+branches;
+next	;
+
+14.11.2.1
+date	2007.09.28.14.04.34;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.13
+log
+@convert usages of bcopy to memcpy throughout.  although none of them should be buffers that overlap per machine.h history, all calls were individually checked regardless. new code should not use bzero/bcopy any more.
+@
+text
+@/*                        P O L Y I F . C
+ * BRL-CAD
+ *
+ * Copyright (c) 1990-2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@file polyif.c
+ *
+ *  Author -
+ *	Michael John Muuss
+ *	Christopher T. Johnson
+ *
+ */
+#ifndef lint
+static const char RCSpolyif[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/mged/polyif.c,v 14.12 2007/09/15 16:23:17 brlcad Exp $ (BRL)";
+#endif
+
+#include "common.h"
+
+#include <stdio.h>
+#include <string.h>
+#include <math.h>
+#include <signal.h>
+
+#include "machine.h"
+#include "vmath.h"
+#include "mater.h"
+#include "raytrace.h"
+#include "./ged.h"
+#include "./mged_solid.h"
+#include "./mged_dm.h"
+
+/* XXX When finalized, this stuff belongs in a header file of it's own */
+struct polygon_header  {
+	int	magic;			/* magic number */
+	int	ident;			/* identification number */
+	int	interior;		/* >0 => interior loop, gives ident # of exterior loop */
+	vect_t	normal;			/* surface normal */
+	unsigned char	color[3];	/* Color from containing region */
+	int	npts;			/* number of points */
+};
+#define POLYGON_HEADER_MAGIC	0x8623bad2
+
+struct bu_structparse polygon_desc[] = {
+	{"%d", 1, "magic", bu_offsetof(struct polygon_header, magic), BU_STRUCTPARSE_FUNC_NULL },
+	{"%d", 1, "ident", bu_offsetof(struct polygon_header, ident), BU_STRUCTPARSE_FUNC_NULL },
+	{"%d", 1, "interior", bu_offsetof(struct polygon_header, interior), BU_STRUCTPARSE_FUNC_NULL },
+	{"%f", 3, "normal", bu_offsetofarray(struct polygon_header, normal), BU_STRUCTPARSE_FUNC_NULL },
+	{"%c", 3, "color", bu_offsetofarray(struct polygon_header, color), BU_STRUCTPARSE_FUNC_NULL },
+	{"%d", 1, "npts", bu_offsetof(struct polygon_header, npts), BU_STRUCTPARSE_FUNC_NULL },
+	{"",   0, (char *)0, 0, BU_STRUCTPARSE_FUNC_NULL }
+};
+struct bu_structparse vertex_desc[] = {
+	{"%f", 3, "vertex", 0, BU_STRUCTPARSE_FUNC_NULL },
+	{"",   0, (char *)0, 0, BU_STRUCTPARSE_FUNC_NULL }
+};
+
+#if 0
+struct rt_imexport  polygon_desc[] = {
+	{"%d",	bu_offsetof(struct polygon_header, magic),		1 },
+	{"%d",	bu_offsetof(struct polygon_header, ident),		1 },
+	{"%d",	bu_offsetof(struct polygon_header, interior),	1 },
+	{"%f",	bu_offsetofarray(struct polygon_header, normal),	3 },
+	{"%c",	bu_offsetofarray(struct polygon_header, color),	3 },
+	{"%d",	bu_offsetof(struct polygon_header, npts),		1 },
+	{"",	0,						0 }
+};
+struct rt_imexport vertex_desc[] = {
+	{"%f",	0,	99 },	/* im_count will be filled in at runtime */
+	{"",	0,	0 }
+};
+#endif
+/*
+ *			F _ P O L Y B I N O U T
+ *
+ *  Experimental interface for writing binary polygons
+ *  that represent the current (evaluated) view.
+ *
+ *  Usage:  polybinout file
+ */
+int
+f_polybinout(ClientData clientData, Tcl_Interp *interp, int argc, char **argv)
+{
+	register struct solid		*sp;
+	register struct bn_vlist	*vp;
+	FILE	*fp;
+	int	pno = 1;
+	struct polygon_header ph;
+#define MAX_VERTS	10000
+	vect_t	verts[MAX_VERTS];
+	int	need_normal = 0;
+	struct	bu_external	obuf;
+
+	if(argc < 2 || 2 < argc){
+	  struct bu_vls vls;
+
+	  bu_vls_init(&vls);
+	  bu_vls_printf(&vls, "help polybinout");
+	  Tcl_Eval(interp, bu_vls_addr(&vls));
+	  bu_vls_free(&vls);
+	  return TCL_ERROR;
+	}
+
+	if( (fp = fopen( argv[1], "w" )) == NULL )  {
+	  perror(argv[1]);
+	  return TCL_ERROR;
+	}
+
+	FOR_ALL_SOLIDS(sp, &dgop->dgo_headSolid)  {
+		for( BU_LIST_FOR( vp, bn_vlist, &(sp->s_vlist) ) )  {
+			register int	i;
+			register int	nused = vp->nused;
+			register int	*cmd = vp->cmd;
+			register point_t *pt = vp->pt;
+			for( i = 0; i < nused; i++,cmd++,pt++ )  {
+				/* For each polygon, spit it out.  Ignore vectors */
+				switch( *cmd )  {
+				case BN_VLIST_LINE_MOVE:
+					/* Move, start line */
+					break;
+				case BN_VLIST_LINE_DRAW:
+					/* Draw line */
+					break;
+				case BN_VLIST_POLY_VERTNORM:
+					/* Ignore per-vertex normal */
+					break;
+				case BN_VLIST_POLY_START:
+					/* Start poly marker & normal, followed by POLY_MOVE */
+					ph.magic = POLYGON_HEADER_MAGIC;
+					ph.ident = pno++;
+					ph.interior = 0;
+					memcpy(ph.color, sp->s_basecolor, 3);
+					ph.npts = 0;
+					/* Set surface normal (vl_pnt points outward) */
+					VMOVE( ph.normal, *pt );
+					need_normal = 0;
+					break;
+				case BN_VLIST_POLY_MOVE:
+					/* Start of polygon, has first point */
+					/* fall through to... */
+				case BN_VLIST_POLY_DRAW:
+					/* Polygon Draw */
+					if( ph.npts >= MAX_VERTS )  {
+					  Tcl_AppendResult(interp, "excess vertex skipped\n",
+							   (char *)NULL);
+					  break;
+					}
+					VMOVE( verts[ph.npts], *pt );
+					ph.npts++;
+					break;
+				case BN_VLIST_POLY_END:
+				  /*
+				   *  End Polygon.  Point given is repeat of
+				   *  first one, ignore it.
+				   * XXX note:  if poly_markers was not set,
+				   * XXX poly will end with next POLY_MOVE.
+				   */
+				  if( ph.npts < 3 )  {
+				    struct bu_vls tmp_vls;
+
+				    bu_vls_init(&tmp_vls);
+				    bu_vls_printf(&tmp_vls, "polygon with %d points discarded\n",
+						  ph.npts);
+				    Tcl_AppendResult(interp, bu_vls_addr(&tmp_vls), (char *)NULL);
+				    bu_vls_free(&tmp_vls);
+				    break;
+				  }
+					if( need_normal )  {
+						vect_t	e1, e2;
+						VSUB2( e1, verts[0], verts[1] );
+						VSUB2( e2, verts[0], verts[2] );
+						VCROSS( ph.normal, e1, e2 );
+					}
+					if( bu_struct_export( &obuf, (genptr_t)&ph, polygon_desc ) < 0 )  {
+					  Tcl_AppendResult(interp, "header export error\n", (char *)NULL);
+					  break;
+					}
+					if (bu_struct_put(fp, &obuf) != obuf.ext_nbytes) {
+						perror("bu_struct_put");
+						break;
+					}
+					db_free_external( &obuf );
+					/* Now export the vertices */
+					vertex_desc[0].sp_count = ph.npts * 3;
+					if( bu_struct_export( &obuf, (genptr_t)verts, vertex_desc ) < 0 )  {
+					  Tcl_AppendResult(interp, "vertex export error\n", (char *)NULL);
+					  break;
+					}
+					if( bu_struct_put( fp, &obuf ) != obuf.ext_nbytes )  {
+						perror("bu_struct_wrap_buf");
+						break;
+					}
+					db_free_external( &obuf );
+					ph.npts = 0;		/* sanity */
+					break;
+				}
+			}
+		}
+	}
+	fclose( fp );
+	return TCL_OK;
+}
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+14.12
+log
+@more c89 embracing.  c89 provides string.h for all of the various str*() and mem*() functions, so remove the check for its presence.  there is still likely to be work required for strict c89 conformance for the various bsd strings.h functions that may be in use.
+@
+text
+@d28 1
+a28 1
+static const char RCSpolyif[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/mged/polyif.c,v 14.11 2007/07/26 01:13:58 brlcad Exp $ (BRL)";
+d145 1
+a145 1
+					bcopy(sp->s_basecolor, ph.color, 3);
+@
+
+
+14.11
+log
+@remove ephemeral data like phone numbers and addresses, including the misleading 'source' statements on code that is continually evolving and receiving contributions from many many sources
+@
+text
+@d28 1
+a28 1
+static const char RCSpolyif[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/mged/polyif.c,v 14.10 2007/05/14 21:04:32 brlcad Exp $ (BRL)";
+a32 1
+
+a33 1
+#ifdef HAVE_STRING_H
+a34 3
+#else
+#include <strings.h>
+#endif
+d37 1
+@
+
+
+14.11.2.1
+log
+@more merging from HEAD.  bring in build system tweakage updates that should fix some library symbol problems from croping up post-release.
+@
+text
+@d28 1
+a28 1
+static const char RCSpolyif[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/mged/polyif.c,v 14.12 2007/09/15 16:23:17 brlcad Exp $ (BRL)";
+d33 1
+d35 1
+d37 3
+a41 1
+
+@
+
+
+14.10
+log
+@gah, pick up where someone left off over half a decade ago.  finish updating all of the compat4 symbols throughout the code to their new names.  finally. it's done.  make the deprecated headers obsolete -- make compat4.h obsolete too so we can be sure that all of the changes are now picked up by the compiler as errors.  this change will likely impact muves if they've similarly not updated to the new names too, so the headers are kept with a #warning for now (though will likely disappear down the road entirely).
+@
+text
+@a25 4
+ *  Source -
+ *	SECAD/VLD Computing Consortium, Bldg 394
+ *	The U. S. Army Ballistic Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005-5066
+d28 1
+a28 1
+static const char RCSpolyif[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/mged/polyif.c,v 14.9 2007/01/27 01:41:44 brlcad Exp $ (BRL)";
+@
+
+
+14.9
+log
+@ws. lots and lots of ws.  see sh/ws.sh for details (cases 'abcdeg').
+@
+text
+@d32 1
+a32 1
+static const char RCSpolyif[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/mged/polyif.c,v 14.8 2007/01/23 01:13:42 brlcad Exp $ (BRL)";
+d66 3
+a68 3
+	{"%d", 1, "magic", offsetof(struct polygon_header, magic), BU_STRUCTPARSE_FUNC_NULL },
+	{"%d", 1, "ident", offsetof(struct polygon_header, ident), BU_STRUCTPARSE_FUNC_NULL },
+	{"%d", 1, "interior", offsetof(struct polygon_header, interior), BU_STRUCTPARSE_FUNC_NULL },
+d71 1
+a71 1
+	{"%d", 1, "npts", offsetof(struct polygon_header, npts), BU_STRUCTPARSE_FUNC_NULL },
+d81 3
+a83 3
+	{"%d",	offsetof(struct polygon_header, magic),		1 },
+	{"%d",	offsetof(struct polygon_header, ident),		1 },
+	{"%d",	offsetof(struct polygon_header, interior),	1 },
+d86 1
+a86 1
+	{"%d",	offsetof(struct polygon_header, npts),		1 },
+d106 1
+a106 1
+	register struct rt_vlist	*vp;
+d131 1
+a131 1
+		for( BU_LIST_FOR( vp, rt_vlist, &(sp->s_vlist) ) )  {
+d139 1
+a139 1
+				case RT_VLIST_LINE_MOVE:
+d142 1
+a142 1
+				case RT_VLIST_LINE_DRAW:
+d145 1
+a145 1
+				case RT_VLIST_POLY_VERTNORM:
+d148 1
+a148 1
+				case RT_VLIST_POLY_START:
+d159 1
+a159 1
+				case RT_VLIST_POLY_MOVE:
+d162 1
+a162 1
+				case RT_VLIST_POLY_DRAW:
+d172 1
+a172 1
+				case RT_VLIST_POLY_END:
+@
+
+
+14.8
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@d32 1
+a32 1
+static const char RCSpolyif[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/mged/polyif.c,v 14.7 2007/01/20 14:36:57 brlcad Exp $ (BRL)";
+a37 1
+
+@
+
+
+14.7
+log
+@update copyright to 2007
+@
+text
+@d8 2
+a9 3
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+d14 1
+a14 1
+ * General Public License for more details.
+d16 2
+a17 2
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+d32 1
+a32 1
+static const char RCSpolyif[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/mged/polyif.c,v 14.6 2006/07/09 19:17:16 brlcad Exp $ (BRL)";
+@
+
+
+14.6
+log
+@increase and initialize some buffer sizes to something larger in order to minimize hitting buffer limits while processing.
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 1990-2006 United States Government as represented by
+d33 1
+a33 1
+static const char RCSpolyif[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/mged/polyif.c,v 14.5 2006/01/18 06:46:19 brlcad Exp $ (BRL)";
+@
+
+
+14.5
+log
+@update copyright to 2006
+@
+text
+@d33 1
+a33 1
+static const char RCSpolyif[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/mged/polyif.c,v 14.4 2005/10/23 04:44:37 brlcad Exp $ (BRL)";
+d112 1
+a112 1
+#define MAX_VERTS	1024
+@
+
+
+14.4
+log
+@trailing ws
+@
+text
+@d4 1
+a4 1
+ * Copyright (C) 1990-2005 United States Government as represented by
+d33 1
+a33 1
+static const char RCSpolyif[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/mged/polyif.c,v 14.3 2005/01/30 20:31:06 brlcad Exp $ (BRL)";
+@
+
+
+14.3
+log
+@update copyright to 2005
+@
+text
+@d26 1
+a26 1
+ *  
+d33 1
+a33 1
+static const char RCSpolyif[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/mged/polyif.c,v 14.2 2004/12/21 04:17:27 butler Exp $ (BRL)";
+@
+
+
+14.3.6.1
+log
+@merge changes from HEAD aka rel-7-6-4 to the rel-7-6-branch just in case someone peeks a gander or tries to continue/build the branch
+@
+text
+@d26 1
+a26 1
+ *
+d33 1
+a33 1
+static const char RCSpolyif[] = "@@(#)$Header$ (BRL)";
+@
+
+
+14.2
+log
+@GPL License changes
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 1990-2004 United States Government as represented by
+d33 1
+a33 1
+static const char RCSpolyif[] = "@@(#)$Header: /cvs/brlcad/src/mged/polyif.c,v 14.1 2004/11/16 19:42:17 morrison Exp $ (BRL)";
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@d1 21
+a21 2
+/*
+ *			P O L Y I F . C
+a30 4
+ *  
+ *  Copyright Notice -
+ *	This software is Copyright (C) 1990-2004 by the United States Army.
+ *	All rights reserved.
+d33 1
+a33 1
+static const char RCSpolyif[] = "@@(#)$Header: /cvs/brlcad/src/mged/polyif.c,v 1.4 2004/09/03 23:30:58 morrison Exp $ (BRL)";
+@
+
+
+1.4
+log
+@USE_STRING_H is no more.. it's HAVE_STRING_H
+@
+text
+@d18 1
+a18 1
+static const char RCSpolyif[] = "@@(#)$Header: /cvs/brlcad/src/mged/polyif.c,v 1.3 2004/08/02 23:01:51 morrison Exp $ (BRL)";
+d211 10
+@
+
+
+1.3
+log
+@replace the wrapped config.h block with common.h
+@
+text
+@d18 1
+a18 1
+static const char RCSpolyif[] = "@@(#)$Header: /cvs/brlcad/src/mged/polyif.c,v 1.2 2004/06/08 22:04:29 morrison Exp $ (BRL)";
+d26 1
+a26 1
+#ifdef USE_STRING_H
+@
+
+
+1.2
+log
+@obliterate externs.h
+@
+text
+@d18 1
+a18 1
+static const char RCSpolyif[] = "@@(#)$Header$ (BRL)";
+d21 1
+a21 3
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+@
+
+
+1.1
+log
+@Vast reorganization begins.  Sources moved from top-level directories into src/.
+@
+text
+@d18 1
+a18 1
+static const char RCSpolyif[] = "@@(#)$Header: /cvs/brlcad/mged/polyif.c,v 11.20 2004/05/10 15:30:48 erikg Exp $ (BRL)";
+a38 1
+#include "externs.h"
+@
+

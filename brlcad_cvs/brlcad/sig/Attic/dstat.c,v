@@ -1,0 +1,451 @@
+head	11.10;
+access;
+symbols
+	ansi-20040405-merged:11.6.2.2
+	postmerge-20040405-ansi:11.8
+	premerge-20040404-ansi:11.7
+	postmerge-autoconf:11.7
+	autoconf-freeze:11.6.10.1
+	premerge-autoconf:11.7
+	postmerge-20040315-windows:11.7
+	premerge-20040315-windows:11.7
+	windows-20040315-freeze:11.6.4.1
+	autoconf-20031203:11.6
+	autoconf-20031202:11.6
+	autoconf-branch:11.6.0.10
+	phong-branch:11.6.0.8
+	photonmap-branch:11.6.0.6
+	rel-6-1-DP:11.6
+	windows-branch:11.6.0.4
+	rel-6-0-2:11.4
+	ansi-branch:11.6.0.2
+	rel-6-0-1-branch:11.4.0.2
+	hartley-6-0-post:11.5
+	hartley-6-0-pre:11.4
+	rel-6-0-1:11.4
+	rel-6-0:11.4
+	rel-5-4:11.2
+	offsite-5-3-pre:11.2
+	rel-5-3:11.2
+	rel-5-2:11.2
+	rel-5-1-branch:11.2.0.2
+	rel-5-1:11.2
+	rel-5-0:11.2
+	rel-5-0-beta:11.2
+	rel-4-5:11.1
+	ctj-4-5-post:11.1
+	ctj-4-5-pre:11.1
+	rel-4-4:11.1
+	rel-4-0:10.1;
+locks; strict;
+comment	@ * @;
+
+
+11.10
+date	2004.05.21.16.45.04;	author morrison;	state dead;
+branches;
+next	11.9;
+
+11.9
+date	2004.05.10.15.30.50;	author erikg;	state Exp;
+branches;
+next	11.8;
+
+11.8
+date	2004.04.05.05.46.00;	author morrison;	state Exp;
+branches;
+next	11.7;
+
+11.7
+date	2004.02.02.17.39.42;	author morrison;	state Exp;
+branches;
+next	11.6;
+
+11.6
+date	2002.08.20.17.08.43;	author jra;	state Exp;
+branches
+	11.6.2.1
+	11.6.4.1
+	11.6.10.1;
+next	11.5;
+
+11.5
+date	2002.08.15.20.55.54;	author hartley;	state Exp;
+branches;
+next	11.4;
+
+11.4
+date	2001.08.21.18.35.08;	author jra;	state Exp;
+branches;
+next	11.3;
+
+11.3
+date	2001.08.10.21.22.45;	author morrison;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	98.09.14.15.59.22;	author bparker;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	95.01.04.10.19.11;	author mike;	state Rel4_4;
+branches;
+next	10.2;
+
+10.2
+date	94.10.11.20.22.41;	author mike;	state Exp;
+branches;
+next	10.1;
+
+10.1
+date	91.10.12.06.51.06;	author mike;	state Rel4_0;
+branches;
+next	1.2;
+
+1.2
+date	91.08.27.14.42.24;	author stay;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	90.10.25.20.13.39;	author butler;	state Exp;
+branches;
+next	;
+
+11.6.2.1
+date	2002.09.19.18.02.20;	author morrison;	state Exp;
+branches;
+next	11.6.2.2;
+
+11.6.2.2
+date	2004.03.17.21.23.03;	author morrison;	state Exp;
+branches;
+next	;
+
+11.6.4.1
+date	2004.03.11.23.48.30;	author morrison;	state Exp;
+branches;
+next	;
+
+11.6.10.1
+date	2004.02.12.19.43.01;	author erikg;	state Exp;
+branches;
+next	;
+
+
+desc
+@safety check in
+@
+
+
+11.10
+log
+@moved to src/sig/
+@
+text
+@/*
+ *		D S T A T . C
+ *
+ *  Compute statistics of double precision floats.
+ *  Gives min, max, mode, median, mean, s.d., var, and skew.
+ *
+ *  Author -
+ *	Phillip Dykstra
+ *	18 Sep 1986
+ *
+ *  Source -
+ *	SECAD/VLD Computing Consortium, Bldg 394
+ *	The U. S. Army Ballistic Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005-5066
+ *
+ *  Copyright Notice -
+ *	This software is Copyright (C) 1986-2004 by the United States Army.
+ *	All rights reserved.
+ */
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+
+#ifdef USE_STRING_H
+#include <string.h>
+#else
+#include <strings.h>
+#endif
+
+#include <unistd.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <math.h>
+
+#define	IBUFSIZE 1024		/* Max read size */
+double	buf[IBUFSIZE];		/* Input buffer */
+
+int	verbose = 0;
+
+static char usage[] = "\
+Usage: dstat [-v] [file.doubles]\n";
+
+int main(int argc, char **argv)
+{
+	int	i, n;
+	long	num_values;
+	register double *bp;
+	double	sum, sum2;
+	double	max, min;
+	double	mean, var;
+	FILE	*fp;
+
+	/* check for verbose flag */
+	if( argc > 1 && strcmp(argv[1], "-v") == 0 ) {
+		verbose++;
+		argv++;
+		argc--;
+	}
+
+	/* look for optional input file */
+	if( argc > 1 ) {
+		if( (fp = fopen(argv[1],"r")) == 0 ) {
+			fprintf( stderr, "dstat: can't open \"%s\"\n", argv[1] );
+			exit( 1 );
+		}
+		argv++;
+		argc--;
+	} else
+		fp = stdin;
+
+	/* check usage */
+	if( argc > 1 || isatty(fileno(fp)) ) {
+		fputs( usage, stderr );
+		exit( 1 );
+	}
+
+	/*
+	 * Find sum, min, max, mode.
+	 */
+	num_values = 0;
+	sum = sum2 = 0;
+#if defined(HUGE_VAL)
+	min = HUGE_VAL;
+	max = -HUGE_VAL;
+#else
+	min = HUGE;
+	max = -HUGE;
+#endif
+	while( (n = fread(buf, sizeof(*buf), IBUFSIZE, fp)) > 0 ) {
+		num_values += n;
+		bp = &buf[0];
+		for( i = 0; i < n; i++ ) {
+			sum += *bp;
+			sum2 += *bp * *bp;
+			if( *bp < min )
+				min = *bp;
+			if( *bp > max )
+				max = *bp;
+			bp++;
+		}
+	}
+	mean = sum/(double)num_values;
+	var = sum2/(double)num_values - mean * mean;
+
+	/*
+	 * Display the results.
+	 */
+	printf( "Values  %14ld (%.0f x %.0f)\n", num_values,
+		sqrt((double)num_values), sqrt((double)num_values) );
+	printf( "Min     %14.6g\n", min );
+	printf( "Max     %14.6g\n", max );
+	printf( "Mean    %14.6g\n", mean );
+	printf( "s.d.    %14.6g\n", sqrt( var ) );
+	printf( "Var     %14.6g\n", var );
+
+	return 0;
+}
+@
+
+
+11.9
+log
+@change conf.h to a wrapped config.h
+@
+text
+@@
+
+
+11.8
+log
+@merge of ansi-6-0-branch into head
+@
+text
+@d20 5
+a24 1
+#include "conf.h"
+@
+
+
+11.7
+log
+@update copyright to include span through 2003
+@
+text
+@d41 1
+a41 3
+int main( argc, argv )
+int argc;
+char **argv;
+@
+
+
+11.6
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d17 1
+a17 1
+ *	This software is Copyright (C) 1986 by the United States Army.
+@
+
+
+11.6.4.1
+log
+@sync to HEAD...
+@
+text
+@d17 1
+a17 1
+ *	This software is Copyright (C) 1986-2004 by the United States Army.
+@
+
+
+11.6.10.1
+log
+@merge from HEAD
+@
+text
+@d17 1
+a17 1
+ *	This software is Copyright (C) 1986-2004 by the United States Army.
+@
+
+
+11.6.2.1
+log
+@Initial ANSIfication
+@
+text
+@d41 3
+a43 1
+int main(int argc, char **argv)
+@
+
+
+11.6.2.2
+log
+@sync branch with HEAD
+@
+text
+@d17 1
+a17 1
+ *	This software is Copyright (C) 1986-2004 by the United States Army.
+@
+
+
+11.5
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d41 3
+a43 1
+int main(int argc, char **argv)
+@
+
+
+11.4
+log
+@lint
+@
+text
+@d41 1
+a41 3
+int main( argc, argv )
+int argc;
+char **argv;
+@
+
+
+11.3
+log
+@added proper checking for string.h/strings.h
+added int return type to main
+added return 0 to main
+@
+text
+@d28 2
+@
+
+
+11.2
+log
+@*- fix typos
+@
+text
+@d22 6
+d39 1
+a39 1
+main( argc, argv )
+d113 2
+@
+
+
+11.1
+log
+@Release_4.4
+@
+text
+@d100 1
+a100 1
+	printf( "Values  %14d (%.0f x %.0f)\n", num_values,
+@
+
+
+10.2
+log
+@In newer systems, it is HUGE_VAL rather than HUGE.
+@
+text
+@@
+
+
+10.1
+log
+@Release_4.0
+@
+text
+@d20 2
+d74 1
+a74 1
+#if (defined(__EXTENSIONS__) || defined (_POSIX_SOURCE))
+@
+
+
+1.2
+log
+@added posix and ansi C extensions for HUGE_VAL
+@
+text
+@@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d72 4
+d78 1
+@

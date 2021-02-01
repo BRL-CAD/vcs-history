@@ -1,0 +1,101 @@
+head	1.2;
+access;
+symbols;
+locks; strict;
+comment	@# @;
+
+
+1.2
+date	2007.03.15.15.47.35;	author erikgreenwald;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2007.02.15.15.19.23;	author erikgreenwald;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.2
+log
+@cvs BRL-CAD changed libtcl.so to libtcl8.5.so (on fbsd/linux... libtcl85.so on obsd and others)
+@
+text
+@# $Id: configure.ac,v 1.1 2007/02/15 15:19:23 erikgreenwald Exp $
+
+AC_INIT
+AC_CONFIG_SRCDIR([rtcmp.c])
+AC_CANONICAL_HOST
+AC_CANONICAL_TARGET
+AM_INIT_AUTOMAKE(rtcmp, 0.0)
+AM_CONFIG_HEADER([config.h])
+
+AC_PROG_CC
+AC_PROG_RANLIB
+AC_PROG_INSTALL
+
+# top_builddir is automatically added, but we need top_srcdir, too
+CFLAGS="$CFLAGS "'-I${top_srcdir}'
+
+# gutted from BRL-CAD
+thread_link_works=no
+LIBTHREAD=""
+AC_CHECK_LIB(c_r, pthread_create, thread_link_works=yes ; LIBTHREAD="-pthread",
+    dnl try solaris threading
+    [AC_CHECK_LIB(thread, thr_create, thread_link_works=yes ; LIBTHREAD="-lthread",
+        dnl pthreading is a good default if none of the others are available
+        dnl XXX need to test HPUX -- may require -lcma with pthreads
+        [AC_CHECK_LIB(pthread, pthread_create, thread_link_works=yes ; LIBTHREAD="-lpthread")])])
+
+# should probably do something if no threading is found... meh
+AC_SUBST(LIBTHREAD)
+
+AC_ARG_WITH(brlcad,
+	    [ --with-brlcad		Path to BRL-CAD install.],
+	    BRLCAD_PATH="$withval"
+	    BRLCAD_CFLAGS="-I$withval/include -I$withval/include/brlcad"
+	    BRLCAD_LDFLAGS="-L$withval/lib",
+	    BRLCAD_PATH="/usr/brlcad"
+	    BRLCAD_CFLAGS="-I/usr/brlcad/include -I/usr/brlcad/include/brlcad"
+	    BRLCAD_LDFLAGS="-L/usr/brlcad/lib")
+
+# Make sure we have BRL-CAD available... 
+CFLAGS="$CFLAGS $BRLCAD_CFLAGS"
+LDFLAGS="$LDFLAGS $BRLCAD_LDFLAGS $LIBTHREAD"
+LIBS="$LIBS -lbu -lbn -lrt"
+AC_CHECK_LIB(rt, rt_prep,,AC_ERROR(Need BRL-CAD),[${LIBTHREAD} -lm -lbu -lbn -ltcl8.5])
+
+# Look for libtie/adrt
+SAVED_LIBS="$LIBS"
+TIELIBS="$BRLCAD_PATH/lib/libtie.a $BRLCAD_PATH/lib/libtienet.a"
+LIBS="$LIBS $TIELIBS -lm"
+AC_MSG_CHECKING(checking for libtie)
+AC_TRY_LINK([
+	#include "tie/tie.h"
+	#include "tie/define.h"
+	],[tie_prep((tie_t *)(0));],
+	AC_MSG_RESULT(yes); AC_DEFINE(HAVE_TIE,1,"Use libtie/adrt"),
+	AC_MSG_RESULT(no); LIBS="$SAVED_LIBS")
+
+AC_CONFIG_FILES([Makefile])
+AC_OUTPUT
+@
+
+
+1.1
+log
+@initial import
+@
+text
+@d1 1
+a1 1
+# $Id: configure.ac,v 1.8 2007/02/06 16:48:21 erikg Exp $
+d43 1
+a43 1
+AC_CHECK_LIB(rt, rt_prep,,AC_ERROR(Need BRL-CAD),[${LIBTHREAD} -lm -lbu -lbn -ltcl])
+@
+

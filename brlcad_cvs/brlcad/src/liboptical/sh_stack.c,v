@@ -1,0 +1,927 @@
+head	14.17;
+access;
+symbols
+	rel-7-10-4:14.15
+	STABLE:14.15.0.2
+	stable-branch:14.7
+	rel-7-10-2:14.15
+	rel-7-10-0:14.14
+	rel-7-8-4:14.11
+	rel-7-8-2:14.10
+	rel-7-8-0:14.10
+	trimnurbs-branch:14.10.0.2
+	help:14.10
+	temp_tag:14.8
+	bobWinPort-20051223-freeze:14.7
+	postmerge-20051223-bobWinPort:14.8
+	premerge-20051223-bobWinPort:14.8
+	rel-7-6-6:14.8
+	rel-7-6-4:14.8
+	rel-7-6-2:14.7
+	rel-7-6-branch:14.7.0.6
+	rel-7-6-0:14.7
+	rel-7-4-2:14.7
+	rel-7-4-branch:14.7.0.4
+	bobWinPort:14.7.0.2
+	rel-7-4-0:14.7
+	rel-7-2-6:14.7
+	rel-7-2-4:14.7
+	rel-7-2-2:14.7
+	rel-7-2-0:14.6
+	rel-7-0-4:14.5
+	rel-7-0-2:14.5
+	rel-7-0-1:14.5
+	opensource-post:14.5
+	opensource-pre:1.2
+	rel-7-0-branch:1.2.0.2
+	rel-7-0:1.2;
+locks; strict;
+comment	@ * @;
+
+
+14.17
+date	2007.12.16.18.53.49;	author brlcad;	state Exp;
+branches;
+next	14.16;
+
+14.16
+date	2007.10.26.21.51.26;	author brlcad;	state Exp;
+branches;
+next	14.15;
+
+14.15
+date	2007.07.26.01.13.56;	author brlcad;	state Exp;
+branches;
+next	14.14;
+
+14.14
+date	2007.01.27.01.41.38;	author brlcad;	state Exp;
+branches;
+next	14.13;
+
+14.13
+date	2007.01.23.01.13.36;	author brlcad;	state Exp;
+branches;
+next	14.12;
+
+14.12
+date	2007.01.20.14.36.53;	author brlcad;	state Exp;
+branches;
+next	14.11;
+
+14.11
+date	2006.08.08.22.16.14;	author brlcad;	state Exp;
+branches;
+next	14.10;
+
+14.10
+date	2006.01.23.00.35.08;	author brlcad;	state Exp;
+branches;
+next	14.9;
+
+14.9
+date	2006.01.18.06.46.16;	author brlcad;	state Exp;
+branches;
+next	14.8;
+
+14.8
+date	2005.10.23.04.44.34;	author brlcad;	state Exp;
+branches;
+next	14.7;
+
+14.7
+date	2005.03.28.06.31.37;	author bob1961;	state Exp;
+branches
+	14.7.6.1;
+next	14.6;
+
+14.6
+date	2005.01.30.20.30.55;	author brlcad;	state Exp;
+branches;
+next	14.5;
+
+14.5
+date	2004.12.21.06.38.20;	author morrison;	state Exp;
+branches;
+next	14.4;
+
+14.4
+date	2004.12.21.06.18.44;	author morrison;	state Exp;
+branches;
+next	14.3;
+
+14.3
+date	2004.12.21.05.45.23;	author morrison;	state Exp;
+branches;
+next	14.2;
+
+14.2
+date	2004.12.21.04.03.25;	author morrison;	state Exp;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.15;	author morrison;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2004.08.02.23.01.49;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.15.19.51;	author morrison;	state Exp;
+branches;
+next	;
+
+14.7.6.1
+date	2005.11.13.13.46.16;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.17
+log
+@convert usages of bcopy to memcpy throughout.  although none of them should be buffers that overlap per machine.h history, all calls were individually checked regardless. new code should not use bzero/bcopy any more.
+@
+text
+@/*                      S H _ S T A C K . C
+ * BRL-CAD
+ *
+ * Copyright (c) 1986-2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This library is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@file sh_stack.c
+ *			S T A C K . C
+ *
+ *  Stack multiple material modules together
+ *
+ *  Author -
+ *	Phillip Dykstra
+ *  	Lee A. Butler
+ *
+ */
+#ifndef lint
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/liboptical/sh_stack.c,v 14.16 2007/10/26 21:51:26 brlcad Exp $ (BRL)";
+#endif
+
+#include "common.h"
+
+#include <stddef.h>
+#include <stdio.h>
+#include <string.h>
+
+#include "machine.h"
+#include "vmath.h"
+#include "raytrace.h"
+#include "rtprivate.h"
+
+HIDDEN int	sh_stk_setup(register struct region *rp, struct bu_vls *matparm, char **dpp, struct mfuncs *mf_p, struct rt_i *rtip, struct mfuncs **headp);
+HIDDEN int	sh_stk_render(struct application *ap, struct partition *pp, struct shadework *swp, char *dp);
+HIDDEN void	sh_stk_print(register struct region *rp, char *dp);
+HIDDEN void 	sh_stk_free(char *cp);
+HIDDEN int	ext_setup(register struct region *rp, struct bu_vls *matparm, char **dpp, struct mfuncs *mf_p, struct rt_i *rtip, struct mfuncs **headp);
+
+struct mfuncs stk_mfuncs[] = {
+	{MF_MAGIC,	"stack",	0,		0,	0,
+	sh_stk_setup,	sh_stk_render,	sh_stk_print,	sh_stk_free},
+
+	{MF_MAGIC,	"extern",	0,		0,	0,
+	ext_setup,	sh_stk_render,	sh_stk_print,	sh_stk_free},
+
+	{0,		(char *)0,	0,		0,	0,
+	0,		0,		0,		0}
+};
+
+struct stk_specific {
+	struct	mfuncs	*mfuncs[16];
+	char	*udata[16];
+};
+#define STK_NULL	((struct stk_specific *)0)
+#define STK_O(m)	bu_offsetof(struct stk_specific, m)
+
+struct bu_structparse stk_parse[] = {
+	{"",	0,	(char *)0,	0,			BU_STRUCTPARSE_FUNC_NULL }
+};
+
+/*
+ *			E X T _ S E T U P
+ *
+ *  Returns 0 on failure, 1 on success.
+ */
+HIDDEN int
+ext_setup(register struct region *rp, struct bu_vls *matparm, char **dpp, struct mfuncs *mf_p, struct rt_i *rtip, struct mfuncs **headp)
+
+				/* parameter string */
+				/* pointer to user data pointer */
+
+
+{
+	struct bu_mapped_file	*parameter_file;
+	struct bu_vls		parameter_data;
+	char			*filename;
+	int			status;
+
+	RT_CHECK_RTI(rtip);
+	BU_CK_VLS( matparm );
+	RT_CK_REGION(rp);
+
+	filename = bu_vls_addr(matparm);
+	parameter_file = bu_open_mapped_file( filename, (char *)NULL );
+	if (!parameter_file) {
+		bu_log("cannot open external shader file \"%s\"\n", filename);
+		bu_bomb("ext_setup()\n");
+	}
+
+	bu_vls_init(&parameter_data);
+	bu_vls_strncpy( &parameter_data, (char *)parameter_file->buf,
+		parameter_file->buflen );
+
+	if (rdebug&RDEBUG_SHADE ) {
+		bu_log("ext_setup(%s): {%s}\n",
+			filename, bu_vls_addr(&parameter_data));
+	}
+
+	bu_close_mapped_file( parameter_file );
+
+	status = sh_stk_setup(rp, &parameter_data, dpp, mf_p, rtip, headp);
+
+	bu_vls_free( &parameter_data );
+
+	return status;
+}
+
+/*
+ *			S T K _ D O S E T U P
+ */
+static int sh_stk_dosetup(char *cp, struct region *rp, char **dpp, char **mpp, struct rt_i *rtip, struct mfuncs **headp)
+
+
+			/* udata pointer address */
+			/* mfuncs pointer address */
+
+
+{
+	register struct mfuncs *mfp;
+#ifdef HAVE_DLOPEN
+	register struct mfuncs *mfp_new;
+#endif
+	struct bu_vls	arg;
+	char	matname[32];
+	int	ret;
+	int	i;
+
+	RT_CK_RTI(rtip);
+
+	if(rdebug&RDEBUG_MATERIAL)
+		bu_log( "...starting \"%s\"\n", cp );
+
+	/* skip leading white space */
+	while( *cp == ' ' || *cp == '\t' )
+		cp++;
+
+	for( i = 0; i < 31 && *cp != '\0'; i++, cp++ ) {
+		if (*cp == ' ' || *cp == '\t' ) {
+			matname[i++] = '\0';
+			break;
+		} else
+			matname[i] = *cp;
+	}
+	matname[i] = '\0';	/* ensure null termination */
+
+#ifdef HAVE_DLOPEN
+retry:
+#endif
+	for( mfp = *headp; mfp != MF_NULL; mfp = mfp->mf_forw )  {
+		if (matname[0] != mfp->mf_name[0]  ||
+		    strcmp( matname, mfp->mf_name ) != 0 )
+			continue;
+		goto found;
+	}
+#ifdef HAVE_DLOPEN
+	/* If we get here, then the shader wasn't found in the list of
+	 * compiled-in (or previously loaded) shaders.  See if we can
+	 * dynamically load it.
+	 */
+
+	bu_log("Shader \"%s\"... ", matname);
+
+	if ((mfp_new = load_dynamic_shader(matname, strlen(matname)))) {
+		mlib_add_shader(headp, mfp_new);
+		goto retry;
+	}
+#else
+	bu_log("****** dynamic shader loading not available ******\n");
+#endif
+
+
+	bu_log("stack_setup(%s):  material not known\n",
+		matname );
+	ret = -1;
+	goto out;
+
+found:
+	*mpp = (char *)mfp;
+	*dpp = (char *)0;
+	bu_vls_init( &arg );
+	if (*cp != '\0' )
+		bu_vls_strcat( &arg, ++cp );
+	if (rdebug&RDEBUG_MATERIAL)
+		bu_log("calling %s with %s\n", mfp->mf_name, bu_vls_addr(&arg));
+	if (mfp->mf_setup( rp, &arg, dpp, mfp, rtip, headp ) < 0 )  {
+		/* Setup has failed */
+		bu_vls_free( &arg );
+		ret = -1;		/* BAD */
+		goto out;
+	}
+	bu_vls_free( &arg );
+	ret = 0;			/* OK */
+out:
+	if (rdebug&RDEBUG_MATERIAL)
+		bu_log( "...finished \"%s\", ret=%d\n", matname, ret );
+	return ret;
+}
+
+/*
+ *			S T K _ S E T U P
+ *
+ *  Returns 0 on failure, 1 on success.
+ */
+HIDDEN int
+sh_stk_setup(register struct region *rp, struct bu_vls *matparm, char **dpp, struct mfuncs *mf_p, struct rt_i *rtip, struct mfuncs **headp)
+
+				/* parameter string */
+				/* pointer to user data pointer */
+
+
+{
+	register struct stk_specific *sp;
+	char	*cp, *start;
+	int	i;
+	int	inputs = 0;
+	struct mfuncs *mfp;
+
+	BU_CK_VLS( matparm );
+	RT_CK_RTI(rtip);
+
+	BU_GETSTRUCT( sp, stk_specific );
+	*dpp = (char *)sp;
+
+	/*bu_struct_parse( matparm, sh_stk_parse, (char *)sp );*/
+
+	if(rdebug&RDEBUG_MATERIAL || rdebug&RDEBUG_SHADE)
+		bu_log( "sh_stk_setup called with \"%s\"\n", bu_vls_addr(matparm) );
+
+	i = 0;
+	start = cp = bu_vls_addr(matparm);
+	while( *cp != '\0' ) {
+		if (*cp == ';' ) {
+			*cp = '\0';
+			if (i >= 16 ) {
+				bu_log( "sh_stk_setup: max levels exceeded\n" );
+				return( 0 );
+			}
+			/* add one */
+			if (sh_stk_dosetup(start, rp, &sp->udata[i],
+				(char **)&sp->mfuncs[i], rtip, headp) == 0 )  {
+					inputs |= sp->mfuncs[i]->mf_inputs;
+					i++;
+			} else {
+				/* XXX else clear entry? */
+				bu_log("Problem in stack shader setup\n");
+			}
+			start = ++cp;
+		} else {
+			cp++;
+		}
+	}
+	if (start != cp ) {
+		if (i >= 16 ) {
+			bu_log( "sh_stk_setup: max levels exceeded\n" );
+			return( 0 );
+		}
+		/* add one */
+		if (sh_stk_dosetup(start, rp, &sp->udata[i], (char **)&sp->mfuncs[i],
+		    rtip, headp ) == 0 )  {
+			inputs |= sp->mfuncs[i]->mf_inputs;
+			i++;
+		} else {
+			/* XXX else clear entry? */
+		}
+	}
+
+	/* Request only those input bits needed by subordinate shaders */
+	BU_GETSTRUCT( mfp, mfuncs );
+	memcpy((char *)mfp, (char *)rp->reg_mfuncs, sizeof(*mfp));
+	mfp->mf_inputs = inputs;
+	rp->reg_mfuncs = (genptr_t)mfp;
+	return( 1 );
+}
+
+/*
+ *  			S T K _ R E N D E R
+ *
+ *  Evaluate all of the rendering functions in the stack.
+ *
+ *  Returns:
+ *	0	stack processing aborted
+ *	1	stack processed to completion
+ */
+HIDDEN int
+sh_stk_render(struct application *ap, struct partition *pp, struct shadework *swp, char *dp)
+{
+	register struct stk_specific *sp =
+		(struct stk_specific *)dp;
+	int	i;
+	int	ret_status;
+	char	tmp[128];
+
+	for( i = 0; i < 16 && sp->mfuncs[i] != NULL; i++ ) {
+		if (rdebug&RDEBUG_SHADE)  {
+			snprintf(tmp, 128, "before stacked \"%s\" shader", sp->mfuncs[i]->mf_name);
+
+			pr_shadework( tmp, swp );
+		}
+
+		/*
+		 *  Every shader takes the shadework structure as its
+		 *  input and updates it as the "output".
+		 */
+		ret_status = sp->mfuncs[i]->mf_render( ap, pp, swp,
+			sp->udata[i] );
+
+		if ( ! ret_status ) return ret_status;
+
+	}
+	return(1);
+}
+
+/*
+ *			S T K _ P R I N T
+ */
+HIDDEN void
+sh_stk_print(register struct region *rp, char *dp)
+{
+	register struct stk_specific *sp =
+		(struct stk_specific *)dp;
+	int	i;
+
+	bu_log("~~~~starting stack print\n");
+
+	for( i = 0; i < 16 && sp->mfuncs[i] != NULL; i++ ) {
+		bu_log("~~~~stack entry %d:\n", i);
+		sp->mfuncs[i]->mf_print( rp, sp->udata[i] );
+	}
+
+	bu_log("~~~~ending stack print\n");
+}
+
+/*
+ *			S T K _ F R E E
+ */
+HIDDEN void
+sh_stk_free(char *cp)
+{
+	register struct stk_specific *sp =
+		(struct stk_specific *)cp;
+	int	i;
+
+	for( i = 0; i < 16 && sp->mfuncs[i] != NULL; i++ ) {
+		sp->mfuncs[i]->mf_free( sp->udata[i] );
+	}
+
+	bu_free( cp, "stk_specific" );
+}
+
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+14.16
+log
+@yet another surge of level 4 flawfinder string length checks. somewhere around 30-40% done.
+@
+text
+@d31 1
+a31 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/liboptical/sh_stack.c,v 14.15 2007/07/26 01:13:56 brlcad Exp $ (BRL)";
+d281 1
+a281 1
+	bcopy( (char *)rp->reg_mfuncs, (char *)mfp, sizeof(*mfp) );
+@
+
+
+14.15
+log
+@remove ephemeral data like phone numbers and addresses, including the misleading 'source' statements on code that is continually evolving and receiving contributions from many many sources
+@
+text
+@d31 1
+a31 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/liboptical/sh_stack.c,v 14.14 2007/01/27 01:41:38 brlcad Exp $ (BRL)";
+d307 1
+a307 1
+			sprintf(tmp, "before stacked \"%s\" shader", sp->mfuncs[i]->mf_name);
+@
+
+
+14.14
+log
+@ws. lots and lots of ws.  see sh/ws.sh for details (cases 'abcdeg').
+@
+text
+@a28 5
+ *  Source -
+ *	SECAD/VLD Computing Consortium, Bldg 394
+ *	The U. S. Army Ballistic Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005-5066
+ *
+d31 1
+a31 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/liboptical/sh_stack.c,v 14.13 2007/01/23 01:13:36 brlcad Exp $ (BRL)";
+@
+
+
+14.13
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@d36 1
+a36 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/liboptical/sh_stack.c,v 14.12 2007/01/20 14:36:53 brlcad Exp $ (BRL)";
+d86 2
+a87 3
+             	         	/* parameter string */
+    		      		/* pointer to user data pointer */
+
+d131 2
+a132 2
+    	      		/* udata pointer address */
+    	      		/* mfuncs pointer address */
+a188 1
+
+d224 2
+a225 3
+             	         	/* parameter string */
+    		      		/* pointer to user data pointer */
+
+@
+
+
+14.12
+log
+@update copyright to 2007
+@
+text
+@d9 1
+a9 2
+ * as published by the Free Software Foundation; either version 2 of
+ * the License, or (at your option) any later version.
+d14 1
+a14 1
+ * Library General Public License for more details.
+d36 1
+a36 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/liboptical/sh_stack.c,v 14.11 2006/08/08 22:16:14 brlcad Exp $ (BRL)";
+@
+
+
+14.11
+log
+@avoid debug mode namespace conflicts with libfb's stack interface (where HIDDEN becomes /**/)
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 1986-2006 United States Government as represented by
+d37 1
+a37 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/liboptical/sh_stack.c,v 14.10 2006/01/23 00:35:08 brlcad Exp $ (BRL)";
+@
+
+
+14.10
+log
+@include stddef.h for bu_offset's usage of offset
+@
+text
+@d37 1
+a37 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/liboptical/sh_stack.c,v 14.9 2006/01/18 06:46:16 brlcad Exp $ (BRL)";
+d51 4
+a54 2
+HIDDEN int	stk_setup(register struct region *rp, struct bu_vls *matparm, char **dpp, struct mfuncs *mf_p, struct rt_i *rtip, struct mfuncs **headp), stk_render(struct application *ap, struct partition *pp, struct shadework *swp, char *dp);
+HIDDEN void	stk_print(register struct region *rp, char *dp), stk_free(char *cp);
+d59 1
+a59 1
+	stk_setup,	stk_render,	stk_print,	stk_free},
+d62 1
+a62 1
+	ext_setup,	stk_render,	stk_print,	stk_free},
+d120 1
+a120 1
+	status = stk_setup(rp, &parameter_data, dpp, mf_p, rtip, headp);
+d130 1
+a130 1
+static int stk_dosetup(char *cp, struct region *rp, char **dpp, char **mpp, struct rt_i *rtip, struct mfuncs **headp)
+d225 1
+a225 1
+stk_setup(register struct region *rp, struct bu_vls *matparm, char **dpp, struct mfuncs *mf_p, struct rt_i *rtip, struct mfuncs **headp)
+d245 1
+a245 1
+	/*bu_struct_parse( matparm, stk_parse, (char *)sp );*/
+d248 1
+a248 1
+		bu_log( "stk_setup called with \"%s\"\n", bu_vls_addr(matparm) );
+d256 1
+a256 1
+				bu_log( "stk_setup: max levels exceeded\n" );
+d260 1
+a260 1
+			if (stk_dosetup(start, rp, &sp->udata[i],
+d275 1
+a275 1
+			bu_log( "stk_setup: max levels exceeded\n" );
+d279 1
+a279 1
+		if (stk_dosetup(start, rp, &sp->udata[i], (char **)&sp->mfuncs[i],
+d306 1
+a306 1
+stk_render(struct application *ap, struct partition *pp, struct shadework *swp, char *dp)
+d338 1
+a338 1
+stk_print(register struct region *rp, char *dp)
+d358 1
+a358 1
+stk_free(char *cp)
+@
+
+
+14.9
+log
+@update copyright to 2006
+@
+text
+@d37 1
+a37 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/liboptical/sh_stack.c,v 14.8 2005/10/23 04:44:34 brlcad Exp $ (BRL)";
+d42 1
+a42 2
+
+
+d45 1
+d71 1
+a71 1
+#define STK_O(m)	offsetof(struct stk_specific, m)
+@
+
+
+14.8
+log
+@trailing ws
+@
+text
+@d4 1
+a4 1
+ * Copyright (C) 1986-2005 United States Government as represented by
+d37 1
+a37 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/liboptical/sh_stack.c,v 14.7 2005/03/28 06:31:37 bob1961 Exp $ (BRL)";
+@
+
+
+14.7
+log
+@Add code to allow liboptical to be a Windows DLL
+@
+text
+@d34 1
+a34 1
+ *  
+d37 1
+a37 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/liboptical/sh_stack.c,v 14.6 2005/01/30 20:30:55 brlcad Exp $ (BRL)";
+d84 1
+a84 1
+                           
+d87 3
+a89 3
+             	      
+           	      
+             	        
+d99 1
+a99 1
+	
+d129 2
+a130 2
+    	    
+             	    
+d133 2
+a134 2
+           	      
+             	        
+d173 1
+a173 1
+	/* If we get here, then the shader wasn't found in the list of 
+d224 1
+a224 1
+                           
+d227 3
+a229 3
+             	      
+           	      
+             	        
+d296 1
+a296 1
+ *  
+@
+
+
+14.7.6.1
+log
+@merge changes from HEAD aka rel-7-6-4 to the rel-7-6-branch just in case someone peeks a gander or tries to continue/build the branch
+@
+text
+@d34 1
+a34 1
+ *
+d37 1
+a37 1
+static const char RCSid[] = "@@(#)$Header$ (BRL)";
+d84 1
+a84 1
+
+d87 3
+a89 3
+
+
+
+d99 1
+a99 1
+
+d129 2
+a130 2
+
+
+d133 2
+a134 2
+
+
+d173 1
+a173 1
+	/* If we get here, then the shader wasn't found in the list of
+d224 1
+a224 1
+
+d227 3
+a229 3
+
+
+
+d296 1
+a296 1
+ *
+@
+
+
+14.6
+log
+@update copyright to 2005
+@
+text
+@d37 1
+a37 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/liboptical/sh_stack.c,v 14.5 2004/12/21 06:38:20 morrison Exp $ (BRL)";
+a48 2
+#include "shadefuncs.h"
+#include "shadework.h"
+@
+
+
+14.5
+log
+@remove the old copyright notice section
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 1986-2004 United States Government as represented by
+d37 1
+a37 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/liboptical/sh_stack.c,v 14.4 2004/12/21 06:18:44 morrison Exp $ (BRL)";
+@
+
+
+14.4
+log
+@they should have received a copy of the LGPL with LGPL'd files
+@
+text
+@a34 3
+ *  Copyright Notice -
+ *	This software is Copyright (C) 1986-2004 by the United States Army.
+ *	All rights reserved.
+d37 1
+a37 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/liboptical/sh_stack.c,v 14.3 2004/12/21 05:45:23 morrison Exp $ (BRL)";
+@
+
+
+14.3
+log
+@s/GNU Library General/GNU Lesser General/g
+@
+text
+@d17 2
+a18 2
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+d40 1
+a40 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/liboptical/sh_stack.c,v 14.2 2004/12/21 04:03:25 morrison Exp $ (BRL)";
+@
+
+
+14.2
+log
+@assign copyright and LGPL
+@
+text
+@d8 1
+a8 1
+ * modify it under the terms of the GNU Library General Public License
+d40 1
+a40 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/liboptical/sh_stack.c,v 14.1 2004/11/16 19:42:15 morrison Exp $ (BRL)";
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@d1 21
+a21 1
+/*
+d40 1
+a40 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/liboptical/sh_stack.c,v 1.2 2004/08/02 23:01:49 morrison Exp $ (BRL)";
+@
+
+
+1.2
+log
+@replace the wrapped config.h block with common.h
+@
+text
+@d20 1
+a20 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/liboptical/sh_stack.c,v 1.1 2004/05/20 15:19:51 morrison Exp $ (BRL)";
+d354 10
+@
+
+
+1.1
+log
+@Vast reorganization begins.  Sources moved from top-level directories into src/.
+@
+text
+@d20 1
+a20 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/liboptical/sh_stack.c,v 11.32 2004/05/10 15:30:45 erikg Exp $ (BRL)";
+d23 1
+a23 3
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+@
+

@@ -1,0 +1,666 @@
+head	11.14;
+access;
+symbols
+	ansi-20040405-merged:11.12
+	postmerge-20040405-ansi:11.12
+	premerge-20040404-ansi:11.12
+	postmerge-autoconf:11.12
+	autoconf-freeze:11.12
+	premerge-autoconf:11.12
+	ansi-20040316-freeze:11.12
+	postmerge-20040315-windows:11.12
+	premerge-20040315-windows:11.12
+	windows-20040315-freeze:11.12
+	autoconf-20031203:11.12
+	autoconf-20031202:11.12
+	autoconf-branch:11.12.0.12
+	phong-branch:11.12.0.10
+	photonmap-branch:11.12.0.8
+	rel-6-1-DP:11.12
+	windows-branch:11.12.0.6
+	rel-6-0-2:11.12
+	ansi-branch:11.12.0.4
+	rel-6-0-1-branch:11.12.0.2
+	hartley-6-0-post:11.12
+	hartley-6-0-pre:11.12
+	rel-6-0-1:11.12
+	rel-6-0:11.12
+	offsite-5-3-pre:11.11;
+locks; strict;
+comment	@ * @;
+
+
+11.14
+date	2004.05.21.18.07.29;	author morrison;	state dead;
+branches;
+next	11.13;
+
+11.13
+date	2004.05.10.15.30.45;	author erikg;	state Exp;
+branches;
+next	11.12;
+
+11.12
+date	2001.05.17.20.05.23;	author morrison;	state Exp;
+branches;
+next	11.11;
+
+11.11
+date	2000.08.19.03.58.59;	author mike;	state Exp;
+branches;
+next	11.10;
+
+11.10
+date	2000.08.10.01.42.55;	author mike;	state Exp;
+branches;
+next	11.9;
+
+11.9
+date	2000.07.07.23.07.35;	author mike;	state Exp;
+branches;
+next	11.8;
+
+11.8
+date	2000.07.07.06.02.58;	author mike;	state Exp;
+branches;
+next	11.7;
+
+11.7
+date	2000.07.07.05.45.50;	author mike;	state Exp;
+branches;
+next	11.6;
+
+11.6
+date	2000.07.07.03.36.55;	author mike;	state Exp;
+branches;
+next	11.5;
+
+11.5
+date	2000.07.07.03.15.54;	author mike;	state Exp;
+branches;
+next	11.4;
+
+11.4
+date	2000.06.30.21.39.46;	author mike;	state Exp;
+branches;
+next	11.3;
+
+11.3
+date	2000.06.30.21.07.31;	author mike;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	2000.06.30.21.00.10;	author mike;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	2000.06.30.20.48.56;	author mike;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+11.14
+log
+@moved to src/
+@
+text
+@/*
+ *			D B _ A L L O C 5 . C
+ *
+ *  Handle disk space allocation in the BRL-CAD v5 database.
+ *
+ *  Author -
+ *	Michael John Muuss
+ *  
+ *  Source -
+ *	The U. S. Army Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005-5068  USA
+ *  
+ *  Distribution Status -
+ *	Public Domain, Distribution Unlimited.
+ */
+#ifndef lint
+static const char RCSid[] = "@@(#)$Header: /n/xoff/cvs/brlcad/librt/db5_alloc.c,v 11.13 2004/05/10 15:30:45 erikg Exp $ (BRL)";
+#endif
+
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+
+#include <stdio.h>
+#ifdef USE_STRING_H
+#include <string.h>
+#else
+#include <strings.h>
+#endif
+
+#include "machine.h"
+#include "bu.h"
+#include "vmath.h"
+#include "db5.h"
+#include "raytrace.h"
+
+#include "./debug.h"
+
+/*
+ *			D B 5 _ W R I T E _ F R E E
+ *
+ *  Create a v5 database "free" object of the specified size,
+ *  and place it at the indicated location in the database.
+ *
+ *  There are two interesting cases:
+ *	1)  The free object is "small".  Just write it all at once.
+ *	2)  The free object is "large".  Write header and trailer
+ *	    separately
+ *
+ *  Returns -
+ *	0	OK
+ *	-1	Fail.  This is a horrible error.
+ */
+int
+db5_write_free( struct db_i *dbip, struct directory *dp, long length )
+{
+	struct bu_external	ext;
+
+	RT_CK_DBI(dbip);
+	RT_CK_DIR(dp);
+
+ 	if( length <= 8192 )  {
+
+		BU_INIT_EXTERNAL( &ext );
+		db5_make_free_object( &ext, length );
+
+		if( dp->d_flags & RT_DIR_INMEM )  {
+			bcopy( (char *)ext.ext_buf, dp->d_un.ptr, ext.ext_nbytes );
+			bu_free_external( &ext );
+			return 0;
+		}
+
+		if( db_write( dbip, (char *)ext.ext_buf, ext.ext_nbytes, dp->d_addr ) < 0 )  {
+			bu_free_external( &ext );
+			return -1;
+		}
+		bu_free_external( &ext );
+		return 0;
+	}
+
+	/* Free object is "large", only write the header and trailer bytes. */
+
+	BU_INIT_EXTERNAL( &ext );
+	db5_make_free_object_hdr( &ext, length );
+
+	if( dp->d_flags & RT_DIR_INMEM )  {
+		bcopy( (char *)ext.ext_buf, dp->d_un.ptr, ext.ext_nbytes );
+		((char *)ext.ext_buf)[length-1] = DB5HDR_MAGIC2;
+		bu_free_external( &ext );
+		return 0;
+	}
+
+	/* Write header */
+	if( db_write( dbip, (char *)ext.ext_buf, ext.ext_nbytes, dp->d_addr ) < 0 )  {
+		bu_free_external( &ext );
+		return -1;
+	}
+
+	/* Write trailer byte */
+	*((char *)ext.ext_buf) = DB5HDR_MAGIC2;
+	if( db_write( dbip, (char *)ext.ext_buf, 1, dp->d_addr+length-1 ) < 0 )  {
+		bu_free_external( &ext );
+		return -1;
+	}
+	bu_free_external( &ext );
+	return 0;
+}
+
+/*
+ *			D B 5 _ R E A L L O C
+ *
+ *  Change the size of a v5 database object.
+ *
+ *  If the object is getting smaller, break it into two pieces,
+ *  and write out free objects for both.
+ *  The caller is expected to re-write new data on the first one.
+ *
+ *  If the object is getting larger, seek a suitable "hole" large enough
+ *  to hold it, throwing back any surplus, properly marked.
+ *
+ *  If the object is getting larger and there is no suitable "hole"
+ *  in the database, extend the file, write a free object in the
+ *  new space, and write a free object in the old space.
+ *
+ *  There is no point to trying to extend in place, that would require
+ *  two searches through the memory map, and doesn't save any disk I/O.
+ *
+ *  Returns -
+ *	0	OK
+ *	-1	Failure
+ */
+int
+db5_realloc( struct db_i *dbip, struct directory *dp, struct bu_external *ep )
+{
+	long	baseaddr;
+	long	baselen;
+
+	RT_CK_DBI(dbip);
+	RT_CK_DIR(dp);
+	BU_CK_EXTERNAL(ep);
+	if(RT_G_DEBUG&DEBUG_DB) bu_log("db5_realloc(%s) dbip=x%x, dp=x%x, ext_nbytes=%ld\n",
+		dp->d_namep, dbip, dp, ep->ext_nbytes );
+
+	BU_ASSERT_LONG( ep->ext_nbytes&7, ==, 0 );
+
+	if( dp->d_addr != -1L && ep->ext_nbytes == dp->d_len )  {
+		if(RT_G_DEBUG&DEBUG_DB) bu_log("db5_realloc(%s) current allocation is exactly right.\n", dp->d_namep);
+		return 0;
+	}
+	if( dp->d_addr == -1L )  BU_ASSERT_LONG( dp->d_len, ==, 0 );
+
+	baseaddr = dp->d_addr;
+	baselen = dp->d_len;
+
+	if( dp->d_flags & RT_DIR_INMEM )  {
+		if( dp->d_un.ptr )  {
+			if(RT_G_DEBUG&DEBUG_DB) bu_log("db5_realloc(%s) bu_realloc()ing memory resident object\n", dp->d_namep);
+			dp->d_un.ptr = bu_realloc( dp->d_un.ptr,
+				ep->ext_nbytes, "db5_realloc() d_un.ptr" );
+		} else {
+			if(RT_G_DEBUG&DEBUG_DB) bu_log("db5_realloc(%s) bu_malloc()ing memory resident object\n", dp->d_namep);
+			dp->d_un.ptr = bu_malloc( ep->ext_nbytes, "db5_realloc() d_un.ptr" );
+		}
+		dp->d_len = ep->ext_nbytes;
+		return 0;
+	}
+
+	if( dbip->dbi_read_only )  {
+		bu_log("db5_realloc(%s) on READ-ONLY file\n", dp->d_namep);
+		return(-1);
+	}
+
+	/* If the object is getting smaller... */
+	if( ep->ext_nbytes < dp->d_len )  {
+		if(RT_G_DEBUG&DEBUG_DB) bu_log("db5_realloc(%s) object is getting smaller\n", dp->d_namep);
+
+		/* First, erase front half of storage to desired size. */
+		dp->d_len = ep->ext_nbytes;
+		if( db5_write_free( dbip, dp, dp->d_len ) < 0 )  return -1;
+
+		/* Second, erase back half of storage to remainder. */
+		dp->d_addr = baseaddr + ep->ext_nbytes;
+		dp->d_len = baselen - ep->ext_nbytes;
+		if( db5_write_free( dbip, dp, dp->d_len ) < 0 )  return -1;
+
+		/* Finally, update tables */
+		rt_memfree( &(dbip->dbi_freep), dp->d_len, dp->d_addr );
+		dp->d_addr = baseaddr;
+		dp->d_len = ep->ext_nbytes;
+		return 0;
+	}
+
+	/* The object is getting larger... */
+
+	/* Start by zapping existing database object into a free object */
+	if( dp->d_addr != -1L )  {
+		if(RT_G_DEBUG&DEBUG_DB) bu_log("db5_realloc(%s) releasing storage at x%x, len=%d\n", dp->d_namep, dp->d_addr, dp->d_len);
+
+		rt_memfree( &(dbip->dbi_freep), dp->d_len, dp->d_addr );
+		if( db5_write_free( dbip, dp, dp->d_len ) < 0 )  return -1;
+		baseaddr = dp->d_addr = -1L;	/* sanity */
+	}
+
+	/*
+	 *  Can we obtain a free block somewhere else?
+	 *  Keep in mind that free blocks may be very large (e.g. 50 MBytes).
+	 */
+	{
+		struct mem_map	*mmp;
+		long		newaddr;
+
+		if( (mmp = rt_memalloc_nosplit( &(dbip->dbi_freep), ep->ext_nbytes )) != MAP_NULL )  {
+			if(RT_G_DEBUG&DEBUG_DB) bu_log("db5_realloc(%s) obtained free block at x%x, len=%d\n", dp->d_namep, mmp->m_addr, mmp->m_size );
+			BU_ASSERT_LONG( mmp->m_size, >=, ep->ext_nbytes );
+			if( mmp->m_size == ep->ext_nbytes )  {
+				/* No need to reformat, existing free object is perfect */
+				dp->d_addr = mmp->m_addr;
+				dp->d_len = ep->ext_nbytes;
+				return 0;
+			}
+			newaddr = mmp->m_addr;
+			if( mmp->m_size > ep->ext_nbytes )  {
+				/* Reformat and free the surplus */
+				dp->d_addr = mmp->m_addr + ep->ext_nbytes;
+				dp->d_len = mmp->m_size - ep->ext_nbytes;
+				if(RT_G_DEBUG&DEBUG_DB) bu_log("db5_realloc(%s) returning surplus at x%x, len=%d\n", dp->d_namep, dp->d_addr, dp->d_len );
+				if( db5_write_free( dbip, dp, dp->d_len ) < 0 )  return -1;
+				rt_memfree( &(dbip->dbi_freep), dp->d_len, dp->d_addr );
+				/* mmp is invalid beyond here! */
+			}
+			dp->d_addr = newaddr;
+			dp->d_len = ep->ext_nbytes;
+			/* Erase the new place */
+			if(RT_G_DEBUG&DEBUG_DB) bu_log("db5_realloc(%s) utilizing free block at addr=x%x, len=%d\n", dp->d_namep, dp->d_addr, dp->d_len);
+			if( db5_write_free( dbip, dp, dp->d_len ) < 0 )  return -1;
+			return 0;
+		}
+	}
+
+	/* No free storage of the desired size, extend the database */
+	dp->d_addr = dbip->dbi_eof;
+	dbip->dbi_eof += ep->ext_nbytes;
+	dp->d_len = ep->ext_nbytes;
+	if(RT_G_DEBUG&DEBUG_DB) bu_log("db5_realloc(%s) extending database addr=x%x, len=%d\n", dp->d_namep, dp->d_addr, dp->d_len);
+#if 0
+	/* Extending db with free record isn't necessary even to
+	 * provide "stable-store" capability.
+	 * If program or system aborts before caller write new object,
+	 * there is no problem.
+	 */
+	if( db5_write_free( dbip, dp, dp->d_len ) < 0 )  return -1;
+#endif
+	return 0;
+}
+@
+
+
+11.13
+log
+@change conf.h to a wrapped config.h
+@
+text
+@d17 1
+a17 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/librt/db5_alloc.c,v 11.12 2001/05/17 20:05:23 morrison Exp $ (BRL)";
+@
+
+
+11.12
+log
+@rt_g.debug -> RT_G_DEBUG
+@
+text
+@d17 1
+a17 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/librt/db5_alloc.c,v 11.11 2000/08/19 03:58:59 mike Exp $ (BRL)";
+d20 5
+a24 1
+#include "conf.h"
+@
+
+
+11.11
+log
+@
+Performance improvement so that large free objects are written
+in two parts, leaving out the pad in the middle, rather than
+all at once.
+This is much more efficient when dealing with, for example,
+a 50 MByte free object.  (Yes, Chris did it earlier today).
+@
+text
+@d17 1
+a17 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/librt/db5_alloc.c,v 11.10 2000/08/10 01:42:55 mike Exp $ (BRL)";
+d139 1
+a139 1
+	if(rt_g.debug&DEBUG_DB) bu_log("db5_realloc(%s) dbip=x%x, dp=x%x, ext_nbytes=%ld\n",
+d145 1
+a145 1
+		if(rt_g.debug&DEBUG_DB) bu_log("db5_realloc(%s) current allocation is exactly right.\n", dp->d_namep);
+d155 1
+a155 1
+			if(rt_g.debug&DEBUG_DB) bu_log("db5_realloc(%s) bu_realloc()ing memory resident object\n", dp->d_namep);
+d159 1
+a159 1
+			if(rt_g.debug&DEBUG_DB) bu_log("db5_realloc(%s) bu_malloc()ing memory resident object\n", dp->d_namep);
+d173 1
+a173 1
+		if(rt_g.debug&DEBUG_DB) bu_log("db5_realloc(%s) object is getting smaller\n", dp->d_namep);
+d195 1
+a195 1
+		if(rt_g.debug&DEBUG_DB) bu_log("db5_realloc(%s) releasing storage at x%x, len=%d\n", dp->d_namep, dp->d_addr, dp->d_len);
+d211 1
+a211 1
+			if(rt_g.debug&DEBUG_DB) bu_log("db5_realloc(%s) obtained free block at x%x, len=%d\n", dp->d_namep, mmp->m_addr, mmp->m_size );
+d224 1
+a224 1
+				if(rt_g.debug&DEBUG_DB) bu_log("db5_realloc(%s) returning surplus at x%x, len=%d\n", dp->d_namep, dp->d_addr, dp->d_len );
+d232 1
+a232 1
+			if(rt_g.debug&DEBUG_DB) bu_log("db5_realloc(%s) utilizing free block at addr=x%x, len=%d\n", dp->d_namep, dp->d_addr, dp->d_len);
+d242 1
+a242 1
+	if(rt_g.debug&DEBUG_DB) bu_log("db5_realloc(%s) extending database addr=x%x, len=%d\n", dp->d_namep, dp->d_addr, dp->d_len);
+@
+
+
+11.10
+log
+@
+Added assertion check.
+This would have caught the problem with mged "cp" command.
+@
+text
+@d17 1
+a17 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/librt/db5_alloc.c,v 11.9 2000/07/07 23:07:35 mike Exp $ (BRL)";
+d43 5
+d50 1
+a50 1
+ *	-1	Fail
+d60 21
+d82 1
+a82 1
+	db5_make_free_object( &ext, length );
+d86 1
+d91 1
+d96 7
+a104 1
+
+d202 4
+a205 1
+	/* Can we obtain a free block somewhere else? */
+d243 6
+d250 1
+@
+
+
+11.9
+log
+@
+Fixed bug in db5_alloc().
+Improved debug messages.
+@
+text
+@d17 1
+a17 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/librt/db5_alloc.c,v 11.8 2000/07/07 06:02:58 mike Exp $ (BRL)";
+d114 1
+@
+
+
+11.8
+log
+@
+Fixed mmp becoming invalid problem.
+@
+text
+@d17 1
+a17 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/librt/db5_alloc.c,v 11.7 2000/07/07 05:45:50 mike Exp $ (BRL)";
+d110 4
+a113 1
+	if( ep->ext_nbytes == dp->d_len )  return 0;
+d120 1
+d124 1
+@
+
+
+11.7
+log
+@
+More fully fleshed-out database storage allocator
+@
+text
+@d17 1
+a17 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/librt/db5_alloc.c,v 11.6 2000/07/07 03:36:55 mike Exp $ (BRL)";
+d165 1
+d176 1
+d181 1
+d184 1
+d186 1
+a186 1
+			dp->d_addr = mmp->m_addr;
+d189 1
+@
+
+
+11.6
+log
+@
+Put freed storage into the list
+@
+text
+@d17 1
+a17 1
+static char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/librt/db5_alloc.c,v 11.5 2000/07/07 03:15:54 mike Exp $ (BRL)";
+d82 2
+a83 3
+ *  If the object is getting larger, see if it can be extended in place.
+ *  If yes, write a free object that fits the new size,
+ *  and a new free object for any remaining space.
+d85 1
+a85 1
+ *  If the ojbect is getting larger and there is no suitable "hole"
+d89 3
+d99 3
+d110 5
+d127 1
+a127 1
+		bu_log("db5_realloc on READ-ONLY file\n");
+d131 23
+a153 1
+	/* Simple algorithm -- zap old copy, extend file for new copy */
+d155 2
+d158 30
+a187 2
+		db5_write_free( dbip, dp, dp->d_len );
+		dp->d_addr = -1L;	/* sanity */
+d189 2
+a190 1
+	/* extend */
+d194 2
+a195 1
+	db5_write_free( dbip, dp, dp->d_len );
+a196 4
+
+#if 0
+	bu_bomb("db5_realloc() not fully implemented\n");
+#endif
+@
+
+
+11.5
+log
+@
+Working simple version -- just puts everything new at end of database.
+@
+text
+@d17 1
+a17 1
+static char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/librt/db5_alloc.c,v 11.4 2000/06/30 21:39:46 mike Exp $ (BRL)";
+d123 1
+@
+
+
+11.4
+log
+@
+Added support for making free-storage objects
+@
+text
+@d17 1
+a17 1
+static char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/librt/db5_alloc.c,v 11.3 2000/06/30 21:07:31 mike Exp $ (BRL)";
+d103 2
+d121 1
+a121 1
+	/* Simple algorithm -- zap old copy, extend for new copy */
+d124 1
+d126 6
+d133 1
+a133 1
+
+d135 1
+@
+
+
+11.3
+log
+@
+db5_realloc() -- change of subroutine name
+@
+text
+@d17 1
+a17 1
+static char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/librt/db5_alloc.c,v 11.2 2000/06/30 21:00:10 mike Exp $ (BRL)";
+d37 35
+d79 1
+a79 1
+ *  and write out free records for both.
+d83 2
+a84 2
+ *  If yes, write a free record that fits the new size,
+ *  and a new free record for any remaining space.
+d87 2
+a88 2
+ *  in the database, extend the file, write a free record in the
+ *  new space, and write a free record in the old space.
+d102 21
+@
+
+
+11.2
+log
+@
+db_realloc5
+@
+text
+@d17 1
+a17 1
+static char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/librt/db5_alloc.c,v 11.1 2000/06/30 20:48:56 mike Exp $ (BRL)";
+d39 1
+a39 1
+ *			D B _ R E A L L O C 5
+d60 1
+a60 1
+db_realloc5( struct db_i *dbip, struct directory *dp, struct bu_external *ep )
+d65 1
+a65 1
+	if(rt_g.debug&DEBUG_DB) bu_log("db_realloc5(%s) dbip=x%x, dp=x%x, ext_nbytes=%ld\n",
+d69 1
+a69 1
+	bu_bomb("db_realloc5() not fully implemented\n");
+@
+
+
+11.1
+log
+@
+Extended db_put_external() to use db_realloc5().
+@
+text
+@d17 1
+a17 1
+static char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/librt/db_alloc.c,v 11.9 2000/06/29 20:24:17 mike Exp $ (BRL)";
+d54 4
+d62 7
+@
+

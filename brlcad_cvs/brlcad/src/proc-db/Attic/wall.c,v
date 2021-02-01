@@ -1,0 +1,1770 @@
+head	14.13;
+access;
+symbols
+	rel-7-10-4:14.11
+	STABLE:14.11.0.2
+	stable-branch:14.3
+	rel-7-10-2:14.11
+	rel-7-10-0:14.10
+	rel-7-8-4:14.6
+	rel-7-8-2:14.6
+	rel-7-8-0:14.6
+	trimnurbs-branch:14.6.0.2
+	help:14.6
+	temp_tag:14.4
+	bobWinPort-20051223-freeze:14.3
+	postmerge-20051223-bobWinPort:14.4
+	premerge-20051223-bobWinPort:14.4
+	rel-7-6-6:14.4
+	rel-7-6-4:14.4
+	rel-7-6-2:14.3
+	rel-7-6-branch:14.3.0.6
+	rel-7-6-0:14.3
+	rel-7-4-2:14.3
+	rel-7-4-branch:14.3.0.4
+	bobWinPort:14.3.0.2
+	rel-7-4-0:14.3
+	rel-7-2-6:14.3
+	rel-7-2-4:14.3
+	rel-7-2-2:14.3
+	rel-7-2-0:14.3
+	rel-7-0-4:14.2
+	rel-7-0-2:14.2
+	rel-7-0-1:14.2
+	opensource-post:14.2
+	opensource-pre:1.3
+	rel-7-0-branch:1.3.0.2
+	rel-7-0:1.3;
+locks; strict;
+comment	@ * @;
+
+
+14.13
+date	2007.11.08.04.55.54;	author brlcad;	state dead;
+branches;
+next	14.12;
+
+14.12
+date	2007.09.15.16.23.19;	author brlcad;	state Exp;
+branches;
+next	14.11;
+
+14.11
+date	2007.05.14.21.04.33;	author brlcad;	state Exp;
+branches;
+next	14.10;
+
+14.10
+date	2007.02.02.08.48.30;	author brlcad;	state Exp;
+branches;
+next	14.9;
+
+14.9
+date	2007.01.27.01.41.45;	author brlcad;	state Exp;
+branches;
+next	14.8;
+
+14.8
+date	2007.01.23.01.13.45;	author brlcad;	state Exp;
+branches;
+next	14.7;
+
+14.7
+date	2007.01.20.14.36.59;	author brlcad;	state Exp;
+branches;
+next	14.6;
+
+14.6
+date	2006.01.28.00.36.29;	author brlcad;	state Exp;
+branches;
+next	14.5;
+
+14.5
+date	2006.01.18.06.46.23;	author brlcad;	state Exp;
+branches;
+next	14.4;
+
+14.4
+date	2005.10.23.04.44.37;	author brlcad;	state Exp;
+branches;
+next	14.3;
+
+14.3
+date	2005.01.30.20.31.09;	author brlcad;	state Exp;
+branches
+	14.3.6.1;
+next	14.2;
+
+14.2
+date	2004.12.21.03.46.09;	author butler;	state Exp;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.30;	author morrison;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2004.09.03.23.30.59;	author morrison;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2004.08.02.23.01.52;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.15.20.42;	author morrison;	state Exp;
+branches;
+next	;
+
+14.3.6.1
+date	2005.11.13.13.46.19;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.13
+log
+@the 'wall' procedural geometry generator tool was renamed to 'masonry' so as to not conflict with the commonly named 'wall' linux tool that writes a message to all users.  source renamed from wall.c to masonry.c
+@
+text
+@/*                          W A L L . C
+ * BRL-CAD
+ *
+ * Copyright (c) 2004-2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@file wall.c
+ *
+ *	build a wall.
+ *
+ *	Currently builds "wood frame" walls for typical building constructs.
+ *
+ */
+#include "common.h"
+
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+#include <math.h>
+
+#include "machine.h"
+#include "vmath.h"
+#include "bu.h"
+#include "raytrace.h"
+#include "wdb.h"
+
+#define min(_a, _b) ((_a) < (_b) ? (_a) : (_b))
+#define max(_a, _b) ((_a) > (_b) ? (_a) : (_b))
+
+/* declarations to support use of bu_getopt() system call */
+char *options = "w:o:n:t:b:u:c:rlhdm:T:R:";
+
+int debug = 0;
+char *progname = "(noname)";
+char *obj_name = "wall";
+char sol_name[64];
+int sol_num = 0;
+char *type = "frame";
+char *units = "mm";
+double unit_conv = 1.0;
+matp_t trans_matrix = (matp_t)NULL;
+const double degtorad =  0.01745329251994329573;
+
+int log_cmds = 0;	/* log sessions to a log file */
+/* standard construction brick:
+ * 8" by 2 1/4" by 3 3/8"
+ */
+double brick_height = 8.0 * 25.4;
+double brick_width = 2.25 * 25.4;
+double brick_depth = 3.25 * 25.4;
+double min_mortar = 0.25 * 25.4;
+
+unsigned char *color;
+unsigned char def_color[3];
+unsigned char brick_color[3] = {160, 40, 40};
+unsigned char mortar_color[3] = {190, 190, 190};
+
+int rand_brick_color = 0;
+int make_mortar = 1;
+
+/* real dimensions of a "2 by 4" board */
+double bd_thick = 3.25 * 25.4;
+double bd_thin = 1.5 * 25.4;
+double beam_height = 5.5 * 25.4;
+double sr_thick = 0.75 * 25.4;	/* sheetrock thickness */
+double stud_spacing = 16.0 * 25.4; /* spacing between vertical studs */
+
+unsigned char sheetrock_color[3] = { 200, 200, 200 };
+unsigned char stud_color[3] = { 250, 178, 108 };
+
+char *stud_properties[] = { "plastic", "sh=10 di=0.7 sp=0.3" };
+
+struct opening {
+	struct bu_list	l;
+	double		sx;	/* start in X direction */
+	double		sz;	/* start in Z direction */
+	double		ex;	/* end in X direction */
+	double		ez;	/* end in Z direction */
+} ol_hd;
+
+#define WALL_WIDTH ol_hd.ex
+#define WALL_HEIGHT ol_hd.ez
+
+struct boardseg {
+	struct bu_list	l;
+	double		s;	/* start */
+	double		e;	/* end */
+};
+
+
+/*
+ *	U S A G E --- tell user how to invoke this program, then exit
+ */
+void usage(char *s)
+{
+	if (s) (void)bu_log("%s\n", s);
+
+	bu_log("Usage: %s %s\n%s\n%s\n%s\n",
+progname,
+"[ -u units ] -w(all) width,height [-o(pening) lx,lz,hx,hz ...]",
+" [-n name] [ -d(ebug) ] [-t {frame|brick|block|sheetrock} ] [-c R/G/B]",
+" [-l(og_commands)] [-R(otate) rx/ry/rz] [-T(ranslate) dx/dy/dz]",
+" brick sub-options: [-r(and_color)] [-b width,height,depth ] [-m min_mortar]"
+);
+
+	exit(1);
+}
+
+
+void
+set_translate(char *s)
+{
+	double dx, dy, dz;
+
+	if (sscanf(s, "%lf/%lf/%lf", &dx, &dy, &dz) != 3)
+		usage("translation option problem\n");
+
+	if (!trans_matrix) {
+		trans_matrix = (matp_t)bu_calloc(sizeof(mat_t), 1,
+					"transformation matrix");
+		bcopy( (char *)bn_mat_identity, (char *)trans_matrix, sizeof(mat_t));
+	}
+
+	MAT_DELTAS(trans_matrix, dx*unit_conv, dy*unit_conv, dz*unit_conv);
+}
+
+/*
+ *			B U I L D H R O T
+ *
+ * This routine builds a Homogeneous rotation matrix, given
+ * alpha, beta, and gamma as angles of rotation.
+ *
+ * NOTE:  Only initialize the rotation 3x3 parts of the 4x4
+ * There is important information in dx,dy,dz,s .
+ */
+void
+buildHrot(register matp_t mat, double alpha, double beta, double ggamma)
+{
+	static fastf_t calpha, cbeta, cgamma;
+	static fastf_t salpha, sbeta, sgamma;
+
+	calpha = cos( alpha );
+	cbeta = cos( beta );
+	cgamma = cos( ggamma );
+
+	salpha = sin( alpha );
+	sbeta = sin( beta );
+	sgamma = sin( ggamma );
+
+	/*
+	 * compute the new rotation to apply to the previous
+	 * viewing rotation.
+	 * Alpha is angle of rotation about the X axis, and is done third.
+	 * Beta is angle of rotation about the Y axis, and is done second.
+	 * Gamma is angle of rotation about Z axis, and is done first.
+	 */
+#ifdef m_RZ_RY_RX
+	/* view = model * RZ * RY * RX (Neuman+Sproul, premultiply) */
+	mat[0] = cbeta * cgamma;
+	mat[1] = -cbeta * sgamma;
+	mat[2] = -sbeta;
+
+	mat[4] = -salpha * sbeta * cgamma + calpha * sgamma;
+	mat[5] = salpha * sbeta * sgamma + calpha * cgamma;
+	mat[6] = -salpha * cbeta;
+
+	mat[8] = calpha * sbeta * cgamma + salpha * sgamma;
+	mat[9] = -calpha * sbeta * sgamma + salpha * cgamma;
+	mat[10] = calpha * cbeta;
+#endif
+	/* This is the correct form for this version of GED */
+	/* view = RX * RY * RZ * model (Rodgers, postmultiply) */
+	/* Point thumb along axis of rotation.  +Angle as hand closes */
+	mat[0] = cbeta * cgamma;
+	mat[1] = -cbeta * sgamma;
+	mat[2] = sbeta;
+
+	mat[4] = salpha * sbeta * cgamma + calpha * sgamma;
+	mat[5] = -salpha * sbeta * sgamma + calpha * cgamma;
+	mat[6] = -salpha * cbeta;
+
+	mat[8] = -calpha * sbeta * cgamma + salpha * sgamma;
+	mat[9] = calpha * sbeta * sgamma + salpha * cgamma;
+	mat[10] = calpha * cbeta;
+}
+
+void
+set_rotate(char *s)
+{
+	double rx, ry, rz;
+
+	if (sscanf(s, "%lf/%lf/%lf", &rx, &ry, &rz) != 3)
+		usage("rotation option problem\n");
+
+	if (!trans_matrix) {
+		trans_matrix = (matp_t)bu_calloc(sizeof(mat_t), 1,
+			"rotation matrix");
+		bcopy((char *)bn_mat_identity, (char *)trans_matrix, sizeof(mat_t));
+	}
+	buildHrot(trans_matrix,
+		rx * degtorad,
+		ry * degtorad,
+		rz * degtorad);
+}
+
+
+/*
+ *	P A R S E _ A R G S --- Parse through command line flags
+ */
+int parse_args(int ac, char **av)
+{
+	int  c;
+	struct opening *op;
+	double dx, dy, width, height;
+	int R, G, B;
+	int units_lock=0;
+	FILE *logfile;
+
+	if (  ! (progname=strrchr(*av, '/'))  )
+		progname = *av;
+	else
+		++progname;
+
+
+	BU_LIST_INIT(&ol_hd.l);
+
+	/* Turn off bu_getopt's error messages */
+	bu_opterr = 0;
+
+	/* get all the option flags from the command line */
+	while ((c=bu_getopt(ac,av,options)) != EOF)
+		switch (c) {
+		case 'T'	: set_translate(bu_optarg);
+				units_lock = 1;
+				break;
+		case 'R'	: set_rotate(bu_optarg);
+				break;
+		case 'b'	: if (sscanf(bu_optarg, "%lf,%lf,%lf",
+				     &width, &height, &dy) == 3) {
+					brick_width = width * unit_conv;
+					brick_height = height * unit_conv;
+					brick_depth = dy * unit_conv;
+					units_lock = 1;
+				  } else
+					usage("error parsing -b option\n");
+
+				  break;
+		case 'c'	: if (sscanf(bu_optarg, "%d %d %d", &R, &G, &B)
+				     == 3) {
+					color = def_color;
+					color[0] = R & 0x0ff;
+					color[1] = G & 0x0ff;
+					color[2] = B & 0x0ff;
+				  }
+				  break;
+		case 'd'	: debug = !debug; break;
+		case 'l'	: log_cmds = !log_cmds; break;
+		case 'm'	: if ((dx=atof(bu_optarg)) > 0.0) {
+					min_mortar = dx * unit_conv;
+					units_lock = 1;
+					make_mortar = 1;
+				} else
+					usage("error parsing -m option\n");
+
+				  break;
+		case 'n'	: obj_name = bu_optarg; break;
+		case 'o'	: if (ol_hd.ex == 0.0)
+					usage("set wall dim before openings\n");
+				  else if (sscanf(bu_optarg, "%lf,%lf,%lf,%lf",
+				     &dx, &dy, &width, &height) == 4) {
+					op = (struct opening *)bu_calloc(1, sizeof(struct opening), "calloc opening");
+					BU_LIST_INSERT(&ol_hd.l, &op->l);
+					op->sx = dx * unit_conv;
+					op->sz = dy * unit_conv;
+					op->ex = width * unit_conv;
+					op->ez = height * unit_conv;
+
+					/* do bounds checking */
+					if (op->sx < 0.0) op->sx = 0.0;
+					if (op->sz < 0.0) op->sz = 0.0;
+					if (op->ex > WALL_WIDTH)
+						op->ex = WALL_WIDTH;
+					if (op->ez > WALL_HEIGHT)
+						op->ez = WALL_HEIGHT;
+
+					units_lock = 1;
+				} else
+					usage("error parsing -o option\n");
+				break;
+		case 'r'	: rand_brick_color = !rand_brick_color; break;
+		case 't'	: type = bu_optarg; break;
+		case 'u'	: if (units_lock)
+					bu_log(
+					"Warning: attempting to change units in mid-parse\n");
+				if ((dx=bu_units_conversion(bu_optarg)) != 0.0) {
+					unit_conv = dx;
+					units = bu_optarg;
+				} else
+					usage("error parsing -u (units)\n");
+				break;
+		case 'w'	: if (sscanf(bu_optarg, "%lf,%lf",
+				     &width, &height) == 2) {
+					WALL_WIDTH = width * unit_conv;
+					WALL_HEIGHT = height * unit_conv;
+					units_lock = 1;
+				  } else
+					usage("error parsing -w (wall dimensions)\n");
+				break;
+		case '?'	:
+		case 'h'	:
+		default		: usage("Bad or help flag specified\n"); break;
+		}
+
+
+	if (log_cmds) {
+		if ((logfile=fopen("wall.log", "a+")) == (FILE *)NULL) {
+			perror("wall.log");
+			exit(-1);
+		}
+		for (R=0 ; R < ac ; R++)
+			(void)fprintf(logfile, "%s ", av[R]);
+		(void)putc('\n', logfile);
+		(void)fclose(logfile);
+	}
+
+	return(bu_optind);
+
+}
+
+
+#if 0
+void
+v_segs(sz, ez, seglist, sx, ex)
+double sz, ez, sx, ex;
+struct boardseg *seglist;
+{
+	struct opening *op;
+	struct boardseg *seg, *sp;
+
+	seg = (struct boardseg *)bu_calloc(1, sizeof(struct boardseg), "initial seg");
+	seg->s = sz;
+	seg->e = ez;
+
+	if (!seg) abort();
+
+	/* trim opening to X bounds of wall */
+	if (seg->s < ol_hd.sz) seg->s = ol_hd.sz;
+	if (seg->e > WALL_HEIGHT) seg->e = WALL_HEIGHT;
+	BU_LIST_APPEND(&(seglist->l), &(seg->l));
+
+
+	for (BU_LIST_FOR(op, opening, &ol_hd.l) ) {
+	    if ((sx >= op->sx && sx <= op->ex) ||
+		    (ex >= op->sx && ex <= op->ex) ||
+		    (sx <= op->sx && ex >= op->ex) ) {
+
+		/* opening in vertical segment */
+		for (BU_LIST_FOR(seg, boardseg, &(seglist->l)) ) {
+
+
+			if (op->sz <= seg->s) {
+			    if (op->ez >= seg->e) {
+				/* opening covers entire segment.
+				 * segement gets deleted
+				 */
+				sp = BU_LIST_PLAST(boardseg, &(seg->l));
+				BU_LIST_DEQUEUE(&(seg->l));
+				bu_free((char *)seg, "seg free");
+				if (debug)
+					bu_log("deleting segment\n");
+				seg = sp;
+			    } else if (op->ez > seg->s) {
+				/* opening covers begining of segment */
+				seg->s = op->ez;
+			    }
+				/* else opening is entirely prior to seg->s */
+			} else if (op->ez >= seg->e) {
+			    if (op->sz < seg->e) {
+				/* opening covers end of segment */
+				seg->e = op->sz;
+			    }
+			    /* else opening entirely after segment */
+			} else {
+				/* there is an opening in the middle of the
+				 * segment.  We must divide the segment into
+				 * 2 segements
+				 */
+				 sp = (struct boardseg *)bu_calloc(1, sizeof(struct boardseg), "alloc boardseg");
+				 sp->s = seg->s;
+				 sp->e = op->sz;
+				 seg->s = op->ez;
+				 BU_LIST_INSERT(&(seg->l), &(sp->l));
+				 if (debug)
+					bu_log("splitting segment\n");
+			}
+
+
+		    }
+	    }
+	}
+}
+#endif
+
+
+void
+h_segs(double sz, double ez, struct boardseg *seglist, double sx, double ex)
+{
+	struct opening *op;
+	struct boardseg *seg, *sp;
+
+	seg = (struct boardseg *)bu_calloc(1, sizeof(struct boardseg), "initial seg");
+	seg->s = sx;
+	seg->e = ex;
+	/* trim opening to X bounds of wall */
+	if (seg->s < ol_hd.sx) seg->s = ol_hd.sx;
+	if (seg->e > WALL_WIDTH) seg->e = WALL_WIDTH;
+	BU_LIST_APPEND(&(seglist->l), &(seg->l));
+
+
+	for(BU_LIST_FOR(op, opening, &ol_hd.l) ) {
+
+	    if ((op->sz >= sz && op->sz <= ez) ||
+		(op->ez >= sz && op->ez <= ez) ||
+		(op->sz <= sz && op->ez >= ez) ) {
+
+		/* opening in horizontal segment */
+		for (BU_LIST_FOR(seg, boardseg, &(seglist->l)) ) {
+			if (op->sx <= seg->s) {
+			    if (op->ex >= seg->e) {
+				/* opening covers entire segment.
+				 * segement gets deleted
+				 */
+				sp = BU_LIST_PLAST(boardseg, &(seg->l));
+				BU_LIST_DEQUEUE(&(seg->l));
+				bu_free((char *)seg, "seg free 2");
+				seg = sp;
+
+			    } else if (op->ex > seg->s) {
+				/* opening covers begining of segment */
+				seg->s = op->ex;
+			    }
+				/* else opening is entirely prior to seg->s */
+			} else if (op->ex >= seg->e) {
+			    if (op->sx < seg->e) {
+				/* opening covers end of segment */
+				seg->e = op->sx;
+			    }
+			    /* else opening entirely after segment */
+			} else {
+				/* there is an opening in the middle of the
+				 * segment.  We must divide the segment into
+				 * 2 segements
+				 */
+				 sp = (struct boardseg *)bu_calloc(1, sizeof(struct boardseg), "alloc boardseg");
+				 sp->s = seg->s;
+				 sp->e = op->sx;
+				 seg->s = op->ex;
+				 BU_LIST_INSERT(&(seg->l), &(sp->l));
+			}
+		}
+	    }
+	}
+
+}
+
+void
+mksolid(struct rt_wdb *fd, point_t (*pts), struct wmember *wm_hd)
+{
+	struct wmember *wm;
+	(void)sprintf(sol_name, "s.%s.%d", obj_name, sol_num++);
+
+	mk_arb8(fd, sol_name, &pts[0][X]);
+	wm = mk_addmember(sol_name, &(wm_hd->l), NULL, WMOP_UNION);
+
+	if (trans_matrix)
+		bcopy((char *)trans_matrix, (char *)wm->wm_mat, sizeof(mat_t));
+}
+
+void
+mk_h_rpp(struct rt_wdb *fd, struct wmember *wm_hd, double xmin, double xmax, double ymin, double ymax, double zmin, double zmax)
+{
+	point_t pts[8];
+
+	VSET(pts[0], xmin, ymin, zmin);
+	VSET(pts[1], xmin, ymin, zmax);
+	VSET(pts[2], xmin, ymax, zmax);
+	VSET(pts[3], xmin, ymax, zmin);
+	VSET(pts[4], xmax, ymin, zmin);
+	VSET(pts[5], xmax, ymin, zmax);
+	VSET(pts[6], xmax, ymax, zmax);
+	VSET(pts[7], xmax, ymax, zmin);
+
+	mksolid(fd, pts, wm_hd);
+}
+
+void
+mk_v_rpp(struct rt_wdb *fd, struct wmember *wm_hd, double xmin, double xmax, double ymin, double ymax, double zmin, double zmax)
+{
+	point_t pts[8];
+
+	VSET(pts[0], xmin, ymin, zmin);
+	VSET(pts[1], xmax, ymin, zmin);
+	VSET(pts[2], xmax, ymax, zmin);
+	VSET(pts[3], xmin, ymax, zmin);
+	VSET(pts[4], xmin, ymin, zmax);
+	VSET(pts[5], xmax, ymin, zmax);
+	VSET(pts[6], xmax, ymax, zmax);
+	VSET(pts[7], xmin, ymax, zmax);
+
+	mksolid(fd, pts, wm_hd);
+}
+
+/*
+ *	put the sides on a frame opening
+ */
+void
+frame_o_sides(struct rt_wdb *fd, struct wmember *wm_hd, struct opening *op, double h)
+{
+	double sx, ex;
+
+	/* put in the side(s) of the window */
+	if (op->sx-bd_thin >= 0.0) {
+		/* put in a closing board on the side */
+		sx = op->sx-bd_thin;
+
+		if (sx < bd_thin) sx = 0.0;
+		mk_v_rpp(fd, wm_hd,
+			sx,	 op->sx,
+			0.0,	 bd_thick,
+			bd_thin, h);
+
+
+		if (op->sx-bd_thin*2.0 >= 0.0) {
+			/* put in reinforcing board on side */
+
+			if ((sx=op->sx-bd_thin*2.0) < bd_thin)
+				sx = 0.0;
+
+			mk_v_rpp(fd, wm_hd,
+				sx,	op->sx-bd_thin,
+				0.0, 	bd_thick,
+				bd_thin,WALL_HEIGHT-bd_thin);
+		}
+	}
+
+	/* close off the end of the opening */
+	if (op->ex+bd_thin <= WALL_WIDTH) {
+
+		ex = op->ex+bd_thin;
+
+		if (ex > WALL_WIDTH-bd_thin)
+			ex = WALL_WIDTH;
+
+		mk_v_rpp(fd, wm_hd,
+			op->ex,	 ex,
+			0.0,	 bd_thick,
+			bd_thin, h);
+
+		if (ex+bd_thin <= WALL_WIDTH) {
+
+			if ((ex += bd_thin) > WALL_WIDTH-bd_thin)
+				ex = WALL_WIDTH;
+
+			mk_v_rpp(fd, wm_hd,
+				ex-bd_thin,	ex,
+				0.0,		bd_thick,
+				bd_thin,	WALL_HEIGHT-bd_thin);
+		}
+	}
+
+}
+
+
+/*
+ *	Make the frame opening (top & bottom, call frame_o_sides for sides)
+ */
+void
+frame_opening(struct rt_wdb *fd, struct wmember *wm_hd, struct opening *op)
+{
+	double pos;
+	int studs;
+	double dx, span;
+
+	/* 2 vertical studs @@ op->sx-bd_thin*2.0 && op->ex+bd_thin*2.0 */
+
+
+	/* build the bottom of the opening */
+	if (op->sz > bd_thin) {
+		/* put in bottom board of opening */
+
+		if (op->sz-bd_thin >= bd_thin) pos = op->sz - bd_thin;
+		else pos = bd_thin;
+
+		mk_h_rpp(fd, wm_hd, op->sx, op->ex, 0.0, bd_thick,
+			pos, op->sz);
+
+		if (op->sz > bd_thin*2.0) {
+			/* put in support for bottom board */
+			if (op->ex - op->sx < bd_thin*2) {
+				/* one wide board to support */
+				mk_v_rpp(fd, wm_hd,
+					op->sx, op->ex,
+					0.0,	bd_thick,
+					bd_thin, op->sz-bd_thin);
+			} else {
+
+				/* multiple support boards */
+				mk_v_rpp(fd, wm_hd,
+					op->sx, op->sx+bd_thin,
+					0.0, bd_thick,
+					bd_thin, op->sz-bd_thin);
+
+				mk_v_rpp(fd, wm_hd,
+					op->ex-bd_thin, op->ex,
+					0.0,	bd_thick,
+					bd_thin, op->sz-bd_thin);
+
+				/* do we need some in the span? */
+				span = op->ex - op->sx;
+				span -= bd_thin*2.0;
+
+				studs = (int) (span/stud_spacing);
+
+				dx = span / ((double)studs+1.0);
+
+				if (debug)
+					bu_log("making %d xtra studs, spacing %g on span %g\n",
+						studs, dx / unit_conv,
+						span / unit_conv);
+
+				for(pos=op->sx+dx ; studs ; pos+=dx,studs--) {
+					if (debug)
+						bu_log("making xtra stud @@ %g\n",
+						pos / unit_conv);
+
+					mk_v_rpp(fd,	wm_hd,
+						pos,	pos+bd_thin,
+						0.0,	bd_thick,
+						bd_thin,
+						op->sz-bd_thin);
+				}
+			}
+		}
+
+	}
+
+
+	/* build the top of the opening */
+	if (op->ez < WALL_HEIGHT-bd_thin*2.0) {
+		/* put in board in top of opening */
+
+
+		if (op->ez+bd_thin+beam_height < WALL_HEIGHT-bd_thin) {
+			/* there's room to separate the beam from the
+			 * board at the top of the opening.  First, we
+			 * put in the board for the top of the opening.
+			 */
+			mk_h_rpp(fd, wm_hd,
+				op->sx, op->ex,
+				0.0, bd_thick,
+				op->ez, op->ez+bd_thin);
+
+
+			/* put the beam in */
+			mk_h_rpp(fd, wm_hd,
+				max(0.0, op->sx-bd_thin),
+				min(WALL_WIDTH,op->ex+bd_thin),
+				0.0, bd_thick,
+				WALL_HEIGHT-bd_thin-beam_height,
+				WALL_HEIGHT-bd_thin);
+
+			/* put in the offset boards */
+			mk_v_rpp(fd, wm_hd,
+				op->sx, op->sx+bd_thin,
+				0.0, bd_thick,
+				op->ez+bd_thin,
+				WALL_HEIGHT-bd_thin-beam_height);
+
+			mk_v_rpp(fd, wm_hd,
+				op->ex-bd_thin, op->ex,
+				0.0, bd_thick,
+				op->ez+bd_thin,
+				WALL_HEIGHT-bd_thin-beam_height);
+
+
+			span = op->ex - op->sx;
+			span -= bd_thin*2.0;
+
+			studs = (int) (span/stud_spacing);
+			dx = span / ((double)studs+1.0);
+
+			for(pos=op->sx+dx ; studs-- ; pos += dx) {
+				mk_v_rpp(fd, wm_hd,
+					pos, pos+bd_thin,
+					0.0, bd_thick,
+					op->ez+bd_thin,
+					WALL_HEIGHT-bd_thin-beam_height);
+			}
+
+			frame_o_sides(fd, wm_hd, op,
+				WALL_HEIGHT-bd_thin-beam_height);
+
+
+		} else {
+			/* Make the beam on the top of the window the top
+			 * of the window.
+			 */
+
+			mk_h_rpp(fd, wm_hd,
+				max(0.0, op->sx-bd_thin),
+				min(WALL_WIDTH,op->ex+bd_thin),
+				0.0, bd_thick,
+				op->ez, WALL_HEIGHT-bd_thin);
+
+			/* put in the sides of the opening */
+			frame_o_sides(fd, wm_hd, op,
+				op->ez);
+		}
+	} else {
+		/* There is no top board capping the opening
+		 * (with the possible exception of the top rail of the wall)
+		 */
+
+		frame_o_sides(fd, wm_hd, op, WALL_HEIGHT-bd_thin);
+	}
+}
+
+
+void
+frame(struct rt_wdb *fd)
+{
+	struct boardseg *s_hd, *seg;
+	struct opening *op;
+	double pos;
+	struct wmember wm_hd;
+
+	if (WALL_WIDTH <= bd_thin*2) {
+		bu_log("wall width must exceed %g.\n", (bd_thin*2)/unit_conv);
+		return;
+	}
+	if (WALL_HEIGHT <= bd_thin*2) {
+		bu_log("wall height must exceed %g.\n", (bd_thin*2)/unit_conv);
+		return;
+	}
+	BU_LIST_INIT(&wm_hd.l);
+
+	if (!color) color = stud_color;
+
+
+	mk_id(fd, "A wall");
+
+
+	/* find the segments of the base-board */
+	s_hd = (struct boardseg *)bu_calloc(1, sizeof(struct boardseg), "s_hd");
+	BU_LIST_INIT(&(s_hd->l));
+
+	h_segs(0.0, bd_thin, s_hd, 0.0, WALL_WIDTH);
+
+	/* make the base-board segments */
+	while (BU_LIST_WHILE(seg, boardseg, &(s_hd->l))) {
+
+		if (debug) {
+			bu_log("baseboard seg: %g -> %g\n",
+				seg->s/unit_conv, seg->e/unit_conv);
+		}
+
+		mk_h_rpp(fd, &wm_hd,
+			seg->s, seg->e,
+			0.0, bd_thick,
+			0.0, bd_thin);
+
+		BU_LIST_DEQUEUE(&(seg->l));
+		bu_free( (char *)seg, "seg free 3");
+	}
+
+	/* now find the segments of the cap board */
+
+	h_segs(WALL_HEIGHT - bd_thin, WALL_HEIGHT, s_hd, 0.0, WALL_WIDTH);
+
+	/* make the cap board segments */
+	while (BU_LIST_WHILE(seg, boardseg, &(s_hd->l))) {
+
+		if (debug) {
+			bu_log("capboard seg: %g -> %g\n",
+				seg->s/unit_conv, seg->e/unit_conv);
+		}
+
+		mk_h_rpp(fd, &wm_hd,
+			seg->s, seg->e,
+			0.0, bd_thick,
+			WALL_HEIGHT-bd_thin, WALL_HEIGHT);
+
+		BU_LIST_DEQUEUE(&(seg->l));
+		bu_free( (char *)seg, "seg_free 4");
+	}
+
+
+	/* put in the vertical stud boards that are not a part of an
+	 * opening for a window or a door.
+	 */
+	for (pos = 0.0 ; pos <= WALL_WIDTH-bd_thin ; pos += stud_spacing) {
+		register int mk_stud_flag;
+
+		if (pos > WALL_WIDTH-bd_thin*2.0)
+			pos = WALL_WIDTH-bd_thin;
+
+		mk_stud_flag = 1;
+		/* make sure stud doesn't overlap an opening */
+		for (BU_LIST_FOR(op, opening, &ol_hd.l)) {
+			if ((pos > op->sx-bd_thin*2.0 &&
+				pos < op->ex+bd_thin*2.0) ||
+			    (pos+bd_thin > op->sx-bd_thin*2.0 &&
+				pos+bd_thin < op->ex+bd_thin*2.0)
+			    ) {
+				if (debug)
+					bu_log("not making stud @@ %g\n", pos / unit_conv);
+
+				mk_stud_flag = 0;
+				break;
+			}
+		}
+		if (mk_stud_flag) {
+			/* put in the vertical stud */
+			if (debug)
+				bu_log("Making stud @@ %g\n", pos / unit_conv);
+
+			mk_v_rpp(fd, &wm_hd,
+				pos, pos+bd_thin,
+				0.0, bd_thick,
+				bd_thin, WALL_HEIGHT-bd_thin);
+		}
+
+
+		if (pos < WALL_WIDTH-bd_thin &&
+		    pos+stud_spacing > WALL_WIDTH-bd_thin)
+			pos = WALL_WIDTH - bd_thin - stud_spacing;
+	}
+
+	for (BU_LIST_FOR(op, opening, &ol_hd.l))
+		frame_opening(fd, &wm_hd, op);
+
+
+	/* put all the studding in a region */
+	(void)sprintf(sol_name, "r.%s.studs", obj_name);
+	mk_lcomb(fd, sol_name, &wm_hd, 1,
+		stud_properties[0], stud_properties[1], color, 0);
+
+}
+
+void
+sheetrock(struct rt_wdb *fd)
+{
+	point_t pts[8];
+	struct wmember wm_hd;
+	struct opening *op;
+	int i=0;
+
+	if (!color) color = sheetrock_color;
+
+	BU_LIST_INIT(&wm_hd.l);
+
+	/* now add the sheetrock */
+	VSET(pts[0], 0.0, 0.0, 0.0);
+	VSET(pts[1], 0.0, sr_thick, 0.0);
+	VSET(pts[2], 0.0, sr_thick, WALL_HEIGHT);
+	VSET(pts[3], 0.0, 0.0, WALL_HEIGHT);
+	VSET(pts[4], WALL_WIDTH, 0.0, 0.0);
+	VSET(pts[5], WALL_WIDTH, sr_thick, 0.0);
+	VSET(pts[6], WALL_WIDTH, sr_thick, WALL_HEIGHT);
+	VSET(pts[7], WALL_WIDTH, 0.0, WALL_HEIGHT);
+
+	(void)sprintf(sol_name, "s.%s.sr1", obj_name);
+	mk_arb8(fd, sol_name, &pts[0][X]);
+	(void)mk_addmember(sol_name, &wm_hd.l, NULL, WMOP_UNION);
+
+	for (BU_LIST_FOR(op, opening, &ol_hd.l)) {
+		VSET(pts[0], op->sx, -0.01,		op->sz);
+		VSET(pts[1], op->sx, sr_thick+0.01,	op->sz);
+		VSET(pts[2], op->sx, sr_thick+0.01,	op->ez);
+		VSET(pts[3], op->sx, -0.01,		op->ez);
+		VSET(pts[4], op->ex, -0.01,		op->sz);
+		VSET(pts[5], op->ex, sr_thick+0.01,	op->sz);
+		VSET(pts[6], op->ex, sr_thick+0.01,	op->ez);
+		VSET(pts[7], op->ex, -0.01,		op->ez);
+
+		(void)sprintf(sol_name, "s.%s.o.%d", obj_name, i++);
+		mk_arb8(fd, sol_name, &pts[0][X]);
+		(void)mk_addmember(sol_name, &wm_hd.l, NULL, WMOP_SUBTRACT);
+	}
+
+	(void)sprintf(sol_name, "r.%s.sr1", obj_name);
+	mk_lcomb(fd, sol_name, &wm_hd, 1, (char *)NULL, (char *)NULL,
+		color, 0);
+
+}
+
+void
+mortar_brick(struct rt_wdb *fd)
+{
+	struct wmember wm_hd;
+#if 0
+	int horiz_bricks;
+	int vert_bricks;
+	double mortar_height;
+	double mortar_width;
+	point_t pts[8];
+
+	horiz_bricks = (WALL_WIDTH-brick_depth) / (brick_width + min_mortar);
+
+	/* compute excess distance to be used in mortar */
+	mortar_width = WALL_WIDTH -
+			(horiz_bricks * (brick_width + min_mortar) +
+			brick_depth);
+
+	mortar_width = min_mortar + mortar_width / (double)horiz_bricks;
+
+	vert_bricks = WALL_HEIGHT / (brick_height+min_mortar);
+	mortar_height = WALL_HEIGHT - vert_bricks * (brick_height+min_mortar);
+	mortar_height = min_mortar + mortar_height/vert_bricks;
+
+
+	/* make prototype brick */
+
+	VSET(pts[0], 0.0,	  0.0,		mortar_height);
+	VSET(pts[1], 0.0,	  brick_depth,	mortar_height);
+	VSET(pts[2], brick_width, brick_depth,	mortar_height);
+	VSET(pts[3], brick_width, 0.0,		mortar_height);
+
+	VSET(pts[4], 0.0,	  0.0,		mortar_height+brick_height);
+	VSET(pts[5], 0.0,	  brick_depth,	mortar_height+brick_height);
+	VSET(pts[6], brick_width, brick_depth,	mortar_height+brick_height);
+	VSET(pts[7], brick_width, 0.0,		mortar_height+brick_height);
+
+	(void)sprintf(sol_name, "s.%s.b", obj_name);
+	mk_arb8(fd, sol_name, &pts[0][X]);
+
+	(void)mk_addmember(sol_name, &wm_hd.l, NULL, WMOP_UNION);
+	*sol_name = 'r';
+
+	if (rand_brick_color)
+		mk_lcomb(fd, sol_name, &wm_hd, 1, (char *)NULL, (char *)NULL,
+			(char *)NULL, 0);
+	else
+		mk_lcomb(fd, sol_name, &wm_hd, 1, (char *)NULL, (char *)NULL,
+			brick_color, 0);
+
+
+	/* make prototype mortar upon which brick will sit */
+	VSET(pts[0], 0.0,	  0.0,		0.0);
+	VSET(pts[1], 0.0,	  brick_depth,	0.0);
+	VSET(pts[2], brick_width, brick_depth,	0.0);
+	VSET(pts[3], brick_width, 0.0,		0.0);
+
+	VSET(pts[4], 0.0,	  0.0,		mortar_height);
+	VSET(pts[5], 0.0,	  brick_depth,	mortar_height);
+	VSET(pts[6], brick_width, brick_depth,	mortar_height);
+	VSET(pts[7], brick_width, 0.0,		mortar_height);
+
+	(void)sprintf(sol_name, "s.%s.vm", obj_name);
+	mk_arb8(fd, sol_name, &pts[0][X]);
+
+	(void)mk_addmember(sol_name, &wm_hd.l, NULL, WMOP_UNION);
+	*sol_name = 'r';
+	mk_lcomb(fd, sol_name, &wm_hd, 1, (char *)NULL, (char *)NULL,
+		mortar_color, 0);
+
+
+	/* make the mortar that goes between
+	 * horizontally adjacent bricks
+	 */
+	VSET(pts[0], 0.0,	  0.0,		0.0);
+	VSET(pts[1], 0.0,	  brick_depth,	0.0);
+	VSET(pts[2], 0.0,	  brick_depth,	mortar_height+brick_height);
+	VSET(pts[3], 0.0,	  0.0,		mortar_height+brick_height);
+
+	VSET(pts[4], -mortar_width, 0.0,	 0.0);
+	VSET(pts[5], -mortar_width, brick_depth, 0.0);
+	VSET(pts[6], -mortar_width, brick_depth, mortar_height+brick_height);
+	VSET(pts[7], -mortar_width, 0.0,	 mortar_height+brick_height);
+
+	(void)sprintf(sol_name, "s.%s.vm", obj_name);
+	mk_arb8(fd, sol_name, &pts[0][X]);
+
+	(void)mk_addmember(sol_name, &wm_hd.l, NULL, WMOP_UNION);
+	*sol_name = 'r';
+	mk_lcomb(fd, sol_name, &wm_hd, 1, (char *)NULL, (char *)NULL,
+		mortar_color, 0);
+#else
+	BU_LIST_INIT(&wm_hd.l);
+
+	bu_log("Not Yet Implemented\n");
+	exit(0);
+
+#endif
+}
+
+
+void
+brick(struct rt_wdb *fd)
+{
+	struct wmember wm_hd;
+#if 0
+	int horiz_bricks;
+	int vert_bricks;
+	double mortar_height;
+	double mortar_width;
+	point_t pts[8];
+	char proto_brick[64];
+
+	if (!color) color = brick_color;
+
+	horiz_bricks = (WALL_WIDTH-brick_depth) / brick_width;
+	mortar_width = WALL_WIDTH - horiz_bricks * brick_width;
+	mortar_width /= horiz_bricks;
+
+	vert_bricks = WALL_HEIGHT / brick_height;
+	mortar_height = 0.0;
+
+
+	/* make prototype brick */
+
+	VSET(pts[0], 0.0,	  0.0,		mortar_height);
+	VSET(pts[1], 0.0,	  brick_depth,	mortar_height);
+	VSET(pts[2], brick_width, brick_depth,	mortar_height);
+	VSET(pts[3], brick_width, 0.0,		mortar_height);
+
+	VSET(pts[4], 0.0,	  0.0,		mortar_height+brick_height);
+	VSET(pts[5], 0.0,	  brick_depth,	mortar_height+brick_height);
+	VSET(pts[6], brick_width, brick_depth,	mortar_height+brick_height);
+	VSET(pts[7], brick_width, 0.0,		mortar_height+brick_height);
+
+	(void)sprintf(proto_brick, "s.%s.b", obj_name);
+	mk_arb8(fd, proto_brick, &pts[0][X]);
+	(void)mk_addmember(proto_brick, &wm_hd.l, NULL, WMOP_UNION);
+	*proto_brick = 'r';
+
+	mk_lcomb(fd, proto_brick, &wm_hd, 1, (char *)NULL, (char *)NULL,
+			(char *)NULL, 0);
+#else
+	BU_LIST_INIT(&wm_hd.l);
+
+	bu_log("Not Yet Implemented\n");
+	exit(0);
+
+#endif
+}
+
+
+/*
+ *	M A I N
+ *
+ *	Call parse_args to handle command line arguments first, then
+ *	process input.
+ */
+int main(int ac, char **av)
+{
+	struct opening *op;
+	struct rt_wdb *db_fd;
+
+	ol_hd.ex = ol_hd.ez = 0.0;
+
+	if ((parse_args(ac, av)) < ac)
+		usage("excess command line arguments\n");
+
+	if (ac < 2) usage((char *)NULL);
+
+	(void)sprintf(sol_name, "%s.g", obj_name);
+	if ((db_fd = wdb_fopen(sol_name)) == (struct rt_wdb *)NULL) {
+		perror(sol_name);
+		return(-1);
+	}
+
+	if (debug) {
+		bu_log("Wall \"%s\"(%g) %g by %g\n", units, unit_conv,
+			WALL_WIDTH/unit_conv, WALL_HEIGHT/unit_conv);
+		for (BU_LIST_FOR(op, opening, &ol_hd.l)) {
+			bu_log("opening at %g %g to %g %g\n",
+				op->sx/unit_conv, op->sz/unit_conv,
+				op->ex/unit_conv, op->ez/unit_conv);
+		}
+	}
+
+	if (*type == 'f') frame(db_fd);
+	else if (*type == 's') sheetrock(db_fd);
+	else if (*type == 'b') {
+		if (type[1] == 'm' ) mortar_brick(db_fd);
+		else brick(db_fd);
+	}
+
+	wdb_close(db_fd);
+	return 0;
+}
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+14.12
+log
+@more c89 embracing.  c89 provides string.h for all of the various str*() and mem*() functions, so remove the check for its presence.  there is still likely to be work required for strict c89 conformance for the various bsd strings.h functions that may be in use.
+@
+text
+@@
+
+
+14.11
+log
+@gah, pick up where someone left off over half a decade ago.  finish updating all of the compat4 symbols throughout the code to their new names.  finally. it's done.  make the deprecated headers obsolete -- make compat4.h obsolete too so we can be sure that all of the changes are now picked up by the compiler as errors.  this change will likely impact muves if they've similarly not updated to the new names too, so the headers are kept with a #warning for now (though will likely disappear down the road entirely).
+@
+text
+@d31 1
+a31 5
+#ifdef HAVE_STRING_H
+#  include <string.h>
+#else
+#  include <strings.h>
+#endif
+@
+
+
+14.10
+log
+@convert all of the lingering getopt calls to bu_getopt (as well as the related getopt globals optind, opterr, optarg) -- libbu's getopt has the benefit of being re-entrant and is portable to environments where getopt() may not be available.
+@
+text
+@d312 1
+a312 1
+				if ((dx=rt_units_conversion(bu_optarg)) != 0.0) {
+@
+
+
+14.9
+log
+@ws. lots and lots of ws.  see sh/ws.sh for details (cases 'abcdeg').
+@
+text
+@d47 1
+a47 1
+/* declarations to support use of getopt() system call */
+a48 2
+extern char *optarg;
+extern int optind, opterr, getopt(int, char *const *, const char *);
+d244 2
+a245 2
+	/* Turn off getopt's error messages */
+	opterr = 0;
+d248 1
+a248 1
+	while ((c=getopt(ac,av,options)) != EOF)
+d250 1
+a250 1
+		case 'T'	: set_translate(optarg);
+d253 1
+a253 1
+		case 'R'	: set_rotate(optarg);
+d255 1
+a255 1
+		case 'b'	: if (sscanf(optarg, "%lf,%lf,%lf",
+d265 1
+a265 1
+		case 'c'	: if (sscanf(optarg, "%d %d %d", &R, &G, &B)
+d275 1
+a275 1
+		case 'm'	: if ((dx=atof(optarg)) > 0.0) {
+d283 1
+a283 1
+		case 'n'	: obj_name = optarg; break;
+d286 1
+a286 1
+				  else if (sscanf(optarg, "%lf,%lf,%lf,%lf",
+d308 1
+a308 1
+		case 't'	: type = optarg; break;
+d312 1
+a312 1
+				if ((dx=rt_units_conversion(optarg)) != 0.0) {
+d314 1
+a314 1
+					units = optarg;
+d318 1
+a318 1
+		case 'w'	: if (sscanf(optarg, "%lf,%lf",
+d343 1
+a343 1
+	return(optind);
+@
+
+
+14.8
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@d137 5
+a141 5
+    	if (!trans_matrix) {
+    		trans_matrix = (matp_t)bu_calloc(sizeof(mat_t), 1,
+    					"transformation matrix");
+    		bcopy( (char *)bn_mat_identity, (char *)trans_matrix, sizeof(mat_t));
+    	}
+d143 1
+a143 1
+    	MAT_DELTAS(trans_matrix, dx*unit_conv, dy*unit_conv, dz*unit_conv);
+d214 5
+a218 5
+    	if (!trans_matrix) {
+    		trans_matrix = (matp_t)bu_calloc(sizeof(mat_t), 1,
+	    		"rotation matrix");
+    		bcopy((char *)bn_mat_identity, (char *)trans_matrix, sizeof(mat_t));
+    	}
+d262 1
+a262 1
+				     	units_lock = 1;
+d264 1
+a264 1
+				  	usage("error parsing -b option\n");
+d269 1
+a269 1
+				     	color = def_color;
+d291 13
+a303 13
+				     	BU_LIST_INSERT(&ol_hd.l, &op->l);
+				     	op->sx = dx * unit_conv;
+				     	op->sz = dy * unit_conv;
+				     	op->ex = width * unit_conv;
+				     	op->ez = height * unit_conv;
+
+				     	/* do bounds checking */
+				     	if (op->sx < 0.0) op->sx = 0.0;
+				     	if (op->sz < 0.0) op->sz = 0.0;
+				     	if (op->ex > WALL_WIDTH)
+				     		op->ex = WALL_WIDTH;
+				     	if (op->ez > WALL_HEIGHT)
+				     		op->ez = WALL_HEIGHT;
+d305 1
+a305 1
+				     	units_lock = 1;
+d324 1
+a324 1
+				     	units_lock = 1;
+d326 1
+a326 1
+				  	usage("error parsing -w (wall dimensions)\n");
+d366 2
+a367 2
+    	if (seg->s < ol_hd.sz) seg->s = ol_hd.sz;
+    	if (seg->e > WALL_HEIGHT) seg->e = WALL_HEIGHT;
+d373 2
+a374 2
+	    	    (ex >= op->sx && ex <= op->ex) ||
+	    	    (sx <= op->sx && ex >= op->ex) ) {
+d376 2
+a377 2
+    	    	/* opening in vertical segment */
+	    	for (BU_LIST_FOR(seg, boardseg, &(seglist->l)) ) {
+d382 6
+a387 6
+			    	/* opening covers entire segment.
+			    	 * segement gets deleted
+			    	 */
+			    	sp = BU_LIST_PLAST(boardseg, &(seg->l));
+			    	BU_LIST_DEQUEUE(&(seg->l));
+			    	bu_free((char *)seg, "seg free");
+d389 2
+a390 2
+				 	bu_log("deleting segment\n");
+			    	seg = sp;
+d392 2
+a393 2
+			    	/* opening covers begining of segment */
+			    	seg->s = op->ez;
+d398 2
+a399 2
+			    	/* opening covers end of segment */
+			    	seg->e = op->sz;
+d413 1
+a413 1
+				 	bu_log("splitting segment\n");
+d417 1
+a417 2
+
+	    	    }
+d434 2
+a435 2
+    	if (seg->s < ol_hd.sx) seg->s = ol_hd.sx;
+    	if (seg->e > WALL_WIDTH) seg->e = WALL_WIDTH;
+a438 1
+
+d446 1
+a446 1
+	    	for (BU_LIST_FOR(seg, boardseg, &(seglist->l)) ) {
+d449 7
+a455 7
+			    	/* opening covers entire segment.
+			    	 * segement gets deleted
+			    	 */
+			    	sp = BU_LIST_PLAST(boardseg, &(seg->l));
+			    	BU_LIST_DEQUEUE(&(seg->l));
+			    	bu_free((char *)seg, "seg free 2");
+			    	seg = sp;
+d458 2
+a459 2
+			    	/* opening covers begining of segment */
+			    	seg->s = op->ex;
+d464 2
+a465 2
+			    	/* opening covers end of segment */
+			    	seg->e = op->sx;
+a605 2
+
+
+d694 1
+a694 1
+			    	0.0, bd_thick,
+d700 1
+a700 1
+			    	0.0, bd_thick,
+d714 1
+a714 1
+				    	0.0, bd_thick,
+a816 1
+
+d834 2
+a835 2
+			    	if (debug)
+			    		bu_log("not making stud @@ %g\n", pos / unit_conv);
+d843 2
+a844 2
+		    	if (debug)
+		    		bu_log("Making stud @@ %g\n", pos / unit_conv);
+d855 1
+a855 1
+		    	pos = WALL_WIDTH - bd_thin - stud_spacing;
+@
+
+
+14.7
+log
+@update copyright to 2007
+@
+text
+@d8 2
+a9 3
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+d14 1
+a14 1
+ * General Public License for more details.
+d16 2
+a17 2
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+@
+
+
+14.6
+log
+@header cleanup, atof() requires stdlib.h on altix/posix, fix 64-bitness
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 2004-2006 United States Government as represented by
+@
+
+
+14.5
+log
+@update copyright to 2006
+@
+text
+@d30 1
+a30 2
+
+
+d33 1
+a33 1
+#include <string.h>
+d35 1
+a35 1
+#include <strings.h>
+d38 1
+@
+
+
+14.4
+log
+@trailing ws
+@
+text
+@d4 1
+a4 1
+ * Copyright (C) 2004-2005 United States Government as represented by
+@
+
+
+14.3
+log
+@update copyright to 2005
+@
+text
+@d26 1
+a26 1
+ *	
+d61 1
+a61 1
+matp_t trans_matrix = (matp_t)NULL; 
+d143 1
+a143 1
+	
+d401 1
+a401 1
+			    } 
+d469 1
+a469 1
+			    } 
+d505 1
+a505 1
+	
+d522 1
+a522 1
+	
+d554 1
+a554 1
+				
+d572 1
+a572 1
+			
+d632 1
+a632 1
+				mk_v_rpp(fd, wm_hd, 
+d697 1
+a697 1
+			mk_v_rpp(fd, wm_hd, 
+d703 1
+a703 1
+			mk_v_rpp(fd, wm_hd, 
+d712 1
+a712 1
+			
+d717 1
+a717 1
+				mk_v_rpp(fd, wm_hd, 
+d744 1
+a744 1
+		/* There is no top board capping the opening 
+d780 1
+a780 1
+	
+d782 1
+a782 1
+	
+d859 1
+a859 1
+		if (pos < WALL_WIDTH-bd_thin && 
+d882 1
+a882 1
+	
+d932 1
+a932 1
+	
+d936 1
+a936 1
+	mortar_width = WALL_WIDTH - 
+d983 1
+a983 1
+		
+d1034 1
+a1034 1
+	
+d1040 1
+a1040 1
+		
+@
+
+
+14.3.6.1
+log
+@merge changes from HEAD aka rel-7-6-4 to the rel-7-6-branch just in case someone peeks a gander or tries to continue/build the branch
+@
+text
+@d26 1
+a26 1
+ *
+d61 1
+a61 1
+matp_t trans_matrix = (matp_t)NULL;
+d143 1
+a143 1
+
+d401 1
+a401 1
+			    }
+d469 1
+a469 1
+			    }
+d505 1
+a505 1
+
+d522 1
+a522 1
+
+d554 1
+a554 1
+
+d572 1
+a572 1
+
+d632 1
+a632 1
+				mk_v_rpp(fd, wm_hd,
+d697 1
+a697 1
+			mk_v_rpp(fd, wm_hd,
+d703 1
+a703 1
+			mk_v_rpp(fd, wm_hd,
+d712 1
+a712 1
+
+d717 1
+a717 1
+				mk_v_rpp(fd, wm_hd,
+d744 1
+a744 1
+		/* There is no top board capping the opening
+d780 1
+a780 1
+
+d782 1
+a782 1
+
+d859 1
+a859 1
+		if (pos < WALL_WIDTH-bd_thin &&
+d882 1
+a882 1
+
+d932 1
+a932 1
+
+d936 1
+a936 1
+	mortar_width = WALL_WIDTH -
+d983 1
+a983 1
+
+d1034 1
+a1034 1
+
+d1040 1
+a1040 1
+
+@
+
+
+14.2
+log
+@GPL license changes
+@
+text
+@d4 2
+a5 2
+ * Copyright (c) 2004 United States Government as represented by the
+ * U.S. Army Research Laboratory.
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@d1 23
+a23 1
+/*	W A L L . C --- build a wall.
+@
+
+
+1.3
+log
+@USE_STRING_H is no more.. it's HAVE_STRING_H
+@
+text
+@d1096 10
+@
+
+
+1.2
+log
+@replace the wrapped config.h block with common.h
+@
+text
+@d11 1
+a11 1
+#ifdef USE_STRING_H
+@
+
+
+1.1
+log
+@Vast reorganization begins.  Sources moved from top-level directories into src/.
+@
+text
+@d6 1
+a6 3
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+@
+

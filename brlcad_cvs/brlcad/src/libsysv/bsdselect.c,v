@@ -1,0 +1,306 @@
+head	14.5;
+access;
+symbols
+	rel-7-10-4:14.5
+	STABLE:14.5.0.2
+	stable-branch:14.1
+	rel-7-10-2:14.5
+	rel-7-10-0:14.5
+	rel-7-8-4:14.3
+	rel-7-8-2:14.2
+	rel-7-8-0:14.2
+	trimnurbs-branch:14.2.0.8
+	help:14.2
+	temp_tag:14.2
+	bobWinPort-20051223-freeze:14.2
+	postmerge-20051223-bobWinPort:14.2
+	premerge-20051223-bobWinPort:14.2
+	rel-7-6-6:14.2
+	rel-7-6-4:14.2
+	rel-7-6-2:14.2
+	rel-7-6-branch:14.2.0.6
+	rel-7-6-0:14.2
+	rel-7-4-2:14.2
+	rel-7-4-branch:14.2.0.4
+	bobWinPort:14.2.0.2
+	rel-7-4-0:14.2
+	rel-7-2-6:14.2
+	rel-7-2-4:14.1
+	rel-7-2-2:14.1
+	rel-7-2-0:14.1
+	rel-7-0-4:14.1
+	rel-7-0-2:14.1
+	rel-7-0-1:14.1
+	opensource-post:14.1
+	opensource-pre:1.1
+	rel-7-0-branch:1.1.0.2
+	rel-7-0:1.1;
+locks; strict;
+comment	@ * @;
+
+
+14.5
+date	2007.02.18.19.11.46;	author brlcad;	state Exp;
+branches;
+next	14.4;
+
+14.4
+date	2007.02.18.19.05.31;	author brlcad;	state Exp;
+branches;
+next	14.3;
+
+14.3
+date	2006.07.10.18.09.50;	author brlcad;	state Exp;
+branches;
+next	14.2;
+
+14.2
+date	2005.05.22.06.46.37;	author brlcad;	state Exp;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.16;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.15.20.13;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.5
+log
+@ws
+@
+text
+@/*
+ *			B S D S E L E C T
+ *
+ *  Ordinarily, a stub for select() could have been implemented here,
+ *  but the IRIS defines a graphics library routine select().
+ *  On non-BSD systems, select() is a name likely to have been reused,
+ *  so this special interface has been created.  This also has the slight
+ *  advantage of centralizing the struct timeval stuff.
+ */
+#include "common.h"
+
+#ifdef HAVE_UNISTD_H
+#  include <unistd.h>
+#endif
+
+#ifdef HAVE_SYS_TYPES_H
+#  include <sys/types.h>	/* for fd_set macros */
+#endif
+#ifdef HAVE_SYS_TIME_H
+#  include <sys/time.h>	/* for struct timeval.  Includes <time.h> */
+#else
+#  include <time.h>
+#endif
+#if defined(sgi)
+#  if !defined(mips) || defined(SGI4D_Rel2)
+/* 3D systems, and Rel2 4D systems. */
+#    include <bsd/sys/types.h>
+#    include <bsd/sys/time.h>
+#  else
+/* Rel3 4D systems got it right */
+#    include <sys/types.h>
+#    include <sys/time.h>
+#  endif
+#endif
+#ifdef stellar
+#  include <sys/timeval.h>
+#endif
+
+#if defined(__sgi)
+#  define _BSD_TYPES		/* Needed for IRIX 5.0.1 */
+#  include <sys/types.h>
+#  include <sys/time.h>
+#endif
+
+/* The 4.3 BSD version */
+int
+bsdselect(long readfds, int sec, int us)
+{
+    fd_set	fdset;
+    int	width;
+    struct	timeval tv;
+    int	ret;
+
+    tv.tv_sec = sec;
+    tv.tv_usec = us;
+
+    if( (width = getdtablesize()) <= 0 )
+	width = 32;
+    FD_ZERO( &fdset );
+    fdset.fds_bits[0] = readfds;	/* peek inside! */
+
+    if( (ret = select( width, &fdset, (fd_set *)0, (fd_set *)0, &tv )) <= 0 )  {
+	if( ret < 0 )  perror("bsdselect/select");
+	return(0);		/* no bits ready */
+    }
+
+    readfds = fdset.fds_bits[0];
+    return( readfds );
+}
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+14.4
+log
+@deknrify the function
+@
+text
+@d26 1
+a26 1
+		/* 3D systems, and Rel2 4D systems. */
+d30 1
+a30 1
+		/* Rel3 4D systems got it right */
+d49 17
+a65 17
+	fd_set	fdset;
+	int	width;
+	struct	timeval tv;
+	int	ret;
+
+	tv.tv_sec = sec;
+	tv.tv_usec = us;
+
+	if( (width = getdtablesize()) <= 0 )
+		width = 32;
+	FD_ZERO( &fdset );
+	fdset.fds_bits[0] = readfds;	/* peek inside! */
+
+	if( (ret = select( width, &fdset, (fd_set *)0, (fd_set *)0, &tv )) <= 0 )  {
+		if( ret < 0 )  perror("bsdselect/select");
+		return(0);		/* no bits ready */
+	}
+d67 2
+a68 2
+	readfds = fdset.fds_bits[0];
+	return( readfds );
+@
+
+
+14.3
+log
+@update to 1990, assume basic bsd/posix conformance and availability of select.  get rid of BSD defines.
+@
+text
+@d46 2
+a47 2
+bsdselect( readfds, sec, us )
+long readfds;
+@
+
+
+14.2
+log
+@ws
+@
+text
+@d10 4
+a13 2
+#if __STDC__
+# include <unistd.h>
+d16 2
+a17 5
+#if defined(i386) && !defined(BSD)
+#	define BSD
+#endif
+#if defined(BSD)
+#	include <sys/types.h>	/* for fd_set macros */
+d19 2
+a20 2
+#if defined(BSD) || defined(CRAY) || defined(aux)
+#	include <sys/time.h>	/* for struct timeval.  Includes <time.h> */
+d22 1
+a22 1
+#	include <time.h>
+d25 1
+a25 1
+#	if !defined(mips) || defined(SGI4D_Rel2)
+d27 3
+a29 3
+#		include <bsd/sys/types.h>
+#		include <bsd/sys/time.h>
+#	else
+d31 3
+a33 3
+#		include <sys/types.h>
+#		include <sys/time.h>
+#	endif
+d36 1
+a36 1
+#	include <sys/timeval.h>
+d40 3
+a42 3
+#	define _BSD_TYPES		/* Needed for IRIX 5.0.1 */
+#	include <sys/types.h>
+#	include <sys/time.h>
+a44 1
+#ifdef FD_SET
+a69 24
+#else
+
+/* The old version */
+bsdselect( readfds, sec, us )
+long readfds;
+{
+#if defined(BSD) || defined(sgi) || defined(stellar) || defined(CRAY) || defined(__sgi) || defined(aux)
+	struct timeval tv;
+	int	ret;
+	long	mask;
+
+	tv.tv_sec = sec;
+	tv.tv_usec = us;
+	mask = readfds;
+	if( (ret = select( 32, &mask, 0L, 0L, &tv )) <= 0 )  {
+		if( ret < 0 )  perror("bsdselect/select");
+		return(0);	/* No bits ready */
+	}
+	return( mask );
+#else
+	return(32-1);	/* SYSV always has lots of input */
+#endif
+}
+#endif /* FD_SET */
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@d42 2
+a43 2
+#		include <sys/types.h>
+#		include <sys/time.h>
+@
+
+
+1.1
+log
+@Vast reorganization begins.  Sources moved from top-level directories into src/.
+@
+text
+@d96 10
+@
+

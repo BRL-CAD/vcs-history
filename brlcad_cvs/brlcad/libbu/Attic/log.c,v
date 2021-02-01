@@ -1,0 +1,1169 @@
+head	1.18;
+access;
+symbols
+	ansi-20040405-merged:1.15.2.2
+	postmerge-20040405-ansi:1.16
+	premerge-20040404-ansi:1.15
+	postmerge-autoconf:1.15
+	autoconf-freeze:1.15
+	premerge-autoconf:1.15
+	ansi-20040316-freeze:1.15.2.1
+	postmerge-20040315-windows:1.15
+	premerge-20040315-windows:1.15
+	windows-20040315-freeze:1.15
+	autoconf-20031203:1.15
+	autoconf-20031202:1.15
+	autoconf-branch:1.15.0.10
+	phong-branch:1.15.0.8
+	photonmap-branch:1.15.0.6
+	rel-6-1-DP:1.15
+	windows-branch:1.15.0.4
+	rel-6-0-2:1.13
+	ansi-branch:1.15.0.2
+	rel-6-0-1-branch:1.13.0.2
+	hartley-6-0-post:1.14
+	hartley-6-0-pre:1.13
+	rel-6-0-1:1.13
+	rel-6-0:1.13
+	rel-5-4:1.9
+	offsite-5-3-pre:1.12
+	rel-5-3:1.9
+	rel-5-2:1.9
+	rel-5-1-branch:1.9.0.2
+	rel-5-1:1.9
+	rel-5-0:1.8
+	rel-5-0-beta:1.7
+	rel-4-5:1.6
+	ctj-4-5-post:1.5
+	ctj-4-5-pre:1.5;
+locks; strict;
+comment	@ * @;
+
+
+1.18
+date	2004.05.21.18.06.24;	author morrison;	state dead;
+branches;
+next	1.17;
+
+1.17
+date	2004.05.10.15.30.44;	author erikg;	state Exp;
+branches;
+next	1.16;
+
+1.16
+date	2004.04.05.07.46.16;	author morrison;	state Exp;
+branches;
+next	1.15;
+
+1.15
+date	2002.08.20.17.07.40;	author jra;	state Exp;
+branches
+	1.15.2.1;
+next	1.14;
+
+1.14
+date	2002.08.15.20.54.53;	author hartley;	state Exp;
+branches;
+next	1.13;
+
+1.13
+date	2001.04.20.22.29.06;	author morrison;	state Exp;
+branches;
+next	1.12;
+
+1.12
+date	2000.09.11.17.27.53;	author bparker;	state Exp;
+branches;
+next	1.11;
+
+1.11
+date	2000.09.08.14.20.34;	author bparker;	state Exp;
+branches;
+next	1.10;
+
+1.10
+date	2000.07.07.05.21.21;	author cjohnson;	state Exp;
+branches;
+next	1.9;
+
+1.9
+date	2000.03.28.19.13.19;	author mike;	state Exp;
+branches;
+next	1.8;
+
+1.8
+date	99.07.02.19.05.57;	author mike;	state Exp;
+branches;
+next	1.7;
+
+1.7
+date	98.12.28.21.53.57;	author mike;	state Exp;
+branches;
+next	1.6;
+
+1.6
+date	97.11.22.02.58.26;	author mike;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	96.11.28.08.04.12;	author mike;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	96.08.28.18.37.26;	author bparker;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	96.08.28.05.40.19;	author mike;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	96.08.28.04.26.27;	author mike;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	96.08.27.06.18.33;	author mike;	state Exp;
+branches;
+next	;
+
+1.15.2.1
+date	2002.09.19.18.01.12;	author morrison;	state Exp;
+branches;
+next	1.15.2.2;
+
+1.15.2.2
+date	2004.04.05.00.50.06;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@log.c
+@
+
+
+1.18
+log
+@moved to src/
+@
+text
+@/*
+ *			L O G . C
+ *
+ *  BRL-CAD support library, error logging routine.
+ *  Note that the user may provide his own logging routine,
+ *  by replacing these functions.  That is why this is in file of it's own.
+ *  For example, LGT and RTSRV take advantage of this.
+ *
+ *  Primary Functions (replacements MUST implement all these) -
+ *	bu_log			Called to log library events.
+ *	bu_log_indent_delta	Change global indentation level
+ *	bu_log_indent_vls	Apply indentation level (used by librt/pr.c)
+ *
+ *  Specialty Functions -
+ *	bu_log_add_hook		Start catching log events (used by mged/cmd.c)
+ *	bu_log_delete_hook
+ *	bu_putchar
+ *
+ *  Authors -
+ *	Michael John Muuss
+ *	Glenn Durfee
+ *  
+ *  Source -
+ *	The U. S. Army Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005-5068  USA
+ *  
+ *  Distribution Status -
+ *	Public Domain, Distribution Unlimited.
+ */
+#ifndef lint
+static const char RCSlog[] = "@@(#)$Header: /n/xoff/cvs/brlcad/libbu/log.c,v 1.17 2004/05/10 15:30:44 erikg Exp $ (ARL)";
+#endif
+
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+
+#include <stdio.h>
+#include <ctype.h>
+#if defined(HAVE_STDARG_H)
+# include <stdarg.h>
+#else
+#  if defined(HAVE_VARARGS_H)
+#    include <varargs.h>
+#  endif
+#endif
+
+#include "machine.h"
+#include "externs.h"
+#include "bu.h"
+
+#if defined(HAVE_VARARGS_H) || defined(HAVE_STDARG_H)
+BU_EXTERN(void	bu_vls_vprintf, (struct bu_vls *vls, const char *fmt, va_list ap));
+#endif
+
+static int	bu_log_indent_cur_level = 0; /* formerly rt_g.rtg_logindent */
+/*
+ *			B U _ L O G _ I N D E N T _ D E L T A
+ *
+ *  Change indentation level by indicated number of characters.
+ *  Call with a large negative number to cancel all indentation.
+ */
+void
+bu_log_indent_delta(int delta)
+{
+	if( (bu_log_indent_cur_level += delta) < 0 )
+		bu_log_indent_cur_level = 0;
+}
+
+/*
+ *			B U _ L O G _ I N D E N T _ V L S
+ *
+ *  For multi-line vls generators, honor logindent level like bu_log() does,
+ *  and prefix the proper number of spaces.
+ *  Should be called at the front of each new line.
+ */
+void
+bu_log_indent_vls(struct bu_vls *v)
+{
+	bu_vls_spaces( v, bu_log_indent_cur_level );
+}
+
+#if 1
+struct bu_hook_list bu_log_hook_list = {
+	{	BU_LIST_HEAD_MAGIC, 
+		&bu_log_hook_list.l, 
+		&bu_log_hook_list.l
+	}, 
+	BUHOOK_NULL,
+	GENPTR_NULL
+};
+#else
+struct bu_hook_list bu_log_hook_list;
+#endif
+
+static int bu_log_first_time = 1;
+static int bu_log_hooks_called = 0;
+
+/*
+ *			B U _ L O G _ A D D _ H O O K
+ *
+ *  Adds a hook to the list of bu_log hooks.  The top (newest) one of these
+ *  will be called with its associated client data and a string to be
+ *  processed.  Typcially, these hook functions will display the output
+ *  (possibly in an X window) or record it.
+ *
+ *  XXX The hook functions are all non-PARALLEL.
+ */
+
+void
+bu_log_add_hook(bu_hook_t func, genptr_t clientdata)
+{
+#if 0
+    struct bu_hook_list *toadd;
+
+    /* Grab a hunk of memory for a new node, and put it at the head of the
+       list */
+
+    BU_GETSTRUCT(toadd, bu_hook_list);
+    toadd->hookfunc = func;
+    toadd->clientdata = clientdata;
+    toadd->l.magic = BUHOOK_LIST_MAGIC;
+
+    BU_LIST_APPEND( &(bu_log_hook_list.l), &(toadd->l) );
+#else
+    bu_add_hook(&bu_log_hook_list, func, clientdata);
+#endif
+}
+
+
+/*
+ *			B U _ L O G _ D E L E T E _ H O O K
+ *
+ *  Removes the hook matching the function and clientdata parameters from
+ *  the hook list.  Note that it is not necessarily the active (top) hook.
+ */
+void
+bu_log_delete_hook(bu_hook_t func, genptr_t clientdata)
+{
+#if 0
+    struct bu_hook_list *cur = &bu_log_hook_list;
+
+    for ( BU_LIST_FOR( cur, bu_hook_list, &(bu_log_hook_list.l) ) ) {
+        if ( cur->hookfunc == func && cur->clientdata == clientdata) {
+	    struct bu_hook_list *old = BU_LIST_PLAST(bu_hook_list, cur);
+	    BU_LIST_DEQUEUE( &(cur->l) );
+	    bu_free((genptr_t)cur, "bu_log hook");
+	    cur = old;
+	}
+    }    
+#else
+    bu_delete_hook(&bu_log_hook_list, func, clientdata);
+#endif
+}
+
+#if 1
+HIDDEN void
+bu_log_call_hooks(genptr_t buf)
+{
+#if 0
+    bu_hook_t hookfunc;		/* for clarity */
+    genptr_t clientdata;
+#endif
+
+    bu_log_hooks_called = 1;
+
+#if 0
+    hookfunc = BU_LIST_FIRST(bu_hook_list, &(bu_log_hook_list.l))->hookfunc;
+    clientdata = BU_LIST_FIRST(bu_hook_list, &(bu_log_hook_list.l))->clientdata;
+
+    (hookfunc)( clientdata, buf);
+#else
+    bu_call_hook(&bu_log_hook_list, buf);
+#endif
+
+    bu_log_hooks_called = 0;
+}
+#endif
+
+/*
+ *			B U _ L O G _ D O _ I N D E N T _ L E V E L
+ *
+ *  This subroutine is used to append bu_log_indent_cur_level spaces
+ *  into a printf() format specifier string, after each newline
+ *  character is encountered.
+ *  It exists primarily for bu_shootray() to affect the indentation
+ *  level of all messages at that recursion level, even if the calls
+ *  to bu_log come from non-librt routines.
+ */
+
+HIDDEN void
+bu_log_do_indent_level(struct bu_vls *new, register char *old)
+{
+    register int i;
+
+    while (*old) {
+	bu_vls_putc(new, (int)(*old));
+	if (*old == '\n') {
+	    i = bu_log_indent_cur_level;
+	    while (i-- > 0)
+		bu_vls_putc(new, ' ');
+	}
+	++old;
+    }
+}
+
+/*
+ *			B U _ P U T C H A R
+ *
+ * Log a single character with no flushing.
+ */
+
+void
+bu_putchar(int c)
+{
+    if ( BU_LIST_IS_EMPTY( &(bu_log_hook_list.l) ) ) {
+	fputc(c, stderr);
+    } else {
+	char buf[2];
+	buf[0] = (char)c;
+	buf[1] = '\0';
+#if 1
+	bu_log_call_hooks(buf);
+#else
+	bu_call_hook(&bu_log_hook_list, (genptr_t)buf);
+#endif
+    }
+
+    if (bu_log_indent_cur_level > 0 && c == '\n') {
+	int i;
+
+	i = bu_log_indent_cur_level;
+	while (i-- > 0)
+	    bu_putchar(' ');
+    }
+}
+
+/*
+ *  			B U _ L O G
+ *  
+ *  Log a library event in the Standard way.
+ */
+void
+#if defined(HAVE_STDARG_H)
+bu_log(char *fmt, ...)                      /* ANSI C */
+{
+    va_list ap;
+#else
+#  if defined(HAVE_VARARGS_H)
+bu_log(va_alist)                            /* VARARGS */
+va_dcl
+{
+    va_list ap;
+    char *fmt;
+#  else
+bu_log(fmt, a,b,c,d,e,f,g,h,i,j)            /* Cray XMP */
+char *fmt;
+{
+#  endif
+#endif
+
+    struct bu_vls output;
+
+    bu_vls_init(&output);
+
+#if defined(HAVE_STDARG_H)                  /* ANSI C */
+    va_start(ap, fmt);
+    if (bu_log_indent_cur_level > 0) {
+	struct bu_vls newfmt;
+
+	bu_vls_init(&newfmt);
+	bu_log_do_indent_level(&newfmt, fmt);
+	bu_vls_vprintf(&output, bu_vls_addr(&newfmt), ap);
+	bu_vls_free(&newfmt);
+    } else {
+	bu_vls_vprintf(&output, fmt, ap);   /* VARARGS */
+    }
+#else
+#  if defined(HAVE_VARARGS_H)
+    va_start(ap);
+    fmt = va_arg(ap, char *);
+    if (bu_log_indent_cur_level > 0) {
+	struct bu_vls newfmt;
+
+	bu_vls_init(&newfmt);
+	bu_log_do_indent_level(&newfmt, fmt);
+	bu_vls_vprintf(&output, bu_vls_addr(&newfmt), ap);
+	bu_vls_free(&newfmt);
+    } else {
+	bu_vls_vprintf(&output, fmt, ap);
+    }
+#  else                                     /* Cray XMP */
+    if (bu_log_indent_cur_level > 0) {
+	struct bu_vls newfmt;
+
+	bu_vls_init(&newfmt);
+	bu_log_do_indent_level(&newfmt, fmt);
+	bu_vls_printf(&output, bu_vls_addr(&newfmt), a,b,c,d,e,f,g,h,i,j);
+	bu_vls_free(&newfmt);
+    } else {
+	bu_vls_printf(&output, fmt, a,b,c,d,e,f,g,h,i,j);
+    }
+#  endif
+#endif
+    
+    if ( BU_LIST_IS_EMPTY( &(bu_log_hook_list.l) )  || bu_log_hooks_called) {
+    	int ret;
+	size_t len;
+
+	if (bu_log_first_time) {
+	    bu_setlinebuf(stderr);
+	    bu_log_first_time = 0;
+	}
+
+	len = bu_vls_strlen(&output);
+	if(len){
+	  bu_semaphore_acquire(BU_SEM_SYSCALL);
+	  ret = fwrite( bu_vls_addr(&output), len, 1, stderr );
+	  (void)fflush(stderr);
+	  bu_semaphore_release(BU_SEM_SYSCALL);
+	  if( ret != 1 )  bu_bomb("bu_log: write error");
+	}
+
+    } else {
+#if 1
+	    bu_log_call_hooks(bu_vls_addr(&output));
+#else
+	    bu_call_hook(&bu_log_hook_list, (genptr_t)bu_vls_addr(&output));
+#endif
+    }
+
+#if defined(HAVE_STDARG_H) || defined(HAVE_VARARGS_H)
+    va_end(ap);
+#endif
+
+    bu_vls_free(&output);
+}
+
+/*
+ *  			B U _ F L O G
+ *  
+ *  Log a library event in the Standard way, to a specified file.
+ */
+void
+#if defined(HAVE_STDARG_H)
+bu_flog(FILE *fp, char *fmt, ...)                      /* ANSI C */
+{
+    va_list ap;
+#else
+#  if defined(HAVE_VARARGS_H)
+bu_flog(va_alist)                            /* VARARGS */
+va_dcl
+{
+    va_list ap;
+    FILE *fp;
+    char *fmt;
+#  else
+bu_flog(fp, fmt, a,b,c,d,e,f,g,h,i,j)            /* Cray XMP */
+FILE *fp;
+char *fmt;
+{
+#  endif
+#endif
+
+    struct bu_vls output;
+
+    bu_vls_init(&output);
+
+#if defined(HAVE_STDARG_H)                  /* ANSI C */
+    va_start(ap, fmt);
+    if (bu_log_indent_cur_level > 0) {
+	struct bu_vls newfmt;
+
+	bu_vls_init(&newfmt);
+	bu_log_do_indent_level(&newfmt, fmt);
+	bu_vls_vprintf(&output, bu_vls_addr(&newfmt), ap);
+	bu_vls_free(&newfmt);
+    } else {
+	bu_vls_vprintf(&output, fmt, ap);   /* VARARGS */
+    }
+#else
+#  if defined(HAVE_VARARGS_H)
+    va_start(ap);
+    fp = va_arg(ap, FILE *);
+    fmt = va_arg(ap, char *);
+    if (bu_log_indent_cur_level > 0) {
+	struct bu_vls newfmt;
+
+	bu_vls_init(&newfmt);
+	bu_log_do_indent_level(&newfmt, fmt);
+	bu_vls_vprintf(&output, bu_vls_addr(&newfmt), ap);
+	bu_vls_free(&newfmt);
+    } else {
+	bu_vls_vprintf(&output, fmt, ap);
+    }
+#  else                                     /* Cray XMP */
+    if (bu_log_indent_cur_level > 0) {
+	struct bu_vls newfmt;
+
+	bu_vls_init(&newfmt);
+	bu_log_do_indent_level(&newfmt, fmt);
+	bu_vls_printf(&output, bu_vls_addr(&newfmt), a,b,c,d,e,f,g,h,i,j);
+	bu_vls_free(&newfmt);
+    } else {
+	bu_vls_printf(&output, fmt, a,b,c,d,e,f,g,h,i,j);
+    }
+#  endif
+#endif
+    
+    if ( BU_LIST_IS_EMPTY( &(bu_log_hook_list.l) ) || bu_log_hooks_called) {
+    	int ret;
+	size_t len;
+
+	len = bu_vls_strlen(&output);
+	if(len){
+	  bu_semaphore_acquire(BU_SEM_SYSCALL);
+	  ret = fwrite( bu_vls_addr(&output), len, 1, fp );
+	  bu_semaphore_release(BU_SEM_SYSCALL);
+	  if( ret != 1 )  bu_bomb("bu_flog: write error");
+	}
+
+    } else {
+#if 1
+	    bu_log_call_hooks(bu_vls_addr(&output));
+#else
+	    bu_call_hook(&bu_log_hook_list, (genptr_t)bu_vls_addr(&output));
+#endif
+    }
+
+#if defined(HAVE_STDARG_H) || defined(HAVE_VARARGS_H)
+    va_end(ap);
+#endif
+
+    bu_vls_free(&output);
+}
+@
+
+
+1.17
+log
+@change conf.h to a wrapped config.h
+@
+text
+@d31 1
+a31 1
+static const char RCSlog[] = "@@(#)$Header: /cvs/brlcad/libbu/log.c,v 1.16 2004/04/05 07:46:16 morrison Exp $ (ARL)";
+@
+
+
+1.16
+log
+@merge of ansi-6-0-branch into HEAD
+@
+text
+@d31 1
+a31 1
+static const char RCSlog[] = "@@(#)$Header$ (ARL)";
+d34 5
+a38 1
+#include "conf.h"
+@
+
+
+1.15
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d31 1
+a31 1
+static const char RCSlog[] = "@@(#)$Header: /c/CVS/brlcad/libbu/log.c,v 1.13 2001/04/20 22:29:06 morrison Exp $ (ARL)";
+d62 1
+a62 2
+bu_log_indent_delta( delta )
+int	delta;
+d76 1
+a76 2
+bu_log_indent_vls( v )
+struct bu_vls	*v;
+d109 1
+a109 3
+bu_log_add_hook( func, clientdata )
+bu_hook_t func;
+genptr_t clientdata;
+d136 1
+a136 3
+bu_log_delete_hook( func, clientdata )
+bu_hook_t func;
+genptr_t clientdata;
+d156 1
+a156 2
+bu_log_call_hooks( buf )
+genptr_t	buf;
+d190 1
+a190 3
+bu_log_do_indent_level( new, old )
+struct bu_vls *new;
+register char *old;
+d212 1
+a212 2
+bu_putchar( c )
+int c;
+d306 1
+a306 1
+	int len;
+d410 1
+a410 1
+	int len;
+@
+
+
+1.15.2.1
+log
+@Initial ANSIfication
+@
+text
+@d31 1
+a31 1
+static const char RCSlog[] = "@@(#)$Header: /c/CVS/brlcad/libbu/log.c,v 1.15 2002/08/20 17:07:40 jra Exp $ (ARL)";
+d62 2
+a63 1
+bu_log_indent_delta(int delta)
+d77 2
+a78 1
+bu_log_indent_vls(struct bu_vls *v)
+d111 3
+a113 1
+bu_log_add_hook(bu_hook_t func, genptr_t clientdata)
+d140 3
+a142 1
+bu_log_delete_hook(bu_hook_t func, genptr_t clientdata)
+d162 2
+a163 1
+bu_log_call_hooks(genptr_t buf)
+d197 3
+a199 1
+bu_log_do_indent_level(struct bu_vls *new, register char *old)
+d221 2
+a222 1
+bu_putchar(int c)
+@
+
+
+1.15.2.2
+log
+@more quelling of lots of warnings
+@
+text
+@d31 1
+a31 1
+static const char RCSlog[] = "@@(#)$Header: /n/cad/c/CVS/brlcad/libbu/log.c,v 1.15.2.1 2002/09/19 18:01:12 morrison Exp $ (ARL)";
+d306 1
+a306 1
+	size_t len;
+d410 1
+a410 1
+	size_t len;
+@
+
+
+1.14
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d62 2
+a63 1
+bu_log_indent_delta(int delta)
+d77 2
+a78 1
+bu_log_indent_vls(struct bu_vls *v)
+d111 3
+a113 1
+bu_log_add_hook(bu_hook_t func, genptr_t clientdata)
+d140 3
+a142 1
+bu_log_delete_hook(bu_hook_t func, genptr_t clientdata)
+d162 2
+a163 1
+bu_log_call_hooks(genptr_t buf)
+d197 3
+a199 1
+bu_log_do_indent_level(struct bu_vls *new, register char *old)
+d221 2
+a222 1
+bu_putchar(int c)
+@
+
+
+1.13
+log
+@CONST to const
+@
+text
+@d31 1
+a31 1
+static const char RCSlog[] = "@@(#)$Header: /c/CVS/brlcad/libbu/log.c,v 1.12 2000/09/11 17:27:53 bparker Exp $ (ARL)";
+d62 1
+a62 2
+bu_log_indent_delta( delta )
+int	delta;
+d76 1
+a76 2
+bu_log_indent_vls( v )
+struct bu_vls	*v;
+d109 1
+a109 3
+bu_log_add_hook( func, clientdata )
+bu_hook_t func;
+genptr_t clientdata;
+d136 1
+a136 3
+bu_log_delete_hook( func, clientdata )
+bu_hook_t func;
+genptr_t clientdata;
+d156 1
+a156 2
+bu_log_call_hooks( buf )
+genptr_t	buf;
+d190 1
+a190 3
+bu_log_do_indent_level( new, old )
+struct bu_vls *new;
+register char *old;
+d212 1
+a212 2
+bu_putchar( c )
+int c;
+@
+
+
+1.12
+log
+@Resume using bu_log_call_hooks as it makes
+use of the global variable bu_log_hooks_called.
+@
+text
+@d31 1
+a31 1
+static const char RCSlog[] = "@@(#)$Header: /c/CVS/brlcad/libbu/log.c,v 1.11 2000/09/08 14:20:34 bparker Exp $ (ARL)";
+d51 1
+a51 1
+BU_EXTERN(void	bu_vls_vprintf, (struct bu_vls *vls, CONST char *fmt, va_list ap));
+@
+
+
+1.11
+log
+@Use routines in libbu/hook.c
+@
+text
+@d31 1
+a31 1
+static const char RCSlog[] = "@@(#)$Header: /c/CVS/brlcad/libbu/log.c,v 1.10 2000/07/07 05:21:21 cjohnson Exp $ (ARL)";
+d160 1
+a160 1
+#if 0
+d230 1
+a230 1
+#if 0
+d333 1
+a333 1
+#if 0
+d431 1
+a431 1
+#if 0
+@
+
+
+1.10
+log
+@LINT plus minor bug fix in bu_tcl.c
+@
+text
+@d31 1
+a31 1
+static const char RCSlog[] = "@@(#)$Header: /c/CVS/brlcad/libbu/log.c,v 1.9 2000/03/28 19:13:19 mike Exp $ (ARL)";
+d83 2
+a84 8
+
+struct bu_hook_list {
+	struct bu_list	l;
+	bu_hook_t	hookfunc;
+	genptr_t 	clientdata;
+};
+
+static struct bu_hook_list bu_log_hook_list = {
+d92 3
+a94 3
+
+#define BUHOOK_LIST_MAGIC	0x90d5dead	/* Nietzsche? */
+#define BUHOOK_LIST_NULL	((struct bu_hook_list *) 0)
+d115 1
+d127 3
+d144 1
+d155 3
+d160 1
+d165 1
+d168 1
+d172 1
+d177 3
+d183 1
+d230 1
+d232 3
+d333 5
+a337 1
+	bu_log_call_hooks(bu_vls_addr(&output));
+d431 5
+a435 1
+	bu_log_call_hooks(bu_vls_addr(&output));
+@
+
+
+1.9
+log
+@
+extern for bu_vls_vprintf()
+@
+text
+@d31 1
+a31 1
+static char RCSlog[] = "@@(#)$Header: /c/CVS/brlcad/libbu/log.c,v 1.8 1999/07/02 19:05:57 mike Exp $ (ARL)";
+@
+
+
+1.8
+log
+@
+Removed dependency on compat4.h
+@
+text
+@d31 1
+a31 1
+static char RCSlog[] = "@@(#)$Header: /c/CVS/brlcad/libbu/log.c,v 1.7 1998/12/28 21:53:57 mike Exp $ (ARL)";
+d49 4
+@
+
+
+1.7
+log
+@Modified routine names to start with bu_log where appropriate.
+@
+text
+@d31 1
+a31 1
+static char RCSlog[] = "@@(#)$Header: /c/CVS/brlcad/libbu/log.c,v 1.6 1997/11/22 02:58:26 mike Exp $ (ARL)";
+d81 1
+a81 1
+	struct rt_list	l;
+d87 1
+a87 1
+	{	RT_LIST_HEAD_MAGIC, 
+d122 1
+a122 1
+    GETSTRUCT(toadd, bu_hook_list);
+d127 1
+a127 1
+    RT_LIST_APPEND( &(bu_log_hook_list.l), &(toadd->l) );
+d144 1
+a144 1
+    for ( RT_LIST_FOR( cur, bu_hook_list, &(bu_log_hook_list.l) ) ) {
+d146 2
+a147 2
+	    struct bu_hook_list *old = RT_LIST_PLAST(bu_hook_list, cur);
+	    RT_LIST_DEQUEUE( &(cur->l) );
+d163 2
+a164 2
+    hookfunc = RT_LIST_FIRST(bu_hook_list, &(bu_log_hook_list.l))->hookfunc;
+    clientdata = RT_LIST_FIRST(bu_hook_list, &(bu_log_hook_list.l))->clientdata;
+d210 1
+a210 1
+    if ( RT_LIST_IS_EMPTY( &(bu_log_hook_list.l) ) ) {
+d296 1
+a296 1
+    if ( RT_LIST_IS_EMPTY( &(bu_log_hook_list.l) )  || bu_log_hooks_called) {
+d396 1
+a396 1
+    if ( RT_LIST_IS_EMPTY( &(bu_log_hook_list.l) ) || bu_log_hooks_called) {
+@
+
+
+1.6
+log
+@Initialized global variables to zero, for safety sake.  (Irix 6.4 paranoia)
+@
+text
+@d6 1
+a6 1
+ *  by replacing this function.  That is why it is in file of it's own.
+d9 4
+a12 2
+ *  Functions -
+ *	bu_log		Called to log library events.
+d14 5
+d31 1
+a31 1
+static char RCSlog[] = "@@(#)$Header: /m/cad/libbu/RCS/log.c,v 1.5 1996/11/28 08:04:12 mike Exp $ (ARL)";
+d50 1
+a50 1
+static int	bu_indent_cur_level = 0; /* formerly rt_g.rtg_logindent */
+d61 2
+a62 2
+	if( (bu_indent_cur_level += delta) < 0 )
+		bu_indent_cur_level = 0;
+d76 1
+a76 1
+	bu_vls_spaces( v, bu_indent_cur_level );
+d80 1
+a80 1
+static struct bu_hook_list {
+d84 3
+a86 1
+} bu_log_hook_list = {
+d102 1
+a102 1
+ *			B U _ A D D _ H O O K
+d113 1
+a113 1
+bu_add_hook( func, clientdata )
+d122 1
+a122 2
+    toadd = (struct bu_hook_list *)bu_malloc(sizeof(struct bu_hook_list),
+					    "bu_log hook");
+d132 1
+a132 1
+ *			B U _ D E L E T E _ H O O K
+d138 1
+a138 1
+bu_delete_hook( func, clientdata )
+d155 1
+a155 1
+bu_call_hooks( buf )
+d172 1
+a172 1
+ *			B U _ I N D E N T _ L E V E L
+d174 1
+a174 1
+ *  This subroutine is used to append bu_indent_cur_level spaces
+d183 1
+a183 1
+bu_indent_level( new, old )
+d192 1
+a192 1
+	    i = bu_indent_cur_level;
+d216 1
+a216 1
+	bu_call_hooks(buf);
+d219 1
+a219 1
+    if (bu_indent_cur_level > 0 && c == '\n') {
+d222 1
+a222 1
+	i = bu_indent_cur_level;
+d258 1
+a258 1
+    if (bu_indent_cur_level > 0) {
+d262 1
+a262 1
+	bu_indent_level(&newfmt, fmt);
+d272 1
+a272 1
+    if (bu_indent_cur_level > 0) {
+d276 1
+a276 1
+	bu_indent_level(&newfmt, fmt);
+d283 1
+a283 1
+    if (bu_indent_cur_level > 0) {
+d287 1
+a287 1
+	bu_indent_level(&newfmt, fmt);
+d315 1
+a315 1
+	bu_call_hooks(bu_vls_addr(&output));
+d357 1
+a357 1
+    if (bu_indent_cur_level > 0) {
+d361 1
+a361 1
+	bu_indent_level(&newfmt, fmt);
+d372 1
+a372 1
+    if (bu_indent_cur_level > 0) {
+d376 1
+a376 1
+	bu_indent_level(&newfmt, fmt);
+d383 1
+a383 1
+    if (bu_indent_cur_level > 0) {
+d387 1
+a387 1
+	bu_indent_level(&newfmt, fmt);
+d409 1
+a409 1
+	bu_call_hooks(bu_vls_addr(&output));
+@
+
+
+1.5
+log
+@Added bu_vls_spaces()
+@
+text
+@d24 1
+a24 1
+static char RCSlog[] = "@@(#)$Header: /m/cad/libbu/RCS/log.c,v 1.4 1996/08/28 18:37:26 bparker Exp mike $ (ARL)";
+d43 1
+a43 1
+static int	bu_indent_cur_level;	/* formerly rt_g.rtg_logindent */
+@
+
+
+1.4
+log
+@Check length of string before calling fwrite within bu_log and
+bu_flog. If length is zero then don't call fwrite because the
+return value will not be nitems.
+@
+text
+@d24 1
+a24 1
+static char RCSlog[] = "@@(#)$Header: /m/cad/libbu/RCS/log.c,v 1.3 1996/08/28 05:40:19 mike Exp bparker $ (ARL)";
+d69 1
+a69 12
+	register int	i, todo;
+	static CONST char	spaces[65] = "                                                                ";
+
+	BU_CK_VLS( v );
+
+	i = bu_indent_cur_level;
+	while( i > 0 )  {
+		todo = i;
+		if( todo > 64 )  todo = 64;
+		bu_vls_strncat( v, spaces, todo );
+		i -= todo;
+	}
+@
+
+
+1.3
+log
+@Oops, didn't write out newlines.
+@
+text
+@d24 1
+a24 1
+static char RCSlog[] = "@@(#)$Header: /m/cad/libbu/RCS/log.c,v 1.2 1996/08/28 04:26:27 mike Exp mike $ (ARL)";
+d301 2
+d308 8
+a315 5
+    	bu_semaphore_acquire(BU_SEM_SYSCALL);
+    	ret = fwrite( bu_vls_addr(&output), bu_vls_strlen(&output), 1, stderr );
+	(void)fflush(stderr);
+    	bu_semaphore_release(BU_SEM_SYSCALL);
+    	if( ret != 1 )  bu_bomb("bu_log: write error");
+d401 9
+a409 4
+    	bu_semaphore_acquire(BU_SEM_SYSCALL);
+    	ret = fwrite( bu_vls_addr(&output), bu_vls_strlen(&output), 1, fp );
+    	bu_semaphore_release(BU_SEM_SYSCALL);
+    	if( ret != 1 )  bu_bomb("bu_flog: write error");
+@
+
+
+1.2
+log
+@Added error checking.
+@
+text
+@d24 1
+a24 1
+static char RCSlog[] = "@@(#)$Header: /m/cad/libbu/RCS/log.c,v 1.1 1996/08/27 06:18:33 mike Exp mike $ (ARL)";
+d307 1
+a307 1
+    	ret = fwrite( bu_vls_addr(&output), bu_vls_strlen(&output)-1, 1, stderr );
+d397 1
+a397 1
+    	ret = fwrite( bu_vls_addr(&output), bu_vls_strlen(&output)-1, 1, fp );
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d24 1
+a24 1
+static char RCSlog[] = "@@(#)$Header$ (ARL)";
+d300 1
+d302 1
+a302 1
+	    port_setlinebuf(stderr);
+d307 1
+a307 1
+	(void)fputs(bu_vls_addr(&output), stderr);
+d310 1
+d326 1
+a326 1
+ *  Log a library event in the Standard way.
+d395 1
+a395 5
+	if (bu_log_first_time) {
+	    port_setlinebuf(fp);
+	    bu_log_first_time = 0;
+	}
+
+d397 1
+a397 2
+	(void)fputs(bu_vls_addr(&output), fp);
+	(void)fflush(fp);
+d399 1
+@

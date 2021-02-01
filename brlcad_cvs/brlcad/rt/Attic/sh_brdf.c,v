@@ -1,0 +1,591 @@
+head	1.11;
+access;
+symbols
+	rel-4-5:1.9
+	ctj-4-5-post:1.6
+	ctj-4-5-pre:1.6;
+locks; strict;
+comment	@ * @;
+
+
+1.11
+date	98.09.22.01.43.10;	author mike;	state dead;
+branches;
+next	1.10;
+
+1.10
+date	98.06.30.22.54.17;	author mike;	state Exp;
+branches;
+next	1.9;
+
+1.9
+date	97.12.31.09.01.40;	author mike;	state Exp;
+branches;
+next	1.8;
+
+1.8
+date	97.11.25.22.18.44;	author butler;	state Exp;
+branches;
+next	1.7;
+
+1.7
+date	97.11.25.22.16.43;	author butler;	state Exp;
+branches;
+next	1.6;
+
+1.6
+date	96.08.31.08.46.01;	author butler;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	96.08.31.08.29.28;	author butler;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	96.08.30.00.08.21;	author butler;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	96.07.12.14.59.48;	author jra;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	96.06.25.20.43.46;	author jra;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	96.05.22.17.34.07;	author jra;	state Exp;
+branches;
+next	;
+
+
+desc
+@Simple Isotropic Gaussian model with just one parameter (RMS slope).
+@
+
+
+1.11
+log
+@Moved sh_*.c shaders from rt/ to liboptical/ directory.
+Moved and split rt/material.h into h/shadefuncs.h and h/shadework.h
+Changed calling sequence of mlib_setup() to get shader list head explicitly.
+Initialization of shader library is now via optical_shader_init().
+
+Note that the "proper" location of shade.c, material.c, and refract.c
+(presently in the rt/ directory) are a bit muddled, as they will be
+shared with libmultispectral/ shader functions, but aren't quite
+wholesome and pure yet.  To minimize impact to Lee's ongoing shader
+developments, they haven't been changed.
+@
+text
+@/*
+ *			B R D F
+ *
+ *  Simple Isotropic Gaussian model with just one parameter (RMS slope).
+ *
+ *  Notes -
+ *	The normals on all surfaces point OUT of the solid.
+ *	The incoming light rays point IN.
+ *
+ *  Authors -
+ *	John R. Anderson
+ *  
+ *  Source -
+ *	The U. S. Army Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005-5066
+ *  
+ *  Distribution Notice -
+ *	Re-distribution of this software is restricted, as described in
+ *	your "Statement of Terms and Conditions for the Release of
+ *	The BRL-CAD Pacakge" agreement.
+ *
+ *  Copyright Notice -
+ *	This software is Copyright (C) 1996 by the United States Army
+ *	in all countries except the USA.  All rights reserved.
+ *
+ *	Based on the simple Isotropic Gaussian Model presented by Gregory Ward
+ *	in "Measuring and Modeling Anisotropic Reflection" (Which also references
+ *	earlier work by Beckmann, Torrance, and Cook).
+ */
+#ifndef lint
+static char RCSbrdf[] = "@@(#)$Header: /c/CVS/brlcad/rt/sh_brdf.c,v 1.10 1998/06/30 22:54:17 mike Exp mike $ (BRL)";
+#endif
+
+#include "conf.h"
+
+#include <stdio.h>
+#include <math.h>
+#include "machine.h"
+#include "vmath.h"
+#include "mater.h"
+#include "raytrace.h"
+#include "./rdebug.h"
+#include "./material.h"
+#include "./light.h"
+
+/* from view.c */
+extern double AmbientIntensity;
+
+/* Local information */
+struct brdf_specific {
+	int	magic;
+	double	specular_refl;	/* specular reflectance */
+	double	diffuse_refl;	/* diffuse reflectnace */
+	double	rms_slope;	/* Standard deviation (RMS) of surface slope (roughness) */
+	double	rms_sq;		/* square of above */
+	double	denom;		/* denominator for specular term */
+	double	transmit;	/* Moss "transparency" */
+	double	reflect;	/* Moss "transmission" */
+	double	refrac_index;
+	double	extinction;
+};
+#define BRDF_MAGIC	0xbeef00d
+#define BRDF_NULL	((struct brdf_specific *)0)
+#define BRDF_O(m)	offsetof(struct brdf_specific, m)
+
+struct bu_structparse brdf_parse[] = {
+	{"%f",	1, "specular",		BRDF_O(specular_refl),	FUNC_NULL },
+	{"%f",	1, "sp",		BRDF_O(specular_refl),	FUNC_NULL },
+	{"%f",	1, "diffuse",		BRDF_O(diffuse_refl),	FUNC_NULL },
+	{"%f",	1, "di",		BRDF_O(diffuse_refl),	FUNC_NULL },
+	{"%f",	1, "rough",		BRDF_O(rms_slope),	FUNC_NULL },
+	{"%f",	1, "rms",		BRDF_O(rms_slope),	FUNC_NULL },
+	{"%f",	1, "transmit",		BRDF_O(transmit),	FUNC_NULL },
+	{"%f",	1, "tr",		BRDF_O(transmit),	FUNC_NULL },
+	{"%f",	1, "reflect",		BRDF_O(reflect),	FUNC_NULL },
+	{"%f",	1, "re",		BRDF_O(reflect),	FUNC_NULL },
+	{"%f",	1, "ri",		BRDF_O(refrac_index),	FUNC_NULL },
+	{"%f",	1, "extinction_per_meter", BRDF_O(extinction),	FUNC_NULL },
+	{"%f",	1, "extinction",	BRDF_O(extinction),	FUNC_NULL },
+	{"%f",	1, "ex",		BRDF_O(extinction),	FUNC_NULL },
+	{"",	0, (char *)0,		0,			FUNC_NULL }
+};
+
+HIDDEN int brdf_setup();
+HIDDEN int brdf_render();
+HIDDEN void	brdf_print();
+HIDDEN void	brdf_free();
+
+struct mfuncs brdf_mfuncs[] = {
+	{MF_MAGIC,	"brdf",		0,		MFI_NORMAL|MFI_LIGHT,	0,
+	brdf_setup,	brdf_render,	brdf_print,	brdf_free },
+
+	{0,		(char *)0,	0,		0,	0,
+	0,		0,		0,		0 }
+};
+
+#define RI_AIR		1.0    /* Refractive index of air.		*/
+
+/*
+ *			B R D F _ S E T U P
+ */
+HIDDEN int
+brdf_setup( rp, matparm, dpp, mfp, rtip )
+register struct region *rp;
+struct rt_vls	*matparm;
+char	**dpp;
+struct mfuncs	*mfp;
+struct rt_i	*rtip;
+{
+	register struct brdf_specific *pp;
+
+	RT_VLS_CHECK( matparm );
+	GETSTRUCT( pp, brdf_specific );
+	*dpp = (char *)pp;
+
+	pp->magic = BRDF_MAGIC;
+	pp->specular_refl = 0.7;
+	pp->diffuse_refl = 0.3;
+	pp->transmit = 0.0;
+	pp->reflect = 0.0;
+	pp->refrac_index = RI_AIR;
+	pp->extinction = 0.0;
+	pp->rms_slope = 0.05;
+
+	if( bu_struct_parse( matparm, brdf_parse, (char *)pp ) < 0 )  {
+		rt_free( (char *)pp, "brdf_specific" );
+		return(-1);
+	}
+
+	pp->rms_sq = pp->rms_slope * pp->rms_slope;
+	pp->denom = 4.0 * rt_pi * pp->rms_sq;
+
+	return(1);
+}
+/*
+ *			B R D F _ P R I N T
+ */
+HIDDEN void
+brdf_print( rp, dp )
+register struct region *rp;
+char	*dp;
+{
+	bu_struct_print(rp->reg_name, brdf_parse, (char *)dp);
+}
+
+/*
+ *			B R D F _ F R E E
+ */
+HIDDEN void
+brdf_free( cp )
+char *cp;
+{
+	rt_free( cp, "brdf_specific" );
+}
+
+
+/*
+ *			B R D F _ R E N D E R
+ *
+	Color pixel based on the energy of a point light source (Eps)
+	plus some diffuse illumination (Epd) reflected from the point
+	<x,y> :
+
+				E = Epd + Eps		(1)
+
+	The energy reflected from diffuse illumination is the product
+	of the reflectance coefficient at point P (Rp) and the diffuse
+	illumination (Id) :
+
+				Epd = Rp * Id		(2)
+
+	The energy reflected from the point light source is calculated
+	by the sum of the diffuse reflectance (Rd) and the specular
+	reflectance (Rs), multiplied by the intensity of the light
+	source (Ips) :
+
+				Eps = (Rd + Rs) * Ips	(3)
+
+	The diffuse reflectance is calculated by the product of the
+	reflectance coefficient (Rp) and the cosine of the angle of
+	incidence (I) and normalized by PI :
+
+				Rd = Rp * cos(I) / PI	(4)
+
+	The specular reflectance is calculated by the product of the
+	specular reflectance coeffient and a term dependent on the
+	surface roughness :
+
+				Rs = W(I,O) * R(I,O,r)	(5)
+
+	Where,
+		I is the angle of incidence.
+		O is the angle to the observer.
+		r is the standard deviation (RMS) of the surface slope.
+		W returns the specular reflection coefficient as a function
+	of the angle of incidence, and the viewer angle.
+		R is a surface roughness term.
+
+ */
+HIDDEN int
+brdf_render( ap, pp, swp, dp )
+register struct application *ap;
+struct partition	*pp;
+struct shadework	*swp;
+char	*dp;
+{
+	register struct light_specific *lp;
+	register fastf_t *intensity, *to_light;
+	register int	i;
+	register fastf_t cosi,cosr;
+	register fastf_t refl;
+	vect_t h_dir;
+	vect_t to_eye;
+	vect_t	work;
+	vect_t	reflected;
+	vect_t	cprod;			/* color product */
+	point_t	matcolor;		/* Material color */
+	struct brdf_specific *ps =
+		(struct brdf_specific *)dp;
+
+	if( ps->magic != BRDF_MAGIC )  rt_log("brdf_render: bad magic\n");
+
+	if( rdebug&RDEBUG_SHADE)
+		bu_struct_print( "brdf_render", brdf_parse, (char *)ps );
+
+	swp->sw_transmit = ps->transmit;
+	swp->sw_reflect = ps->reflect;
+	swp->sw_refrac_index = ps->refrac_index;
+	swp->sw_extinction = ps->extinction;
+	if( swp->sw_xmitonly ) {
+		if( swp->sw_reflect > 0 || swp->sw_transmit > 0 )
+			(void)rr_render( ap, pp, swp );
+		return(1);	/* done */
+	}
+
+	VMOVE( matcolor, swp->sw_color );
+
+	/* Diffuse reflectance from "Ambient" light source (at eye) */
+	if( (cosr = -VDOT( swp->sw_hit.hit_normal, ap->a_ray.r_dir )) > 0.0 )  {
+		if( cosr > 1.00001 )  {
+			rt_log("cosAmb=1+%g (x%d,y%d,lvl%d)\n", cosr-1,
+				ap->a_x, ap->a_y, ap->a_level);
+			cosr = 1;
+		}
+		refl = cosr * AmbientIntensity;
+		VSCALE( swp->sw_color, matcolor, refl );
+	} else {
+		VSETALL( swp->sw_color, 0 );
+	}
+
+	VREVERSE( to_eye, ap->a_ray.r_dir );
+
+	/* Consider effects of each light source */
+	for( i=ap->a_rt_i->rti_nlights-1; i>=0; i-- )  {
+		fastf_t cos_tmp;
+		fastf_t tan_sq;
+		double exponent;
+
+		if( (lp = (struct light_specific *)swp->sw_visible[i]) == LIGHT_NULL )
+			continue;
+	
+		/* Light is not shadowed -- add this contribution */
+		intensity = swp->sw_intensity+3*i;
+		to_light = swp->sw_tolight+3*i;
+
+		if( (cosi = VDOT( swp->sw_hit.hit_normal, to_light )) > 0.0 )  {
+			if( cosi > 1.00001 )  {
+				rt_log("cosI=1+%g (x%d,y%d,lvl%d)\n", cosi-1,
+					ap->a_x, ap->a_y, ap->a_level);
+				cosi = 1;
+			}
+
+			/* Diffuse reflectance from this light source. */
+			refl = cosi * lp->lt_fraction * ps->diffuse_refl;
+			VELMUL( work, lp->lt_color,
+				intensity );
+			VELMUL( cprod, matcolor, work );
+			VJOIN1( swp->sw_color, swp->sw_color,
+				refl, cprod );
+
+			/* Calculate specular reflectance. */
+			if( NEAR_ZERO( ps->rms_sq, SMALL_FASTF ) )
+				continue;
+			VADD2( h_dir, to_eye, to_light )
+			VUNITIZE( h_dir );
+			cos_tmp = VDOT( h_dir, swp->sw_hit.hit_normal );
+			if( cos_tmp <= 0.0 )
+				continue;
+			cos_tmp *= cos_tmp;
+			if( NEAR_ZERO( cos_tmp, SMALL_FASTF ) )
+				continue;
+
+			tan_sq = (1.0-cos_tmp)/cos_tmp;
+			exponent = (-tan_sq/ps->rms_sq );
+			refl = ps->specular_refl * lp->lt_fraction * exp( exponent ) /
+				sqrt( cosi * cosr ) / ps->denom;
+			if( refl > 1.0 )
+				refl = 1.0;
+
+			VELMUL( work, lp->lt_color, intensity );
+			VJOIN1( swp->sw_color, swp->sw_color, refl, work );
+
+		}
+	}
+
+	if( swp->sw_reflect > 0 || swp->sw_transmit > 0 )
+		(void)rr_render( ap, pp, swp );
+	return(1);
+}
+
+@
+
+
+1.10
+log
+@Can't make "struct mfuncs" a CONST, because the forward link needs
+to be filled in at runtime, and some compilers put CONST data into
+read-only pages (like FreeBSD).
+@
+text
+@d31 1
+a31 1
+static char RCSbrdf[] = "@@(#)$Header: /c/CVS/brlcad/rt/sh_brdf.c,v 1.9 1997/12/31 09:01:40 mike Exp $ (BRL)";
+@
+
+
+1.9
+log
+@Required magic number to be first in mfunc table,
+consistent with all other BRL-CAD magic numbers.
+Required magic number to be initialized at compile time.
+Added code to check the magic numbers.
+Made the xxx_mfunc arrays CONST, so they can't get trashed by
+runtime runaway pointer problems.
+@
+text
+@d31 1
+a31 1
+static char RCSbrdf[] = "@@(#)$Header: /m/cad/rt/RCS/sh_brdf.c,v 1.8 1997/11/25 22:18:44 butler Exp mike $ (BRL)";
+d89 1
+a89 1
+CONST struct mfuncs brdf_mfuncs[] = {
+@
+
+
+1.8
+log
+@fixed typo
+@
+text
+@d31 1
+a31 1
+static char RCSbrdf[] = "@@(#)$Header: /m/cad/rt/RCS/sh_brdf.c,v 1.7 1997/11/25 22:16:43 butler Exp butler $ (BRL)";
+d89 2
+a90 2
+struct mfuncs brdf_mfuncs[] = {
+	{"brdf",	0,		0,		MFI_NORMAL|MFI_LIGHT,	0,
+d93 1
+a93 1
+	{(char *)0,	0,		0,		0,	0,
+@
+
+
+1.7
+log
+@updated all shaders so that _setup had mfp and rtip parameters
+@
+text
+@d31 1
+a31 1
+static char RCSbrdf[] = "@@(#)$Header: /m/cad/rt/RCS/sh_brdf.c,v 1.6 1996/08/31 08:46:01 butler Exp butler $ (BRL)";
+d103 1
+a103 1
+brdf_setup( rp, matparm, dpp, mpf, rtip )
+@
+
+
+1.6
+log
+@bu_struct_print
+@
+text
+@d31 1
+a31 1
+static char RCSbrdf[] = "@@(#)$Header: /m/cad/rt/RCS/sh_brdf.c,v 1.5 1996/08/31 08:29:28 butler Exp butler $ (BRL)";
+d103 1
+a103 1
+brdf_setup( rp, matparm, dpp )
+d107 2
+@
+
+
+1.5
+log
+@bu_struct_parse
+@
+text
+@d31 1
+a31 1
+static char RCSbrdf[] = "@@(#)$Header: /m/cad/rt/RCS/sh_brdf.c,v 1.4 1996/08/30 00:08:21 butler Exp butler $ (BRL)";
+d141 1
+a141 1
+	bu_structprint(rp->reg_name, brdf_parse, (char *)dp);
+d222 1
+a222 1
+		bu_structprint( "brdf_render", brdf_parse, (char *)ps );
+@
+
+
+1.4
+log
+@structparse moved to libbu
+@
+text
+@d31 1
+a31 1
+static char RCSbrdf[] = "@@(#)$Header: /m/cad/rt/RCS/sh_brdf.c,v 1.3 1996/07/12 14:59:48 jra Exp butler $ (BRL)";
+d123 1
+a123 1
+	if( bu_structparse( matparm, brdf_parse, (char *)pp ) < 0 )  {
+@
+
+
+1.3
+log
+@Minor mod for IRIX 6.2
+@
+text
+@d31 1
+a31 1
+static char RCSbrdf[] = "@@(#)$Header: /m/cad/rt/RCS/sh_brdf.c,v 1.2 1996/06/25 20:43:46 jra Exp jra $ (BRL)";
+d66 1
+a66 1
+struct structparse brdf_parse[] = {
+d123 1
+a123 1
+	if( rt_structparse( matparm, brdf_parse, (char *)pp ) < 0 )  {
+d141 1
+a141 1
+	rt_structprint(rp->reg_name, brdf_parse, (char *)dp);
+d222 1
+a222 1
+		rt_structprint( "brdf_render", brdf_parse, (char *)ps );
+@
+
+
+1.2
+log
+@A few minor mods.
+@
+text
+@d31 1
+a31 1
+static char RCSbrdf[] = "@@(#)$Header: /m/cad/rt/RCS/sh_brdf.c,v 1.1 1996/05/22 17:34:07 jra Exp jra $ (BRL)";
+d129 1
+a129 1
+	pp->denom = 4.0 * M_PI * pp->rms_sq;
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d31 1
+a31 1
+static char RCSplastic[] = "@@(#)$Header: /m/cad/rt/RCS/sh_plastic.c,v 11.5 1996/05/09 03:25:47 butler Exp $ (BRL)";
+d97 2
+d117 4
+d129 1
+a129 1
+	pp->denom = 4.0 * pp->rms_sq;
+d243 2
+a244 2
+		cosr *= AmbientIntensity;
+		VSCALE( swp->sw_color, matcolor, cosr );
+a263 1
+		/* Diffuse reflectance from this light source. */
+d270 2
+a277 1
+		}
+d279 18
+a296 9
+		/* Calculate specular reflectance. */
+		if( NEAR_ZERO( ps->rms_sq, SMALL_FASTF ) )
+			continue;
+		VADD2( h_dir, to_eye, to_light )
+		VUNITIZE( h_dir );
+		cos_tmp = VDOT( h_dir, swp->sw_hit.hit_normal );
+		cos_tmp *= cos_tmp;
+		if( NEAR_ZERO( cos_tmp, SMALL_FASTF ) )
+			continue;
+d298 2
+a299 5
+		tan_sq = (1.0-cos_tmp)/cos_tmp;
+		exponent = (-tan_sq/ps->rms_sq );
+		refl = ps->specular_refl * lp->lt_fraction * exp( exponent ) /
+			sqrt( VDOT( to_light, swp->sw_hit.hit_normal ) *
+			      VDOT( to_eye, swp->sw_hit.hit_normal ) ) / ps->denom;
+d301 1
+a301 2
+		VELMUL( work, lp->lt_color, intensity );
+		VJOIN1( swp->sw_color, swp->sw_color, refl, work );
+d303 1
+@

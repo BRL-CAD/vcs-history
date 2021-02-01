@@ -1,0 +1,810 @@
+head	1.15;
+access;
+symbols
+	ansi-20040405-merged:1.11.2.2
+	postmerge-20040405-ansi:1.13
+	premerge-20040404-ansi:1.12
+	postmerge-autoconf:1.12
+	autoconf-freeze:1.11.10.1
+	premerge-autoconf:1.12
+	ansi-20040316-freeze:1.11.2.1
+	postmerge-20040315-windows:1.12
+	premerge-20040315-windows:1.12
+	windows-20040315-freeze:1.11.4.1
+	autoconf-20031203:1.11
+	autoconf-20031202:1.11
+	autoconf-branch:1.11.0.10
+	phong-branch:1.11.0.8
+	photonmap-branch:1.11.0.6
+	rel-6-1-DP:1.11
+	windows-branch:1.11.0.4
+	rel-6-0-2:1.9
+	ansi-branch:1.11.0.2
+	rel-6-0-1-branch:1.9.0.2
+	hartley-6-0-post:1.10
+	hartley-6-0-pre:1.9
+	rel-6-0-1:1.9
+	rel-6-0:1.9
+	rel-5-4:1.8
+	offsite-5-3-pre:1.8
+	rel-5-3:1.8
+	rel-5-2:1.8
+	rel-5-1-branch:1.8.0.2
+	rel-5-1:1.8
+	rel-5-0:1.7
+	rel-5-0-beta:1.6
+	rel-4-5:1.6
+	ctj-4-5-post:1.5
+	ctj-4-5-pre:1.5;
+locks; strict;
+comment	@ * @;
+
+
+1.15
+date	2004.05.24.04.17.00;	author morrison;	state dead;
+branches;
+next	1.14;
+
+1.14
+date	2004.05.10.15.30.41;	author erikg;	state Exp;
+branches;
+next	1.13;
+
+1.13
+date	2004.04.05.07.50.19;	author morrison;	state Exp;
+branches;
+next	1.12;
+
+1.12
+date	2004.02.02.17.38.58;	author morrison;	state Exp;
+branches;
+next	1.11;
+
+1.11
+date	2002.08.20.17.07.18;	author jra;	state Exp;
+branches
+	1.11.2.1
+	1.11.4.1
+	1.11.10.1;
+next	1.10;
+
+1.10
+date	2002.08.15.20.54.06;	author hartley;	state Exp;
+branches;
+next	1.9;
+
+1.9
+date	2001.08.21.20.37.28;	author jra;	state Exp;
+branches;
+next	1.8;
+
+1.8
+date	99.12.30.19.05.02;	author jra;	state Exp;
+branches;
+next	1.7;
+
+1.7
+date	99.07.02.22.07.11;	author mike;	state Exp;
+branches;
+next	1.6;
+
+1.6
+date	97.08.22.22.48.24;	author mike;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	96.08.27.07.35.29;	author mike;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	96.08.27.05.23.49;	author mike;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	96.07.22.21.45.29;	author cnuzman;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	96.07.16.16.50.37;	author cnuzman;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	96.06.24.19.30.21;	author cnuzman;	state Exp;
+branches;
+next	;
+
+1.11.2.1
+date	2002.09.19.18.00.31;	author morrison;	state Exp;
+branches;
+next	1.11.2.2;
+
+1.11.2.2
+date	2004.03.17.21.15.48;	author morrison;	state Exp;
+branches;
+next	;
+
+1.11.4.1
+date	2004.03.11.23.40.25;	author morrison;	state Exp;
+branches;
+next	;
+
+1.11.10.1
+date	2004.02.12.19.40.40;	author erikg;	state Exp;
+branches;
+next	;
+
+
+desc
+@Estimate reasonable time values for an animation curve.
+@
+
+
+1.15
+log
+@moved to src/anim/
+@
+text
+@/*			A N I M _ T I M E . C
+ *
+ *  Given an animation path consiting of time stamps and 3-d points,
+ *  estimate new time stamps based on the distances between points, the
+ *  given starting and ending times, and optionally specified starting 
+ *  and ending velocities.
+ *	
+ *  Author -
+ *	Carl J. Nuzman
+ *  
+ *  Source -
+ *      The U. S. Army Research Laboratory
+ *      Aberdeen Proving Ground, Maryland  21005-5068  USA
+ *  
+ *  Distribution Notice -
+ *      Re-distribution of this software is restricted, as described in
+ *      your "Statement of Terms and Conditions for the Release of
+ *      The BRL-CAD Pacakge" agreement.
+ *
+ *  Copyright Notice -
+ *      This software is Copyright (C) 1993-2004 by the United States Army
+ *      in all countries except the USA.  All rights reserved.
+ */
+
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+#include <math.h>
+#include <stdio.h>
+#include "machine.h"
+#include "externs.h"
+#include "vmath.h"
+#include "bu.h"
+#include "raytrace.h"
+
+extern int bu_optind;
+extern char *bu_optarg;
+
+
+#define MAXLEN		64
+#define DIVIDE_TOL	(1.0e-10)
+#define MAXITS		100
+#define DELTA		(1.0e-6)
+#define TIME_NONE	0
+#define TIME_ABSOLUTE	1
+#define TIME_RELATIVE	2
+
+/* command line variables */
+fastf_t inv0,inv1;
+int v0_set =	 TIME_NONE;
+int v1_set =	 TIME_NONE;
+int query =	 0;
+int verbose = 	 0;
+int maxlines = 	 0;
+int domem = 	 0;
+int debug = 	 0;
+
+int get_args(int argc, char **argv);
+
+fastf_t
+gettime(fastf_t dist, fastf_t a, fastf_t b, fastf_t c, fastf_t init)
+{
+
+	fastf_t old,new,temp;
+	int countdown,success;
+	countdown = MAXITS;
+
+	old = init;
+	success = 0;
+	while(countdown-->0){
+		temp = (3.0*a*old+2.0*b)*old+c;
+		if (temp<DIVIDE_TOL){
+			new = 0.75*old;
+		} else {
+		 	new = old - (((a*old+b)*old+c)*old-dist)/temp;
+		}
+		if (((new-old)<DELTA)&&((old-new)<DELTA)){
+			success = 1;
+			break;
+		}
+		if (debug)
+			printf("c: %d %f\t%f\n",countdown,new,new-old);
+		old = new;
+	}
+	if (!success) fprintf(stderr,"warning - max iterations reached\n");
+	return (new);
+
+}
+
+int
+main(int argc, char **argv)
+{
+	fastf_t *l, *x, *y, *z;
+	fastf_t temp0,temp1,temp2,start=0.0,end,v0,v1;
+	int i,j , num,plen;
+	
+
+	fastf_t time,dist,slope,a,b,c;
+
+
+	plen = 0;
+
+	if (!get_args(argc,argv))
+		fprintf(stderr,"Usage: anim_time [-s#] [-e#] [-d] < in.table\n");
+
+	if (!domem) {
+		maxlines = MAXLEN;
+	}
+
+	l = (fastf_t *) bu_malloc(maxlines*sizeof(fastf_t),"l[]");
+	if (verbose) {
+		x = (fastf_t *) bu_malloc(maxlines*sizeof(fastf_t),"x[]");
+		y = (fastf_t *) bu_malloc(maxlines*sizeof(fastf_t),"y[]");
+		z = (fastf_t *) bu_malloc(maxlines*sizeof(fastf_t),"z[]");
+	} else {
+		x = (fastf_t *) bu_malloc(2*sizeof(fastf_t),"x[]");
+		y = (fastf_t *) bu_malloc(2*sizeof(fastf_t),"y[]");
+		z = (fastf_t *) bu_malloc(2*sizeof(fastf_t),"z[]");
+	}
+	l[0] = 0.0;
+
+	while(plen<maxlines){
+		i = (verbose) ? plen : plen%2;
+		j = (verbose) ? (plen-1) : (plen+1)%2;
+		num = scanf("%lf %lf %lf %lf",&end,x+i,y+i,z+i);
+		if (num<4)
+			break;
+		if(plen){
+			temp0 = x[i]-x[j];
+			temp1 = y[i]-y[j];
+			temp2 = z[i]-z[j];
+			l[plen] = sqrt(temp0*temp0+temp1*temp1+temp2*temp2);
+			l[plen] += l[plen-1];
+		} else {
+			start = end;
+		}
+		
+		plen++;
+	}
+
+	time = end - start;
+	dist = l[plen-1];
+
+	if (query){
+		printf("%f\n",dist);
+		return(0);
+	}
+
+	if (time < DIVIDE_TOL){
+		fprintf(stderr,"anim_time: time too small. Only %f s.\n",time);
+		exit(-1);
+	}
+	if (dist < DIVIDE_TOL){
+		fprintf(stderr,"anim_time: pathlength too small. Only %f\n",dist);
+		exit(-1);
+	}
+	slope = dist/time;
+
+	switch (v0_set) {
+	case TIME_ABSOLUTE:
+		v0 = inv0;
+		break;
+	case TIME_RELATIVE:
+		v0 = slope*inv0;
+		break;
+	default:
+	case TIME_NONE:
+		v0 = slope;
+		break;
+	}
+
+	switch (v1_set) {
+	case TIME_ABSOLUTE:
+		v1 = inv1;
+		break;
+	case TIME_RELATIVE:
+		v1 = slope*inv1;
+		break;
+	default:
+	case TIME_NONE:
+		v1 = slope;
+		break;
+	}
+	if (v0<0.0) {
+		fprintf(stderr,"anim_time: Start velocity must be non-negative.\n");
+		exit(-1);
+	}
+	if (v1<0.0) {
+		fprintf(stderr,"anim_time: End velocity must be non-negative.\n");
+		exit(-1);
+	}
+	if (v0>3*slope) {
+		fprintf(stderr,"anim_time: Start velocity must be not be greater than %f units/s for this path.\n", 3.0*slope);
+		exit (-1);
+	}
+	if (v1>3*slope) {
+		fprintf(stderr,"anim_time: End velocity must not be greater than %f for this path.\n", 3.0*slope);
+		exit(-1);
+	}
+
+	a = ((v1+v0) - 2.0*slope)/(time*time);
+	b = (3*slope - (v1+2.0*v0))/time;
+	c = v0;
+
+	temp2 = 1.0/slope;
+	if (verbose) {
+		printf("%.12e\t%.12e\t%.12e\t%.12e\n",start,x[0],y[0],z[0]);
+		for (i=1; i<plen-1; i++){
+			temp0 = gettime(l[i],a,b,c,l[i]*temp2);
+			printf("%.12e\t%.12e\t%.12e\t%.12e\n",temp0+start,x[i],y[i],z[i]);
+		}
+		printf("%.12e\t%.12e\t%.12e\t%.12e\n",end,x[plen-1],y[plen-1],z[plen-1]);
+	} else {
+		printf("%.12e\n",start);
+		for (i=1; i<plen-1; i++){
+			temp0 = gettime(l[i],a,b,c,l[i]*temp2);
+			printf("%.12e\n",temp0+start);
+		}
+		printf("%.12e\n",end);
+	}
+
+	bu_free((char *) l, "l[]");
+	bu_free((char *) x, "x[]");
+	bu_free((char *) y, "y[]");
+	bu_free((char *) z, "z[]");
+	return( 0 );
+}
+
+/* code to read command line arguments*/
+#define OPT_STR "ds:e:i:f:qm:v"
+int get_args(int argc, char **argv)
+{
+	int c;
+
+	while ( (c=bu_getopt(argc,argv,OPT_STR)) != EOF) {
+		switch(c){
+		case 's':
+			sscanf(bu_optarg,"%lf",&inv0);
+			v0_set = TIME_ABSOLUTE;
+			break;
+		case 'e':
+			sscanf(bu_optarg,"%lf",&inv1);
+			v1_set = TIME_ABSOLUTE;
+			break;
+		case 'i':
+			sscanf(bu_optarg,"%lf",&inv0);
+			v0_set = TIME_RELATIVE;
+			if ((inv0>3.0)||(inv0<0.0)) {
+				fprintf(stderr,"anim_time: -i argument must lie between 0.0 and 3.0\n");
+				exit(-1);
+			}
+			break;
+		case 'f':
+			sscanf(bu_optarg,"%lf",&inv1);
+			v1_set = TIME_RELATIVE;
+			if ((inv1>3.0)||(inv1<0.0)) {
+				fprintf(stderr,"anim_time: -f argument must lie between 0.0 and 3.0\n");
+				exit(-1);
+			}
+			break;
+		case 'q':
+			query = 1;
+			break;
+		case 'm':
+			sscanf(bu_optarg,"%d",&maxlines);
+			domem = 1;
+			break;
+		case 'v':
+			verbose = 1;
+			break;
+		case 'd':
+			debug = 1;
+			break;
+		default:
+			fprintf(stderr,"Unknown option: -%c\n",c);
+			return(0);
+		}
+	}
+	return(1);
+}
+@
+
+
+1.14
+log
+@change conf.h to a wrapped config.h
+@
+text
+@@
+
+
+1.13
+log
+@merge of ansi-6-0-branch into HEAD
+@
+text
+@d25 5
+a29 1
+#include "conf.h"
+@
+
+
+1.12
+log
+@update copyright to include span through 2003
+@
+text
+@d56 1
+a56 1
+int get_args();
+d59 1
+a59 6
+gettime(dist, a, b, c, init)
+fastf_t dist;
+fastf_t a;
+fastf_t b;
+fastf_t c;
+fastf_t init;
+d89 1
+a89 3
+main(argc,argv)
+int argc;
+char **argv;
+d229 1
+a229 3
+int get_args(argc,argv)
+int argc;
+char **argv;
+@
+
+
+1.11
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d21 1
+a21 1
+ *      This software is Copyright (C) 1993 by the United States Army
+@
+
+
+1.11.4.1
+log
+@sync to HEAD...
+@
+text
+@d21 1
+a21 1
+ *      This software is Copyright (C) 1993-2004 by the United States Army
+@
+
+
+1.11.10.1
+log
+@merge from HEAD
+@
+text
+@d21 1
+a21 1
+ *      This software is Copyright (C) 1993-2004 by the United States Army
+@
+
+
+1.11.2.1
+log
+@Initial ANSIfication
+@
+text
+@d56 1
+a56 1
+int get_args(int argc, char **argv);
+d59 6
+a64 1
+gettime(fastf_t dist, fastf_t a, fastf_t b, fastf_t c, fastf_t init)
+d94 3
+a96 1
+main(int argc, char **argv)
+d236 3
+a238 1
+int get_args(int argc, char **argv)
+@
+
+
+1.11.2.2
+log
+@sync branch with HEAD
+@
+text
+@d21 1
+a21 1
+ *      This software is Copyright (C) 1993-2004 by the United States Army
+@
+
+
+1.10
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d56 1
+a56 1
+int get_args(int argc, char **argv);
+d59 6
+a64 1
+gettime(fastf_t dist, fastf_t a, fastf_t b, fastf_t c, fastf_t init)
+d94 3
+a96 1
+main(int argc, char **argv)
+d236 3
+a238 1
+int get_args(int argc, char **argv)
+@
+
+
+1.9
+log
+@lint
+@
+text
+@d56 1
+a56 1
+int get_args();
+d59 1
+a59 6
+gettime(dist, a, b, c, init)
+fastf_t dist;
+fastf_t a;
+fastf_t b;
+fastf_t c;
+fastf_t init;
+d89 1
+a89 3
+main(argc,argv)
+int argc;
+char **argv;
+d229 1
+a229 3
+int get_args(argc,argv)
+int argc;
+char **argv;
+@
+
+
+1.8
+log
+@Eliminated an unused variable
+@
+text
+@d56 2
+d93 1
+d99 1
+a99 1
+	fastf_t temp0,temp1,temp2,start,end,v0,v1;
+d231 1
+a231 1
+
+@
+
+
+1.7
+log
+@
+Eliminated dependence on compat4.h
+@
+text
+@d65 1
+a65 1
+	fastf_t old,new,temp,inv;
+@
+
+
+1.6
+log
+@Made dependence on bu_getopt() explicit.
+@
+text
+@d112 1
+a112 1
+	l = (fastf_t *) rt_malloc(maxlines*sizeof(fastf_t),"l[]");
+d114 3
+a116 3
+		x = (fastf_t *) rt_malloc(maxlines*sizeof(fastf_t),"x[]");
+		y = (fastf_t *) rt_malloc(maxlines*sizeof(fastf_t),"y[]");
+		z = (fastf_t *) rt_malloc(maxlines*sizeof(fastf_t),"z[]");
+d118 3
+a120 3
+		x = (fastf_t *) rt_malloc(2*sizeof(fastf_t),"x[]");
+		y = (fastf_t *) rt_malloc(2*sizeof(fastf_t),"y[]");
+		z = (fastf_t *) rt_malloc(2*sizeof(fastf_t),"z[]");
+d224 4
+a227 4
+	rt_free((char *) l, "l[]");
+	rt_free((char *) x, "x[]");
+	rt_free((char *) y, "y[]");
+	rt_free((char *) z, "z[]");
+@
+
+
+1.5
+log
+@Fixed non-ANSI construction
+@
+text
+@d34 2
+a35 2
+extern int optind;
+extern char *optarg;
+d239 1
+a239 1
+	while ( (c=getopt(argc,argv,OPT_STR)) != EOF) {
+d242 1
+a242 1
+			sscanf(optarg,"%lf",&inv0);
+d246 1
+a246 1
+			sscanf(optarg,"%lf",&inv1);
+d250 1
+a250 1
+			sscanf(optarg,"%lf",&inv0);
+d258 1
+a258 1
+			sscanf(optarg,"%lf",&inv1);
+d269 1
+a269 1
+			sscanf(optarg,"%d",&maxlines);
+@
+
+
+1.4
+log
+@bu.h
+@
+text
+@d56 7
+a62 1
+fastf_t gettime(fastf_t dist,fastf_t a,fastf_t b,fastf_t c,fastf_t init)
+@
+
+
+1.3
+log
+@added -i and -f relative velocity options
+@
+text
+@d29 4
+a32 1
+
+@
+
+
+1.2
+log
+@switched to fastf_t and added debugging option
+@
+text
+@d39 3
+d45 2
+a46 2
+int v0_set =	 0;
+int v1_set =	 0;
+d143 1
+a143 1
+		fprintf(stderr,"TIME TOO SMALL! %f\n",time);
+d147 1
+a147 1
+		fprintf(stderr,"PATHLENGTH TOO SMALL! %f\n",dist);
+d151 3
+a153 2
+	v0 = v1 = slope;
+	if (v0_set){
+d155 8
+d164 3
+a166 1
+	if (v1_set){
+d168 20
+d189 4
+a192 4
+	v0 = (v0<0.0) ? 0.0 : v0;
+	v1 = (v1<0.0) ? 0.0 : v1;
+	v0 = (v0>3*slope) ? 3*slope : v0;
+	v1 = (v1>3*slope) ? 3*slope : v1;
+a193 1
+
+d223 1
+a223 1
+#define OPT_STR "ds:e:qm:v"
+d234 1
+a234 1
+			v0_set = 1;
+d238 17
+a254 1
+			v1_set = 1;
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d25 1
+a25 1
+
+d28 1
+a28 1
+
+d41 1
+a41 1
+float inv0,inv1;
+d48 1
+d50 1
+a50 1
+float gettime(float dist,float a,float b,float c,float init)
+d53 1
+a53 1
+	float old,new,temp,inv;
+d70 2
+a71 1
+		/*printf("c: %d %f\t%f\n",countdown,new,new-old);*/
+d83 2
+a84 2
+	float *l, *x, *y, *z;
+	float temp0,temp1,temp2,start,end,v0,v1;
+d88 1
+a88 1
+	float time,dist,slope,a,b,c;
+d100 1
+a100 1
+	l = (float *) rt_malloc(maxlines*sizeof(float),"l[]");
+d102 3
+a104 3
+		x = (float *) rt_malloc(maxlines*sizeof(float),"x[]");
+		y = (float *) rt_malloc(maxlines*sizeof(float),"y[]");
+		z = (float *) rt_malloc(maxlines*sizeof(float),"z[]");
+d106 3
+a108 3
+		x = (float *) rt_malloc(2*sizeof(float),"x[]");
+		y = (float *) rt_malloc(2*sizeof(float),"y[]");
+		z = (float *) rt_malloc(2*sizeof(float),"z[]");
+d115 1
+a115 1
+		num = scanf("%f %f %f %f",&end,x+i,y+i,z+i);
+d122 1
+a122 1
+			l[plen] = sqrtf(temp0*temp0+temp1*temp1+temp2*temp2);
+d190 1
+a190 1
+#define OPT_STR "s:e:qm:v"
+d200 1
+a200 1
+			sscanf(optarg,"%f",&inv0);
+d204 1
+a204 1
+			sscanf(optarg,"%f",&inv1);
+d216 3
+@

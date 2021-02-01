@@ -1,0 +1,612 @@
+head	14.11;
+access;
+symbols
+	rel-7-10-4:14.9
+	STABLE:14.9.0.2
+	rel-7-10-2:14.9
+	rel-7-10-0:14.9
+	rel-7-8-4:14.7
+	rel-7-8-2:14.7
+	rel-7-8-0:14.7
+	trimnurbs-branch:14.7.0.2
+	help:14.7
+	temp_tag:14.6
+	bobWinPort-20051223-freeze:14.3
+	postmerge-20051223-bobWinPort:14.6
+	premerge-20051223-bobWinPort:14.6
+	rel-7-6-6:14.6
+	rel-7-6-4:14.6
+	rel-7-6-2:14.3
+	rel-7-6-branch:14.3.0.6
+	rel-7-6-0:14.3
+	rel-7-4-2:14.3
+	rel-7-4-branch:14.3.0.4
+	bobWinPort:14.3.0.2
+	rel-7-4-0:14.3
+	rel-7-2-6:14.3
+	rel-7-2-4:14.3
+	rel-7-2-2:14.3
+	rel-7-2-0:14.3
+	rel-7-0-4:14.2
+	rel-7-0-2:14.2
+	rel-7-0-1:14.2
+	opensource-post:14.2
+	opensource-pre:1.5
+	rel-7-0-branch:1.5.0.2
+	rel-7-0:1.5;
+locks; strict;
+comment	@ * @;
+
+
+14.11
+date	2007.11.21.20.49.14;	author erikgreenwald;	state Exp;
+branches;
+next	14.10;
+
+14.10
+date	2007.11.21.18.55.37;	author erikgreenwald;	state Exp;
+branches;
+next	14.9;
+
+14.9
+date	2007.01.23.01.13.56;	author brlcad;	state Exp;
+branches;
+next	14.8;
+
+14.8
+date	2007.01.20.14.37.06;	author brlcad;	state Exp;
+branches;
+next	14.7;
+
+14.7
+date	2006.01.18.06.46.27;	author brlcad;	state Exp;
+branches;
+next	14.6;
+
+14.6
+date	2005.10.23.04.44.39;	author brlcad;	state Exp;
+branches;
+next	14.5;
+
+14.5
+date	2005.09.22.00.21.51;	author brlcad;	state Exp;
+branches;
+next	14.4;
+
+14.4
+date	2005.09.21.19.05.37;	author brlcad;	state Exp;
+branches;
+next	14.3;
+
+14.3
+date	2005.01.30.20.31.33;	author brlcad;	state Exp;
+branches
+	14.3.6.1;
+next	14.2;
+
+14.2
+date	2004.12.21.03.45.41;	author butler;	state Exp;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.32;	author morrison;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	2004.09.09.04.53.00;	author kermit;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	2004.08.02.23.01.53;	author morrison;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2004.06.09.18.21.39;	author erikg;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2004.06.08.22.04.45;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.15.21.51;	author morrison;	state Exp;
+branches;
+next	;
+
+14.3.6.1
+date	2005.11.13.13.46.20;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.11
+log
+@pass bu_exit a NULL instead of an empty string
+@
+text
+@/*                   P I X F I E L D S E P . C
+ * BRL-CAD
+ *
+ * Copyright (c) 2004-2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@file pixfieldsep.c
+ *
+ *  Separate an interlaced video image into two separate .pix files.
+ *
+ *  Author -
+ *	Michael John Muuss
+ *
+ *  Source -
+ *	The U. S. Army Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005-5068  USA
+ */
+#ifndef lint
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/pixfieldsep.c,v 14.10 2007/11/21 18:55:37 erikgreenwald Exp $ (ARL)";
+#endif
+
+#include "common.h"
+
+#ifdef HAVE_UNISTD_H
+#  include <unistd.h>
+#endif
+
+#include <stdlib.h>
+#include <stdio.h>
+
+#include "machine.h"
+#include "bu.h"
+
+
+FILE	*out1;
+FILE	*out2;
+
+char	*buf;
+int	file_width = 720;
+int	bytes_per_sample = 3;
+int	doubleit = 0;
+
+char	*even_file = "even.pix";
+char	*odd_file = "odd.pix";
+
+static char usage[] = "\
+Usage: pixfieldsep [-w file_width] [-s square_size] [-# nbytes/pixel] \n\
+	[-d] [even.pix odd.pix]\n";
+
+int
+get_args(int argc, register char **argv)
+{
+	register int c;
+
+	while ( (c = bu_getopt( argc, argv, "ds:w:#:" )) != EOF )  {
+		switch( c )  {
+		case 'd':
+			doubleit = 1;
+			break;
+		case '#':
+			bytes_per_sample = atoi(bu_optarg);
+			break;
+		case 's':
+			/* square file size */
+			file_width = atoi(bu_optarg);
+			break;
+		case 'w':
+			file_width = atoi(bu_optarg);
+			break;
+
+		default:		/* '?' */
+			return(0);
+		}
+	}
+
+	if( bu_optind < argc )  {
+		even_file = argv[bu_optind++];
+	}
+	if( bu_optind < argc )  {
+		odd_file = argv[bu_optind++];
+	}
+
+	if( ++bu_optind <= argc )
+		(void)fprintf( stderr, "pixfieldsep: excess argument(s) ignored\n" );
+
+	return(1);		/* OK */
+}
+
+int
+main(int argc, char **argv)
+{
+	register int	i;
+
+	if ( !get_args( argc, argv ) )  {
+		(void)fputs(usage, stderr);
+		bu_exit ( 1, NULL );
+	}
+
+	if( (out1 = fopen(even_file, "w")) == NULL )  {
+		perror(even_file);
+		bu_exit (1, NULL);
+	}
+	if( (out2 = fopen(odd_file, "w")) == NULL )  {
+		perror(odd_file);
+		bu_exit (2, NULL);
+	}
+
+	buf = (char *)malloc( (file_width+1)*bytes_per_sample );
+
+	for(;;)  {
+		/* Even line */
+		if( fread( buf, bytes_per_sample, file_width, stdin ) != file_width )
+			break;
+		for( i=0; i <= doubleit; i++ )  {
+			if( fwrite( buf, bytes_per_sample, file_width, out1 ) != file_width )  {
+				perror("fwrite even");
+				bu_exit (1, NULL);
+			}
+		}
+		/* Odd line */
+		if( fread( buf, bytes_per_sample, file_width, stdin ) != file_width )
+			break;
+		for( i=0; i <= doubleit; i++ )  {
+			if( fwrite( buf, bytes_per_sample, file_width, out2 ) != file_width )  {
+				perror("fwrite odd");
+				bu_exit (1, NULL);
+			}
+		}
+	}
+	bu_exit (0, NULL);
+}
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+14.10
+log
+@exit->bu_exit where applicable
+@
+text
+@d32 1
+a32 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/pixfieldsep.c,v 14.9 2007/01/23 01:13:56 brlcad Exp $ (ARL)";
+d109 1
+a109 1
+		bu_exit ( 1, "" );
+d114 1
+a114 1
+		bu_exit (1, "");
+d118 1
+a118 1
+		bu_exit (2, "");
+d130 1
+a130 1
+				bu_exit (1, "");
+d139 1
+a139 1
+				bu_exit (1, "");
+d143 1
+a143 1
+	bu_exit (0, "");
+@
+
+
+14.9
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@d32 1
+a32 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/pixfieldsep.c,v 14.8 2007/01/20 14:37:06 brlcad Exp $ (ARL)";
+d109 1
+a109 1
+		exit( 1 );
+d114 1
+a114 1
+		exit(1);
+d118 1
+a118 1
+		exit(2);
+d130 1
+a130 1
+				exit(1);
+d139 1
+a139 1
+				exit(1);
+d143 1
+a143 1
+	exit(0);
+@
+
+
+14.8
+log
+@update copyright to 2007
+@
+text
+@d8 2
+a9 3
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+d14 1
+a14 1
+ * General Public License for more details.
+d16 2
+a17 2
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+d32 1
+a32 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/pixfieldsep.c,v 14.7 2006/01/18 06:46:27 brlcad Exp $ (ARL)";
+@
+
+
+14.7
+log
+@update copyright to 2006
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 2004-2006 United States Government as represented by
+d33 1
+a33 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/pixfieldsep.c,v 14.6 2005/10/23 04:44:39 brlcad Exp $ (ARL)";
+@
+
+
+14.6
+log
+@trailing ws
+@
+text
+@d4 1
+a4 1
+ * Copyright (C) 2004-2005 United States Government as represented by
+d33 1
+a33 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/pixfieldsep.c,v 14.5 2005/09/22 00:21:51 brlcad Exp $ (ARL)";
+@
+
+
+14.5
+log
+@add bu.h for bu_getopt stuff
+@
+text
+@d27 1
+a27 1
+ *  
+d33 1
+a33 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/pixfieldsep.c,v 14.4 2005/09/21 19:05:37 brlcad Exp $ (ARL)";
+@
+
+
+14.4
+log
+@needs bu.h for bu_getopt
+@
+text
+@d33 1
+a33 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/pixfieldsep.c,v 14.3 2005/01/30 20:31:33 brlcad Exp $ (ARL)";
+d39 1
+a39 1
+# include <unistd.h>
+d46 1
+@
+
+
+14.3
+log
+@update copyright to 2005
+@
+text
+@d33 1
+a33 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/pixfieldsep.c,v 14.2 2004/12/21 03:45:41 butler Exp $ (ARL)";
+d68 1
+a68 1
+	while ( (c = getopt( argc, argv, "ds:w:#:" )) != EOF )  {
+d74 1
+a74 1
+			bytes_per_sample = atoi(optarg);
+d78 1
+a78 1
+			file_width = atoi(optarg);
+d81 1
+a81 1
+			file_width = atoi(optarg);
+d89 2
+a90 2
+	if( optind < argc )  {
+		even_file = argv[optind++];
+d92 2
+a93 2
+	if( optind < argc )  {
+		odd_file = argv[optind++];
+d96 1
+a96 1
+	if( ++optind <= argc )
+@
+
+
+14.3.6.1
+log
+@merge changes from HEAD aka rel-7-6-4 to the rel-7-6-branch just in case someone peeks a gander or tries to continue/build the branch
+@
+text
+@d27 1
+a27 1
+ *
+d33 1
+a33 1
+static const char RCSid[] = "@@(#)$Header$ (ARL)";
+d39 1
+a39 1
+#  include <unistd.h>
+a45 1
+#include "bu.h"
+d68 1
+a68 1
+	while ( (c = bu_getopt( argc, argv, "ds:w:#:" )) != EOF )  {
+d74 1
+a74 1
+			bytes_per_sample = atoi(bu_optarg);
+d78 1
+a78 1
+			file_width = atoi(bu_optarg);
+d81 1
+a81 1
+			file_width = atoi(bu_optarg);
+d89 2
+a90 2
+	if( bu_optind < argc )  {
+		even_file = argv[bu_optind++];
+d92 2
+a93 2
+	if( bu_optind < argc )  {
+		odd_file = argv[bu_optind++];
+d96 1
+a96 1
+	if( ++bu_optind <= argc )
+@
+
+
+14.2
+log
+@GPL license changes
+@
+text
+@d4 2
+a5 2
+ * Copyright (c) 2004 United States Government as represented by the
+ * U.S. Army Research Laboratory.
+d33 1
+a33 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/util/pixfieldsep.c,v 14.1 2004/11/16 19:42:32 morrison Exp $ (ARL)";
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@d1 21
+a21 2
+/*
+ *			P I X F I E L D S E P . C
+a30 3
+ *  
+ *  Distribution Status -
+ *	Public Domain, Distribution Unlimitied.
+d33 1
+a33 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/util/pixfieldsep.c,v 1.5 2004/09/09 04:53:00 kermit Exp $ (ARL)";
+@
+
+
+1.5
+log
+@Added <stdlib.h> to fix implicit cast (for IA64 architecture).
+@
+text
+@d17 1
+a17 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/util/pixfieldsep.c,v 1.4 2004/08/02 23:01:53 morrison Exp $ (ARL)";
+d129 10
+@
+
+
+1.4
+log
+@replace the wrapped config.h block with common.h
+@
+text
+@d17 1
+a17 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/util/pixfieldsep.c,v 1.3 2004/06/09 18:21:39 erikg Exp $ (ARL)";
+a24 1
+                                                                                                                                                                            
+d26 1
+d28 1
+d30 1
+@
+
+
+1.3
+log
+@include unistd.h for getopt stuff
+@
+text
+@d17 1
+a17 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/util/pixfieldsep.c,v 1.2 2004/06/08 22:04:45 morrison Exp $ (ARL)";
+d20 1
+a20 3
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+@
+
+
+1.2
+log
+@obliterate externs.h
+@
+text
+@d17 1
+a17 1
+static const char RCSid[] = "@@(#)$Header$ (ARL)";
+d23 5
+@
+
+
+1.1
+log
+@Vast reorganization begins.  Sources moved from top-level directories into src/.
+@
+text
+@d17 1
+a17 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/util/pixfieldsep.c,v 11.7 2004/05/10 15:30:51 erikg Exp $ (ARL)";
+a23 2
+
+
+a25 1
+#include "externs.h"
+@
+

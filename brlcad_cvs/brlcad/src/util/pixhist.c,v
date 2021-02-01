@@ -1,0 +1,472 @@
+head	14.10;
+access;
+symbols
+	rel-7-10-4:14.9
+	STABLE:14.9.0.2
+	rel-7-10-2:14.9
+	rel-7-10-0:14.8
+	rel-7-8-4:14.6
+	rel-7-8-2:14.6
+	rel-7-8-0:14.6
+	trimnurbs-branch:14.6.0.2
+	help:14.6
+	temp_tag:14.4
+	bobWinPort-20051223-freeze:14.3
+	postmerge-20051223-bobWinPort:14.4
+	premerge-20051223-bobWinPort:14.4
+	rel-7-6-6:14.4
+	rel-7-6-4:14.4
+	rel-7-6-2:14.3
+	rel-7-6-branch:14.3.0.6
+	rel-7-6-0:14.3
+	rel-7-4-2:14.3
+	rel-7-4-branch:14.3.0.4
+	bobWinPort:14.3.0.2
+	rel-7-4-0:14.3
+	rel-7-2-6:14.3
+	rel-7-2-4:14.3
+	rel-7-2-2:14.3
+	rel-7-2-0:14.3
+	rel-7-0-4:14.2
+	rel-7-0-2:14.2
+	rel-7-0-1:14.2
+	opensource-post:14.2
+	opensource-pre:1.2
+	rel-7-0-branch:1.2.0.2
+	rel-7-0:1.2;
+locks; strict;
+comment	@ * @;
+
+
+14.10
+date	2007.09.15.16.23.23;	author brlcad;	state Exp;
+branches;
+next	14.9;
+
+14.9
+date	2007.07.26.01.14.00;	author brlcad;	state Exp;
+branches;
+next	14.8;
+
+14.8
+date	2007.01.23.01.13.56;	author brlcad;	state Exp;
+branches;
+next	14.7;
+
+14.7
+date	2007.01.20.14.37.06;	author brlcad;	state Exp;
+branches;
+next	14.6;
+
+14.6
+date	2006.02.27.10.08.41;	author brlcad;	state Exp;
+branches;
+next	14.5;
+
+14.5
+date	2006.01.18.06.46.27;	author brlcad;	state Exp;
+branches;
+next	14.4;
+
+14.4
+date	2005.10.23.04.44.39;	author brlcad;	state Exp;
+branches;
+next	14.3;
+
+14.3
+date	2005.01.30.20.31.33;	author brlcad;	state Exp;
+branches
+	14.3.6.1;
+next	14.2;
+
+14.2
+date	2004.12.21.03.45.41;	author butler;	state Exp;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.32;	author morrison;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2004.08.02.23.01.53;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.15.21.52;	author morrison;	state Exp;
+branches;
+next	;
+
+14.3.6.1
+date	2005.11.13.13.46.20;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.10
+log
+@more c89 embracing.  c89 provides string.h for all of the various str*() and mem*() functions, so remove the check for its presence.  there is still likely to be work required for strict c89 conformance for the various bsd strings.h functions that may be in use.
+@
+text
+@/*                       P I X H I S T . C
+ * BRL-CAD
+ *
+ * Copyright (c) 1986-2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@file pixhist.c
+ *
+ * Display a color histogram of a pix file.
+ * 0 is top of screen, 255 bottom.
+ *
+ *  Author -
+ *	Phillip Dykstra
+ *	16 June 1986
+ *
+ */
+#ifndef lint
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/pixhist.c,v 14.9 2007/07/26 01:14:00 brlcad Exp $ (BRL)";
+#endif
+
+#include "common.h"
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#ifdef HAVE_UNISTD_H
+#  include <unistd.h>
+#endif
+
+#include "machine.h"
+#include "fb.h"
+
+#define	IBUFSIZE 3*2048		/* Max read size in rgb pixels */
+unsigned char ibuf[IBUFSIZE];	/* Input buffer */
+
+long	bin_r[256];		/* Histogram bins */
+long	bin_g[256];
+long	bin_b[256];
+int	verbose = 0;
+
+FBIO	*fbp;
+
+static char *Usage = "usage: pixhist [-v] [file.pix]\n";
+
+static long	max;
+static double	scalefactor;
+static unsigned char	line[512*3];
+static FILE	*fp;
+
+int
+main(int argc, char **argv)
+{
+	register int i;
+
+	/* check for verbose flag */
+	if( argc > 1 && strcmp(argv[1], "-v") == 0 ) {
+		verbose++;
+		argv++;
+		argc--;
+	}
+
+	/* look for optional input file */
+	if( argc > 1 ) {
+		if( (fp = fopen(argv[1],"r")) == 0 ) {
+			fprintf( stderr, "pixhist: can't open \"%s\"\n", argv[1] );
+			exit( 1 );
+		}
+		argv++;
+		argc--;
+	} else
+		fp = stdin;
+
+	/* check usage */
+	if( argc > 1 || isatty(fileno(fp)) ) {
+		fputs( Usage, stderr );
+		exit( 1 );
+	}
+
+	while( (i = fread(&ibuf[0], sizeof(*ibuf), sizeof(ibuf), fp)) > 0 ) {
+		register unsigned char *bp;
+		register int j;
+
+		bp = &ibuf[0];
+		for( j = i/3; j > 0; j-- )  {
+			bin_r[ *bp++ ]++;
+			bin_g[ *bp++ ]++;
+			bin_b[ *bp++ ]++;
+		}
+	}
+
+	/* find max */
+	max = 1;
+	for( i = 0; i < 256; i++ ) {
+		if( bin_r[i] > max ) max = bin_r[i];
+		if( bin_g[i] > max ) max = bin_g[i];
+		if( bin_b[i] > max ) max = bin_b[i];
+	}
+	scalefactor = 511.0 / ((double)max);
+
+	/* Display the max? */
+	printf("Max bin count=%ld.  %g count/pixel\n", max, scalefactor );
+
+	if( (fbp = fb_open( NULL, 512, 512 )) == NULL )  {
+		fprintf(stderr,"fb_open failed\n");
+		exit(12);
+	}
+
+	/* Display them */
+	for( i = 0; i < 256; i++ ) {
+		register int j;
+		register int level;
+		register long npix;
+
+		level = (int)((double)bin_r[i]*scalefactor);
+		if( level > 511 )  level = 511;
+		for( j = 0; j < level; j++ )  line[j*3+RED] = 255;
+		for( ; j < 512; j++ )  line[j*3+RED] = 0;
+		npix = level;
+
+		level = (int)((double)bin_g[i]*scalefactor);
+		if( level > 511 )  level = 511;
+		for( j = 0; j < level; j++ )  line[j*3+GRN] = 255;
+		for( ; j < 512; j++ )  line[j*3+GRN] = 0;
+		if( level > npix )  npix = level;
+
+		level = (int)((double)bin_b[i]*scalefactor);
+		if( level > 511 )  level = 511;
+		for( j = 0; j < level; j++ )  line[j*3+BLU] = 255;
+		for( ; j < 512; j++ )  line[j*3+BLU] = 0;
+		if( level > npix )  npix = level;
+
+		fb_write( fbp, 0, 2*i, line, npix );
+		fb_write( fbp, 0, 2*i+1, line, npix );
+		if( verbose )
+			printf( "%3d: %10ld %10ld %10ld  (%ld)\n",
+				i, bin_r[i], bin_g[i], bin_b[i], npix );
+	}
+	fb_close( fbp );
+	return 0;
+}
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+14.9
+log
+@remove ephemeral data like phone numbers and addresses, including the misleading 'source' statements on code that is continually evolving and receiving contributions from many many sources
+@
+text
+@d31 1
+a31 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/pixhist.c,v 14.8 2007/01/23 01:13:56 brlcad Exp $ (BRL)";
+a37 1
+#ifdef HAVE_STRING_H
+d39 3
+a41 2
+#else
+#include <strings.h>
+a42 1
+#include <unistd.h>
+@
+
+
+14.8
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@a28 4
+ *  Source -
+ *	SECAD/VLD Computing Consortium, Bldg 394
+ *	The U. S. Army Ballistic Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005-5066
+d31 1
+a31 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/pixhist.c,v 14.7 2007/01/20 14:37:06 brlcad Exp $ (BRL)";
+@
+
+
+14.7
+log
+@update copyright to 2007
+@
+text
+@d8 2
+a9 3
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+d14 1
+a14 1
+ * General Public License for more details.
+d16 2
+a17 2
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+d35 1
+a35 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/pixhist.c,v 14.6 2006/02/27 10:08:41 brlcad Exp $ (BRL)";
+@
+
+
+14.6
+log
+@stdlib.h and exit()
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 1986-2006 United States Government as represented by
+d36 1
+a36 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/pixhist.c,v 14.5 2006/01/18 06:46:27 brlcad Exp $ (BRL)";
+@
+
+
+14.5
+log
+@update copyright to 2006
+@
+text
+@d36 1
+a36 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/pixhist.c,v 14.4 2005/10/23 04:44:39 brlcad Exp $ (BRL)";
+a40 2
+
+
+@
+
+
+14.4
+log
+@trailing ws
+@
+text
+@d4 1
+a4 1
+ * Copyright (C) 1986-2005 United States Government as represented by
+d36 1
+a36 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/pixhist.c,v 14.3 2005/01/30 20:31:33 brlcad Exp $ (BRL)";
+@
+
+
+14.3
+log
+@update copyright to 2005
+@
+text
+@d29 1
+a29 1
+ *  
+d36 1
+a36 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/pixhist.c,v 14.2 2004/12/21 03:45:41 butler Exp $ (BRL)";
+@
+
+
+14.3.6.1
+log
+@merge changes from HEAD aka rel-7-6-4 to the rel-7-6-branch just in case someone peeks a gander or tries to continue/build the branch
+@
+text
+@d29 1
+a29 1
+ *
+d36 1
+a36 1
+static const char RCSid[] = "@@(#)$Header$ (BRL)";
+@
+
+
+14.2
+log
+@GPL license changes
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 1986-2004 United States Government as represented by
+d36 1
+a36 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/util/pixhist.c,v 14.1 2004/11/16 19:42:32 morrison Exp $ (BRL)";
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@d1 21
+a21 2
+/*
+ *		P I X H I S T . C
+a33 4
+ *  
+ *  Copyright Notice -
+ *	This software is Copyright (C) 1986-2004 by the United States Army.
+ *	All rights reserved.
+d36 1
+a36 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/util/pixhist.c,v 1.2 2004/08/02 23:01:53 morrison Exp $ (BRL)";
+@
+
+
+1.2
+log
+@replace the wrapped config.h block with common.h
+@
+text
+@d21 1
+a21 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/util/pixhist.c,v 1.1 2004/05/20 15:21:52 morrison Exp $ (BRL)";
+d148 10
+@
+
+
+1.1
+log
+@Vast reorganization begins.  Sources moved from top-level directories into src/.
+@
+text
+@d21 1
+a21 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/util/pixhist.c,v 11.10 2004/05/10 15:30:51 erikg Exp $ (BRL)";
+d24 1
+a24 3
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+@
+

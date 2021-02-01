@@ -1,0 +1,786 @@
+head	1.14;
+access;
+symbols
+	ansi-20040405-merged:1.10.2.2
+	postmerge-20040405-ansi:1.12
+	premerge-20040404-ansi:1.11
+	postmerge-autoconf:1.11
+	autoconf-freeze:1.10.10.2
+	premerge-autoconf:1.11
+	ansi-20040316-freeze:1.10.2.1
+	postmerge-20040315-windows:1.11
+	premerge-20040315-windows:1.11
+	windows-20040315-freeze:1.10.4.1
+	autoconf-20031203:1.10
+	autoconf-20031202:1.10
+	autoconf-branch:1.10.0.10
+	phong-branch:1.10.0.8
+	photonmap-branch:1.10.0.6
+	rel-6-1-DP:1.10
+	windows-branch:1.10.0.4
+	rel-6-0-2:1.8
+	ansi-branch:1.10.0.2
+	rel-6-0-1-branch:1.8.0.2
+	hartley-6-0-post:1.9
+	hartley-6-0-pre:1.8
+	rel-6-0-1:1.8
+	rel-6-0:1.8
+	rel-5-4:1.5
+	offsite-5-3-pre:1.7
+	rel-5-3:1.5
+	rel-5-2:1.5
+	rel-5-1-branch:1.5.0.2
+	rel-5-1:1.5
+	rel-5-0:1.3
+	rel-5-0-beta:1.1;
+locks; strict;
+comment	@ * @;
+
+
+1.14
+date	2004.05.21.18.07.26;	author morrison;	state dead;
+branches;
+next	1.13;
+
+1.13
+date	2004.05.10.15.30.45;	author erikg;	state Exp;
+branches;
+next	1.12;
+
+1.12
+date	2004.04.05.07.43.56;	author morrison;	state Exp;
+branches;
+next	1.11;
+
+1.11
+date	2004.02.02.17.39.13;	author morrison;	state Exp;
+branches;
+next	1.10;
+
+1.10
+date	2002.08.20.17.07.49;	author jra;	state Exp;
+branches
+	1.10.2.1
+	1.10.4.1
+	1.10.10.1;
+next	1.9;
+
+1.9
+date	2002.08.15.20.55.03;	author hartley;	state Exp;
+branches;
+next	1.8;
+
+1.8
+date	2001.04.20.22.29.28;	author morrison;	state Exp;
+branches;
+next	1.7;
+
+1.7
+date	2000.08.24.22.05.02;	author mike;	state Exp;
+branches;
+next	1.6;
+
+1.6
+date	2000.07.25.16.45.04;	author butler;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	2000.01.21.21.45.10;	author butler;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	99.10.30.04.22.24;	author butler;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	99.07.02.22.20.55;	author mike;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	99.07.01.20.10.49;	author mike;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	99.01.20.01.03.53;	author mike;	state Exp;
+branches;
+next	;
+
+1.10.2.1
+date	2002.09.19.18.01.23;	author morrison;	state Exp;
+branches;
+next	1.10.2.2;
+
+1.10.2.2
+date	2004.03.17.21.18.30;	author morrison;	state Exp;
+branches;
+next	;
+
+1.10.4.1
+date	2004.03.11.23.42.56;	author morrison;	state Exp;
+branches;
+next	;
+
+1.10.10.1
+date	2004.02.12.19.42.44;	author erikg;	state Exp;
+branches;
+next	1.10.10.2;
+
+1.10.10.2
+date	2004.03.15.14.07.12;	author erikg;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.14
+log
+@moved to src/
+@
+text
+@/*
+ *  			S H _ T E M P . C
+ *  
+ *  Temperature map lookup.
+ *  Based upon liboptical/sh_text.c
+ *
+ *  Author -
+ *	Michael John Muuss
+ *
+ *  Source -
+ *	The U. S. Army Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005-5068  USA
+ *  
+ *  Distribution Notice -
+ *	Re-distribution of this software is restricted, as described in
+ *	your "Statement of Terms and Conditions for the Release of
+ *	The BRL-CAD Package" license agreement.
+ *
+ *  Copyright Notice -
+ *	This software is Copyright (C) 1999-2004 by the United States Army
+ *	in all countries except the USA.  All rights reserved.
+ */
+#ifndef lint
+static const char RCSid[] = "@@(#)$Header: /n/xoff/cvs/brlcad/libmultispectral/sh_temp.c,v 1.13 2004/05/10 15:30:45 erikg Exp $ (ARL)";
+#endif
+
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+
+#include <stdio.h>
+#include <ctype.h>
+#include "machine.h"
+#include "vmath.h"
+#include "raytrace.h"
+#include "shadefuncs.h"
+#include "shadework.h"
+#include "rtprivate.h"
+
+extern struct region	env_region;		/* import from view.c */
+
+HIDDEN int	temp_setup(register struct region *rp, struct bu_vls *matparm, char **dpp, const struct mfuncs *mfp, struct rt_i *rtip), temp_render(struct application *ap, struct partition *pp, struct shadework *swp, char *dp);
+HIDDEN void	temp_print(register struct region *rp), temp_free(char *cp);
+HIDDEN void	temp_transp_hook();
+
+extern int mlib_zero(), mlib_one();
+extern void	mlib_void();
+
+struct mfuncs temp_mfuncs[] = {
+	{MF_MAGIC,	"temp",		0,		MFI_UV,		0,
+	temp_setup,	temp_render,	temp_print,	temp_free },
+
+	{0,		(char *)0,	0,		0,		0,
+	0,		0,		0,		0 }
+};
+
+#define TXT_NAME_LEN 128
+struct temp_specific {
+	char	t_file[TXT_NAME_LEN];	/* Filename */
+	int	t_w;		/* Width of texture in pixels */
+	int	t_n;		/* Number of scanlines */
+	struct bu_mapped_file	*mp;
+};
+#define TX_NULL	((struct temp_specific *)0)
+#define TX_O(m)	offsetof(struct temp_specific, m)
+
+struct bu_structparse temp_parse[] = {
+	{"%s",	TXT_NAME_LEN, "file", bu_offsetofarray(struct temp_specific, t_file),		BU_STRUCTPARSE_FUNC_NULL },
+	{"%d",	1, "w",		TX_O(t_w),		BU_STRUCTPARSE_FUNC_NULL },
+	{"%d",	1, "n",		TX_O(t_n),		BU_STRUCTPARSE_FUNC_NULL },
+	{"%d",	1, "l",		TX_O(t_n),		BU_STRUCTPARSE_FUNC_NULL }, /*compat*/
+	{"",	0, (char *)0,	0,			BU_STRUCTPARSE_FUNC_NULL }
+};
+
+/*
+ *  			T X T _ R E N D E R
+ *  
+ *  Given a u,v coordinate within the texture ( 0 <= u,v <= 1.0 ),
+ *  return a pointer to the relevant pixel.
+ *
+ *  Note that .pix files are stored left-to-right, bottom-to-top,
+ *  which works out very naturally for the indexing scheme.
+ */
+HIDDEN int
+temp_render(struct application *ap, struct partition *pp, struct shadework *swp, char *dp)
+{
+	register struct temp_specific *tp =
+		(struct temp_specific *)dp;
+	fastf_t xmin, xmax, ymin, ymax;
+	int dx, dy;
+	register fastf_t temp = 0;
+
+	if( rdebug & RDEBUG_SHADE )
+		bu_log( "in temp_render(): du=%g, dv=%g\n", swp->sw_uv.uv_du, swp->sw_uv.uv_dv );
+	/*
+	 * If no texture file present, or if
+	 * texture isn't and can't be read, give debug colors
+	 * Set temp in degK to be the sum of the X&Y screen coordinates.
+	 */
+	if( tp->t_file[0] == '\0' || !tp->mp )  {
+		swp->sw_temperature = ap->a_x + ap->a_y;
+		if( swp->sw_reflect > 0 || swp->sw_transmit > 0 )
+			(void)rr_render( ap, pp, swp );
+		return(1);
+	}
+
+	/* u is left->right index, v is line number bottom->top */
+	/* Don't filter more than 1/8 of the texture for 1 pixel! */
+	if( swp->sw_uv.uv_du > 0.125 )  swp->sw_uv.uv_du = 0.125;
+	if( swp->sw_uv.uv_dv > 0.125 )  swp->sw_uv.uv_dv = 0.125;
+
+	if( swp->sw_uv.uv_du < 0 || swp->sw_uv.uv_dv < 0 )  {
+		bu_log("temp_render uv=%g,%g, du dv=%g %g seg=%s\n",
+			swp->sw_uv.uv_u, swp->sw_uv.uv_v, swp->sw_uv.uv_du, swp->sw_uv.uv_dv,
+			pp->pt_inseg->seg_stp->st_name );
+		swp->sw_uv.uv_du = swp->sw_uv.uv_dv = 0;
+	}
+
+	xmin = swp->sw_uv.uv_u - swp->sw_uv.uv_du;
+	xmax = swp->sw_uv.uv_u + swp->sw_uv.uv_du;
+	ymin = swp->sw_uv.uv_v - swp->sw_uv.uv_dv;
+	ymax = swp->sw_uv.uv_v + swp->sw_uv.uv_dv;
+	if( xmin < 0 )  xmin = 0;
+	if( ymin < 0 )  ymin = 0;
+	if( xmax > 1 )  xmax = 1;
+	if( ymax > 1 )  ymax = 1;
+
+	if( rdebug & RDEBUG_SHADE )
+		bu_log( "footprint in texture space is (%g %g) <-> (%g %g)\n",
+			xmin * (tp->t_w-1), ymin * (tp->t_n-1),
+			xmax * (tp->t_w-1), ymax * (tp->t_n-1) );
+			
+	dx = (int)(xmax * (tp->t_w-1)) - (int)(xmin * (tp->t_w-1));
+	dy = (int)(ymax * (tp->t_n-1)) - (int)(ymin * (tp->t_n-1));
+
+	if( rdebug & RDEBUG_SHADE )
+		bu_log( "\tdx = %d, dy = %d\n", dx, dy );
+	if( dx == 0 && dy == 0 )
+	{
+		/* No averaging necessary */
+
+		register unsigned char *cp;
+		double ttemp;
+
+		cp = ((unsigned char *)(tp->mp->buf)) +
+			(int)(ymin * (tp->t_n-1)) * tp->t_w * 8 +
+			(int)(xmin * (tp->t_w-1)) * 8;
+		ntohd( (unsigned char *)&ttemp, cp, 1 );
+		temp += ttemp;
+	}
+	else
+	{
+		/* Calculate weighted average of cells in footprint */
+
+		fastf_t tot_area=0.0;
+		fastf_t cell_area;
+		int start_line, stop_line, line;
+		int start_col, stop_col, col;
+		fastf_t xstart, xstop, ystart, ystop;
+
+		xstart = xmin * (tp->t_w-1);
+		xstop = xmax * (tp->t_w-1);
+		ystart = ymin * (tp->t_n-1);
+		ystop = ymax * (tp->t_n-1);
+
+		start_line = ystart;
+		stop_line = ystop;
+		start_col = xstart;
+		stop_col = xstop;
+
+		if( rdebug & RDEBUG_SHADE )
+		{
+			bu_log( "\thit in texture space = (%g %g)\n", swp->sw_uv.uv_u * (tp->t_w-1), swp->sw_uv.uv_v * (tp->t_n-1) );
+			bu_log( "\t averaging from  (%g %g) to (%g %g)\n", xstart, ystart, xstop, ystop );
+			bu_log( "\tcontributions to average:\n" );
+		}
+
+		for( line = start_line ; line <= stop_line ; line++ )
+		{
+			register unsigned char *cp;
+			fastf_t line_factor;
+			fastf_t line_upper, line_lower;
+
+			line_upper = line + 1.0;
+			if( line_upper > ystop )
+				line_upper = ystop;
+			line_lower = line;
+			if( line_lower < ystart )
+				line_lower = ystart;
+			line_factor = line_upper - line_lower;
+			cp = ((unsigned char *)(tp->mp->buf)) +
+				line * tp->t_w * 8 + (int)(xstart) * 8;
+
+			for( col = start_col ; col <= stop_col ; col++ )
+			{
+				fastf_t col_upper, col_lower;
+				double ttemp;
+
+				col_upper = col + 1.0;
+				if( col_upper > xstop )
+					col_upper = xstop;
+				col_lower = col;
+				if( col_lower < xstart )
+					col_lower = xstart;
+				cell_area = line_factor * (col_upper - col_lower);
+				tot_area += cell_area;
+
+				ntohd( (unsigned char *)&ttemp, cp, 1 );
+
+				if( rdebug & RDEBUG_SHADE )
+					bu_log( "\t %g weight=%g (from col=%d line=%d)\n",
+						ttemp,
+						cell_area, col, line );
+
+				temp += ttemp * cell_area;
+			}
+		}
+		temp /= tot_area;
+	}
+	
+	if( rdebug & RDEBUG_SHADE )
+		bu_log( " average temp: %g\n", temp );
+
+	swp->sw_temperature = temp;
+
+	if( swp->sw_reflect > 0 || swp->sw_transmit > 0 )
+		(void)rr_render( ap, pp, swp );
+	return(1);
+}
+
+/*
+ *			T X T _ S E T U P
+ */
+HIDDEN int
+temp_setup(register struct region *rp, struct bu_vls *matparm, char **dpp, const struct mfuncs *mfp, struct rt_i *rtip)
+                      	    
+             		         
+    			      
+                   	     
+                                /* New since 4.4 release */
+{
+	register struct temp_specific *tp;
+	int		pixelbytes = 8;
+
+	BU_CK_VLS( matparm );
+	BU_GETSTRUCT( tp, temp_specific );
+	*dpp = (char *)tp;
+
+	tp->t_file[0] = '\0';
+	tp->t_w = tp->t_n = -1;
+	if( bu_struct_parse( matparm, temp_parse, (char *)tp ) < 0 )  {
+		bu_free( (char *)tp, "temp_specific" );
+		return(-1);
+	}
+	if( tp->t_w < 0 )  tp->t_w = 512;
+	if( tp->t_n < 0 )  tp->t_n = tp->t_w;
+
+	if( tp->t_file[0] == '\0' )  return -1;	/* FAIL, no file */
+	if( !(tp->mp = bu_open_mapped_file( tp->t_file, NULL )) )
+		return -1;				/* FAIL */
+
+	/* Ensure file is large enough */
+	if( tp->mp->buflen < tp->t_w * tp->t_n * pixelbytes )  {
+		bu_log("\ntemp_setup() ERROR %s %s needs %d bytes, '%s' only has %d\n",
+			rp->reg_name,
+			mfp->mf_name,
+			tp->t_w * tp->t_n * pixelbytes,
+			tp->mp->name,
+			tp->mp->buflen );
+		return -1;				/* FAIL */
+	}
+
+	return 1;				/* OK */
+}
+
+/*
+ *			T X T _ P R I N T
+ */
+HIDDEN void
+temp_print(register struct region *rp)
+{
+	bu_struct_print(rp->reg_name, temp_parse, (char *)rp->reg_udata);
+}
+
+/*
+ *			T X T _ F R E E
+ */
+HIDDEN void
+temp_free(char *cp)
+{
+	struct temp_specific *tp =
+		(struct temp_specific *)cp;
+
+	if( tp->mp )  bu_close_mapped_file( tp->mp );
+	bu_free( cp, "temp_specific" );
+}
+@
+
+
+1.13
+log
+@change conf.h to a wrapped config.h
+@
+text
+@d24 1
+a24 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/libmultispectral/sh_temp.c,v 1.12 2004/04/05 07:43:56 morrison Exp $ (ARL)";
+@
+
+
+1.12
+log
+@merge of ansi-6-0-branch into HEAD
+@
+text
+@d24 1
+a24 1
+static const char RCSid[] = "@@(#)$Header$ (ARL)";
+d27 5
+a31 1
+#include "conf.h"
+@
+
+
+1.11
+log
+@update copyright to include span through 2003
+@
+text
+@d24 1
+a24 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/libmultispectral/sh_temp.c,v 1.10 2002/08/20 17:07:49 jra Exp $ (ARL)";
+d40 2
+a41 2
+HIDDEN int	temp_setup(), temp_render();
+HIDDEN void	temp_print(), temp_free();
+d83 1
+a83 5
+temp_render( ap, pp, swp, dp )
+struct application	*ap;
+struct partition	*pp;
+struct shadework	*swp;
+char	*dp;
+d233 6
+a238 6
+temp_setup( rp, matparm, dpp, mfp, rtip )
+register struct region	*rp;
+struct bu_vls		*matparm;
+char			**dpp;
+const struct mfuncs	*mfp;
+struct rt_i             *rtip;  /* New since 4.4 release */
+d278 1
+a278 2
+temp_print( rp )
+register struct region *rp;
+d287 1
+a287 2
+temp_free( cp )
+char *cp;
+@
+
+
+1.10
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d20 1
+a20 1
+ *	This software is Copyright (C) 1999 by the United States Army
+d24 1
+a24 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/libmultispectral/sh_temp.c,v 1.8 2001/04/20 22:29:28 morrison Exp $ (ARL)";
+@
+
+
+1.10.4.1
+log
+@sync to HEAD...
+@
+text
+@d20 1
+a20 1
+ *	This software is Copyright (C) 1999-2004 by the United States Army
+d24 1
+a24 1
+static const char RCSid[] = "@@(#)$Header: /n/cad/c/CVS/brlcad/libmultispectral/sh_temp.c,v 1.11 2004/02/02 17:39:13 morrison Exp $ (ARL)";
+@
+
+
+1.10.10.1
+log
+@merge from HEAD
+@
+text
+@d20 1
+a20 1
+ *	This software is Copyright (C) 1999-2004 by the United States Army
+d24 1
+a24 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/libmultispectral/sh_temp.c,v 1.11 2004/02/02 17:39:13 morrison Exp $ (ARL)";
+@
+
+
+1.10.10.2
+log
+@merge from head
+@
+text
+@d24 1
+a24 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/libmultispectral/sh_temp.c,v 1.10.10.1 2004/02/12 19:42:44 erikg Exp $ (ARL)";
+@
+
+
+1.10.2.1
+log
+@Initial ANSIfication
+@
+text
+@d24 1
+a24 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/libmultispectral/sh_temp.c,v 1.10 2002/08/20 17:07:49 jra Exp $ (ARL)";
+d40 2
+a41 2
+HIDDEN int	temp_setup(register struct region *rp, struct bu_vls *matparm, char **dpp, const struct mfuncs *mfp, struct rt_i *rtip), temp_render(struct application *ap, struct partition *pp, struct shadework *swp, char *dp);
+HIDDEN void	temp_print(register struct region *rp), temp_free(char *cp);
+d83 5
+a87 1
+temp_render(struct application *ap, struct partition *pp, struct shadework *swp, char *dp)
+d237 6
+a242 6
+temp_setup(register struct region *rp, struct bu_vls *matparm, char **dpp, const struct mfuncs *mfp, struct rt_i *rtip)
+                      	    
+             		         
+    			      
+                   	     
+                                /* New since 4.4 release */
+d282 2
+a283 1
+temp_print(register struct region *rp)
+d292 2
+a293 1
+temp_free(char *cp)
+@
+
+
+1.10.2.2
+log
+@sync branch with HEAD
+@
+text
+@d20 1
+a20 1
+ *	This software is Copyright (C) 1999-2004 by the United States Army
+d24 1
+a24 1
+static const char RCSid[] = "@@(#)$Header$ (ARL)";
+@
+
+
+1.9
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d40 2
+a41 2
+HIDDEN int	temp_setup(register struct region *rp, struct bu_vls *matparm, char **dpp, const struct mfuncs *mfp, struct rt_i *rtip), temp_render(struct application *ap, struct partition *pp, struct shadework *swp, char *dp);
+HIDDEN void	temp_print(register struct region *rp), temp_free(char *cp);
+d83 5
+a87 1
+temp_render(struct application *ap, struct partition *pp, struct shadework *swp, char *dp)
+d237 6
+a242 6
+temp_setup(register struct region *rp, struct bu_vls *matparm, char **dpp, const struct mfuncs *mfp, struct rt_i *rtip)
+                      	    
+             		         
+    			      
+                   	     
+                                /* New since 4.4 release */
+d282 2
+a283 1
+temp_print(register struct region *rp)
+d292 2
+a293 1
+temp_free(char *cp)
+@
+
+
+1.8
+log
+@CONST to const
+@
+text
+@d24 1
+a24 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/libmultispectral/sh_temp.c,v 1.7 2000/08/24 22:05:02 mike Exp $ (ARL)";
+d40 2
+a41 2
+HIDDEN int	temp_setup(), temp_render();
+HIDDEN void	temp_print(), temp_free();
+d83 1
+a83 5
+temp_render( ap, pp, swp, dp )
+struct application	*ap;
+struct partition	*pp;
+struct shadework	*swp;
+char	*dp;
+d233 6
+a238 6
+temp_setup( rp, matparm, dpp, mfp, rtip )
+register struct region	*rp;
+struct bu_vls		*matparm;
+char			**dpp;
+const struct mfuncs	*mfp;
+struct rt_i             *rtip;  /* New since 4.4 release */
+d278 1
+a278 2
+temp_print( rp )
+register struct region *rp;
+d287 1
+a287 2
+temp_free( cp )
+char *cp;
+@
+
+
+1.7
+log
+@
+RCSid
+@
+text
+@d24 1
+a24 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/libmultispectral/sh_temp.c,v 1.6 2000/07/25 16:45:04 butler Exp $ (ARL)";
+d241 1
+a241 1
+CONST struct mfuncs	*mfp;
+@
+
+
+1.6
+log
+@changed include of ../rt/rdebug.h to rtprivate.h
+@
+text
+@d24 1
+a24 1
+static char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/libmultispectral/sh_temp.c,v 1.5 2000/01/21 21:45:10 butler Exp $ (ARL)";
+@
+
+
+1.5
+log
+@Removed unused variable declarations
+@
+text
+@d24 1
+a24 1
+static char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/libmultispectral/sh_temp.c,v 1.4 1999/10/30 04:22:24 butler Exp $ (ARL)";
+d36 1
+a36 1
+#include "../rt/rdebug.h"
+@
+
+
+1.4
+log
+@../rt/mathtab.h does not exist anymore
+@
+text
+@d24 1
+a24 1
+static char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/libmultispectral/sh_temp.c,v 1.3 1999/07/02 22:20:55 mike Exp $ (ARL)";
+a91 1
+	int line;
+a92 1
+	int x,y;
+a161 1
+		fastf_t u, v;
+a182 1
+			register unsigned char *ep;
+@
+
+
+1.3
+log
+@
+Removed dependence on compat4.h
+@
+text
+@d24 1
+a24 1
+static char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/libmultispectral/sh_temp.c,v 1.2 1999/07/01 20:10:49 mike Exp $ (ARL)";
+a35 1
+#include "../rt/mathtab.h"
+@
+
+
+1.2
+log
+@
+sed4
+@
+text
+@d24 1
+a24 1
+static char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/libmultispectral/sh_temp.c,v 1.1 1999/01/20 01:03:53 mike Exp $ (ARL)";
+d67 5
+a71 5
+	{"%s",	TXT_NAME_LEN, "file", bu_offsetofarray(struct temp_specific, t_file),		FUNC_NULL },
+	{"%d",	1, "w",		TX_O(t_w),		FUNC_NULL },
+	{"%d",	1, "n",		TX_O(t_n),		FUNC_NULL },
+	{"%d",	1, "l",		TX_O(t_n),		FUNC_NULL }, /*compat*/
+	{"",	0, (char *)0,	0,			FUNC_NULL }
+@
+
+
+1.1
+log
+@Added temperature texture-map shader.
+@
+text
+@d24 1
+a24 1
+static char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/liboptical/sh_text.c,v 11.21 1998/12/10 03:35:15 mike Exp $ (ARL)";
+d67 1
+a67 1
+	{"%s",	TXT_NAME_LEN, "file", offsetofarray(struct temp_specific, t_file),		FUNC_NULL },
+d252 2
+a253 2
+	RT_VLS_CHECK( matparm );
+	GETSTRUCT( tp, temp_specific );
+@
+

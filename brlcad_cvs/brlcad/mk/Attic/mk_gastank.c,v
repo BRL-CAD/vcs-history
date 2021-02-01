@@ -1,0 +1,1679 @@
+head	11.12;
+access;
+symbols
+	ansi-20040405-merged:11.9.2.1
+	postmerge-20040405-ansi:11.10
+	premerge-20040404-ansi:11.9
+	postmerge-autoconf:11.9
+	autoconf-freeze:11.9
+	premerge-autoconf:11.9
+	postmerge-20040315-windows:11.9
+	premerge-20040315-windows:11.9
+	windows-20040315-freeze:11.9
+	autoconf-20031203:11.9
+	autoconf-20031202:11.9
+	autoconf-branch:11.9.0.10
+	phong-branch:11.9.0.8
+	photonmap-branch:11.9.0.6
+	rel-6-1-DP:11.9
+	windows-branch:11.9.0.4
+	rel-6-0-2:11.7
+	ansi-branch:11.9.0.2
+	rel-6-0-1-branch:11.7.0.2
+	hartley-6-0-post:11.8
+	hartley-6-0-pre:11.7
+	rel-6-0-1:11.7
+	rel-6-0:11.6
+	rel-5-4:11.2
+	offsite-5-3-pre:11.6
+	rel-5-3:11.2
+	rel-5-2:11.2
+	rel-5-1-branch:11.2.0.2
+	rel-5-1:11.2
+	rel-5-0:11.1
+	rel-5-0-beta:11.1
+	rel-4-5:11.1
+	ctj-4-5-post:11.1
+	ctj-4-5-pre:11.1
+	rel-4-4:11.1;
+locks; strict;
+comment	@ * @;
+
+
+11.12
+date	2004.05.21.17.47.19;	author morrison;	state dead;
+branches;
+next	11.11;
+
+11.11
+date	2004.05.10.15.30.48;	author erikg;	state Exp;
+branches;
+next	11.10;
+
+11.10
+date	2004.04.05.07.39.54;	author morrison;	state Exp;
+branches;
+next	11.9;
+
+11.9
+date	2002.08.20.17.08.29;	author jra;	state Exp;
+branches
+	11.9.2.1;
+next	11.8;
+
+11.8
+date	2002.08.15.20.55.41;	author hartley;	state Exp;
+branches;
+next	11.7;
+
+11.7
+date	2002.05.17.12.55.42;	author morrison;	state Exp;
+branches;
+next	11.6;
+
+11.6
+date	2000.08.24.04.34.12;	author mike;	state Exp;
+branches;
+next	11.5;
+
+11.5
+date	2000.08.24.04.05.24;	author mike;	state Exp;
+branches;
+next	11.4;
+
+11.4
+date	2000.07.12.21.58.30;	author mike;	state Exp;
+branches;
+next	11.3;
+
+11.3
+date	2000.07.12.03.59.20;	author mike;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	2000.03.29.18.29.25;	author mike;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	95.01.04.10.06.34;	author mike;	state Rel4_4;
+branches;
+next	1.5;
+
+1.5
+date	94.10.31.23.23.59;	author mike;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	94.08.09.19.18.53;	author gdurf;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	94.08.09.19.13.00;	author gdurf;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	92.09.17.09.34.47;	author scoates;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	92.09.15.10.03.45;	author scoates;	state Exp;
+branches;
+next	;
+
+11.9.2.1
+date	2002.09.19.18.02.09;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@Program to create an mged data base of solid gastanks with rounded
+corners.  These gastanks are for use in signature modeling not
+vulnerability or ir modeling.
+@
+
+
+11.12
+log
+@moved to src/mk/
+@
+text
+@
+/*  File:  mk_gastank.c  */
+/*  S.Coates - 2 September 1992  */
+/*  To compile for use separatley:  */
+/*  cc mk_gastank.c /usr/brlcad/lib/libwdb.a /usr/brlcad/lib/librt.a  */
+/*	-lmpc -lm -o mk_gastank  */
+
+/*  Program to create a gas tank using libwdb.  All dimensions are  */
+/*  in mm.  The gas tank is composed of 3 arb8s, 8 spheres, and 12  */
+/*  cylinders.  The gas tank is solid and centered at (0,0,0).  */
+
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+
+#include <stdio.h>
+#ifdef HAVE_STDLIB_H
+#include <stdlib.h>
+#endif
+#ifdef USE_STRING_H
+#include <string.h>
+#else
+#include <strings.h>
+#endif
+#include <math.h>
+
+#include "machine.h"
+#include "db.h"
+#include "vmath.h"
+#include "raytrace.h"
+#include "wdb.h"
+
+#ifdef M_PI
+#define PI M_PI
+#else
+#define PI 3.141592653589793
+#endif
+
+int
+main(int argc, char **argv)
+{							/*  START # 1  */
+   struct rt_wdb *fpw;		/*  File to be written to.  */
+   char filemged[26];		/*  Mged file create.  */
+   double hgt,wid,dpt;		/*  Height, width, & depth of gas tank.  */
+   double rds;			/*  Radius of the corner of gas tank.  */
+   point_t pts[8];		/*  Points for arb8.  */
+   point_t bs;			/*  Base of cylinder.  */
+   vect_t ht;			/*  Height of cylinder.  */
+   fastf_t rad;			/*  Radius of cylinder & sphere.  */
+   point_t cent;		/*  Center of sphere.  */
+
+   /*  point_t and vect_t are set using typedef of type fastf_t.  */
+   /*  fastf_t is a type that is machine dependent.  */
+
+   char *temp;			/*  Temporary character string.  */
+   char temp1[16];		/*  Temporary character string.  */
+
+   char solnam[9];		/*  Solid name.  */
+   char regnam[9];		/*  Region name.  */
+   char grpnam[5];		/*  Group name.  */
+   int numtnk;			/*  Number of gas tanks to be created  */
+				/*  (<=26).  */
+
+   struct wmember comb;		/*  Used to make regions.  */
+   struct wmember comb1;	/*  Used to make groups.  */
+
+   int i,j,k;			/*  Loop counters.  */
+
+   /*  Set up solid, region, and group names.  */
+   solnam[0] = 's';
+   solnam[1] = '.';
+   solnam[2] = 't';
+   solnam[3] = 'n';
+   solnam[4] = 'k';
+   solnam[5] = ' ';
+   solnam[6] = '#';
+   solnam[7] = '#';
+   solnam[8] = '\0';
+   regnam[0] = 'r';
+   regnam[1] = '.';
+   regnam[2] = 't';
+   regnam[3] = 'n';
+   regnam[4] = 'k';
+   regnam[5] = ' ';
+   regnam[6] = '#';
+   regnam[7] = '#';
+   regnam[8] = '\0';
+   grpnam[0] = 't';
+   grpnam[1] = 'n';
+   grpnam[2] = 'k';
+   grpnam[3] = ' ';
+   grpnam[4] = '\0';
+
+   /*  If there are no arguments ask questions.  */
+   if(argc == 1)
+   {							/*  START # 3  */
+
+   /*  Print info about the window.  */
+   (void)printf("\nThis program constructs a solid gas tank with all\n");
+   (void)printf("edges and corners rounded.\n\n");
+
+   /*  Find name of mged file to be created.  */
+   (void)printf("Enter the mged file to be created (25 char max).\n\t");
+   (void)fflush(stdout);
+   (void)scanf("%s",filemged);
+
+   /*  Find the number of gas tanks to create.  */
+   (void)printf("Enter the number of gas tanks to create (26 max).\n\t");
+   (void)fflush(stdout);
+   (void)scanf("%d",&numtnk);
+   if(numtnk > 26) numtnk = 26;
+
+   /*  Find the dimensions of the gas tanks.  */
+   (void)printf("Enter the height, width, and depth of the gas tank.\n\t");
+   (void)fflush(stdout);
+   (void)scanf("%lf %lf %lf",&hgt,&wid,&dpt);
+   (void)printf("Enter the radius of the corners.\n\t");
+   (void)fflush(stdout);
+   (void)scanf("%lf",&rds);
+
+   }							/*  END # 3  */
+
+   /*  If there are arguments get answers from arguments.  */
+   else
+   {							/*  START # 4  */
+	/*  List options.  */
+	/*	-fname - name = mged file name.  */
+	/*	-n# - # = number of gas tanks.  */
+	/*	-h# - # = height of gas tank in mm.  */
+	/*	-w# - # = width of gas tank in mm.  */
+	/*	-d# - # = depth of gas tank in mm.  */
+	/*	-r# - # = radius of corners in mm.  */
+
+	for(i=1; i<argc; i++)
+	{						/*  START # 5  */
+	   /*  Put argument in temporary character string.  */
+	   temp = argv[i];
+
+	   /*  -f - mged file.  */
+	   if(temp[1] == 'f')
+	   {						/*  START # 6  */
+		j = 2;
+		k = 0;
+		while( (temp[j] != '\0') && (k < 25) )
+		{					/*  START # 7  */
+		   filemged[k] = temp[j];
+		   j++;
+		   k++;
+		}					/*  END # 7  */
+		filemged[k] = '\0';
+	   }						/*  END # 6  */
+
+	   /*  All other options.  */
+	   else
+	   {						/*  START # 8  */
+		/*  Set up temporary character string.  */
+		j = 2;
+		k = 0;
+		while( (temp[j] != '\0') && (k < 15) )
+		{					/*  START # 9  */
+		   temp1[k] = temp[j];
+		   j++;
+		   k++;
+		}					/*  END # 9  */
+		temp1[k] = '\0';
+		if(temp[1] == 'n')
+		{
+		   (void)sscanf(temp1,"%d",&numtnk);
+		   if(numtnk > 26) numtnk = 26;
+		}
+		else if(temp[1] == 'h') (void)sscanf(temp1,"%lf",&hgt);
+		else if(temp[1] == 'w') (void)sscanf(temp1,"%lf",&wid);
+		else if(temp[1] == 'd') (void)sscanf(temp1,"%lf",&dpt);
+		else if(temp[1] == 'r') (void)sscanf(temp1,"%lf",&rds);
+	   }						/*  END # 8  */
+	}						/*  END # 5  */
+   }							/*  END # 4  */
+
+   /*  Print out all info.  */
+   (void)printf("\nmged file:  %s\n",filemged);
+   (void)printf("height of gas tank:  %f mm\n",hgt);
+   (void)printf("width of gas tank:  %f mm\n",wid);
+   (void)printf("depth of gas tank:  %f mm\n",dpt);
+   (void)printf("radius of corner:  %f mm\n",rds);
+   (void)printf("number of gas tanks:  %d\n\n",numtnk);
+   (void)fflush(stdout);
+
+   /*  Open mged file.  */
+   fpw = wdb_fopen(filemged);
+
+   /*  Write ident record.  */
+   mk_id(fpw,"windows");
+
+   for(i=0; i<numtnk; i++)
+   {							/*  START # 2  */
+
+	/*  Create all solids.  */
+
+	/*  Create the 3 arb8s.  */
+
+	pts[0][0] = (fastf_t)(dpt / 2.);
+	pts[0][1] = (fastf_t)(wid / 2. - rds);
+	pts[0][2] = (fastf_t)(hgt / 2. - rds);
+	pts[1][0] = pts[0][0];
+	pts[1][1] = pts[0][1];
+	pts[1][2] = (-pts[0][2]);
+	pts[2][0] = pts[0][0];
+	pts[2][1] = (-pts[0][1]);
+	pts[2][2] = pts[1][2];
+	pts[3][0] = pts[0][0];
+	pts[3][1] = pts[2][1];
+	pts[3][2] = pts[0][2];
+	pts[4][0] = (-pts[0][0]);
+	pts[4][1] = pts[0][1];
+	pts[4][2] = pts[0][2];
+	pts[5][0] = pts[4][0];
+	pts[5][1] = pts[0][1];
+	pts[5][2] = (-pts[0][2]);
+	pts[6][0] = pts[4][0];
+	pts[6][1] = (-pts[0][1]);
+	pts[6][2] = pts[1][2];
+	pts[7][0] = pts[4][0];
+	pts[7][1] = pts[2][1];
+	pts[7][2] = pts[0][2];
+	solnam[5] = 97 + i;
+	solnam[6] = '0';
+	solnam[7] = '1';
+	mk_arb8(fpw,solnam, &pts[0][X]);
+
+	pts[0][0] = (fastf_t)(dpt / 2. - rds);
+	pts[0][1] = (fastf_t)(wid / 2.);
+	pts[1][0] = pts[0][0];
+	pts[1][1] = pts[0][1];
+	pts[2][0] = pts[0][0];
+	pts[2][1] = (-pts[0][1]);
+	pts[3][0] = pts[0][0];
+	pts[3][1] = pts[2][1];
+	pts[4][0] = (-pts[0][0]);
+	pts[4][1] = pts[0][1];
+	pts[5][0] = pts[4][0];
+	pts[5][1] = pts[0][1];
+	pts[6][0] = pts[4][0];
+	pts[6][1] = pts[2][1];
+	pts[7][0] = pts[4][0];
+	pts[7][1] = pts[2][1];
+	solnam[7] = '2';
+	mk_arb8(fpw,solnam, &pts[0][X]);
+
+	pts[0][1] = (fastf_t)(wid / 2. - rds);
+	pts[0][2] = (fastf_t)(hgt / 2.);
+	pts[1][1] = pts[0][1];
+	pts[1][2] = (-pts[0][2]);
+	pts[2][1] = (-pts[0][1]);
+	pts[2][2] = pts[1][2];
+	pts[3][1] = pts[2][1];
+	pts[3][2] = pts[0][2];
+	pts[4][1] = pts[0][1];
+	pts[4][2] = pts[0][2];
+	pts[5][1] = pts[0][1];
+	pts[5][2] = (-pts[0][2]);
+	pts[6][1] = (-pts[0][1]);
+	pts[6][2] = pts[1][2];
+	pts[7][1] = pts[2][1];
+	pts[7][2] = pts[0][2];
+	solnam[7] = '3';
+	mk_arb8(fpw,solnam, &pts[0][X]);
+
+	/*  Make 8 spheres.  */
+
+	cent[0] = (fastf_t)(dpt / 2. - rds);
+	cent[1] = (fastf_t)(wid / 2. - rds);
+	cent[2] = (fastf_t)(hgt / 2. - rds);
+	rad = (fastf_t)(rds);
+	solnam[7] = '4';
+	mk_sph(fpw,solnam,cent,rad);
+
+	cent[2] = (-cent[2]);
+	solnam[7] = '5';
+	mk_sph(fpw,solnam,cent,rad);
+
+	cent[1] = (-cent[1]);
+	solnam[7] = '6';
+	mk_sph(fpw,solnam,cent,rad);
+
+	cent[2] = (-cent[2]);
+	solnam[7] = '7';
+	mk_sph(fpw,solnam,cent,rad);
+
+	cent[0] = (-cent[0]);
+	cent[1] = (-cent[1]);
+	solnam[7] = '8';
+	mk_sph(fpw,solnam,cent,rad);
+
+	cent[2] = (-cent[2]);
+	solnam[7] = '9';
+	mk_sph(fpw,solnam,cent,rad);
+
+	cent[1] = (-cent[1]);
+	solnam[6] = '1';
+	solnam[7] = '0';
+	mk_sph(fpw,solnam,cent,rad);
+
+	cent[2] = (-cent[2]);
+	solnam[7] = '1';
+	mk_sph(fpw,solnam,cent,rad);
+
+	/*  Make 12 cylinders.  */
+
+	bs[0] = (fastf_t)(dpt / 2. - rds);
+	bs[1] = (fastf_t)(wid / 2. - rds);
+	bs[2] = (fastf_t)(hgt / 2. - rds);
+	ht[0] = (fastf_t)(0.);
+	ht[1] = (fastf_t)(-wid + 2 * rds);
+	ht[2] = (fastf_t)(0.);
+	solnam[7] = '2';
+	mk_rcc(fpw,solnam,bs,ht,rad);
+
+	bs[2] = (-bs[2]);
+	solnam[7] = '3';
+	mk_rcc(fpw,solnam,bs,ht,rad);
+
+	bs[0] = (-bs[0]);
+	solnam[7] = '4';
+	mk_rcc(fpw,solnam,bs,ht,rad);
+
+	bs[2] = (-bs[2]);
+	solnam[7] = '5';
+	mk_rcc(fpw,solnam,bs,ht,rad);
+
+	bs[0] = (fastf_t)(dpt / 2. - rds);
+	bs[1] = (fastf_t)(wid / 2. - rds);
+	bs[2] = (fastf_t)(hgt / 2. - rds);
+	ht[0] = (fastf_t)(0.);
+	ht[1] = (fastf_t)(0.);
+	ht[2] = (fastf_t)(-hgt + 2 * rds);
+	solnam[7] = '6';
+	mk_rcc(fpw,solnam,bs,ht,rad);
+
+	bs[1] = (-bs[1]);
+	solnam[7] = '7';
+	mk_rcc(fpw,solnam,bs,ht,rad);
+
+	bs[0] = (-bs[0]);
+	solnam[7] = '8';
+	mk_rcc(fpw,solnam,bs,ht,rad);
+
+	bs[1] = (-bs[1]);
+	solnam[7] = '9';
+	mk_rcc(fpw,solnam,bs,ht,rad);
+
+	bs[0] = (fastf_t)(dpt / 2. - rds);
+	bs[1] = (fastf_t)(wid / 2. - rds);
+	bs[2] = (fastf_t)(hgt / 2. - rds);
+	ht[0] = (fastf_t)(-dpt + 2 * rds);
+	ht[1] = (fastf_t)(0.);
+	ht[2] = (fastf_t)(0.);
+	solnam[6] = '2';
+	solnam[7] = '0';
+	mk_rcc(fpw,solnam,bs,ht,rad);
+
+	bs[2] = (-bs[2]);
+	solnam[7] = '1';
+	mk_rcc(fpw,solnam,bs,ht,rad);
+
+	bs[1] = (-bs[1]);
+	solnam[7] = '2';
+	mk_rcc(fpw,solnam,bs,ht,rad);
+
+	bs[2] = (-bs[2]);
+	solnam[7] = '3';
+	mk_rcc(fpw,solnam,bs,ht,rad);
+
+	/*  Make all regions.  */
+
+	/*  Initialize list.  */
+	BU_LIST_INIT(&comb.l);
+
+	/*  Region 1.  */
+	solnam[5] = 97 + i;
+	solnam[6] = '0';
+	solnam[7] = '1';
+	(void)mk_addmember(solnam,&comb.l,NULL, WMOP_INTERSECT);
+	solnam[7] = '2';
+	(void)mk_addmember(solnam,&comb.l,NULL, WMOP_SUBTRACT);
+	solnam[7] = '3';
+	(void)mk_addmember(solnam,&comb.l,NULL, WMOP_SUBTRACT);
+	regnam[5] = 97 + i;
+	regnam[6] = '0';
+	regnam[7] = '1';
+	mk_lfcomb(fpw,regnam,&comb,1);
+
+	/*  Region 2.  */
+	solnam[7] = '2';
+	(void)mk_addmember(solnam,&comb.l,NULL, WMOP_INTERSECT);
+	solnam[7] = '3';
+	(void)mk_addmember(solnam,&comb.l,NULL, WMOP_SUBTRACT);
+	regnam[7] = '2';
+	mk_lfcomb(fpw,regnam,&comb,1);
+
+	/*  Region 3.  */
+	solnam[7] = '3';
+	(void)mk_addmember(solnam,&comb.l,NULL, WMOP_INTERSECT);
+	regnam[7] = '3';
+	mk_lfcomb(fpw,regnam,&comb,1);
+
+	/*  Region 4.  */
+	solnam[7] = '4';
+	(void)mk_addmember(solnam,&comb.l,NULL, WMOP_INTERSECT);
+	solnam[6] = '1';
+	solnam[7] = '2';
+	(void)mk_addmember(solnam,&comb.l,NULL, WMOP_SUBTRACT);
+	solnam[7] = '6';
+	(void)mk_addmember(solnam,&comb.l,NULL, WMOP_SUBTRACT);
+	solnam[6] = '2';
+	solnam[7] = '0';
+	(void)mk_addmember(solnam,&comb.l,NULL, WMOP_SUBTRACT);
+	regnam[7] = '4';
+	mk_lfcomb(fpw,regnam,&comb,1);
+
+	/*  Region 5.  */
+	solnam[6] = '0';
+	solnam[7] = '5';
+	(void)mk_addmember(solnam,&comb.l,NULL, WMOP_INTERSECT);
+	solnam[6] = '1';
+	solnam[7] = '3';
+	(void)mk_addmember(solnam,&comb.l,NULL, WMOP_SUBTRACT);
+	solnam[7] = '6';
+	(void)mk_addmember(solnam,&comb.l,NULL, WMOP_SUBTRACT);
+	solnam[6] = '2';
+	solnam[7] = '1';
+	(void)mk_addmember(solnam,&comb.l,NULL, WMOP_SUBTRACT);
+	regnam[7] = '5';
+	mk_lfcomb(fpw,regnam,&comb,1);
+
+	/*  Region 6.  */
+	solnam[6] = '0';
+	solnam[7] = '6';
+	(void)mk_addmember(solnam,&comb.l,NULL, WMOP_INTERSECT);
+	solnam[6] = '1';
+	solnam[7] = '3';
+	(void)mk_addmember(solnam,&comb.l,NULL, WMOP_SUBTRACT);
+	solnam[7] = '7';
+	(void)mk_addmember(solnam,&comb.l,NULL, WMOP_SUBTRACT);
+	solnam[6] = '2';
+	solnam[7] = '2';
+	(void)mk_addmember(solnam,&comb.l,NULL, WMOP_SUBTRACT);
+	regnam[7] = '6';
+	mk_lfcomb(fpw,regnam,&comb,1);
+
+	/*  Region 7.  */
+	solnam[6] = '0';
+	solnam[7] = '7';
+	(void)mk_addmember(solnam,&comb.l,NULL, WMOP_INTERSECT);
+	solnam[6] = '1';
+	solnam[7] = '2';
+	(void)mk_addmember(solnam,&comb.l,NULL, WMOP_SUBTRACT);
+	solnam[7] = '7';
+	(void)mk_addmember(solnam,&comb.l,NULL, WMOP_SUBTRACT);
+	solnam[6] = '2';
+	solnam[7] = '3';
+	(void)mk_addmember(solnam,&comb.l,NULL, WMOP_SUBTRACT);
+	regnam[7] = '7';
+	mk_lfcomb(fpw,regnam,&comb,1);
+
+	/*  Region 8.  */
+	solnam[6] = '0';
+	solnam[7] = '8';
+	(void)mk_addmember(solnam,&comb.l,NULL, WMOP_INTERSECT);
+	solnam[6] = '1';
+	solnam[7] = '5';
+	(void)mk_addmember(solnam,&comb.l,NULL, WMOP_SUBTRACT);
+	solnam[7] = '9';
+	(void)mk_addmember(solnam,&comb.l,NULL, WMOP_SUBTRACT);
+	solnam[6] = '2';
+	solnam[7] = '0';
+	(void)mk_addmember(solnam,&comb.l,NULL, WMOP_SUBTRACT);
+	regnam[7] = '8';
+	mk_lfcomb(fpw,regnam,&comb,1);
+
+	/*  Region 9.  */
+	solnam[6] = '0';
+	solnam[7] = '9';
+	(void)mk_addmember(solnam,&comb.l,NULL, WMOP_INTERSECT);
+	solnam[6] = '1';
+	solnam[7] = '4';
+	(void)mk_addmember(solnam,&comb.l,NULL, WMOP_SUBTRACT);
+	solnam[7] = '9';
+	(void)mk_addmember(solnam,&comb.l,NULL, WMOP_SUBTRACT);
+	solnam[6] = '2';
+	solnam[7] = '1';
+	(void)mk_addmember(solnam,&comb.l,NULL, WMOP_SUBTRACT);
+	regnam[7] = '9';
+	mk_lfcomb(fpw,regnam,&comb,1);
+
+	/*  Region 10.  */
+	solnam[6] = '1';
+	solnam[7] = '0';
+	(void)mk_addmember(solnam,&comb.l,NULL, WMOP_INTERSECT);
+	solnam[7] = '4';
+	(void)mk_addmember(solnam,&comb.l,NULL, WMOP_SUBTRACT);
+	solnam[7] = '8';
+	(void)mk_addmember(solnam,&comb.l,NULL, WMOP_SUBTRACT);
+	solnam[6] = '2';
+	solnam[7] = '2';
+	(void)mk_addmember(solnam,&comb.l,NULL, WMOP_SUBTRACT);
+	regnam[6] = '1';
+	regnam[7] = '0';
+	mk_lfcomb(fpw,regnam,&comb,1);
+
+	/*  Region 11.  */
+	solnam[6] = '1';
+	solnam[7] = '1';
+	(void)mk_addmember(solnam,&comb.l,NULL, WMOP_INTERSECT);
+	solnam[7] = '5';
+	(void)mk_addmember(solnam,&comb.l,NULL, WMOP_SUBTRACT);
+	solnam[7] = '8';
+	(void)mk_addmember(solnam,&comb.l,NULL, WMOP_SUBTRACT);
+	solnam[6] = '2';
+	solnam[7] = '3';
+	(void)mk_addmember(solnam,&comb.l,NULL, WMOP_SUBTRACT);
+	regnam[6] = '1';
+	regnam[7] = '1';
+	mk_lfcomb(fpw,regnam,&comb,1);
+
+	/*  Region 12.  */
+	solnam[6] = '1';
+	solnam[7] = '2';
+	(void)mk_addmember(solnam,&comb.l,NULL, WMOP_INTERSECT);
+	solnam[6] = '0';
+	solnam[7] = '1';
+	(void)mk_addmember(solnam,&comb.l,NULL, WMOP_SUBTRACT);
+	solnam[7] = '3';
+	(void)mk_addmember(solnam,&comb.l,NULL, WMOP_SUBTRACT);
+	regnam[6] = '1';
+	regnam[7] = '2';
+	mk_lfcomb(fpw,regnam,&comb,1);
+
+	/*  Region 13.  */
+	solnam[6] = '1';
+	solnam[7] = '3';
+	(void)mk_addmember(solnam,&comb.l,NULL, WMOP_INTERSECT);
+	solnam[6] = '0';
+	solnam[7] = '1';
+	(void)mk_addmember(solnam,&comb.l,NULL, WMOP_SUBTRACT);
+	solnam[7] = '3';
+	(void)mk_addmember(solnam,&comb.l,NULL, WMOP_SUBTRACT);
+	regnam[6] = '1';
+	regnam[7] = '3';
+	mk_lfcomb(fpw,regnam,&comb,1);
+
+	/*  Region 14.  */
+	solnam[6] = '1';
+	solnam[7] = '4';
+	(void)mk_addmember(solnam,&comb.l,NULL, WMOP_INTERSECT);
+	solnam[6] = '0';
+	solnam[7] = '1';
+	(void)mk_addmember(solnam,&comb.l,NULL, WMOP_SUBTRACT);
+	solnam[7] = '3';
+	(void)mk_addmember(solnam,&comb.l,NULL, WMOP_SUBTRACT);
+	regnam[6] = '1';
+	regnam[7] = '4';
+	mk_lfcomb(fpw,regnam,&comb,1);
+
+	/*  Region 15.  */
+	solnam[6] = '1';
+	solnam[7] = '5';
+	(void)mk_addmember(solnam,&comb.l,NULL, WMOP_INTERSECT);
+	solnam[6] = '0';
+	solnam[7] = '1';
+	(void)mk_addmember(solnam,&comb.l,NULL, WMOP_SUBTRACT);
+	solnam[7] = '3';
+	(void)mk_addmember(solnam,&comb.l,NULL, WMOP_SUBTRACT);
+	regnam[6] = '1';
+	regnam[7] = '5';
+	mk_lfcomb(fpw,regnam,&comb,1);
+
+	/*  Region 16.  */
+	solnam[6] = '1';
+	solnam[7] = '6';
+	(void)mk_addmember(solnam,&comb.l,NULL, WMOP_INTERSECT);
+	solnam[6] = '0';
+	solnam[7] = '1';
+	(void)mk_addmember(solnam,&comb.l,NULL, WMOP_SUBTRACT);
+	solnam[7] = '2';
+	(void)mk_addmember(solnam,&comb.l,NULL, WMOP_SUBTRACT);
+	regnam[6] = '1';
+	regnam[7] = '6';
+	mk_lfcomb(fpw,regnam,&comb,1);
+
+	/*  Region 17.  */
+	solnam[6] = '1';
+	solnam[7] = '7';
+	(void)mk_addmember(solnam,&comb.l,NULL, WMOP_INTERSECT);
+	solnam[6] = '0';
+	solnam[7] = '1';
+	(void)mk_addmember(solnam,&comb.l,NULL, WMOP_SUBTRACT);
+	solnam[7] = '2';
+	(void)mk_addmember(solnam,&comb.l,NULL, WMOP_SUBTRACT);
+	regnam[6] = '1';
+	regnam[7] = '7';
+	mk_lfcomb(fpw,regnam,&comb,1);
+
+	/*  Region 18.  */
+	solnam[6] = '1';
+	solnam[7] = '8';
+	(void)mk_addmember(solnam,&comb.l,NULL, WMOP_INTERSECT);
+	solnam[6] = '0';
+	solnam[7] = '1';
+	(void)mk_addmember(solnam,&comb.l,NULL, WMOP_SUBTRACT);
+	solnam[7] = '2';
+	(void)mk_addmember(solnam,&comb.l,NULL, WMOP_SUBTRACT);
+	regnam[6] = '1';
+	regnam[7] = '8';
+	mk_lfcomb(fpw,regnam,&comb,1);
+
+	/*  Region 19.  */
+	solnam[6] = '1';
+	solnam[7] = '9';
+	(void)mk_addmember(solnam,&comb.l,NULL, WMOP_INTERSECT);
+	solnam[6] = '0';
+	solnam[7] = '1';
+	(void)mk_addmember(solnam,&comb.l,NULL, WMOP_SUBTRACT);
+	solnam[7] = '2';
+	(void)mk_addmember(solnam,&comb.l,NULL, WMOP_SUBTRACT);
+	regnam[6] = '1';
+	regnam[7] = '9';
+	mk_lfcomb(fpw,regnam,&comb,1);
+
+	/*  Region 20.  */
+	solnam[6] = '2';
+	solnam[7] = '0';
+	(void)mk_addmember(solnam,&comb.l,NULL, WMOP_INTERSECT);
+	solnam[6] = '0';
+	solnam[7] = '2';
+	(void)mk_addmember(solnam,&comb.l,NULL, WMOP_SUBTRACT);
+	solnam[7] = '3';
+	(void)mk_addmember(solnam,&comb.l,NULL, WMOP_SUBTRACT);
+	regnam[6] = '2';
+	regnam[7] = '0';
+	mk_lfcomb(fpw,regnam,&comb,1);
+
+	/*  Region 21.  */
+	solnam[6] = '2';
+	solnam[7] = '1';
+	(void)mk_addmember(solnam,&comb.l,NULL, WMOP_INTERSECT);
+	solnam[6] = '0';
+	solnam[7] = '2';
+	(void)mk_addmember(solnam,&comb.l,NULL, WMOP_SUBTRACT);
+	solnam[7] = '3';
+	(void)mk_addmember(solnam,&comb.l,NULL, WMOP_SUBTRACT);
+	regnam[6] = '2';
+	regnam[7] = '1';
+	mk_lfcomb(fpw,regnam,&comb,1);
+
+	/*  Region 22.  */
+	solnam[6] = '2';
+	solnam[7] = '2';
+	(void)mk_addmember(solnam,&comb.l,NULL, WMOP_INTERSECT);
+	solnam[6] = '0';
+	solnam[7] = '2';
+	(void)mk_addmember(solnam,&comb.l,NULL, WMOP_SUBTRACT);
+	solnam[7] = '3';
+	(void)mk_addmember(solnam,&comb.l,NULL, WMOP_SUBTRACT);
+	regnam[6] = '2';
+	regnam[7] = '2';
+	mk_lfcomb(fpw,regnam,&comb,1);
+
+	/*  Region 23.  */
+	solnam[6] = '2';
+	solnam[7] = '3';
+	(void)mk_addmember(solnam,&comb.l,NULL, WMOP_INTERSECT);
+	solnam[6] = '0';
+	solnam[7] = '2';
+	(void)mk_addmember(solnam,&comb.l,NULL, WMOP_SUBTRACT);
+	solnam[7] = '3';
+	(void)mk_addmember(solnam,&comb.l,NULL, WMOP_SUBTRACT);
+	regnam[6] = '2';
+	regnam[7] = '3';
+	mk_lfcomb(fpw,regnam,&comb,1);
+
+	/*  Create group.  */
+
+	/*  Initialize list.  */
+	BU_LIST_INIT(&comb1.l);
+
+	regnam[6] = '0';
+	regnam[7] = '1';
+	(void)mk_addmember(regnam,&comb1.l,NULL, WMOP_UNION);
+	regnam[7] = '2';
+	(void)mk_addmember(regnam,&comb1.l,NULL, WMOP_UNION);
+	regnam[7] = '3';
+	(void)mk_addmember(regnam,&comb1.l,NULL, WMOP_UNION);
+	regnam[7] = '4';
+	(void)mk_addmember(regnam,&comb1.l,NULL, WMOP_UNION);
+	regnam[7] = '5';
+	(void)mk_addmember(regnam,&comb1.l,NULL, WMOP_UNION);
+	regnam[7] = '6';
+	(void)mk_addmember(regnam,&comb1.l,NULL, WMOP_UNION);
+	regnam[7] = '7';
+	(void)mk_addmember(regnam,&comb1.l,NULL, WMOP_UNION);
+	regnam[7] = '8';
+	(void)mk_addmember(regnam,&comb1.l,NULL, WMOP_UNION);
+	regnam[7] = '9';
+	(void)mk_addmember(regnam,&comb1.l,NULL, WMOP_UNION);
+	regnam[6] = '1';
+	regnam[7] = '0';
+	(void)mk_addmember(regnam,&comb1.l,NULL, WMOP_UNION);
+	regnam[7] = '1';
+	(void)mk_addmember(regnam,&comb1.l,NULL, WMOP_UNION);
+	regnam[7] = '2';
+	(void)mk_addmember(regnam,&comb1.l,NULL, WMOP_UNION);
+	regnam[7] = '3';
+	(void)mk_addmember(regnam,&comb1.l,NULL, WMOP_UNION);
+	regnam[7] = '4';
+	(void)mk_addmember(regnam,&comb1.l,NULL, WMOP_UNION);
+	regnam[7] = '5';
+	(void)mk_addmember(regnam,&comb1.l,NULL, WMOP_UNION);
+	regnam[7] = '6';
+	(void)mk_addmember(regnam,&comb1.l,NULL, WMOP_UNION);
+	regnam[7] = '7';
+	(void)mk_addmember(regnam,&comb1.l,NULL, WMOP_UNION);
+	regnam[7] = '8';
+	(void)mk_addmember(regnam,&comb1.l,NULL, WMOP_UNION);
+	regnam[7] = '9';
+	(void)mk_addmember(regnam,&comb1.l,NULL, WMOP_UNION);
+	regnam[6] = '2';
+	regnam[7] = '0';
+	(void)mk_addmember(regnam,&comb1.l,NULL, WMOP_UNION);
+	regnam[7] = '1';
+	(void)mk_addmember(regnam,&comb1.l,NULL, WMOP_UNION);
+	regnam[7] = '2';
+	(void)mk_addmember(regnam,&comb1.l,NULL, WMOP_UNION);
+	regnam[7] = '3';
+	(void)mk_addmember(regnam,&comb1.l,NULL, WMOP_UNION);
+	grpnam[3] = 97 + i;
+	mk_lfcomb(fpw,grpnam,&comb1,0);
+
+   }							/*  START # 2  */
+
+   /*  Close file.  */
+   wdb_close(fpw);
+   return 0;
+}							/*  END # 1  */
+@
+
+
+11.11
+log
+@change conf.h to a wrapped config.h
+@
+text
+@@
+
+
+11.10
+log
+@merge of ansi-6-0-branch into HEAD
+@
+text
+@d12 5
+a16 1
+#include "conf.h"
+@
+
+
+11.9
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d38 1
+a38 5
+main(argc,argv)
+
+int argc;
+char *argv[];
+
+@
+
+
+11.9.2.1
+log
+@Initial ANSIfication
+@
+text
+@d38 5
+a42 1
+main(int argc, char **argv)
+@
+
+
+11.8
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d38 5
+a42 1
+main(int argc, char **argv)
+@
+
+
+11.7
+log
+@added matrix parameter to mk_addmember()
+@
+text
+@d38 1
+a38 5
+main(argc,argv)
+
+int argc;
+char *argv[];
+
+@
+
+
+11.6
+log
+@
+mk_addmember
+@
+text
+@d384 1
+a384 1
+	(void)mk_addmember(solnam,&comb.l,WMOP_INTERSECT);
+d386 1
+a386 1
+	(void)mk_addmember(solnam,&comb.l,WMOP_SUBTRACT);
+d388 1
+a388 1
+	(void)mk_addmember(solnam,&comb.l,WMOP_SUBTRACT);
+d396 1
+a396 1
+	(void)mk_addmember(solnam,&comb.l,WMOP_INTERSECT);
+d398 1
+a398 1
+	(void)mk_addmember(solnam,&comb.l,WMOP_SUBTRACT);
+d404 1
+a404 1
+	(void)mk_addmember(solnam,&comb.l,WMOP_INTERSECT);
+d410 1
+a410 1
+	(void)mk_addmember(solnam,&comb.l,WMOP_INTERSECT);
+d413 1
+a413 1
+	(void)mk_addmember(solnam,&comb.l,WMOP_SUBTRACT);
+d415 1
+a415 1
+	(void)mk_addmember(solnam,&comb.l,WMOP_SUBTRACT);
+d418 1
+a418 1
+	(void)mk_addmember(solnam,&comb.l,WMOP_SUBTRACT);
+d425 1
+a425 1
+	(void)mk_addmember(solnam,&comb.l,WMOP_INTERSECT);
+d428 1
+a428 1
+	(void)mk_addmember(solnam,&comb.l,WMOP_SUBTRACT);
+d430 1
+a430 1
+	(void)mk_addmember(solnam,&comb.l,WMOP_SUBTRACT);
+d433 1
+a433 1
+	(void)mk_addmember(solnam,&comb.l,WMOP_SUBTRACT);
+d440 1
+a440 1
+	(void)mk_addmember(solnam,&comb.l,WMOP_INTERSECT);
+d443 1
+a443 1
+	(void)mk_addmember(solnam,&comb.l,WMOP_SUBTRACT);
+d445 1
+a445 1
+	(void)mk_addmember(solnam,&comb.l,WMOP_SUBTRACT);
+d448 1
+a448 1
+	(void)mk_addmember(solnam,&comb.l,WMOP_SUBTRACT);
+d455 1
+a455 1
+	(void)mk_addmember(solnam,&comb.l,WMOP_INTERSECT);
+d458 1
+a458 1
+	(void)mk_addmember(solnam,&comb.l,WMOP_SUBTRACT);
+d460 1
+a460 1
+	(void)mk_addmember(solnam,&comb.l,WMOP_SUBTRACT);
+d463 1
+a463 1
+	(void)mk_addmember(solnam,&comb.l,WMOP_SUBTRACT);
+d470 1
+a470 1
+	(void)mk_addmember(solnam,&comb.l,WMOP_INTERSECT);
+d473 1
+a473 1
+	(void)mk_addmember(solnam,&comb.l,WMOP_SUBTRACT);
+d475 1
+a475 1
+	(void)mk_addmember(solnam,&comb.l,WMOP_SUBTRACT);
+d478 1
+a478 1
+	(void)mk_addmember(solnam,&comb.l,WMOP_SUBTRACT);
+d485 1
+a485 1
+	(void)mk_addmember(solnam,&comb.l,WMOP_INTERSECT);
+d488 1
+a488 1
+	(void)mk_addmember(solnam,&comb.l,WMOP_SUBTRACT);
+d490 1
+a490 1
+	(void)mk_addmember(solnam,&comb.l,WMOP_SUBTRACT);
+d493 1
+a493 1
+	(void)mk_addmember(solnam,&comb.l,WMOP_SUBTRACT);
+d500 1
+a500 1
+	(void)mk_addmember(solnam,&comb.l,WMOP_INTERSECT);
+d502 1
+a502 1
+	(void)mk_addmember(solnam,&comb.l,WMOP_SUBTRACT);
+d504 1
+a504 1
+	(void)mk_addmember(solnam,&comb.l,WMOP_SUBTRACT);
+d507 1
+a507 1
+	(void)mk_addmember(solnam,&comb.l,WMOP_SUBTRACT);
+d515 1
+a515 1
+	(void)mk_addmember(solnam,&comb.l,WMOP_INTERSECT);
+d517 1
+a517 1
+	(void)mk_addmember(solnam,&comb.l,WMOP_SUBTRACT);
+d519 1
+a519 1
+	(void)mk_addmember(solnam,&comb.l,WMOP_SUBTRACT);
+d522 1
+a522 1
+	(void)mk_addmember(solnam,&comb.l,WMOP_SUBTRACT);
+d530 1
+a530 1
+	(void)mk_addmember(solnam,&comb.l,WMOP_INTERSECT);
+d533 1
+a533 1
+	(void)mk_addmember(solnam,&comb.l,WMOP_SUBTRACT);
+d535 1
+a535 1
+	(void)mk_addmember(solnam,&comb.l,WMOP_SUBTRACT);
+d543 1
+a543 1
+	(void)mk_addmember(solnam,&comb.l,WMOP_INTERSECT);
+d546 1
+a546 1
+	(void)mk_addmember(solnam,&comb.l,WMOP_SUBTRACT);
+d548 1
+a548 1
+	(void)mk_addmember(solnam,&comb.l,WMOP_SUBTRACT);
+d556 1
+a556 1
+	(void)mk_addmember(solnam,&comb.l,WMOP_INTERSECT);
+d559 1
+a559 1
+	(void)mk_addmember(solnam,&comb.l,WMOP_SUBTRACT);
+d561 1
+a561 1
+	(void)mk_addmember(solnam,&comb.l,WMOP_SUBTRACT);
+d569 1
+a569 1
+	(void)mk_addmember(solnam,&comb.l,WMOP_INTERSECT);
+d572 1
+a572 1
+	(void)mk_addmember(solnam,&comb.l,WMOP_SUBTRACT);
+d574 1
+a574 1
+	(void)mk_addmember(solnam,&comb.l,WMOP_SUBTRACT);
+d582 1
+a582 1
+	(void)mk_addmember(solnam,&comb.l,WMOP_INTERSECT);
+d585 1
+a585 1
+	(void)mk_addmember(solnam,&comb.l,WMOP_SUBTRACT);
+d587 1
+a587 1
+	(void)mk_addmember(solnam,&comb.l,WMOP_SUBTRACT);
+d595 1
+a595 1
+	(void)mk_addmember(solnam,&comb.l,WMOP_INTERSECT);
+d598 1
+a598 1
+	(void)mk_addmember(solnam,&comb.l,WMOP_SUBTRACT);
+d600 1
+a600 1
+	(void)mk_addmember(solnam,&comb.l,WMOP_SUBTRACT);
+d608 1
+a608 1
+	(void)mk_addmember(solnam,&comb.l,WMOP_INTERSECT);
+d611 1
+a611 1
+	(void)mk_addmember(solnam,&comb.l,WMOP_SUBTRACT);
+d613 1
+a613 1
+	(void)mk_addmember(solnam,&comb.l,WMOP_SUBTRACT);
+d621 1
+a621 1
+	(void)mk_addmember(solnam,&comb.l,WMOP_INTERSECT);
+d624 1
+a624 1
+	(void)mk_addmember(solnam,&comb.l,WMOP_SUBTRACT);
+d626 1
+a626 1
+	(void)mk_addmember(solnam,&comb.l,WMOP_SUBTRACT);
+d634 1
+a634 1
+	(void)mk_addmember(solnam,&comb.l,WMOP_INTERSECT);
+d637 1
+a637 1
+	(void)mk_addmember(solnam,&comb.l,WMOP_SUBTRACT);
+d639 1
+a639 1
+	(void)mk_addmember(solnam,&comb.l,WMOP_SUBTRACT);
+d647 1
+a647 1
+	(void)mk_addmember(solnam,&comb.l,WMOP_INTERSECT);
+d650 1
+a650 1
+	(void)mk_addmember(solnam,&comb.l,WMOP_SUBTRACT);
+d652 1
+a652 1
+	(void)mk_addmember(solnam,&comb.l,WMOP_SUBTRACT);
+d660 1
+a660 1
+	(void)mk_addmember(solnam,&comb.l,WMOP_INTERSECT);
+d663 1
+a663 1
+	(void)mk_addmember(solnam,&comb.l,WMOP_SUBTRACT);
+d665 1
+a665 1
+	(void)mk_addmember(solnam,&comb.l,WMOP_SUBTRACT);
+d673 1
+a673 1
+	(void)mk_addmember(solnam,&comb.l,WMOP_INTERSECT);
+d676 1
+a676 1
+	(void)mk_addmember(solnam,&comb.l,WMOP_SUBTRACT);
+d678 1
+a678 1
+	(void)mk_addmember(solnam,&comb.l,WMOP_SUBTRACT);
+d690 1
+a690 1
+	(void)mk_addmember(regnam,&comb1.l,WMOP_UNION);
+d692 1
+a692 1
+	(void)mk_addmember(regnam,&comb1.l,WMOP_UNION);
+d694 1
+a694 1
+	(void)mk_addmember(regnam,&comb1.l,WMOP_UNION);
+d696 1
+a696 1
+	(void)mk_addmember(regnam,&comb1.l,WMOP_UNION);
+d698 1
+a698 1
+	(void)mk_addmember(regnam,&comb1.l,WMOP_UNION);
+d700 1
+a700 1
+	(void)mk_addmember(regnam,&comb1.l,WMOP_UNION);
+d702 1
+a702 1
+	(void)mk_addmember(regnam,&comb1.l,WMOP_UNION);
+d704 1
+a704 1
+	(void)mk_addmember(regnam,&comb1.l,WMOP_UNION);
+d706 1
+a706 1
+	(void)mk_addmember(regnam,&comb1.l,WMOP_UNION);
+d709 1
+a709 1
+	(void)mk_addmember(regnam,&comb1.l,WMOP_UNION);
+d711 1
+a711 1
+	(void)mk_addmember(regnam,&comb1.l,WMOP_UNION);
+d713 1
+a713 1
+	(void)mk_addmember(regnam,&comb1.l,WMOP_UNION);
+d715 1
+a715 1
+	(void)mk_addmember(regnam,&comb1.l,WMOP_UNION);
+d717 1
+a717 1
+	(void)mk_addmember(regnam,&comb1.l,WMOP_UNION);
+d719 1
+a719 1
+	(void)mk_addmember(regnam,&comb1.l,WMOP_UNION);
+d721 1
+a721 1
+	(void)mk_addmember(regnam,&comb1.l,WMOP_UNION);
+d723 1
+a723 1
+	(void)mk_addmember(regnam,&comb1.l,WMOP_UNION);
+d725 1
+a725 1
+	(void)mk_addmember(regnam,&comb1.l,WMOP_UNION);
+d727 1
+a727 1
+	(void)mk_addmember(regnam,&comb1.l,WMOP_UNION);
+d730 1
+a730 1
+	(void)mk_addmember(regnam,&comb1.l,WMOP_UNION);
+d732 1
+a732 1
+	(void)mk_addmember(regnam,&comb1.l,WMOP_UNION);
+d734 1
+a734 1
+	(void)mk_addmember(regnam,&comb1.l,WMOP_UNION);
+d736 1
+a736 1
+	(void)mk_addmember(regnam,&comb1.l,WMOP_UNION);
+@
+
+
+11.5
+log
+@
+mk_addmember()
+@
+text
+@d690 1
+a690 1
+	(void)mk_addmember(regnam,&comb1,WMOP_UNION);
+d692 1
+a692 1
+	(void)mk_addmember(regnam,&comb1,WMOP_UNION);
+d694 1
+a694 1
+	(void)mk_addmember(regnam,&comb1,WMOP_UNION);
+d696 1
+a696 1
+	(void)mk_addmember(regnam,&comb1,WMOP_UNION);
+d698 1
+a698 1
+	(void)mk_addmember(regnam,&comb1,WMOP_UNION);
+d700 1
+a700 1
+	(void)mk_addmember(regnam,&comb1,WMOP_UNION);
+d702 1
+a702 1
+	(void)mk_addmember(regnam,&comb1,WMOP_UNION);
+d704 1
+a704 1
+	(void)mk_addmember(regnam,&comb1,WMOP_UNION);
+d706 1
+a706 1
+	(void)mk_addmember(regnam,&comb1,WMOP_UNION);
+d709 1
+a709 1
+	(void)mk_addmember(regnam,&comb1,WMOP_UNION);
+d711 1
+a711 1
+	(void)mk_addmember(regnam,&comb1,WMOP_UNION);
+d713 1
+a713 1
+	(void)mk_addmember(regnam,&comb1,WMOP_UNION);
+d715 1
+a715 1
+	(void)mk_addmember(regnam,&comb1,WMOP_UNION);
+d717 1
+a717 1
+	(void)mk_addmember(regnam,&comb1,WMOP_UNION);
+d719 1
+a719 1
+	(void)mk_addmember(regnam,&comb1,WMOP_UNION);
+d721 1
+a721 1
+	(void)mk_addmember(regnam,&comb1,WMOP_UNION);
+d723 1
+a723 1
+	(void)mk_addmember(regnam,&comb1,WMOP_UNION);
+d725 1
+a725 1
+	(void)mk_addmember(regnam,&comb1,WMOP_UNION);
+d727 1
+a727 1
+	(void)mk_addmember(regnam,&comb1,WMOP_UNION);
+d730 1
+a730 1
+	(void)mk_addmember(regnam,&comb1,WMOP_UNION);
+d732 1
+a732 1
+	(void)mk_addmember(regnam,&comb1,WMOP_UNION);
+d734 1
+a734 1
+	(void)mk_addmember(regnam,&comb1,WMOP_UNION);
+d736 1
+a736 1
+	(void)mk_addmember(regnam,&comb1,WMOP_UNION);
+@
+
+
+11.4
+log
+@
+Converted to use new version of LIBWDB.
+@
+text
+@d384 1
+a384 1
+	(void)mk_addmember(solnam,&comb,WMOP_INTERSECT);
+d386 1
+a386 1
+	(void)mk_addmember(solnam,&comb,WMOP_SUBTRACT);
+d388 1
+a388 1
+	(void)mk_addmember(solnam,&comb,WMOP_SUBTRACT);
+d396 1
+a396 1
+	(void)mk_addmember(solnam,&comb,WMOP_INTERSECT);
+d398 1
+a398 1
+	(void)mk_addmember(solnam,&comb,WMOP_SUBTRACT);
+d404 1
+a404 1
+	(void)mk_addmember(solnam,&comb,WMOP_INTERSECT);
+d410 1
+a410 1
+	(void)mk_addmember(solnam,&comb,WMOP_INTERSECT);
+d413 1
+a413 1
+	(void)mk_addmember(solnam,&comb,WMOP_SUBTRACT);
+d415 1
+a415 1
+	(void)mk_addmember(solnam,&comb,WMOP_SUBTRACT);
+d418 1
+a418 1
+	(void)mk_addmember(solnam,&comb,WMOP_SUBTRACT);
+d425 1
+a425 1
+	(void)mk_addmember(solnam,&comb,WMOP_INTERSECT);
+d428 1
+a428 1
+	(void)mk_addmember(solnam,&comb,WMOP_SUBTRACT);
+d430 1
+a430 1
+	(void)mk_addmember(solnam,&comb,WMOP_SUBTRACT);
+d433 1
+a433 1
+	(void)mk_addmember(solnam,&comb,WMOP_SUBTRACT);
+d440 1
+a440 1
+	(void)mk_addmember(solnam,&comb,WMOP_INTERSECT);
+d443 1
+a443 1
+	(void)mk_addmember(solnam,&comb,WMOP_SUBTRACT);
+d445 1
+a445 1
+	(void)mk_addmember(solnam,&comb,WMOP_SUBTRACT);
+d448 1
+a448 1
+	(void)mk_addmember(solnam,&comb,WMOP_SUBTRACT);
+d455 1
+a455 1
+	(void)mk_addmember(solnam,&comb,WMOP_INTERSECT);
+d458 1
+a458 1
+	(void)mk_addmember(solnam,&comb,WMOP_SUBTRACT);
+d460 1
+a460 1
+	(void)mk_addmember(solnam,&comb,WMOP_SUBTRACT);
+d463 1
+a463 1
+	(void)mk_addmember(solnam,&comb,WMOP_SUBTRACT);
+d470 1
+a470 1
+	(void)mk_addmember(solnam,&comb,WMOP_INTERSECT);
+d473 1
+a473 1
+	(void)mk_addmember(solnam,&comb,WMOP_SUBTRACT);
+d475 1
+a475 1
+	(void)mk_addmember(solnam,&comb,WMOP_SUBTRACT);
+d478 1
+a478 1
+	(void)mk_addmember(solnam,&comb,WMOP_SUBTRACT);
+d485 1
+a485 1
+	(void)mk_addmember(solnam,&comb,WMOP_INTERSECT);
+d488 1
+a488 1
+	(void)mk_addmember(solnam,&comb,WMOP_SUBTRACT);
+d490 1
+a490 1
+	(void)mk_addmember(solnam,&comb,WMOP_SUBTRACT);
+d493 1
+a493 1
+	(void)mk_addmember(solnam,&comb,WMOP_SUBTRACT);
+d500 1
+a500 1
+	(void)mk_addmember(solnam,&comb,WMOP_INTERSECT);
+d502 1
+a502 1
+	(void)mk_addmember(solnam,&comb,WMOP_SUBTRACT);
+d504 1
+a504 1
+	(void)mk_addmember(solnam,&comb,WMOP_SUBTRACT);
+d507 1
+a507 1
+	(void)mk_addmember(solnam,&comb,WMOP_SUBTRACT);
+d515 1
+a515 1
+	(void)mk_addmember(solnam,&comb,WMOP_INTERSECT);
+d517 1
+a517 1
+	(void)mk_addmember(solnam,&comb,WMOP_SUBTRACT);
+d519 1
+a519 1
+	(void)mk_addmember(solnam,&comb,WMOP_SUBTRACT);
+d522 1
+a522 1
+	(void)mk_addmember(solnam,&comb,WMOP_SUBTRACT);
+d530 1
+a530 1
+	(void)mk_addmember(solnam,&comb,WMOP_INTERSECT);
+d533 1
+a533 1
+	(void)mk_addmember(solnam,&comb,WMOP_SUBTRACT);
+d535 1
+a535 1
+	(void)mk_addmember(solnam,&comb,WMOP_SUBTRACT);
+d543 1
+a543 1
+	(void)mk_addmember(solnam,&comb,WMOP_INTERSECT);
+d546 1
+a546 1
+	(void)mk_addmember(solnam,&comb,WMOP_SUBTRACT);
+d548 1
+a548 1
+	(void)mk_addmember(solnam,&comb,WMOP_SUBTRACT);
+d556 1
+a556 1
+	(void)mk_addmember(solnam,&comb,WMOP_INTERSECT);
+d559 1
+a559 1
+	(void)mk_addmember(solnam,&comb,WMOP_SUBTRACT);
+d561 1
+a561 1
+	(void)mk_addmember(solnam,&comb,WMOP_SUBTRACT);
+d569 1
+a569 1
+	(void)mk_addmember(solnam,&comb,WMOP_INTERSECT);
+d572 1
+a572 1
+	(void)mk_addmember(solnam,&comb,WMOP_SUBTRACT);
+d574 1
+a574 1
+	(void)mk_addmember(solnam,&comb,WMOP_SUBTRACT);
+d582 1
+a582 1
+	(void)mk_addmember(solnam,&comb,WMOP_INTERSECT);
+d585 1
+a585 1
+	(void)mk_addmember(solnam,&comb,WMOP_SUBTRACT);
+d587 1
+a587 1
+	(void)mk_addmember(solnam,&comb,WMOP_SUBTRACT);
+d595 1
+a595 1
+	(void)mk_addmember(solnam,&comb,WMOP_INTERSECT);
+d598 1
+a598 1
+	(void)mk_addmember(solnam,&comb,WMOP_SUBTRACT);
+d600 1
+a600 1
+	(void)mk_addmember(solnam,&comb,WMOP_SUBTRACT);
+d608 1
+a608 1
+	(void)mk_addmember(solnam,&comb,WMOP_INTERSECT);
+d611 1
+a611 1
+	(void)mk_addmember(solnam,&comb,WMOP_SUBTRACT);
+d613 1
+a613 1
+	(void)mk_addmember(solnam,&comb,WMOP_SUBTRACT);
+d621 1
+a621 1
+	(void)mk_addmember(solnam,&comb,WMOP_INTERSECT);
+d624 1
+a624 1
+	(void)mk_addmember(solnam,&comb,WMOP_SUBTRACT);
+d626 1
+a626 1
+	(void)mk_addmember(solnam,&comb,WMOP_SUBTRACT);
+d634 1
+a634 1
+	(void)mk_addmember(solnam,&comb,WMOP_INTERSECT);
+d637 1
+a637 1
+	(void)mk_addmember(solnam,&comb,WMOP_SUBTRACT);
+d639 1
+a639 1
+	(void)mk_addmember(solnam,&comb,WMOP_SUBTRACT);
+d647 1
+a647 1
+	(void)mk_addmember(solnam,&comb,WMOP_INTERSECT);
+d650 1
+a650 1
+	(void)mk_addmember(solnam,&comb,WMOP_SUBTRACT);
+d652 1
+a652 1
+	(void)mk_addmember(solnam,&comb,WMOP_SUBTRACT);
+d660 1
+a660 1
+	(void)mk_addmember(solnam,&comb,WMOP_INTERSECT);
+d663 1
+a663 1
+	(void)mk_addmember(solnam,&comb,WMOP_SUBTRACT);
+d665 1
+a665 1
+	(void)mk_addmember(solnam,&comb,WMOP_SUBTRACT);
+d673 1
+a673 1
+	(void)mk_addmember(solnam,&comb,WMOP_INTERSECT);
+d676 1
+a676 1
+	(void)mk_addmember(solnam,&comb,WMOP_SUBTRACT);
+d678 1
+a678 1
+	(void)mk_addmember(solnam,&comb,WMOP_SUBTRACT);
+@
+
+
+11.3
+log
+@
+Now need raytrace.h for wdb.h
+@
+text
+@d44 1
+a44 1
+   FILE *fpw;			/*  File to be written to.  */
+d191 1
+a191 1
+   fpw = fopen(filemged,"w");
+d743 1
+a743 1
+   (void)fclose(fpw);
+@
+
+
+11.2
+log
+@
+RT_LIST to BU_LIST
+@
+text
+@d28 1
+@
+
+
+11.1
+log
+@Release_4.4
+@
+text
+@d377 1
+a377 1
+	RT_LIST_INIT(&comb.l);
+d685 1
+a685 1
+	RT_LIST_INIT(&comb1.l);
+@
+
+
+1.5
+log
+@Changed to match new function prototype of mk_arb8().
+@
+text
+@@
+
+
+1.4
+log
+@Slight cleanup
+@
+text
+@d229 1
+a229 1
+	mk_arb8(fpw,solnam,pts);
+d248 1
+a248 1
+	mk_arb8(fpw,solnam,pts);
+d267 1
+a267 1
+	mk_arb8(fpw,solnam,pts);
+@
+
+
+1.3
+log
+@Added include of conf.h
+@
+text
+@d15 1
+d17 2
+d20 3
+d30 3
+d34 1
+d36 1
+d743 1
+a743 1
+
+@
+
+
+1.2
+log
+@Remove path name on include statements.
+@
+text
+@d12 2
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d17 4
+a20 4
+#include "/usr/brlcad/include/machine.h"
+#include "/usr/brlcad/include/db.h"
+#include "/usr/brlcad/include/vmath.h"
+#include "/usr/brlcad/include/wdb.h"
+@

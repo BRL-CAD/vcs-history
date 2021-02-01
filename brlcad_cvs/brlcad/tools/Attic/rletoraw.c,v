@@ -1,0 +1,597 @@
+head	11.9;
+access;
+symbols
+	ansi-20040405-merged:11.6.2.1
+	postmerge-20040405-ansi:11.7
+	premerge-20040404-ansi:11.6
+	postmerge-autoconf:11.6
+	autoconf-freeze:11.6
+	premerge-autoconf:11.6
+	postmerge-20040315-windows:11.6
+	premerge-20040315-windows:11.6
+	windows-20040315-freeze:11.6
+	autoconf-20031203:11.6
+	autoconf-20031202:11.6
+	autoconf-branch:11.6.0.10
+	phong-branch:11.6.0.8
+	photonmap-branch:11.6.0.6
+	rel-6-1-DP:11.6
+	windows-branch:11.6.0.4
+	rel-6-0-2:11.4
+	ansi-branch:11.6.0.2
+	rel-6-0-1-branch:11.4.0.2
+	hartley-6-0-post:11.5
+	hartley-6-0-pre:11.4
+	rel-6-0-1:11.4
+	rel-6-0:11.4
+	rel-5-4:11.2
+	offsite-5-3-pre:11.3
+	rel-5-3:11.2
+	rel-5-2:11.2
+	rel-5-1-branch:11.2.0.2
+	rel-5-1:11.2
+	rel-5-0:11.1
+	rel-5-0-beta:11.1
+	rel-4-5:11.1
+	ctj-4-5-post:11.1
+	ctj-4-5-pre:11.1
+	rel-4-4:11.1
+	rel-4-0:10.1;
+locks; strict;
+comment	@ * @;
+
+
+11.9
+date	2004.05.21.16.39.00;	author morrison;	state dead;
+branches;
+next	11.8;
+
+11.8
+date	2004.05.10.15.30.50;	author erikg;	state Exp;
+branches;
+next	11.7;
+
+11.7
+date	2004.04.05.05.46.01;	author morrison;	state Exp;
+branches;
+next	11.6;
+
+11.6
+date	2002.08.20.17.08.51;	author jra;	state Exp;
+branches
+	11.6.2.1;
+next	11.5;
+
+11.5
+date	2002.08.15.20.56.02;	author hartley;	state Exp;
+branches;
+next	11.4;
+
+11.4
+date	2001.08.10.20.44.36;	author jra;	state Exp;
+branches;
+next	11.3;
+
+11.3
+date	2000.08.24.22.46.24;	author mike;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	2000.01.31.16.17.47;	author jra;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	95.01.04.10.21.29;	author mike;	state Rel4_4;
+branches;
+next	10.2;
+
+10.2
+date	94.08.11.20.09.21;	author gdurf;	state Exp;
+branches;
+next	10.1;
+
+10.1
+date	91.10.12.06.53.04;	author mike;	state Rel4_0;
+branches;
+next	1.1;
+
+1.1
+date	91.01.24.20.34.09;	author butler;	state Exp;
+branches;
+next	;
+
+11.6.2.1
+date	2002.09.19.18.02.31;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@Original distribution of Rel. 3 patchlevel 2
+@
+
+
+11.9
+log
+@moved to src/tools/
+@
+text
+@/*
+ * This software is copyrighted as noted below.  It may be freely copied,
+ * modified, and redistributed, provided that the copyright notice is 
+ * preserved on all copies.
+ * 
+ * There is no warranty or other guarantee of fitness for this software,
+ * it is provided solely "as is".  Bug reports or fixes may be sent
+ * to the author, who may or may not act on them as he desires.
+ *
+ * You may not include this software in a program or other software product
+ * without supplying the source, or without informing the end-user that the 
+ * source is available for no extra charge.
+ *
+ * If you modify this software, you should include a notice giving the
+ * name of the person performing the modification, the date of modification,
+ * and the reason for such modification.
+ */
+/* 
+ * rletoraw.c - Convert the RLE format to the kitchen sink.
+ * 
+ * Author:	Martin R. Friedmann
+ * 		Vision and Modeling Group/Media Lab
+ * 		Massachusetts Institute of Technology
+ * Date:	Thu Sep 13 1990
+ * Copyright (c) 1990, Martin R. Friedmann
+ *
+ * usage : rletoraw [-{Ns}] [-r] [-w width] [-h height] [-f header-size]
+ *                   [-t tailer-size] [-n nchannels] [-a]
+ *                   [-p scanline-pad] [-l left-scanline-pad] [-o outfile]
+ *                   [infile]
+ *
+ * -a dont strip the alpha channel from the rle file
+ * -s output data in scanline interleaved order
+ * -N output data in non-interleaved order (eg. | split -Wid*Height -)
+ * -r reverse the channel order (e.g. write data as ABGR instead of
+ *    the default RGBA order)
+ *
+ */
+
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+
+#include <stdio.h>
+
+#ifdef USE_STRING_H
+#include <string.h>
+#else
+#include <strings.h>
+#endif
+
+#include "machine.h"
+#include "externs.h"		/* For malloc and free */
+#include "rle.h"
+
+/* hey.. why spin normally! */
+#define duff(counter, block) {\
+  while (counter >= 4) {\
+     { block; } \
+     { block; } \
+     { block; } \
+     { block; } \
+     counter -= 4;\
+  } \
+  switch (counter & 3) { \
+     case 3:    { block; } \
+     case 2:    { block; } \
+     case 1:    { block; } \
+     case 0:    counter = 0;\
+     }\
+}
+
+void usage(void) {
+    fprintf(stderr, "-a don't strip the alpha channel from the rle file\n");
+    fprintf(stderr, "-s output data in scanline interleaved order\n");
+    fprintf(stderr, "-N output data in non-interleaved order (eg. | split -Wid*Height -)\n");
+    fprintf(stderr, "-r reverse the channel order (e.g. write data as ABGR instead of\n");
+    fprintf(stderr, "the default RGBA order)\n");
+    exit(-1);
+}
+
+#define WRITE_DATA() \
+    if (fwrite( outrows, 1, fwrite_len, outfile ) != fwrite_len) {\
+	perror( "write error" );\
+	exit(-2);\
+    }\
+    
+
+int
+main(int argc, char **argv)
+{ 
+    int i, rle_err;
+    char *nullbytes = NULL;
+    char *infname = NULL, *outfname = NULL, *progname;
+    FILE *infile, *outfile;
+    int oflag = 0;
+    int fflag = 0, tflag = 0, Nflag = 0, rflag = 0;
+    int header = 0, trailer = 0;
+    int pflag= 0, right_pad = 0, lflag = 0, left_pad = 0;
+    int aflag = 0, output_alpha = 0, sflag = 0;
+
+    int height, width, nochan;
+    int red_pos, alpha_pos, green_pos = 0, blue_pos = 0;
+    int img_size;
+
+    /* Default color values */
+    unsigned char *outrows;
+    rle_pixel **inrows;
+    int outrows_size;
+    int y;
+    int line_pos;
+    int fwrite_len;
+
+    progname = argv[0];
+
+    if ( scanargs( argc, argv, 
+		  "% {Ns}%- r%- a%- f%-header-size!d t%-trailer-size!d \n\
+		   p%-scanline-pad!d l%-left-scanline-pad!d o%-outfile!s \n\
+                   infile%s",
+		  &Nflag, &rflag, &aflag, &fflag, &header,
+		  &tflag, &trailer, &pflag, &right_pad, &lflag, &left_pad,
+		  &oflag, &outfname, &infname ) == 0)
+	usage();
+
+    if (Nflag) {
+	if (Nflag & 2) {
+	    Nflag = 0;
+	    sflag = 1;
+	} else {
+	    Nflag = 1;
+	    sflag = 0;
+	}
+    }
+	       
+
+    /* Open Raw file */
+    infile = rle_open_f( progname, infname, "r" );
+    outfile = rle_open_f( progname, outfname, "w" );
+
+
+    rle_dflt_hdr.rle_file = infile;
+    
+    if ( (rle_err = rle_get_setup(&rle_dflt_hdr)) < 0) {
+	rle_get_error( rle_err, progname, infname );
+	exit ( rle_err );
+    }
+
+    rle_dflt_hdr.xmax -= rle_dflt_hdr.xmin;
+    rle_dflt_hdr.xmin = 0;
+    rle_dflt_hdr.ymax -= rle_dflt_hdr.ymin;
+    rle_dflt_hdr.ymin = 0;
+    
+    width = rle_dflt_hdr.xmax + 1;
+    height = rle_dflt_hdr.ymax + 1;
+    nochan = rle_dflt_hdr.ncolors;
+    
+    fprintf(stderr, "width %d, height %d, channnels %d\n", width, height, nochan);
+
+    if (! aflag)
+	RLE_CLR_BIT(rle_dflt_hdr, RLE_ALPHA);
+    output_alpha = (aflag && RLE_BIT(rle_dflt_hdr, RLE_ALPHA)) ? 1 : 0;
+    
+    /* for -Non-interleaved case, we need nochan-1 whole channels of buffer */
+    /* HACK: we allocate more memory; we jack the size for the first fread */
+    outrows_size = width * (nochan + output_alpha);
+    if ( Nflag )
+	outrows_size *= height;
+    if ((outrows = (unsigned char *) malloc ( outrows_size )) == NULL ) {
+	fprintf(stderr, "%s: No memory available for rows malloc\n", progname);
+	exit(-2);
+    }
+    
+    img_size = width * height;
+
+    /* Were only interested in R, G, & B */
+    for (i = 3; i < rle_dflt_hdr.ncolors; i++)
+	RLE_CLR_BIT(rle_dflt_hdr, i);
+
+    if (rle_row_alloc( &rle_dflt_hdr, &inrows )) {
+	fprintf(stderr, "%s: No memory available for rle_row_alloc\n", progname);
+	exit(-2);
+    }
+
+    /* maybe faster to malloc and fwrite than to do lots of GETCs, Idunno */
+    if (fflag || tflag) {
+	nullbytes = (char *) malloc ( (header > trailer) ? header : trailer );
+	if (! nullbytes)
+	    fprintf(stderr, "%s: No memory for nullbytes\n", progname);
+	else
+	    for( i = (header > trailer) ? header : trailer; i > 0; )
+		nullbytes[--i] = 0;
+    }
+
+    /* setup byte positions for reversed colors or otherwise */
+    if ( rflag ) {
+	alpha_pos = 0;
+	/* alpha comes first if it's there */
+	if (nochan > 2) {
+	    red_pos = 2 + output_alpha;
+	    green_pos = 1 + output_alpha;
+	    blue_pos = 0 + output_alpha;
+	} else
+	    red_pos = 0 + output_alpha;
+    }
+    else {
+	alpha_pos = nochan;
+	red_pos = 0;
+	if (nochan > 2) {
+	    green_pos = 1;
+	    blue_pos = 2;
+	}
+    }
+    
+    if ( Nflag ) {
+	red_pos *= img_size;
+	green_pos *= img_size;
+	blue_pos *= img_size;
+	alpha_pos *= img_size;
+    } else if ( sflag ) {
+	red_pos *= width;
+	green_pos *= width;
+	blue_pos *= width;
+	alpha_pos *= width;
+    }
+
+    y = height;
+    line_pos = 0;
+    fwrite_len = outrows_size;
+
+    /* write the header */
+    if (fflag)
+	fwrite( nullbytes, 1, header, outfile );
+    
+    while (--y >= 0) {
+	register rle_pixel *p, *o;
+	register int stride = nochan + output_alpha, count;
+	
+	rle_getrow(&rle_dflt_hdr, inrows);
+	/* non-interleaved data is easier to compute than interleaved */
+	if ( Nflag ) {
+	    /*
+	     * This is a wierd case...  We had to read in all of the
+	     * scanlines for all but one of the channels...  Then we can
+	     * handle things scanline by scanline...  We have to jack
+	     * the fread parameters for all of the remaining scanlines
+	     */
+	    
+	    if ( output_alpha ) 
+		bcopy(inrows[RLE_ALPHA], outrows + alpha_pos + line_pos,width);
+	    
+	    bcopy(inrows[RLE_RED], outrows + red_pos + line_pos, width);
+	    
+	    if (nochan > 2) {
+		bcopy(inrows[RLE_GREEN], outrows + green_pos + line_pos,width);
+		bcopy(inrows[RLE_BLUE], outrows + blue_pos + line_pos,width);
+	    }
+	    line_pos += width;
+	} else if (sflag) {
+	    /* scanline interleaved: we only need to copy the data */
+	    if ( output_alpha )
+		bcopy (inrows[RLE_ALPHA], outrows + alpha_pos, width);
+	    
+	    bcopy (inrows[RLE_RED], outrows + red_pos, width);
+	    
+	    if (nochan > 2) {
+		bcopy(inrows[RLE_GREEN], outrows + green_pos, width);
+		bcopy(inrows[RLE_BLUE], outrows + blue_pos, width);
+	    }
+	}
+	else 
+	{
+#define COPY_LINE() duff(count, *o = *p++; o += stride);
+	    
+	    /* ahhh...  the default.  interleaved data */
+	    if ( output_alpha ) {
+		o = outrows + alpha_pos;
+		p = inrows[RLE_ALPHA];
+		count = width;
+		COPY_LINE();
+	    }	    
+	    
+	    o = outrows + red_pos;
+	    p = inrows[RLE_RED];
+	    count = width;
+	    COPY_LINE();
+	    
+	    if (nochan > 2) {
+		o = outrows + green_pos;
+		p = inrows[RLE_GREEN];
+		count = width;
+		COPY_LINE();
+		
+		o = outrows + blue_pos;
+		p = inrows[RLE_BLUE];
+		count = width;
+		COPY_LINE();
+	    }
+	}
+	
+	/* LEFT_PAD */
+	for (count = 0; count < left_pad; count++)
+	    putc('\0', outfile);
+	
+	/* WRITE_SCANLINE */
+	if (! Nflag)
+	    WRITE_DATA();
+	
+	/* RIGHT_PAD */
+	for (count = 0; count < right_pad; count++)
+	    putc('\0', outfile);
+	
+    }
+    if ( Nflag )
+	WRITE_DATA();
+    
+    /* write the trailer */
+    if (tflag)
+	fwrite( nullbytes, 1, trailer, outfile );
+    
+    exit(0);
+}
+
+@
+
+
+11.8
+log
+@change conf.h to a wrapped config.h
+@
+text
+@@
+
+
+11.7
+log
+@merge of ansi-6-0-branch into head
+@
+text
+@d40 5
+a44 1
+#include "conf.h"
+@
+
+
+11.6
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d71 1
+a71 1
+void usage() {
+d88 1
+a88 3
+main(argc,argv) 
+int argc;
+char *argv[];
+@
+
+
+11.6.2.1
+log
+@Initial ANSIfication
+@
+text
+@d71 1
+a71 1
+void usage(void) {
+d88 3
+a90 1
+main(int argc, char **argv)
+@
+
+
+11.5
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d71 1
+a71 1
+void usage(void) {
+d88 3
+a90 1
+main(int argc, char **argv)
+@
+
+
+11.4
+log
+@lint
+@
+text
+@d71 1
+a71 1
+void usage() {
+d88 1
+a88 3
+main(argc,argv) 
+int argc;
+char *argv[];
+@
+
+
+11.3
+log
+@
+lint
+@
+text
+@d44 6
+@
+
+
+11.2
+log
+@Eliminated some unused variables
+@
+text
+@d81 1
+a81 1
+void
+@
+
+
+11.1
+log
+@Release_4.4
+@
+text
+@a106 1
+    unsigned char *fwrite_pos;
+a222 1
+    fwrite_pos = outrows;
+@
+
+
+10.2
+log
+@Altered #defines and #includes to conform to BRL-CAD standards
+@
+text
+@@
+
+
+10.1
+log
+@Release_4.0
+@
+text
+@d40 2
+d43 3
+a46 13
+
+#ifdef USE_STDLIB_H
+#include <stdlib.h>
+#else
+
+#ifdef VOID_STAR
+extern void *malloc();
+#else
+extern char *malloc();
+#endif
+extern void free();
+
+#endif /* USE_STDLIB_H */
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@@

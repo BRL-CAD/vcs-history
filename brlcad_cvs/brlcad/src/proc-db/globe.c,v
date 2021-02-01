@@ -1,0 +1,525 @@
+head	14.11;
+access;
+symbols
+	rel-7-10-4:14.8
+	STABLE:14.8.0.2
+	stable-branch:14.3
+	rel-7-10-2:14.8
+	rel-7-10-0:14.8
+	rel-7-8-4:14.6
+	rel-7-8-2:14.6
+	rel-7-8-0:14.6
+	trimnurbs-branch:14.6.0.2
+	help:14.6
+	temp_tag:14.4
+	bobWinPort-20051223-freeze:14.3
+	postmerge-20051223-bobWinPort:14.4
+	premerge-20051223-bobWinPort:14.4
+	rel-7-6-6:14.4
+	rel-7-6-4:14.4
+	rel-7-6-2:14.3
+	rel-7-6-branch:14.3.0.6
+	rel-7-6-0:14.3
+	rel-7-4-2:14.3
+	rel-7-4-branch:14.3.0.4
+	bobWinPort:14.3.0.2
+	rel-7-4-0:14.3
+	rel-7-2-6:14.3
+	rel-7-2-4:14.3
+	rel-7-2-2:14.3
+	rel-7-2-0:14.3
+	rel-7-0-4:14.2
+	rel-7-0-2:14.2
+	rel-7-0-1:14.2
+	opensource-post:14.2
+	opensource-pre:1.2
+	rel-7-0-branch:1.2.0.2
+	rel-7-0:1.2;
+locks; strict;
+comment	@ * @;
+
+
+14.11
+date	2007.12.02.22.34.23;	author brlcad;	state Exp;
+branches;
+next	14.10;
+
+14.10
+date	2007.11.21.20.49.10;	author erikgreenwald;	state Exp;
+branches;
+next	14.9;
+
+14.9
+date	2007.11.21.19.28.07;	author erikgreenwald;	state Exp;
+branches;
+next	14.8;
+
+14.8
+date	2007.01.23.01.13.44;	author brlcad;	state Exp;
+branches;
+next	14.7;
+
+14.7
+date	2007.01.20.14.36.59;	author brlcad;	state Exp;
+branches;
+next	14.6;
+
+14.6
+date	2006.01.28.00.36.29;	author brlcad;	state Exp;
+branches;
+next	14.5;
+
+14.5
+date	2006.01.18.06.46.23;	author brlcad;	state Exp;
+branches;
+next	14.4;
+
+14.4
+date	2005.10.23.04.44.37;	author brlcad;	state Exp;
+branches;
+next	14.3;
+
+14.3
+date	2005.01.30.20.31.09;	author brlcad;	state Exp;
+branches
+	14.3.6.1;
+next	14.2;
+
+14.2
+date	2004.12.21.03.46.08;	author butler;	state Exp;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.30;	author morrison;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2004.08.02.23.01.52;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.15.20.39;	author morrison;	state Exp;
+branches;
+next	;
+
+14.3.6.1
+date	2005.11.13.13.46.19;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.11
+log
+@woo hoo, finally got through most of the flawfinder level 4 issues related to string buffer limits (leaving issues that can probably/mostly be ignored).  these changes mostly invovlved using the n-variants of the various string processing functions so that the buffers being written to are properly clamped.
+@
+text
+@/*                         G L O B E . C
+ * BRL-CAD
+ *
+ * Copyright (c) 2004-2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@file globe.c
+ * Creates a set of concentric "shells" that, when put together, comprise a
+ * unified solid spherical object.  Kinda like an onion, not a cake, an onion.
+ *
+ */
+#include "common.h"
+
+#include <stdlib.h>
+#include <stdio.h>
+#include <math.h>
+#include "machine.h"
+
+#include "bu.h"
+#include "vmath.h"
+#include "bn.h"
+#include "raytrace.h"
+#include "rtgeom.h"
+#include "wdb.h"
+
+char *progname ="globe";
+
+void usage(void)
+{
+	fprintf(stderr, "Usage: %s db_file.g [stepSize [finalSize [initialSize]]]\n", progname);
+	bu_exit(-1, NULL);
+}
+
+int
+main(int ac, char *av[])
+{
+	struct rt_wdb *db_fp;
+	point_t p1;
+	int is_region;
+	unsigned char rgb[3];
+	struct wmember wm_hd; /* defined in wdb.h */
+	struct wmember bigList;
+	double initialSize=900.0;
+	double finalSize=1000.0;
+	double stepSize=10.0;
+	double currentSize=0.0;
+	int counter=0;
+	char name[256]="";
+	char solidName[256]="";
+	char prevSolid[256]="";
+	char shaderparams[256]="";
+
+	progname = *av;
+
+	if (ac < 2) usage();
+
+	if (ac > 2) stepSize=(double)atof(av[2]);
+	if (ac > 3) finalSize=(double)atof(av[3]);
+	if (ac > 4) initialSize=(double)atof(av[4]);
+
+	if ((db_fp = wdb_fopen(av[1])) == NULL) {
+		perror(av[1]);
+		bu_exit(-1, NULL);
+	}
+
+	mk_id(db_fp, "Globe Database"); /* create the database header record */
+
+	/* make a region that is the union of these two objects
+	 * To accomplish this, we need to create a linked list of the
+	 * items that make up the combination.  The wm_hd structure serves
+	 * as the head of the list of items.
+	 */
+	BU_LIST_INIT(&wm_hd.l);
+	BU_LIST_INIT(&bigList.l);
+
+	/*
+	 * make the CORE of the globe with a given color
+	 ***************/
+	VSET(p1, 0.0, 0.0, 0.0);
+	VSET(rgb, 130, 253, 194); /* some green */
+	is_region = 1;
+	/* make a sphere centered at 1.0, 2.0, 3.0 with radius .75 */
+	mk_sph(db_fp, "land.s", p1, initialSize);
+	mk_addmember("land.s", &wm_hd.l, NULL, WMOP_UNION);
+	mk_lcomb(db_fp, "land.c", &wm_hd, 0, "", "", rgb, 0);
+	mk_addmember("land.s", &wm_hd.l, NULL, WMOP_UNION);
+	mk_lcomb(db_fp, "land.r", &wm_hd, is_region, "plastic", "di=.8 sp=.2", rgb, 0);
+
+	/*
+	 * make the AIR of the globe with a given color
+	 ***************/
+	VSET(rgb, 130, 194, 253); /* a light blue */
+	sprintf(prevSolid, "land.s");
+	for (counter=0, currentSize=initialSize+stepSize; currentSize < finalSize; counter += 1, currentSize+=stepSize) {
+	  BU_LIST_INIT(&wm_hd.l);
+
+	  sprintf(solidName, "air.%d.s", counter);
+	  mk_sph(db_fp, solidName , p1, currentSize);
+	  mk_addmember(solidName, &wm_hd.l, NULL, WMOP_UNION);
+	  mk_addmember(prevSolid, &wm_hd.l, NULL, WMOP_SUBTRACT);
+
+		/* make the spatial combination */
+	  sprintf(name, "air.%d.c", counter);
+		mk_lcomb(db_fp, name, &wm_hd, 0, NULL, NULL, NULL, 0);
+
+	  mk_addmember(name, &wm_hd.l, NULL, WMOP_UNION);
+
+		/*	  sprintf(shaderparams, "{alpha %f}", (float)1.0 - (((float)finalSize/(float)currentSize)-(float)1.0));  */
+
+		/* make the spatial region */
+	  sprintf(name, "air.%d.r", counter);
+		sprintf(shaderparams, "{tr %f}", (float)currentSize/(float)finalSize);
+	  mk_lcomb(db_fp,
+						 name,	/* Name of the db element created */
+						 &wm_hd,		/* list of elements & boolean operations */
+						 is_region,	/* Flag:  This is a region */
+						 "plastic",	/* optical shader */
+						 shaderparams, /* shader parameters */
+						 rgb,		/* item color */
+						 0);		/* inherit (override) flag */
+
+		/* add the region to a master region list */
+	  mk_addmember(name, &bigList.l, NULL, WMOP_UNION);
+
+		/* keep track of the last combination we made for the next iteration */
+	  snprintf(prevSolid, 256, "%s", solidName);
+	}
+
+	/* make one final air region that comprises all the air regions */
+	mk_lcomb(db_fp, "air.c", &bigList, 0, NULL, NULL, NULL, 0);
+
+	/* Create the master globe region
+	 *
+	 * In this case we are going to make it a region (hence the
+	 * is_region flag is set, and we provide shader parameter information.
+	 *
+	 * When making a combination that is NOT a region, the region flag
+	 * argument is 0, and the strings for optical shader, and shader
+	 * parameters should (in general) be null pointers.
+	 */
+
+	/* add the land to the main globe object that gets created at the end */
+	BU_LIST_INIT(&wm_hd.l);
+	mk_addmember("land.r", &wm_hd.l, NULL, WMOP_UNION);
+	mk_addmember("air.c", &wm_hd.l, NULL, WMOP_UNION);
+
+	mk_lcomb(db_fp,
+					 "globe.r",	/* Name of the db element created */
+					 &wm_hd,		/* list of elements & boolean operations */
+					 is_region,	/* Flag:  This is a region */
+					 NULL,	/* optical shader */
+					 NULL, /* shader parameters */
+					 NULL,		/* item color */
+					 0);		/* inherit (override) flag */
+
+	wdb_close(db_fp);
+	return 0;
+}
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+14.10
+log
+@pass bu_exit a NULL instead of an empty string
+@
+text
+@d139 1
+a139 1
+	  sprintf(prevSolid, "%s", solidName);
+@
+
+
+14.9
+log
+@exit->bu_exit where applicable
+@
+text
+@d44 1
+a44 1
+	bu_exit(-1, "");
+d76 1
+a76 1
+		bu_exit(-1, "");
+@
+
+
+14.8
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@d44 1
+a44 1
+	exit(-1);
+d76 1
+a76 1
+		exit(-1);
+@
+
+
+14.7
+log
+@update copyright to 2007
+@
+text
+@d8 2
+a9 3
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+d14 1
+a14 1
+ * General Public License for more details.
+d16 2
+a17 2
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+@
+
+
+14.6
+log
+@header cleanup, atof() requires stdlib.h on altix/posix, fix 64-bitness
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 2004-2006 United States Government as represented by
+@
+
+
+14.5
+log
+@update copyright to 2006
+@
+text
+@d28 1
+a28 2
+
+
+d32 1
+@
+
+
+14.4
+log
+@trailing ws
+@
+text
+@d4 1
+a4 1
+ * Copyright (C) 2004-2005 United States Government as represented by
+@
+
+
+14.3
+log
+@update copyright to 2005
+@
+text
+@d90 2
+a91 2
+	/* 
+	 * make the CORE of the globe with a given color 
+d103 2
+a104 2
+	/* 
+	 * make the AIR of the globe with a given color 
+d126 1
+a126 1
+		sprintf(shaderparams, "{tr %f}", (float)currentSize/(float)finalSize); 
+d135 1
+a135 1
+		
+d138 1
+a138 1
+		
+d142 1
+a142 1
+	
+d145 1
+a145 1
+	
+d155 1
+a155 1
+	
+d160 1
+a160 1
+	
+d169 1
+a169 1
+	
+@
+
+
+14.3.6.1
+log
+@merge changes from HEAD aka rel-7-6-4 to the rel-7-6-branch just in case someone peeks a gander or tries to continue/build the branch
+@
+text
+@d90 2
+a91 2
+	/*
+	 * make the CORE of the globe with a given color
+d103 2
+a104 2
+	/*
+	 * make the AIR of the globe with a given color
+d126 1
+a126 1
+		sprintf(shaderparams, "{tr %f}", (float)currentSize/(float)finalSize);
+d135 1
+a135 1
+
+d138 1
+a138 1
+
+d142 1
+a142 1
+
+d145 1
+a145 1
+
+d155 1
+a155 1
+
+d160 1
+a160 1
+
+d169 1
+a169 1
+
+@
+
+
+14.2
+log
+@GPL license changes
+@
+text
+@d4 2
+a5 2
+ * Copyright (c) 2004 United States Government as represented by the
+ * U.S. Army Research Laboratory.
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@d1 2
+a2 1
+/*	G L O B E . C
+d4 18
+@
+
+
+1.2
+log
+@replace the wrapped config.h block with common.h
+@
+text
+@d154 10
+@
+
+
+1.1
+log
+@Vast reorganization begins.  Sources moved from top-level directories into src/.
+@
+text
+@d7 1
+a7 3
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+@
+

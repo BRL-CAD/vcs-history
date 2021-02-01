@@ -1,0 +1,1016 @@
+head	11.11;
+access;
+symbols
+	ansi-20040405-merged:11.8.2.1
+	postmerge-20040405-ansi:11.9
+	premerge-20040404-ansi:11.8
+	postmerge-autoconf:11.8
+	autoconf-freeze:11.8
+	premerge-autoconf:11.8
+	ansi-20040316-freeze:11.8.2.1
+	postmerge-20040315-windows:11.8
+	premerge-20040315-windows:11.8
+	windows-20040315-freeze:11.8
+	autoconf-20031203:11.8
+	autoconf-20031202:11.8
+	autoconf-branch:11.8.0.10
+	phong-branch:11.8.0.8
+	photonmap-branch:11.8.0.6
+	rel-6-1-DP:11.8
+	windows-branch:11.8.0.4
+	rel-6-0-2:11.6
+	ansi-branch:11.8.0.2
+	rel-6-0-1-branch:11.6.0.2
+	hartley-6-0-post:11.7
+	hartley-6-0-pre:11.6
+	rel-6-0-1:11.6
+	rel-6-0:11.6
+	rel-5-4:11.2
+	offsite-5-3-pre:11.6
+	rel-5-3:11.2
+	rel-5-2:11.2
+	rel-5-1-branch:11.2.0.2
+	rel-5-1:11.2
+	rel-5-0:11.2
+	rel-5-0-beta:11.1
+	rel-4-5:11.1
+	ctj-4-5-post:11.1
+	ctj-4-5-pre:11.1
+	rel-4-4:11.1
+	rel-4-0:10.1
+	rel-3-5:9.1;
+locks; strict;
+comment	@ * @;
+
+
+11.11
+date	2004.05.21.18.07.32;	author morrison;	state dead;
+branches;
+next	11.10;
+
+11.10
+date	2004.05.10.15.30.46;	author erikg;	state Exp;
+branches;
+next	11.9;
+
+11.9
+date	2004.04.05.08.48.57;	author morrison;	state Exp;
+branches;
+next	11.8;
+
+11.8
+date	2002.08.20.17.08.02;	author jra;	state Exp;
+branches
+	11.8.2.1;
+next	11.7;
+
+11.7
+date	2002.08.15.20.55.14;	author hartley;	state Exp;
+branches;
+next	11.6;
+
+11.6
+date	2000.11.02.01.35.52;	author mike;	state Exp;
+branches;
+next	11.5;
+
+11.5
+date	2000.07.07.05.45.28;	author mike;	state Exp;
+branches;
+next	11.4;
+
+11.4
+date	2000.07.07.05.12.09;	author mike;	state Exp;
+branches;
+next	11.3;
+
+11.3
+date	2000.07.07.03.56.44;	author mike;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	99.06.03.00.55.47;	author mike;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	95.01.04.09.57.20;	author mike;	state Rel4_4;
+branches;
+next	10.5;
+
+10.5
+date	94.12.27.16.56.09;	author mike;	state Exp;
+branches;
+next	10.4;
+
+10.4
+date	94.11.04.05.40.49;	author mike;	state Exp;
+branches;
+next	10.3;
+
+10.3
+date	94.08.10.18.44.31;	author gdurf;	state Exp;
+branches;
+next	10.2;
+
+10.2
+date	93.10.28.23.41.49;	author mike;	state Exp;
+branches;
+next	10.1;
+
+10.1
+date	91.10.12.06.40.37;	author mike;	state Rel4_0;
+branches;
+next	9.1;
+
+9.1
+date	89.05.19.05.56.50;	author mike;	state Rel3_5;
+branches;
+next	1.1;
+
+1.1
+date	88.12.06.00.04.02;	author mike;	state Exp;
+branches;
+next	;
+
+11.8.2.1
+date	2002.09.19.18.01.37;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@General purpose resource allocator
+@
+
+
+11.11
+log
+@moved to src/
+@
+text
+@/*
+ *			M E M A L L O C . C
+ *
+ * Functions -
+ *	rt_memalloc	allocate 'size' of memory from a given map
+ *	rt_memget	allocate 'size' of memory from map at 'place'
+ *	rt_memfree	return 'size' of memory to map at 'place'
+ *	rt_mempurge	free everything on current memory chain
+ *	rt_memprint	print a map
+ *	rt_memclose
+ *
+ * The structure of the displaylist memory map chains
+ * consists of non-zero count and base address of that many contiguous units.
+ * The addresses are increasing and the list is terminated with the
+ * first zero link.
+ *
+ * rt_memalloc() and rt_memfree() use these tables to allocate displaylist memory.
+ *
+ *	For each Memory Map there exists a queue (coremap).
+ *	There also exists a queue of free buffers which are enqueued
+ *	on to either of the previous queues.  Initially all of the buffers
+ *	are placed on the `freemap' queue.  Whenever a buffer is freed
+ *	because of coallescing ends in rt_memfree() or zero size in rt_memalloc()
+ *	the mapping buffer is taken off from the respective queue and
+ *	returned to the `freemap' queue.
+ *
+ *  Authors -
+ *	George E. Toth
+ *	Michael John Muuss
+ *
+ *  Source -
+ *	SECAD/VLD Computing Consortium, Bldg 394
+ *	The U. S. Army Ballistic Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005
+ */
+#ifndef lint
+static const char RCSid[] = "@@(#)$Header: /n/xoff/cvs/brlcad/librt/memalloc.c,v 11.10 2004/05/10 15:30:46 erikg Exp $ (BRL)";
+#endif
+
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+
+#include <stdio.h>
+#include "machine.h"
+#include "vmath.h"
+#include "raytrace.h"
+
+
+/* XXX not PARALLEL */
+/* Allocation/Free spaces */
+static struct mem_map *rt_mem_freemap = MAP_NULL;	/* Freelist of buffers */
+
+/* Flags used by `type' in rt_memfree() */
+#define	M_TMTCH	00001	/* Top match */
+#define	M_BMTCH	00002	/* Bottom match */
+#define	M_TOVFL	00004	/* Top overflow */
+#define	M_BOVFL	00010	/* Bottom overflow */
+
+/*
+ *			R T _ M E M A L L O C
+ *
+ *	Takes:		& pointer of map,
+ *			size.
+ *
+ *	Returns:	NULL	Error
+ *			<addr>	Othewise
+ *
+ *	Comments:
+ *	Algorithm is first fit.
+ */
+unsigned long
+rt_memalloc(struct mem_map **pp, register unsigned int size)
+{
+	register struct mem_map *prevp = MAP_NULL;
+	register struct mem_map *curp;
+	unsigned long	addr;
+
+	if( size == 0 )
+		return( 0L );	/* fail */
+
+	for( curp = *pp; curp; curp = (prevp=curp)->m_nxtp )  {
+		if( curp->m_size >= size )
+			break;
+	}
+
+	if( curp == MAP_NULL )
+		return(0L);		/* No more space */
+
+	addr = curp->m_addr;
+	curp->m_addr += size;
+
+	/* If the element size goes to zero, put it on the freelist */
+
+	if( (curp->m_size -= size) == 0 )  {
+		if( prevp )
+			prevp->m_nxtp = curp->m_nxtp;
+		else
+			*pp = curp->m_nxtp;	/* Click list down at start */
+		curp->m_nxtp = rt_mem_freemap;		/* Link it in */
+		rt_mem_freemap = curp;			/* Make it the start */
+	}
+
+	return( addr );
+}
+
+/*
+ *			R T _ M E M A L L O C _ N O S P L I T
+ *
+ *	Takes:		& pointer of map,
+ *			size.
+ *
+ *	Returns:	NULL	Error
+ *			<addr>	Othewise
+ *
+ *	Comments:
+ *	Algorithm is BEST fit.
+ */
+struct mem_map *
+rt_memalloc_nosplit(struct mem_map **pp, register unsigned int size)
+{
+	register struct mem_map *prevp = MAP_NULL;
+	register struct mem_map *curp;
+	register struct mem_map *best = MAP_NULL, *best_prevp = MAP_NULL;
+
+	if( size == 0 )
+		return MAP_NULL;	/* fail */
+
+	for( curp = *pp; curp; curp = (prevp=curp)->m_nxtp )  {
+		if( curp->m_size < size )  continue;
+		if( curp->m_size == size )  {
+			best = curp;
+			best_prevp = prevp;
+			break;
+		}
+		/* This element has enough size */
+		if( best == MAP_NULL || curp->m_size < best->m_size )  {
+			best = curp;
+			best_prevp = prevp;
+		}
+	}
+	if( !best )
+		return MAP_NULL;		/* No space */
+
+	/* Move this element to free list, return it, unsplit */
+	if( best_prevp )
+		best_prevp->m_nxtp = best->m_nxtp;
+	else
+		*pp = best->m_nxtp;	/* Click list down at start */
+	best->m_nxtp = rt_mem_freemap;		/* Link it in */
+	rt_mem_freemap = best;			/* Make it the start */
+
+	return best;
+}
+
+/*
+ *			R T _ M E M G E T
+ *
+ *	Returns:	NULL	Error
+ *			-1	Zero Request
+ *			<addr>	Othewise
+ *
+ *	Comments:
+ *	Algorithm is first fit.
+ *	Free space can be split
+ */
+unsigned long
+rt_memget(struct mem_map **pp, register unsigned int size, unsigned int place)
+{
+	register struct mem_map *prevp, *curp;
+	unsigned int addr;
+
+	prevp = MAP_NULL;		/* special for first pass through */
+	if( size == 0 )
+		rt_bomb("rt_memget() size==0\n");
+
+	curp = *pp;
+	while( curp )  {
+		/*
+		 * Assumption:  We will always be APPENDING to an existing
+		 * memory allocation, so we search for a free piece of memory
+		 * which begins at 'place', without worrying about ones which
+		 * could begin earlier but be long enough to satisfy this
+		 * request.
+		 */
+		if( curp->m_addr == place && curp->m_size >= size )
+			break;
+		curp = (prevp=curp)->m_nxtp;
+	}
+
+	if( curp == MAP_NULL )
+		return(0L);		/* No space here */
+
+	addr = curp->m_addr;
+	curp->m_addr += size;
+
+	/* If the element size goes to zero, put it on the freelist */
+	if( (curp->m_size -= size) == 0 )  {
+		if( prevp )
+			prevp->m_nxtp = curp->m_nxtp;
+		else
+			*pp = curp->m_nxtp;	/* Click list down at start */
+		curp->m_nxtp = rt_mem_freemap;		/* Link it in */
+		rt_mem_freemap = curp;			/* Make it the start */
+	}
+	return( addr );
+}
+
+/*
+ *			R T _ M E M G E T _ N O S P L I T
+ *
+ *	Returns:	0	Unable to satisfy request
+ *			<size>	Actual size of free block, may be larger
+ *				than requested size.
+ *
+ *
+ *	Comments:
+ *		Caller is responsible for returning unused portion.
+ */
+unsigned long
+rt_memget_nosplit(struct mem_map **pp, register unsigned int size, unsigned int place)
+{
+	register struct mem_map *prevp, *curp;
+
+	prevp = MAP_NULL;		/* special for first pass through */
+	if( size == 0 )
+		bu_bomb("rt_memget_nosplit() size==0\n");
+
+	curp = *pp;
+	while( curp )  {
+		/*
+		 * Assumption:  We will always be APPENDING to an existing
+		 * memory allocation, so we search for a free piece of memory
+		 * which begins at 'place', without worrying about ones which
+		 * could begin earlier but be long enough to satisfy this
+		 * request.
+		 */
+		if( curp->m_addr == place && curp->m_size >= size )  {
+			size = curp->m_size;
+			/* put this element on the freelist */
+			if( prevp )
+				prevp->m_nxtp = curp->m_nxtp;
+			else
+				*pp = curp->m_nxtp;	/* Click list down at start */
+			curp->m_nxtp = rt_mem_freemap;		/* Link it in */
+			rt_mem_freemap = curp;			/* Make it the start */
+			return size;		/* actual size found */
+		}
+		curp = (prevp=curp)->m_nxtp;
+	}
+
+	return 0L;		/* No space found */
+}
+
+/*
+ *			M E M F R E E
+ *
+ *	Takes:
+ *			size,
+ *			address.
+ *
+ *	Comments:
+ *	The routine does not check for wrap around when increasing sizes
+ *	or changing addresses.  Other wrap-around conditions are flagged.
+ */
+void
+rt_memfree(struct mem_map **pp, unsigned int size, long unsigned int addr)
+{
+	register int type = 0;
+	register struct mem_map *prevp = MAP_NULL;
+	register struct mem_map *curp;
+	long il;
+	struct mem_map *tmap;
+
+	if( size == 0 )
+		return;		/* Nothing to free */
+
+	/* Find the position in the list such that (prevp)<(addr)<(curp) */
+	for( curp = *pp; curp; curp = (prevp=curp)->m_nxtp )
+		if( addr < curp->m_addr )
+			break;
+
+	/* Make up the `type' variable */
+
+	if( prevp )  {
+		if( (il=prevp->m_addr+prevp->m_size) > addr )
+			type |= M_BOVFL;
+		if( il == addr )
+			type |= M_BMTCH;
+	}
+	if( curp )  {
+		if( (il=addr+size) > curp->m_addr )
+			type |= M_TOVFL;
+		if( il == curp->m_addr )
+			type |= M_TMTCH;
+	}
+
+	if( type & (M_TOVFL|M_BOVFL) )  {
+		bu_log("rt_memfree(addr=x%x,size=%d)  ERROR type=0%o\n",
+			addr, size, type );
+		if( prevp )
+			bu_log("prevp: m_addr=x%x, m_size=%d\n",
+				prevp->m_addr, prevp->m_size );
+		if( curp )
+			bu_log("curp: m_addr=x%x, m_size=%d\n",
+				curp->m_addr, curp->m_size );
+		return;
+	}
+
+	/*
+ 	 * Now we do the surgery:
+	 * If there are no matches on boundaries we allocate a buffer
+	 * If there is one match we expand the appropriate buffer
+	 * If there are two matches we will have a free buffer returned.
+	 */
+
+	switch( type & (M_BMTCH|M_TMTCH) )  {
+	case M_TMTCH|M_BMTCH:	/* Deallocate top element and expand bottom */
+		prevp->m_size += size + curp->m_size;
+		prevp->m_nxtp = curp->m_nxtp;
+		curp->m_nxtp = rt_mem_freemap;		/* Link into rt_mem_freemap */
+		rt_mem_freemap = curp;
+		break;
+
+	case M_BMTCH:		/* Expand bottom element */
+		prevp->m_size += size;
+		break;
+
+	case M_TMTCH:		/* Expand top element downward */
+		curp->m_size += size;
+		curp->m_addr -= size;
+		break;
+
+	default:		/* No matches; allocate and insert */
+		if( (tmap=rt_mem_freemap) == MAP_NULL )
+			tmap = (struct mem_map *)bu_malloc(sizeof(struct mem_map), "struct mem_map");
+		else
+			rt_mem_freemap = rt_mem_freemap->m_nxtp;	/* Click one off */
+
+		if( prevp )
+			prevp->m_nxtp = tmap;
+		else
+			*pp = tmap;
+
+		tmap->m_size = size;
+		tmap->m_addr = addr;
+		tmap->m_nxtp = curp;
+	}
+}
+
+/*
+ *			M E M P U R G E
+ *
+ *  Take everything on the current memory chain, and place it on
+ *  the freelist.
+ */
+void
+rt_mempurge(struct mem_map **pp)
+{
+	register struct mem_map *prevp = MAP_NULL;
+	register struct mem_map *curp;
+
+	if( *pp == MAP_NULL )
+		return;
+
+	/* Find the end of the (busy) list */
+	for( curp = *pp; curp; curp = (prevp=curp)->m_nxtp )
+		;
+
+	/* Put the whole busy list onto the free list */
+	prevp->m_nxtp = rt_mem_freemap;
+	rt_mem_freemap = *pp;
+
+	*pp = MAP_NULL;
+}
+
+/*
+ *			M E M P R I N T
+ *
+ *  Print a memory chain.
+ */
+void
+rt_memprint(struct mem_map **pp)
+{
+	register struct mem_map *curp;
+
+	bu_log("rt_memprint(x%x):  address, length\n", *pp);
+	for( curp = *pp; curp; curp = curp->m_nxtp )
+		bu_log(" a=x%.8lx, l=%.5d\n", curp->m_addr, curp->m_size );
+}
+
+/*
+ *			M E M C L O S E
+ *
+ *  Return all the storage used by the rt_mem_freemap.
+ */
+void
+rt_memclose(void)
+{
+	register struct mem_map *mp;
+
+	while( (mp = rt_mem_freemap) != MAP_NULL )  {
+		rt_mem_freemap = mp->m_nxtp;
+		bu_free( (char *)mp, "struct mem_map" );
+	}
+}
+@
+
+
+11.10
+log
+@change conf.h to a wrapped config.h
+@
+text
+@d37 1
+a37 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/librt/memalloc.c,v 11.9 2004/04/05 08:48:57 morrison Exp $ (BRL)";
+@
+
+
+11.9
+log
+@merge of ansi-6-0-branch into HEAD
+@
+text
+@d37 1
+a37 1
+static const char RCSid[] = "@@(#)$Header$ (BRL)";
+d40 5
+a44 1
+#include "conf.h"
+@
+
+
+11.8
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d37 1
+a37 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/librt/memalloc.c,v 11.6 2000/11/02 01:35:52 mike Exp $ (BRL)";
+d71 1
+a71 3
+rt_memalloc( pp, size )
+struct mem_map **pp;
+register unsigned size;
+d118 1
+a118 3
+rt_memalloc_nosplit( pp, size )
+struct mem_map **pp;
+register unsigned size;
+d166 1
+a166 4
+rt_memget( pp, size, place )
+struct mem_map **pp;
+register unsigned int size;
+unsigned int place;
+d219 1
+a219 4
+rt_memget_nosplit( pp, size, place )
+struct mem_map **pp;
+register unsigned int size;
+unsigned int place;
+d265 1
+a265 4
+rt_memfree( pp, size, addr )
+struct mem_map **pp;
+unsigned size;
+unsigned long addr;
+d356 1
+a356 2
+rt_mempurge( pp )
+struct mem_map **pp;
+d381 1
+a381 2
+rt_memprint( pp )
+struct mem_map **pp;
+d396 1
+a396 1
+rt_memclose()
+@
+
+
+11.8.2.1
+log
+@Initial ANSIfication
+@
+text
+@d37 1
+a37 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/librt/memalloc.c,v 11.8 2002/08/20 17:08:02 jra Exp $ (BRL)";
+d71 3
+a73 1
+rt_memalloc(struct mem_map **pp, register unsigned int size)
+d120 3
+a122 1
+rt_memalloc_nosplit(struct mem_map **pp, register unsigned int size)
+d170 4
+a173 1
+rt_memget(struct mem_map **pp, register unsigned int size, unsigned int place)
+d226 4
+a229 1
+rt_memget_nosplit(struct mem_map **pp, register unsigned int size, unsigned int place)
+d275 4
+a278 1
+rt_memfree(struct mem_map **pp, unsigned int size, long unsigned int addr)
+d369 2
+a370 1
+rt_mempurge(struct mem_map **pp)
+d395 2
+a396 1
+rt_memprint(struct mem_map **pp)
+d411 1
+a411 1
+rt_memclose(void)
+@
+
+
+11.7
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d71 3
+a73 1
+rt_memalloc(struct mem_map **pp, register unsigned int size)
+d120 3
+a122 1
+rt_memalloc_nosplit(struct mem_map **pp, register unsigned int size)
+d170 4
+a173 1
+rt_memget(struct mem_map **pp, register unsigned int size, unsigned int place)
+d226 4
+a229 1
+rt_memget_nosplit(struct mem_map **pp, register unsigned int size, unsigned int place)
+d275 4
+a278 1
+rt_memfree(struct mem_map **pp, unsigned int size, long unsigned int addr)
+d369 2
+a370 1
+rt_mempurge(struct mem_map **pp)
+d395 2
+a396 1
+rt_memprint(struct mem_map **pp)
+d411 1
+a411 1
+rt_memclose(void)
+@
+
+
+11.6
+log
+@
+Fixed message
+@
+text
+@d37 1
+a37 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/librt/memalloc.c,v 11.5 2000/07/07 05:45:28 mike Exp $ (BRL)";
+d71 1
+a71 3
+rt_memalloc( pp, size )
+struct mem_map **pp;
+register unsigned size;
+d118 1
+a118 3
+rt_memalloc_nosplit( pp, size )
+struct mem_map **pp;
+register unsigned size;
+d166 1
+a166 4
+rt_memget( pp, size, place )
+struct mem_map **pp;
+register unsigned int size;
+unsigned int place;
+d219 1
+a219 4
+rt_memget_nosplit( pp, size, place )
+struct mem_map **pp;
+register unsigned int size;
+unsigned int place;
+d265 1
+a265 4
+rt_memfree( pp, size, addr )
+struct mem_map **pp;
+unsigned size;
+unsigned long addr;
+d356 1
+a356 2
+rt_mempurge( pp )
+struct mem_map **pp;
+d381 1
+a381 2
+rt_memprint( pp )
+struct mem_map **pp;
+d396 1
+a396 1
+rt_memclose()
+@
+
+
+11.5
+log
+@
+Changed address print to hex
+@
+text
+@d37 1
+a37 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/librt/memalloc.c,v 11.4 2000/07/07 05:12:09 mike Exp $ (BRL)";
+d310 1
+a310 1
+		bu_log("rt_mfree(addr=x%x,size=%d)  ERROR type=0%o\n",
+@
+
+
+11.4
+log
+@
+Added two new interfaces for getting unsplit free chunks.
+Motivated by v5 database needing to reformat free chunks, they
+can't just be silently divided up as in v4.
+@
+text
+@d37 1
+a37 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/librt/memalloc.c,v 11.3 2000/07/07 03:56:44 mike Exp $ (BRL)";
+d310 1
+a310 1
+		bu_log("mfree(addr=%d,size=%d)  error type=0%o\n",
+d313 1
+a313 1
+			bu_log("prevp: m_addr=%d, m_size=%d\n",
+d316 1
+a316 1
+			bu_log("curp: m_addr=%d, m_size=%d\n",
+@
+
+
+11.3
+log
+@
+Improved debug formatting.
+@
+text
+@d37 1
+a37 1
+static char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/librt/memalloc.c,v 11.2 1999/06/03 00:55:47 mike Exp $ (BRL)";
+d59 1
+a59 1
+ *			M E M A L L O C
+d108 52
+a159 1
+ *			M E M G E T
+d167 1
+d212 49
+@
+
+
+11.2
+log
+@
+sed4
+@
+text
+@d37 1
+a37 1
+static char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/librt/memalloc.c,v 11.1 1995/01/04 09:57:20 mike Rel4_4 $ (BRL)";
+d299 1
+a299 1
+	bu_log("rt_memprint(x%x)\n", *pp);
+d301 1
+a301 1
+		bu_log(" a=x%lx, l=%d\n", curp->m_addr, curp->m_size );
+@
+
+
+11.1
+log
+@Release_4.4
+@
+text
+@d37 1
+a37 1
+static char RCSid[] = "@@(#)$Header: /m/cad/librt/RCS/memalloc.c,v 10.5 94/12/27 16:56:09 mike Exp $ (BRL)";
+d209 1
+a209 1
+		rt_log("mfree(addr=%d,size=%d)  error type=0%o\n",
+d212 1
+a212 1
+			rt_log("prevp: m_addr=%d, m_size=%d\n",
+d215 1
+a215 1
+			rt_log("curp: m_addr=%d, m_size=%d\n",
+d246 1
+a246 1
+			tmap = (struct mem_map *)rt_malloc(sizeof(struct mem_map), "struct mem_map");
+d299 1
+a299 1
+	rt_log("rt_memprint(x%x)\n", *pp);
+d301 1
+a301 1
+		rt_log(" a=x%lx, l=%d\n", curp->m_addr, curp->m_size );
+d316 1
+a316 1
+		rt_free( (char *)mp, "struct mem_map" );
+@
+
+
+10.5
+log
+@Fixed bug #247, added rt_ prefix to memalloc(), etc.
+@
+text
+@d37 1
+a37 1
+static char RCSid[] = "@@(#)$Header: /m/cad/librt/RCS/rt_memalloc.c,v 10.4 94/11/04 05:40:49 mike Exp Locker: mike $ (BRL)";
+@
+
+
+10.4
+log
+@Irix 6
+@
+text
+@d5 6
+a10 5
+ *	memalloc	allocate 'size' of memory from a given map
+ *	memget		allocate 'size' of memory from map at 'place'
+ *	memfree		return 'size' of memory to map at 'place'
+ *	mempurge	free everything on current memory chain
+ *	memprint	print a map
+d17 1
+a17 1
+ * memalloc() and memfree() use these tables to allocate displaylist memory.
+d23 1
+a23 1
+ *	because of coallescing ends in memfree() or zero size in memalloc()
+d37 1
+a37 1
+static char RCSid[] = "@@(#)$Header: /m/cad/librt/RCS/memalloc.c,v 10.3 94/08/10 18:44:31 gdurf Exp Locker: mike $ (BRL)";
+d50 1
+a50 1
+static struct mem_map *freemap = MAP_NULL;	/* Freelist of buffers */
+d52 1
+a52 1
+/* Flags used by `type' in memfree() */
+d71 1
+a71 1
+memalloc( pp, size )
+d100 2
+a101 2
+		curp->m_nxtp = freemap;		/* Link it in */
+		freemap = curp;			/* Make it the start */
+d118 1
+a118 1
+memget( pp, size, place )
+d128 1
+a128 1
+		rt_bomb("memget() size==0\n");
+d156 2
+a157 2
+		curp->m_nxtp = freemap;		/* Link it in */
+		freemap = curp;			/* Make it the start */
+d174 1
+a174 1
+memfree( pp, size, addr )
+d231 2
+a232 2
+		curp->m_nxtp = freemap;		/* Link into freemap */
+		freemap = curp;
+d245 1
+a245 1
+		if( (tmap=freemap) == MAP_NULL )
+d248 1
+a248 1
+			freemap = freemap->m_nxtp;	/* Click one off */
+d268 1
+a268 1
+mempurge( pp )
+d282 2
+a283 2
+	prevp->m_nxtp = freemap;
+	freemap = *pp;
+d294 1
+a294 1
+memprint( pp )
+d299 1
+a299 1
+	rt_log("memprint(x%x)\n", *pp);
+d307 1
+a307 1
+ *  Return all the storage used by the freemap.
+d310 1
+a310 1
+memclose()
+d314 2
+a315 2
+	while( (mp = freemap) != MAP_NULL )  {
+		freemap = mp->m_nxtp;
+@
+
+
+10.3
+log
+@Added include of conf.h
+@
+text
+@d36 1
+a36 1
+static char RCSid[] = "@@(#)$Header: /m/cad/librt/RCS/memalloc.c,v 10.2 1993/10/28 23:41:49 mike Exp gdurf $ (BRL)";
+d127 1
+a127 1
+		return( -1 );	/* Anything non-zero */
+@
+
+
+10.2
+log
+@Added memclose(), to return the freelist to rt_free().
+@
+text
+@d36 1
+a36 1
+static char RCSid[] = "@@(#)$Header: /m/cad/librt/RCS/memalloc.c,v 10.1 91/10/12 06:40:37 mike Rel4_0 Locker: mike $ (BRL)";
+d38 2
+@
+
+
+10.1
+log
+@Release_4.0
+@
+text
+@d36 1
+a36 1
+static char RCSid[] = "@@(#)$Header: memalloc.c,v 9.1 89/05/19 05:56:50 mike Rel3_5 $ (BRL)";
+d299 16
+@
+
+
+9.1
+log
+@Release_3.5
+@
+text
+@d36 1
+a36 1
+static char RCSid[] = "@@(#)$Header: memalloc.c,v 1.1 88/12/06 00:04:02 mike Exp $ (BRL)";
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d36 1
+a36 1
+static char RCSid[] = "@@(#)$Header: /cad/d/mike/cad/libdb/RCS/memalloc.c,v 1.2 88/10/23 13:56:40 mike Exp $ (BRL)";
+@

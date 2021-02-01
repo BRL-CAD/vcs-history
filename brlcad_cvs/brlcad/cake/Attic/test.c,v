@@ -1,0 +1,357 @@
+head	11.2;
+access;
+symbols
+	ansi-20040405-merged:11.1
+	premerge-autoconf:11.1
+	ansi-20040316-freeze:11.1
+	postmerge-20040315-windows:11.1
+	premerge-20040315-windows:11.1
+	windows-20040315-freeze:11.1
+	autoconf-20031203:11.1
+	autoconf-20031202:11.1
+	phong-branch:11.1.0.12
+	photonmap-branch:11.1.0.10
+	rel-6-1-DP:11.1
+	windows-branch:11.1.0.8
+	rel-6-0-2:11.1
+	ansi-branch:11.1.0.6
+	rel-6-0-1-branch:11.1.0.4
+	hartley-6-0-post:11.1
+	hartley-6-0-pre:11.1
+	rel-6-0-1:11.1
+	rel-6-0:11.1
+	rel-5-4:11.1
+	offsite-5-3-pre:11.1
+	rel-5-3:11.1
+	rel-5-2:11.1
+	rel-5-1-branch:11.1.0.2
+	rel-5-1:11.1
+	rel-5-0:11.1
+	rel-5-0-beta:11.1
+	rel-4-5:11.1
+	ctj-4-5-post:11.1
+	ctj-4-5-pre:11.1
+	rel-4-4:1.3
+	rel-4-0:1.2
+	rel-3-5:1.1
+	rel-3-0:1.1
+	AUTOCONF:11.1.0.14;
+locks; strict;
+comment	@ * @;
+
+
+11.2
+date	2004.03.18.18.15.14;	author erikg;	state dead;
+branches;
+next	11.1;
+
+11.1
+date	95.01.05.06.00.12;	author mike;	state Rel4_4;
+branches
+	11.1.14.1;
+next	1.3;
+
+1.3
+date	94.11.03.14.16.17;	author mike;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	91.06.12.06.50.45;	author mike;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	88.06.11.00.56.33;	author mike;	state Original;
+branches;
+next	;
+
+11.1.14.1
+date	2004.03.18.18.10.24;	author erikg;	state dead;
+branches;
+next	;
+
+
+desc
+@cake source file 
+@
+
+
+11.2
+log
+@merge of AUTOCONF branch in to HEAD
+@
+text
+@/*
+**	Module to handle Cake's tests.
+*/
+
+static	char
+rcs_id[] = "$Header: /cvs/brlcad/cake/test.c,v 11.1 1995/01/05 06:00:12 mike Rel4_4 $";
+
+#include	"cake.h"
+
+bool
+eval(node, test, env)
+reg	Node	*node;
+reg	Test	*test;
+Env		env;
+{
+	extern	char	*expand_cmds();
+	extern	int	cake_proc();
+	extern	int	cake_wait();
+	extern	Node	*chase();
+	extern	bool	get_stat();
+	extern	bool	exist();
+	extern	char	*ground();
+	char		buf[256];
+	int		status;
+	reg	List	*ptr;
+	reg	Pat	*pat;
+	reg	char	*text1, *text2;
+	reg	char	*cmd;
+	reg	Node	*chasenode;
+	reg	int	result;
+	reg	int	pid;
+
+	if (test == (Test *) NULL)
+		return TRUE;
+
+#ifdef	CAKEDEBUG
+	if (cakedebug)
+	{
+		printf("testing ");
+		print_test(test);
+		printf("\n");
+	}
+#endif
+
+	switch (test->t_kind)
+	{
+
+case t_TRUE:	return TRUE;
+case t_FALSE:	return FALSE;
+case t_AND:	return eval(node, test->t_left, env) && eval(node, test->t_right, env);
+case t_OR:	return eval(node, test->t_left, env) || eval(node, test->t_right, env);
+case t_NOT:	return ! eval(node, test->t_left, env);
+
+case t_CMD:	if (get_stat(test->t_cmd, &status))
+		{
+			test->t_kind = (status == 0)? t_TRUE: t_FALSE;
+			cdebug("test cmd cache %s: %s\n", test->t_cmd,
+				(status == 0)? "True": "False");
+			return (status == 0)? TRUE: FALSE;
+		}
+
+		cmd = expand_cmds(ground(env, test->t_cmd));
+		pid = cake_proc(cmd, Exec, "/dev/null", (Node *) NULL,
+			(int (*)()) NULL, (List *) NULL);
+		status = cake_wait(pid);
+		new_stat(test->t_cmd, status);
+		test->t_kind = (status == 0)? t_TRUE: t_FALSE;
+		cdebug("test cmd %s: %s\n", test->t_cmd,
+			(status == 0)? "True": "False");
+		return (status == 0)? TRUE: FALSE;
+
+case t_MATCH:	text1 = (char *) first(test->t_list);	/* -vX	*/
+		text2 = (char *) last(test->t_list);	/* file	*/
+		/* e.g.	sub -vX X.c NULL file.c */
+		sprintf(buf, "sub %s %s NULL %s > /dev/null",
+			text1, text2, test->t_pat->p_str);
+
+		cmd = new_name(buf);
+		cdebug("matching command: %s\n", cmd);
+		if (get_stat(cmd, &status))
+		{
+			test->t_kind = (status == 0)? t_TRUE: t_FALSE;
+			cdebug("test cmd cache %s: %s\n", test->t_cmd,
+				(status == 0)? "True": "False");
+			return (status == 0)? TRUE: FALSE;
+		}
+
+		pid = cake_proc(cmd, Exec, "/dev/null", (Node *) NULL,
+			(int (*)()) NULL, (List *) NULL);
+		status = cake_wait(pid);
+		new_stat(test->t_cmd, status);
+		test->t_kind = (status == 0)? t_TRUE: t_FALSE;
+		cdebug("test cmd %s: %s\n", test->t_cmd,
+			(status == 0)? "True": "False");
+		return (status == 0)? TRUE: FALSE;
+
+case t_LIST:	for_list (ptr, test->t_list)
+		{
+			pat = (Pat *) ldata(ptr);
+			if (streq(test->t_pat->p_str, pat->p_str))
+				return TRUE;
+		}
+
+		return FALSE;
+
+case t_EXIST:	result = exist(test->t_pat->p_str);
+		cdebug("test exist %s: %s\n", test->t_pat->p_str,
+			result? "True": "False");
+		return result;
+
+case t_CANDO:	chasenode = chase(test->t_pat->p_str, 0, (Entry *) NULL);
+		if (on_node(chasenode, nf_ERR))
+		{
+			sprintf(scratchbuf, "cannot evaluate 'cando %s' test for %s",
+				chasenode->n_name, node->n_name);
+			add_error(node, new_name(scratchbuf), LNULL, TRUE);
+		}
+
+		result = is_ok(chasenode) || is_cando(chasenode);
+		cdebug("test cando %s: %s\n", test->t_pat->p_str,
+			result? "True": "False");
+		return result;
+
+case t_OK:	chasenode = chase(test->t_pat->p_str, 0, (Entry *) NULL);
+		if (on_node(chasenode, nf_ERR))
+		{
+			sprintf(scratchbuf, "cannot evaluate 'ok %s' test for %s",
+				chasenode->n_name, node->n_name);
+			add_error(node, new_name(scratchbuf), LNULL, TRUE);
+		}
+
+		result = is_ok(chasenode);
+		cdebug("test ok %s: %s\n", test->t_pat->p_str,
+			result? "True": "False");
+		return result;
+
+default:	fprintf(stderr, "cake internal error: invalid test type %x in eval\n",
+			test->t_kind);
+		exit_cake(TRUE);
+	}
+
+	/*NOTREACHED*/
+	return FALSE;
+}
+@
+
+
+11.1
+log
+@Release_4_4
+@
+text
+@d6 1
+a6 1
+rcs_id[] = "$Header: /m/cad/cake/RCS/test.c,v 1.3 94/11/03 14:16:17 mike Exp $";
+@
+
+
+11.1.14.1
+log
+@merge from head
+@
+text
+@d6 1
+a6 1
+rcs_id[] = "$Header: /cvs/brlcad/cake/test.c,v 11.1 1995/01/05 06:00:12 mike Rel4_4 $";
+@
+
+
+1.3
+log
+@Eliminated 'when' defines.
+@
+text
+@d6 1
+a6 1
+rcs_id[] = "$Header: /m/cad/cake/RCS/test.c,v 1.2 91/06/12 06:50:45 mike Exp Locker: mike $";
+@
+
+
+1.2
+log
+@Modified carry_out(), action(), and cake_wait() to return an int,
+rather that a "union wait" (aka typedef Wait).
+The Cray UNICOS 5.1 /bin/cc seems unable to successfully return
+a union.
+@
+text
+@d6 1
+a6 1
+rcs_id[] = "$Header: /m/cad/cake/RCS/test.c,v 1.1 88/06/11 00:56:33 mike Original $";
+d48 5
+a52 5
+when t_TRUE:	return TRUE;
+when t_FALSE:	return FALSE;
+when t_AND:	return eval(node, test->t_left, env) && eval(node, test->t_right, env);
+when t_OR:	return eval(node, test->t_left, env) || eval(node, test->t_right, env);
+when t_NOT:	return ! eval(node, test->t_left, env);
+d54 1
+a54 1
+when t_CMD:	if (get_stat(test->t_cmd, &status))
+d72 1
+a72 1
+when t_MATCH:	text1 = (char *) first(test->t_list);	/* -vX	*/
+d97 1
+a97 1
+when t_LIST:	for_list (ptr, test->t_list)
+d106 1
+a106 1
+when t_EXIST:	result = exist(test->t_pat->p_str);
+d111 1
+a111 1
+when t_CANDO:	chasenode = chase(test->t_pat->p_str, 0, (Entry *) NULL);
+d124 1
+a124 1
+when t_OK:	chasenode = chase(test->t_pat->p_str, 0, (Entry *) NULL);
+d137 1
+a137 1
+otherwise:	fprintf(stderr, "cake internal error: invalid test type %x in eval\n",
+@
+
+
+1.1
+log
+@Original CAKE version from net.sources
+@
+text
+@d6 1
+a6 1
+rcs_id[] = "$Header: /mip/zs/src/sys/cake/RCS/test.c,v 1.15 87/10/05 20:16:34 zs Exp $";
+d18 1
+a18 1
+	extern	Wait	cake_wait();
+d24 1
+a24 1
+	Wait		status;
+d54 1
+a54 1
+when t_CMD:	if (get_stat(test->t_cmd, &status.w_status))
+d56 1
+a56 1
+			test->t_kind = (status.w_status == 0)? t_TRUE: t_FALSE;
+d58 2
+a59 2
+				(status.w_status == 0)? "True": "False");
+			return (status.w_status == 0)? TRUE: FALSE;
+d66 2
+a67 2
+		new_stat(test->t_cmd, status.w_status);
+		test->t_kind = (status.w_status == 0)? t_TRUE: t_FALSE;
+d69 2
+a70 2
+			(status.w_status == 0)? "True": "False");
+		return (status.w_status == 0)? TRUE: FALSE;
+d80 1
+a80 1
+		if (get_stat(cmd, &status.w_status))
+d82 1
+a82 1
+			test->t_kind = (status.w_status == 0)? t_TRUE: t_FALSE;
+d84 2
+a85 2
+				(status.w_status == 0)? "True": "False");
+			return (status.w_status == 0)? TRUE: FALSE;
+d91 2
+a92 2
+		new_stat(test->t_cmd, status.w_status);
+		test->t_kind = (status.w_status == 0)? t_TRUE: t_FALSE;
+d94 2
+a95 2
+			(status.w_status == 0)? "True": "False");
+		return (status.w_status == 0)? TRUE: FALSE;
+@

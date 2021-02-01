@@ -1,0 +1,489 @@
+head	11.9;
+access;
+symbols
+	ansi-20040405-merged:11.6.2.1
+	postmerge-20040405-ansi:11.7
+	premerge-20040404-ansi:11.6
+	postmerge-autoconf:11.6
+	autoconf-freeze:11.6
+	premerge-autoconf:11.6
+	ansi-20040316-freeze:11.6.2.1
+	postmerge-20040315-windows:11.6
+	premerge-20040315-windows:11.6
+	windows-20040315-freeze:11.6
+	autoconf-20031203:11.6
+	autoconf-20031202:11.6
+	autoconf-branch:11.6.0.10
+	phong-branch:11.6.0.8
+	photonmap-branch:11.6.0.6
+	rel-6-1-DP:11.6
+	windows-branch:11.6.0.4
+	rel-6-0-2:11.4
+	ansi-branch:11.6.0.2
+	rel-6-0-1-branch:11.4.0.2
+	hartley-6-0-post:11.5
+	hartley-6-0-pre:11.4
+	rel-6-0-1:11.4
+	rel-6-0:11.4
+	rel-5-4:11.2
+	offsite-5-3-pre:11.3
+	rel-5-3:11.2
+	rel-5-2:11.2
+	rel-5-1-branch:11.2.0.2
+	rel-5-1:11.2
+	rel-5-0:11.2
+	rel-5-0-beta:11.1
+	rel-4-5:11.1
+	ctj-4-5-post:11.1
+	ctj-4-5-pre:11.1
+	rel-4-4:11.1
+	rel-4-0:10.1
+	rel-3-5:9.1
+	rel-3-0:8.1
+	rel-2-3:7.1
+	rel-2-0:1.1
+	rel-1-24:1.1
+	rel-1-20:1.1;
+locks; strict;
+comment	@ * @;
+
+
+11.9
+date	2004.05.21.17.48.15;	author morrison;	state dead;
+branches;
+next	11.8;
+
+11.8
+date	2004.05.10.15.30.43;	author erikg;	state Exp;
+branches;
+next	11.7;
+
+11.7
+date	2004.04.05.07.46.59;	author morrison;	state Exp;
+branches;
+next	11.6;
+
+11.6
+date	2002.08.20.17.07.33;	author jra;	state Exp;
+branches
+	11.6.2.1;
+next	11.5;
+
+11.5
+date	2002.08.15.20.54.46;	author hartley;	state Exp;
+branches;
+next	11.4;
+
+11.4
+date	2001.08.09.16.42.52;	author jra;	state Exp;
+branches;
+next	11.3;
+
+11.3
+date	2000.08.24.22.55.51;	author mike;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	99.06.03.21.40.50;	author mike;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	95.01.04.10.17.47;	author mike;	state Rel4_4;
+branches;
+next	10.2;
+
+10.2
+date	94.08.23.20.09.27;	author gdurf;	state Exp;
+branches;
+next	10.1;
+
+10.1
+date	91.10.12.06.50.02;	author mike;	state Rel4_0;
+branches;
+next	9.1;
+
+9.1
+date	89.05.19.06.13.07;	author mike;	state Rel3_5;
+branches;
+next	8.2;
+
+8.2
+date	89.05.12.23.27.23;	author moss;	state Exp;
+branches;
+next	8.1;
+
+8.1
+date	88.10.05.00.51.48;	author mike;	state Rel3_0;
+branches;
+next	7.1;
+
+7.1
+date	87.11.03.00.21.00;	author mike;	state Rel;
+branches;
+next	1.2;
+
+1.2
+date	87.10.29.08.51.29;	author moss;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	87.02.04.15.14.54;	author moss;	state Exp;
+branches;
+next	;
+
+11.6.2.1
+date	2002.09.19.18.01.02;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@This is the initial version as far as the BRL/CAD distribution is concerned.
+It is extracted from SCCS archives.
+@
+
+
+11.9
+log
+@moved to src/lgt/
+@
+text
+@/*
+	Authors:	Paul R. Stay	(original author)
+			Gary S. Moss	(port to big-endian machine)
+
+			U. S. Army Ballistic Research Laboratory
+			Aberdeen Proving Ground
+			Maryland 21005-5066
+			(301)278-6647 or AV-298-6647
+*/
+#ifndef lint
+static const char RCSid[] = "@@(#)$Header: /n/xoff/cvs/brlcad/lgt/getfont.c,v 11.8 2004/05/10 15:30:43 erikg Exp $ (BRL)";
+#endif
+/* 
+	getfont.c - Load a new font by reading in the header and directory.
+ */ 
+
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+
+#include <stdio.h>
+#include <assert.h>
+
+#include "machine.h"
+#include "vmath.h"
+#include "raytrace.h"
+#include "fb.h"
+#include "./hmenu.h"
+#include "./lgt.h"
+#include "./extern.h"
+#include "./font.h"
+
+/* Variables controlling the font itself */
+FILE		*ffdes;		/* File pointer for current font.	*/
+long		offset;		/* Current offset to character data.	*/
+struct header	hdr;		/* Header for font file.		*/
+struct dispatch	dir[256];	/* Directory for character font.	*/
+int		width = 0,	/* Size of current character.		*/
+		height = 0;
+
+int
+get_Font(char *fontname)
+{	FILE		*newff;
+		struct header	lochdr;
+		static char	fname[FONTNAMESZ];
+	if( fontname == NULL )
+		fontname = FONTNAME;
+	if( fontname[0] != '/' )		/* absolute path */
+		(void) sprintf( fname, "%s/%s", FONTDIR, fontname );
+	else
+		(void) strncpy( fname, fontname, FONTNAMESZ );
+
+	/* Open the file and read in the header information. */
+	if( (newff = fopen( fname, "r" )) == NULL )
+		{
+		bu_log( "Error opening font file '%s'\n", fname );
+		ffdes = NULL;
+		return	0;
+    		}
+	if( ffdes != NULL )
+		(void) fclose(ffdes);
+	ffdes = newff;
+	if( fread( (char *) &lochdr, (int) sizeof(struct header), 1, ffdes ) != 1 )
+		{
+		bu_log( "get_Font() read failed!\n" );
+		ffdes = NULL;
+		return	0;
+		}
+	SWAB( lochdr.magic );
+	SWAB( lochdr.size );
+	SWAB( lochdr.maxx );
+	SWAB( lochdr.maxy );
+	SWAB( lochdr.xtend );
+
+	if( lochdr.magic != 0436 )
+    		{
+		bu_log( "Not a font file \"%s\": magic=0%o\n",
+			fname, (int) lochdr.magic
+			);
+		ffdes = NULL;
+		return	0;
+		}
+	hdr = lochdr;
+
+	/* Read in the directory for the font. */
+	if( fread( (char *) dir, (int) sizeof(struct dispatch), 256, ffdes ) != 256 )
+		{
+		bu_log( "get_Font() read failed!\n" );
+		ffdes = NULL;
+		return	0;
+		}
+	/* Addresses of characters in the file are relative to
+		point in the file after the directory, so grab the
+		current position.
+	 */
+ 	offset = ftell( ffdes );
+	return	1;
+	}
+@
+
+
+11.8
+log
+@change conf.h to a wrapped config.h
+@
+text
+@d11 1
+a11 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/lgt/getfont.c,v 11.7 2004/04/05 07:46:59 morrison Exp $ (BRL)";
+@
+
+
+11.7
+log
+@merge of ansi-6-0-branch into HEAD
+@
+text
+@d11 1
+a11 1
+static const char RCSid[] = "@@(#)$Header$ (BRL)";
+d17 5
+a21 1
+#include "conf.h"
+@
+
+
+11.6
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d11 1
+a11 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/lgt/getfont.c,v 11.4 2001/08/09 16:42:52 jra Exp $ (BRL)";
+d40 2
+a41 3
+get_Font( fontname )
+char *fontname;
+	{	FILE		*newff;
+@
+
+
+11.6.2.1
+log
+@Initial ANSIfication
+@
+text
+@d11 1
+a11 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/lgt/getfont.c,v 11.6 2002/08/20 17:07:33 jra Exp $ (BRL)";
+d40 3
+a42 2
+get_Font(char *fontname)
+{	FILE		*newff;
+@
+
+
+11.5
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d40 3
+a42 2
+get_Font(char *fontname)
+{	FILE		*newff;
+@
+
+
+11.4
+log
+@lint
+@
+text
+@d11 1
+a11 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/lgt/getfont.c,v 11.3 2000/08/24 22:55:51 mike Exp $ (BRL)";
+d40 2
+a41 3
+get_Font( fontname )
+char *fontname;
+	{	FILE		*newff;
+@
+
+
+11.3
+log
+@
+RCSid
+@
+text
+@d11 1
+a11 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/lgt/getfont.c,v 11.2 1999/06/03 21:40:50 mike Exp $ (BRL)";
+d39 1
+a39 1
+
+@
+
+
+11.2
+log
+@
+sed4
+@
+text
+@d11 1
+a11 1
+static char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/lgt/getfont.c,v 11.1 1995/01/04 10:17:47 mike Rel4_4 $ (BRL)";
+@
+
+
+11.1
+log
+@Release_4.4
+@
+text
+@d11 1
+a11 1
+static char RCSid[] = "@@(#)$Header: /m/cad/lgt/RCS/getfont.c,v 10.2 94/08/23 20:09:27 gdurf Exp $ (BRL)";
+d55 1
+a55 1
+		rt_log( "Error opening font file '%s'\n", fname );
+d64 1
+a64 1
+		rt_log( "get_Font() read failed!\n" );
+d76 1
+a76 1
+		rt_log( "Not a font file \"%s\": magic=0%o\n",
+d87 1
+a87 1
+		rt_log( "get_Font() read failed!\n" );
+@
+
+
+10.2
+log
+@Made includes explicit
+@
+text
+@d11 1
+a11 1
+static char RCSid[] = "@@(#)$Header: /m/cad/lgt/RCS/getfont.c,v 10.1 1991/10/12 06:50:02 mike Rel4_0 gdurf $ (BRL)";
+@
+
+
+10.1
+log
+@Release_4.0
+@
+text
+@d11 1
+a11 1
+static char RCSid[] = "@@(#)$Header: /m/cad/lgt/RCS/getfont.c,v 9.1 89/05/19 06:13:07 mike Rel3_5 $ (BRL)";
+d16 3
+d20 8
+@
+
+
+9.1
+log
+@Release_3.5
+@
+text
+@d11 1
+a11 1
+static char RCSid[] = "@@(#)$Header: getfont.c,v 8.2 89/05/12 23:27:23 moss Exp $ (BRL)";
+@
+
+
+8.2
+log
+@pre release changes
+@
+text
+@d11 1
+a11 1
+static char RCSid[] = "@@(#)$Header: getfont.c,v 7.1 87/11/03 00:21:00 mike Rel $ (BRL)";
+@
+
+
+8.1
+log
+@Release_3.0
+@
+text
+@d11 1
+a11 1
+static char RCSid[] = "@@(#)$Header: getfont.c,v 7.1 87/11/03 00:21:00 moss Locked $ (BRL)";
+a12 7
+/*
+	Originally extracted from SCCS archive:
+		SCCS id:	@@(#) getfont.c	2.1
+		Modified: 	12/10/86 at 16:04:36	G S M
+		Retrieved: 	2/4/87 at 08:54:04
+		SCCS archive:	/vld/moss/src/lgt/s.getfont.c
+*/
+@
+
+
+7.1
+log
+@Release 2.3
+@
+text
+@d11 1
+a11 1
+static char RCSid[] = "@@(#)$Header: getfont.c,v 1.2 87/10/29 08:51:29 moss Exp $ (BRL)";
+@
+
+
+1.2
+log
+@Ready for release 2.1 of BRL CAD.
+@
+text
+@d11 1
+a11 1
+static char RCSid[] = "@@(#)$Header: getfont.c,v 1.1 87/02/04 15:14:54 moss Locked $ (BRL)";
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d11 1
+a11 1
+static char RCSid[] = "@@(#)$Header$ (BRL)";
+d29 1
+a29 1
+int		offset;		/* Current offset to character data.	*/
+@

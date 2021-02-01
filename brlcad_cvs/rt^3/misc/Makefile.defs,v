@@ -1,0 +1,76 @@
+head	1.1;
+access;
+symbols;
+locks; strict;
+comment	@# @;
+
+
+1.1
+date	2006.01.27.04.15.22;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.1
+log
+@import definitions makefile from brl-cad for common make build rules
+@
+text
+@
+.PHONY: fast fast-am fast-recursive noprod prodclean prodclean-recursive
+
+#
+# compile all sources first, then link on a second pass.  requires 2x
+# disk space to account for uncertainty on whether the objects are for
+# a library or an executable.
+#
+fast: fast-recursive
+
+fast-am: $(FAST_OBJECTS) all-am
+
+fast-recursive:
+	@@list='$(SUBDIRS)'; for subdir in $$list; do \
+	  test "$$subdir" = . || (cd $$subdir && $(MAKE) $(AM_MAKEFLAGS) fast); \
+	done
+	@@$(MAKE) $(AM_MAKEFLAGS) fast-am
+
+#
+# remove all of the build targets (binaries and libraries)
+#
+noprod: prodclean
+
+prodclean: prodclean-recursive
+	@@list='$(bin_PROGRAMS)'; for p in $$list; do \
+	  f=`echo $$p|sed 's/$(EXEEXT)$$//'`; \
+	  echo " rm -f $$p $$f"; \
+	  rm -f $$p $$f ; \
+	done
+	@@list='$(noinst_PROGRAMS)'; for p in $$list; do \
+	  f=`echo $$p|sed 's/$(EXEEXT)$$//'`; \
+	  echo " rm -f $$p $$f"; \
+	  rm -f $$p $$f ; \
+	done
+	@@test -z "$(lib_LTLIBRARIES)" || echo rm -f $(lib_LTLIBRARIES) && rm -f $(lib_LTLIBRARIES)
+	@@list='$(lib_LTLIBRARIES)'; for p in $$list; do \
+	  dir="`echo $$p | sed -e 's|/[^/]*$$||'`"; \
+	  test -z "$dir" && dir=.; \
+	  echo "rm -f \"$${dir}/so_locations\""; \
+	  rm -f "$${dir}/so_locations"; \
+	done
+	@@test -z "$(noinst_LTLIBRARIES)" || echo rm -f $(noinst_LTLIBRARIES) && rm -f $(noinst_LTLIBRARIES)
+	@@list='$(noinst_LTLIBRARIES)'; for p in $$list; do \
+	  dir="`echo $$p | sed -e 's|/[^/]*$$||'`"; \
+	  test -z "$dir" && dir=.; \
+	  echo "rm -f \"$${dir}/so_locations\""; \
+	  rm -f "$${dir}/so_locations"; \
+	done
+
+prodclean-recursive:
+	@@list='$(SUBDIRS)'; for subdir in $$list; do \
+	  test "$$subdir" = . || (cd $$subdir && $(MAKE) $(AM_MAKEFLAGS) prodclean); \
+	done
+@

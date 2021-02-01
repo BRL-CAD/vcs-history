@@ -1,0 +1,761 @@
+head	11.3;
+access;
+symbols
+	postmerge-20051223-bobWinPort:11.2
+	rel-7-6-branch:11.2.0.12
+	ansi-20040405-merged:11.2.10.1
+	postmerge-20040405-ansi:11.2
+	autoconf-freeze:11.2.6.3
+	postmerge-20040315-windows:11.2
+	windows-20040315-freeze:11.2.8.1
+	autoconf-20031203:11.2.6.1
+	autoconf-branch:11.2.0.6
+	phong-branch:11.2.0.4
+	photonmap-branch:11.2.0.2
+	windows-branch:11.2.0.8
+	ansi-branch:11.2.0.10
+	hartley-6-0-pre:11.2
+	rel-5-0-beta:11.2
+	rel-4-5:11.2
+	ctj-4-5-post:11.2
+	ctj-4-5-pre:11.2
+	rel-4-4:11.1
+	rel-4-0:10.1
+	release-7-0:11.2;
+locks; strict;
+comment	@ * @;
+
+
+11.3
+date	2007.11.29.18.30.02;	author brlcad;	state dead;
+branches;
+next	11.2;
+
+11.2
+date	96.07.12.12.10.21;	author jra;	state Exp;
+branches
+	11.2.2.1
+	11.2.4.1
+	11.2.6.1
+	11.2.8.1
+	11.2.10.1
+	11.2.12.1;
+next	11.1;
+
+11.1
+date	95.01.04.09.57.12;	author mike;	state Rel4_4;
+branches;
+next	10.3;
+
+10.3
+date	94.10.31.21.56.02;	author mike;	state Exp;
+branches;
+next	10.2;
+
+10.2
+date	94.08.10.18.43.09;	author gdurf;	state Exp;
+branches;
+next	10.1;
+
+10.1
+date	91.10.12.06.40.30;	author mike;	state Rel4_0;
+branches;
+next	1.5;
+
+1.5
+date	90.12.18.02.26.06;	author mike;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	90.12.15.04.53.04;	author mike;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	90.01.06.01.22.12;	author mike;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	90.01.05.18.56.11;	author mike;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	90.01.05.18.52.19;	author mike;	state Exp;
+branches;
+next	;
+
+11.2.2.1
+date	2003.08.26.14.03.35;	author justin;	state Exp;
+branches;
+next	;
+
+11.2.4.1
+date	2003.09.13.18.02.22;	author butler;	state Exp;
+branches;
+next	;
+
+11.2.6.1
+date	2003.12.03.16.24.07;	author erikg;	state Exp;
+branches;
+next	11.2.6.2;
+
+11.2.6.2
+date	2004.02.12.18.37.42;	author erikg;	state Exp;
+branches;
+next	11.2.6.3;
+
+11.2.6.3
+date	2004.03.15.14.07.23;	author erikg;	state Exp;
+branches;
+next	;
+
+11.2.8.1
+date	2004.03.11.23.43.40;	author morrison;	state Exp;
+branches;
+next	;
+
+11.2.10.1
+date	2004.03.17.21.18.48;	author morrison;	state Exp;
+branches;
+next	;
+
+11.2.12.1
+date	96.07.12.12.10.21;	author brlcad;	state dead;
+branches;
+next	11.2.12.2;
+
+11.2.12.2
+date	2005.11.13.17.44.59;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@Histogram routines
+@
+
+
+11.3
+log
+@once again, try to delete these zombie files that have again mysteriously shown up after an update
+@
+text
+@/*
+ *			H I S T . C
+ *
+ *  General purpose histogram handling routines
+ *
+ *  The macro RT_HISTOGRAM_TALLY is used to record items that
+ *  live in a single "bin", while the subroutine rt_hist_range()
+ *  is used to record items that may extend across multiple "bin"s.
+ *
+ *  Author -
+ *	Michael John Muuss
+ *  
+ *  Source -
+ *	SECAD/VLD Computing Consortium, Bldg 394
+ *	The U. S. Army Ballistic Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005-5066
+ *  
+ *  Copyright Notice -
+ *	This software is Copyright (C) 1990 by the United States Army.
+ *	All rights reserved.
+ */
+#ifndef lint
+static char RCShist[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/librt/Attic/hist.c,v 11.2 1996/07/12 12:10:21 jra Exp $ (BRL)";
+#endif
+
+#include "conf.h"
+
+#include <stdio.h>
+#include <math.h>
+#include "machine.h"
+#include "vmath.h"
+#include "raytrace.h"
+#include "./debug.h"
+
+/*
+ *			R T _ H I S T _ F R E E
+ */
+void
+rt_hist_free( histp )
+struct histogram	*histp;
+{
+	/* The 'clean' command can be called before the first rt_prep(),
+	 * resulting in zero magic numbers in rtip->rti_hist_cellsize.
+	 */
+	if( histp && histp->magic == 0 )  return;
+	RT_CK_HISTOGRAM(histp);
+	if( histp->hg_bins )
+		rt_free( (char *)histp->hg_bins, "old histogram bins");
+	histp->hg_bins = (long *)0;
+	histp->hg_nbins = 0;
+	histp->magic = -1;	/* sanity */
+}
+
+/*
+ *			R T _ H I S T _ I N I T
+ *
+ *  Initialize a histogram structure.
+ *  It is expected that the structure is junk upon entry.
+ */
+void
+rt_hist_init( histp, min, max, nbins )
+struct histogram	*histp;
+fastf_t			min, max;
+int			nbins;
+{
+
+	if( max <= min )  max = min+1;
+	if( nbins < 2 )  {
+		nbins = 2;
+	} else if( nbins > 10000 )  {
+		nbins = 10000;
+	}
+
+	histp->hg_min = floor(min);
+	histp->hg_max = ceil(max);
+	histp->hg_nbins = nbins;
+
+	/* When max-min <= nbins, clumpsize should be 1 */
+	histp->hg_clumpsize = ((max-min)/nbins)+1;
+	if( histp->hg_clumpsize <= 0 )  histp->hg_clumpsize = 1;
+
+	histp->hg_nsamples = 0L;
+	histp->hg_bins = (long *)rt_calloc( nbins+1, sizeof(long), "histogram bins");
+	histp->magic = RT_HISTOGRAM_MAGIC;
+}
+
+/*
+ *			R T _ H I S T _ R A N G E
+ */
+void
+rt_hist_range( hp, low, high )
+register struct histogram	*hp;
+fastf_t				low;
+fastf_t				high;
+{
+	long		a;
+	long		b;
+	register int	i;
+
+	RT_CK_HISTOGRAM(hp);
+	if( low <= hp->hg_min )
+		a = 0;
+	else
+		a = (low - hp->hg_min) / hp->hg_clumpsize;
+	if( high >= hp->hg_max )
+		b = hp->hg_nbins-1;
+	else
+		b = (high - hp->hg_min) / hp->hg_clumpsize;
+	if( a < 0 || b >= hp->hg_nbins )  rt_bomb("rt_hist_range() out of range\n");
+	for( i=a; i <= b; i++ )  {
+		hp->hg_bins[i]++;
+	}
+	hp->hg_nsamples++;
+}
+
+/*
+ *			R T _ H I S T _ P R
+ */
+void
+rt_hist_pr( histp, title )
+register struct histogram	*histp;
+CONST char			*title;
+{
+	register int	i;
+	long		maxcount;
+	static CONST char	marks[] = "################################################################";
+#define	NMARKS	50
+	char		buf[256];
+	int		percent;
+	int		mark_count;
+	int		val;
+	int		nbins;
+
+	RT_CK_HISTOGRAM(histp);
+
+	/* Find entry with highest count */
+	maxcount = 0L;
+	for( i=0; i<histp->hg_nbins; i++ )  {
+		if( histp->hg_bins[i] > maxcount )
+			maxcount = histp->hg_bins[i];
+	}
+	if( maxcount <= 0 )  maxcount = 1;
+
+	/* Supress trailing bins with zero counts.  nbins s/b >= 1 */
+	for( nbins = histp->hg_nbins-1; nbins >= 1; nbins-- )
+		if(histp->hg_bins[nbins] > 0)  break;
+
+	/* 12345678 12345678 123 .... */
+	rt_log("\nHistogram of %s\nmin=%g, max=%g, nbins=%d, clumpsize=%g\n%d samples collected, highest count was %d\n\n Value      Count Rel%%|  Bar Graph\n",
+		title,
+		histp->hg_min, histp->hg_max,
+		histp->hg_nbins, histp->hg_clumpsize,
+		histp->hg_nsamples, maxcount );
+
+	/* Print each bin.  Final bins with zero counts are supressed. */
+	for( i=0; i <= nbins; i++ )  {
+		percent = (int)(((double)histp->hg_bins[i])*100.0/maxcount);
+		mark_count = percent*NMARKS/100;
+		if( mark_count <= 0 )  {
+			buf[0] = '\0';
+		} else {
+			bcopy( marks, buf, mark_count );
+			buf[mark_count] = '\0';
+		}
+		val = histp->hg_min + i*histp->hg_clumpsize;
+		rt_log("%8d %8d %3d |%s\n",
+			val,
+			histp->hg_bins[i], percent, buf );
+	}
+}
+@
+
+
+11.2
+log
+@Minor Mods for IRIX 6.2
+@
+text
+@d23 1
+a23 1
+static char RCShist[] = "@@(#)$Header: /m/cad/librt/RCS/hist.c,v 11.1 1995/01/04 09:57:12 mike Rel4_4 jra $ (BRL)";
+@
+
+
+11.2.12.1
+log
+@file hist.c was added on branch rel-7-6-branch on 2005-11-13 17:44:59 +0000
+@
+text
+@d1 170
+@
+
+
+11.2.12.2
+log
+@more merging changes from HEAD aka rel-7-6-4 to the rel-7-6-branch, adding the items that were moved and resolving rcs keyword conflicts
+@
+text
+@a0 170
+/*
+ *			H I S T . C
+ *
+ *  General purpose histogram handling routines
+ *
+ *  The macro RT_HISTOGRAM_TALLY is used to record items that
+ *  live in a single "bin", while the subroutine rt_hist_range()
+ *  is used to record items that may extend across multiple "bin"s.
+ *
+ *  Author -
+ *	Michael John Muuss
+ *  
+ *  Source -
+ *	SECAD/VLD Computing Consortium, Bldg 394
+ *	The U. S. Army Ballistic Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005-5066
+ *  
+ *  Copyright Notice -
+ *	This software is Copyright (C) 1990 by the United States Army.
+ *	All rights reserved.
+ */
+#ifndef lint
+static char RCShist[] = "@@(#)$Header$ (BRL)";
+#endif
+
+#include "conf.h"
+
+#include <stdio.h>
+#include <math.h>
+#include "machine.h"
+#include "vmath.h"
+#include "raytrace.h"
+#include "./debug.h"
+
+/*
+ *			R T _ H I S T _ F R E E
+ */
+void
+rt_hist_free( histp )
+struct histogram	*histp;
+{
+	/* The 'clean' command can be called before the first rt_prep(),
+	 * resulting in zero magic numbers in rtip->rti_hist_cellsize.
+	 */
+	if( histp && histp->magic == 0 )  return;
+	RT_CK_HISTOGRAM(histp);
+	if( histp->hg_bins )
+		rt_free( (char *)histp->hg_bins, "old histogram bins");
+	histp->hg_bins = (long *)0;
+	histp->hg_nbins = 0;
+	histp->magic = -1;	/* sanity */
+}
+
+/*
+ *			R T _ H I S T _ I N I T
+ *
+ *  Initialize a histogram structure.
+ *  It is expected that the structure is junk upon entry.
+ */
+void
+rt_hist_init( histp, min, max, nbins )
+struct histogram	*histp;
+fastf_t			min, max;
+int			nbins;
+{
+
+	if( max <= min )  max = min+1;
+	if( nbins < 2 )  {
+		nbins = 2;
+	} else if( nbins > 10000 )  {
+		nbins = 10000;
+	}
+
+	histp->hg_min = floor(min);
+	histp->hg_max = ceil(max);
+	histp->hg_nbins = nbins;
+
+	/* When max-min <= nbins, clumpsize should be 1 */
+	histp->hg_clumpsize = ((max-min)/nbins)+1;
+	if( histp->hg_clumpsize <= 0 )  histp->hg_clumpsize = 1;
+
+	histp->hg_nsamples = 0L;
+	histp->hg_bins = (long *)rt_calloc( nbins+1, sizeof(long), "histogram bins");
+	histp->magic = RT_HISTOGRAM_MAGIC;
+}
+
+/*
+ *			R T _ H I S T _ R A N G E
+ */
+void
+rt_hist_range( hp, low, high )
+register struct histogram	*hp;
+fastf_t				low;
+fastf_t				high;
+{
+	long		a;
+	long		b;
+	register int	i;
+
+	RT_CK_HISTOGRAM(hp);
+	if( low <= hp->hg_min )
+		a = 0;
+	else
+		a = (low - hp->hg_min) / hp->hg_clumpsize;
+	if( high >= hp->hg_max )
+		b = hp->hg_nbins-1;
+	else
+		b = (high - hp->hg_min) / hp->hg_clumpsize;
+	if( a < 0 || b >= hp->hg_nbins )  rt_bomb("rt_hist_range() out of range\n");
+	for( i=a; i <= b; i++ )  {
+		hp->hg_bins[i]++;
+	}
+	hp->hg_nsamples++;
+}
+
+/*
+ *			R T _ H I S T _ P R
+ */
+void
+rt_hist_pr( histp, title )
+register struct histogram	*histp;
+CONST char			*title;
+{
+	register int	i;
+	long		maxcount;
+	static CONST char	marks[] = "################################################################";
+#define	NMARKS	50
+	char		buf[256];
+	int		percent;
+	int		mark_count;
+	int		val;
+	int		nbins;
+
+	RT_CK_HISTOGRAM(histp);
+
+	/* Find entry with highest count */
+	maxcount = 0L;
+	for( i=0; i<histp->hg_nbins; i++ )  {
+		if( histp->hg_bins[i] > maxcount )
+			maxcount = histp->hg_bins[i];
+	}
+	if( maxcount <= 0 )  maxcount = 1;
+
+	/* Supress trailing bins with zero counts.  nbins s/b >= 1 */
+	for( nbins = histp->hg_nbins-1; nbins >= 1; nbins-- )
+		if(histp->hg_bins[nbins] > 0)  break;
+
+	/* 12345678 12345678 123 .... */
+	rt_log("\nHistogram of %s\nmin=%g, max=%g, nbins=%d, clumpsize=%g\n%d samples collected, highest count was %d\n\n Value      Count Rel%%|  Bar Graph\n",
+		title,
+		histp->hg_min, histp->hg_max,
+		histp->hg_nbins, histp->hg_clumpsize,
+		histp->hg_nsamples, maxcount );
+
+	/* Print each bin.  Final bins with zero counts are supressed. */
+	for( i=0; i <= nbins; i++ )  {
+		percent = (int)(((double)histp->hg_bins[i])*100.0/maxcount);
+		mark_count = percent*NMARKS/100;
+		if( mark_count <= 0 )  {
+			buf[0] = '\0';
+		} else {
+			bcopy( marks, buf, mark_count );
+			buf[mark_count] = '\0';
+		}
+		val = histp->hg_min + i*histp->hg_clumpsize;
+		rt_log("%8d %8d %3d |%s\n",
+			val,
+			histp->hg_bins[i], percent, buf );
+	}
+}
+@
+
+
+11.2.10.1
+log
+@sync branch with HEAD
+@
+text
+@d23 1
+a23 1
+static char RCShist[] = "@@(#)$Header$ (BRL)";
+@
+
+
+11.2.8.1
+log
+@sync to HEAD...
+@
+text
+@d23 1
+a23 1
+static char RCShist[] = "@@(#)$Header: /n/cad/c/CVS/brlcad/librt/Attic/hist.c,v 11.2 1996/07/12 12:10:21 jra Exp $ (BRL)";
+@
+
+
+11.2.6.1
+log
+@updates from HEAD, part 1
+@
+text
+@d23 1
+a23 1
+static char RCShist[] = "@@(#)$Header: /c/CVS/brlcad/librt/Attic/hist.c,v 11.2 1996/07/12 12:10:21 jra Exp $ (BRL)";
+@
+
+
+11.2.6.2
+log
+@merge from HEAD
+@
+text
+@@
+
+
+11.2.6.3
+log
+@merge from head
+@
+text
+@d23 1
+a23 1
+static char RCShist[] = "@@(#)$Header: /c/CVS/brlcad/librt/Attic/hist.c,v 11.2.6.2 2004/02/12 18:37:42 erikg Exp $ (BRL)";
+@
+
+
+11.2.4.1
+log
+@Merged head into branch
+@
+text
+@d23 1
+a23 1
+static char RCShist[] = "@@(#)$Header: /c/CVS/brlcad/librt/Attic/hist.c,v 11.2 1996/07/12 12:10:21 jra Exp $ (BRL)";
+@
+
+
+11.2.2.1
+log
+@updated for merging
+@
+text
+@d23 1
+a23 1
+static char RCShist[] = "@@(#)$Header: /c/CVS/brlcad/librt/Attic/hist.c,v 11.2 1996/07/12 12:10:21 jra Exp $ (BRL)";
+@
+
+
+11.1
+log
+@Release_4.4
+@
+text
+@d23 1
+a23 1
+static char RCShist[] = "@@(#)$Header: /m/cad/librt/RCS/hist.c,v 10.3 94/10/31 21:56:02 mike Exp $ (BRL)";
+d126 1
+a126 1
+	CONST static char	marks[] = "################################################################";
+@
+
+
+10.3
+log
+@Changed hg_min and hg_max values from int to fastf_t.
+Fixed bug #155.
+@
+text
+@d23 1
+a23 1
+static char RCShist[] = "@@(#)$Header: /m/cad/librt/RCS/hist.c,v 10.2 94/08/10 18:43:09 gdurf Exp Locker: mike $ (BRL)";
+@
+
+
+10.2
+log
+@Added include of conf.h
+@
+text
+@d23 1
+a23 1
+static char RCShist[] = "@@(#)$Header: /m/cad/librt/RCS/hist.c,v 10.1 1991/10/12 06:40:30 mike Rel4_0 gdurf $ (BRL)";
+d42 5
+d51 1
+d63 1
+a63 1
+int			min, max;
+d74 2
+a75 2
+	histp->hg_min = min;
+	histp->hg_max = max;
+d84 1
+d93 2
+a94 2
+int				low;
+int				high;
+d96 2
+a97 2
+	int		a;
+	int		b;
+d100 1
+d106 1
+a106 1
+		b = hp->hg_nbins;
+d109 1
+d122 1
+a122 1
+char			*title;
+d126 1
+a126 1
+	static char	marks[] = "################################################################";
+d128 1
+a128 1
+	char		buf[128];
+d134 2
+d149 1
+a149 1
+	rt_log("\nHistogram of %s\nmin=%d, max=%d, nbins=%d, clumpsize=%d\n%d samples collected, highest count was %d\n\n Value      Count Rel%%|  Bar Graph\n",
+@
+
+
+10.1
+log
+@Release_4.0
+@
+text
+@d23 1
+a23 1
+static char RCShist[] = "@@(#)$Header: /m/cad/librt/RCS/hist.c,v 1.5 90/12/18 02:26:06 mike Exp $ (BRL)";
+d25 2
+@
+
+
+1.5
+log
+@improved title string
+@
+text
+@d23 1
+a23 1
+static char RCShist[] = "@@(#)$Header: /m/cad/librt/RCS/hist.c,v 1.4 90/12/15 04:53:04 mike Exp $ (BRL)";
+@
+
+
+1.4
+log
+@Added rt_hist_range().
+Fixed bug in printing of ### marks
+@
+text
+@d23 1
+a23 1
+static char RCShist[] = "@@(#)$Header: /n/wolf/m/cad/librt/RCS/hist.c,v 1.3 90/01/06 01:22:12 mike Exp $ (BRL)";
+d136 1
+a136 1
+	rt_log("\nHistogram of %s\nmin=%d, max=%d, nbins=%d, clumpsize=%d\n%d samples collected, highest count was %d\n\n Value     Count   %%  |  Bar Graph\n",
+@
+
+
+1.3
+log
+@Added rt_hist_free
+@
+text
+@d6 4
+d23 1
+a23 1
+static char RCShist[] = "@@(#)$Header: hist.c,v 1.2 90/01/05 18:56:11 mike Locked $ (BRL)";
+d40 2
+a41 1
+	rt_free( (char *)histp->hg_bins, "old histogram bins");
+d43 1
+d49 2
+a65 3
+	if( histp->hg_bins != (long *)0 )
+		rt_hist_free( histp );
+
+d79 27
+d149 1
+a149 1
+			bcopy( marks, buf, mark_count-1 );
+@
+
+
+1.2
+log
+@Changed to using rt_calloc, to ensure that bin counts are zero to start with.
+@
+text
+@d19 1
+a19 1
+static char RCShist[] = "@@(#)$Header: hist.c,v 1.1 90/01/05 18:52:19 mike Locked $ (BRL)";
+d30 11
+d59 1
+a59 1
+		rt_free( (char *)histp->hg_bins, "old histogram bins");
+d64 5
+a68 1
+	histp->hg_clumpsize = ((max-min+1)/nbins)+1;
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d19 1
+a19 1
+static char RCShist[] = "@@(#)$Header$ (BRL)";
+d39 1
+d53 1
+a53 1
+	histp->hg_clumpsize = (max-min+1)/nbins+1;
+d55 1
+a55 1
+	histp->hg_bins = (long *)rt_malloc( sizeof(long)*(nbins+1), "histogram bins");
+@

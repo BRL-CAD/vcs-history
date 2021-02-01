@@ -1,0 +1,182 @@
+head	14.2;
+access;
+symbols
+	stable-branch:14.1
+	rel-7-8-4:14.1
+	rel-7-8-2:14.1
+	rel-7-8-0:14.1
+	trimnurbs-branch:14.1.0.8
+	help:14.1
+	temp_tag:14.1
+	bobWinPort-20051223-freeze:14.1
+	postmerge-20051223-bobWinPort:14.1
+	premerge-20051223-bobWinPort:14.1
+	rel-7-6-6:14.1
+	rel-7-6-4:14.1
+	rel-7-6-2:14.1
+	rel-7-6-branch:14.1.0.6
+	rel-7-6-0:14.1
+	rel-7-4-2:14.1
+	rel-7-4-branch:14.1.0.4
+	bobWinPort:14.1.0.2
+	rel-7-4-0:14.1
+	rel-7-2-6:14.1
+	rel-7-2-4:14.1
+	rel-7-2-2:14.1
+	rel-7-2-0:14.1
+	rel-7-0-4:14.1
+	rel-7-0-2:14.1
+	rel-7-0-1:14.1
+	opensource-post:14.1
+	opensource-pre:1.1
+	rel-7-0-branch:1.1.0.2
+	rel-7-0:1.1;
+locks; strict;
+comment	@# @;
+
+
+14.2
+date	2007.03.02.21.47.11;	author brlcad;	state dead;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.23;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.14.51.56;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.2
+log
+@upgrade tcl/tk from 8.4.6 to 8.5a5; also move to a recursive configure, using AC_CONFIG_SUBDIRS to call upon tcl, tk, and enigma's configure scripts as needed instead of redoing their build systems for our purpose.  this has a rather drastic impact on the way the libraries are linked together, including the need to compile tcl/tk static so as to avoid libtool portability issues as well as letting us take advantage of their build system for reduced maintenance and easing future upgrades.  undoubtedly more build issues to be worked out with other platforms given the extent of this change.  this does move us one step closer towards correctly linking against system tcl/tk installations too.
+@
+text
+@# Commands covered:  incr
+#
+# This file contains the original set of tests for Tcl's incr command.
+# Since the incr command is now compiled, a new set of tests covering
+# the new implementation is in the file "incr.test". Sourcing this file
+# into Tcl runs the tests and generates output for errors.
+# No output means no errors were found.
+#
+# Copyright (c) 1991-1993 The Regents of the University of California.
+# Copyright (c) 1994-1996 Sun Microsystems, Inc.
+# Copyright (c) 1998-1999 by Scriptics Corporation.
+#
+# See the file "license.terms" for information on usage and redistribution
+# of this file, and for a DISCLAIMER OF ALL WARRANTIES.
+#
+# RCS: @@(#) $Id: incr-old.test,v 14.1 2004/11/16 19:42:23 morrison Exp $
+
+if {[lsearch [namespace children] ::tcltest] == -1} {
+    package require tcltest
+    namespace import -force ::tcltest::*
+}
+
+catch {unset x}
+
+test incr-old-1.1 {basic incr operation} {
+    set x 23
+    list [incr x] $x
+} {24 24}
+test incr-old-1.2 {basic incr operation} {
+    set x 106
+    list [incr x -5] $x
+} {101 101}
+test incr-old-1.3 {basic incr operation} {
+    set x "  -106"
+    list [incr x 1] $x
+} {-105 -105}
+test incr-old-1.4 {basic incr operation} {
+    set x "  +106"
+    list [incr x 1] $x
+} {107 107}
+
+test incr-old-2.1 {incr errors} {
+    list [catch incr msg] $msg
+} {1 {wrong # args: should be "incr varName ?increment?"}}
+test incr-old-2.2 {incr errors} {
+    list [catch {incr a b c} msg] $msg
+} {1 {wrong # args: should be "incr varName ?increment?"}}
+test incr-old-2.3 {incr errors} {
+    catch {unset x}
+    list [catch {incr x} msg] $msg $errorInfo
+} {1 {can't read "x": no such variable} {can't read "x": no such variable
+    (reading value of variable to increment)
+    invoked from within
+"incr x"}}
+test incr-old-2.4 {incr errors} {
+    set x abc
+    list [catch {incr x} msg] $msg $errorInfo
+} {1 {expected integer but got "abc"} {expected integer but got "abc"
+    while executing
+"incr x"}}
+test incr-old-2.5 {incr errors} {
+    set x 123
+    list [catch {incr x 1a} msg] $msg $errorInfo
+} {1 {expected integer but got "1a"} {expected integer but got "1a"
+    (reading increment)
+    invoked from within
+"incr x 1a"}}
+test incr-old-2.6 {incr errors} {
+    proc readonly args {error "variable is read-only"}
+    set x 123
+    trace var x w readonly
+    list [catch {incr x 1} msg] $msg $errorInfo
+} {1 {can't set "x": variable is read-only} {can't set "x": variable is read-only
+    while executing
+"incr x 1"}}
+catch {unset x}
+test incr-old-2.7 {incr errors} {
+    set x -
+    list [catch {incr x 1} msg] $msg
+} {1 {expected integer but got "-"}}
+test incr-old-2.8 {incr errors} {
+    set x {  -  }
+    list [catch {incr x 1} msg] $msg
+} {1 {expected integer but got "  -  "}}
+test incr-old-2.9 {incr errors} {
+    set x +
+    list [catch {incr x 1} msg] $msg
+} {1 {expected integer but got "+"}}
+test incr-old-2.10 {incr errors} {
+    set x {20 x}
+    list [catch {incr x 1} msg] $msg
+} {1 {expected integer but got "20 x"}}
+
+# cleanup
+::tcltest::cleanupTests
+return
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@d16 1
+a16 1
+# RCS: @@(#) $Id: incr-old.test,v 1.1 2004/05/20 14:51:56 morrison Exp $
+@
+
+
+1.1
+log
+@Sources that are external to BRL-CAD are moved from the top level to src/other/.
+@
+text
+@d16 1
+a16 1
+# RCS: @@(#) $Id: incr-old.test,v 1.3 2004/03/04 19:47:17 morrison Exp $
+@
+

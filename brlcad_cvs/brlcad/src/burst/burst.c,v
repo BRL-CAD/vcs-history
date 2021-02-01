@@ -1,0 +1,1052 @@
+head	14.19;
+access;
+symbols
+	rel-7-10-4:14.18
+	STABLE:14.18.0.2
+	stable-branch:14.4
+	rel-7-10-2:14.18
+	rel-7-10-0:14.16
+	rel-7-8-4:14.11
+	rel-7-8-2:14.9
+	rel-7-8-0:14.8
+	trimnurbs-branch:14.8.0.2
+	help:14.8
+	temp_tag:14.7
+	bobWinPort-20051223-freeze:14.4
+	postmerge-20051223-bobWinPort:14.7
+	premerge-20051223-bobWinPort:14.7
+	rel-7-6-6:14.7
+	rel-7-6-4:14.7
+	rel-7-6-2:14.4
+	rel-7-6-branch:14.4.0.6
+	rel-7-6-0:14.4
+	rel-7-4-2:14.4
+	rel-7-4-branch:14.4.0.4
+	bobWinPort:14.4.0.2
+	rel-7-4-0:14.4
+	rel-7-2-6:14.4
+	rel-7-2-4:14.4
+	rel-7-2-2:14.4
+	rel-7-2-0:14.4
+	rel-7-0-4:14.3
+	rel-7-0-2:14.3
+	rel-7-0-1:14.3
+	opensource-post:14.3
+	opensource-pre:1.1
+	rel-7-0-branch:1.1.0.2
+	rel-7-0:1.1;
+locks; strict;
+comment	@ * @;
+
+
+14.19
+date	2007.10.14.09.08.19;	author brlcad;	state Exp;
+branches;
+next	14.18;
+
+14.18
+date	2007.07.26.01.13.50;	author brlcad;	state Exp;
+branches;
+next	14.17;
+
+14.17
+date	2007.04.18.02.53.03;	author brlcad;	state Exp;
+branches;
+next	14.16;
+
+14.16
+date	2007.02.20.08.19.47;	author brlcad;	state Exp;
+branches;
+next	14.15;
+
+14.15
+date	2007.02.02.08.48.28;	author brlcad;	state Exp;
+branches;
+next	14.14;
+
+14.14
+date	2007.01.27.01.41.31;	author brlcad;	state Exp;
+branches;
+next	14.13;
+
+14.13
+date	2007.01.23.01.13.24;	author brlcad;	state Exp;
+branches;
+next	14.12;
+
+14.12
+date	2007.01.20.14.36.42;	author brlcad;	state Exp;
+branches;
+next	14.11;
+
+14.11
+date	2006.07.10.19.06.22;	author brlcad;	state Exp;
+branches;
+next	14.10;
+
+14.10
+date	2006.07.09.21.25.17;	author brlcad;	state Exp;
+branches;
+next	14.9;
+
+14.9
+date	2006.06.03.20.56.08;	author brlcad;	state Exp;
+branches;
+next	14.8;
+
+14.8
+date	2006.01.18.06.46.13;	author brlcad;	state Exp;
+branches;
+next	14.7;
+
+14.7
+date	2005.11.04.14.50.57;	author brlcad;	state Exp;
+branches;
+next	14.6;
+
+14.6
+date	2005.11.04.10.43.04;	author brlcad;	state Exp;
+branches;
+next	14.5;
+
+14.5
+date	2005.10.23.04.44.29;	author brlcad;	state Exp;
+branches;
+next	14.4;
+
+14.4
+date	2005.01.30.20.30.16;	author brlcad;	state Exp;
+branches
+	14.4.6.1;
+next	14.3;
+
+14.3
+date	2004.12.18.06.50.49;	author morrison;	state Exp;
+branches;
+next	14.2;
+
+14.2
+date	2004.12.18.01.52.36;	author morrison;	state Exp;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.12;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.15.18.43;	author morrison;	state Exp;
+branches;
+next	;
+
+14.4.6.1
+date	2005.11.13.13.46.13;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.19
+log
+@more taking care of a slew of level 4 flawfinder issues related to adding length parameters to string and i/o functions
+@
+text
+@/*                         B U R S T . C
+ * BRL-CAD
+ *
+ * Copyright (c) 2004-2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ *
+ */
+/** @@file burst.c
+ *  Author:		Gary S. Moss
+ */
+#ifndef lint
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/burst/burst.c,v 14.18 2007/07/26 01:13:50 brlcad Exp $ (BRL)";
+#endif
+
+#include "common.h"
+
+#include <assert.h>
+#include <stdio.h>
+#include <signal.h>
+
+#include "./burst.h"
+#include "./trie.h"
+#include "./ascii.h"
+#include "./extern.h"
+
+#ifndef SIGCLD
+#  define SIGCLD SIGCHLD
+#endif
+#ifndef SIGTSTP
+#  define SIGTSTP 18
+#endif
+
+#define DEBUG_BURST	0	/* 1 enables debugging for this module */
+
+/*
+  int getCommand( char *name, char *buf, int len, FILE *fp )
+
+  Read next command line into buf and stuff the command name into name
+  from input stream fp.  buf must be at least len bytes long.
+
+  RETURN:	1 for success
+
+  0 for end of file
+*/
+static int
+getCommand( char *name, char *buf, int len, FILE *fp )
+{
+    assert( name != NULL );
+    assert( buf != NULL );
+    assert( fp != NULL );
+    while( bu_fgets( buf, len, fp ) != NULL )
+	{
+	    if( buf[0] != CHAR_COMMENT )
+		{
+		    if( sscanf( buf, "%1330s", name ) == 1 ) /* LNBUFSZ */
+			{
+			    buf[strlen(buf)-1] = NUL; /* clobber newline */
+			    return	1;
+			}
+		    else /* Skip over blank lines. */
+			continue;
+		}
+	    else
+		{ /* Generate comment command. */
+		    (void) strncpy( name, CMD_COMMENT, LNBUFSZ );
+		    return	1;
+		}
+	}
+    return	0; /* EOF */
+}
+
+/*
+  void setupSigs( void )
+
+  Initialize all signal handlers.
+*/
+
+static void
+setupSigs( void )
+{
+    register int i;
+    for( i = 0; i < NSIG; i++ )
+	switch( i )
+	    {
+		case SIGINT :
+		    if( (norml_sig = signal( i, SIG_IGN )) == SIG_IGN )
+			abort_sig = SIG_IGN;
+		    else
+			{
+			    norml_sig = intr_sig;
+			    abort_sig = abort_RT;
+			    (void) signal( i,  norml_sig );
+			}
+		    break;
+		case SIGCHLD :
+		    break; /* leave SIGCLD alone */
+		case SIGPIPE :
+		    (void) signal( i, SIG_IGN );
+		    break;
+		case SIGQUIT :
+		    break;
+		case SIGTSTP :
+		    break;
+	    }
+    return;
+}
+
+/*
+  int parsArgv( int argc, char **argv )
+
+  Parse program command line.
+*/
+static int
+parsArgv( int argc, char **argv )
+{	register int c;
+/* Parse options.						*/
+ while( (c = bu_getopt( argc, argv, "b" )) != EOF )
+     {
+	 switch( c )
+	     {
+		 case 'b' :
+		     tty = 0;
+		     break;
+		 case '?' :
+		     return	0;
+	     }
+     }
+ return	1;
+}
+
+/*
+  void readBatchInput( FILE *fp )
+
+  Read and execute commands from input stream fp.
+*/
+void
+readBatchInput( FILE *fp )
+{
+    assert( fp != (FILE *) NULL );
+    batchmode = 1;
+    while( getCommand( cmdname, cmdbuf, LNBUFSZ, fp ) )
+	{	Func	*cmdfunc;
+	if( (cmdfunc = getTrie( cmdname, cmdtrie )) == NULL )
+	    {	register int i, len = strlen( cmdname );
+	    brst_log( "ERROR -- command syntax:\n" );
+	    brst_log( "\t%s\n", cmdbuf );
+	    brst_log( "\t" );
+	    for( i = 0; i < len; i++ )
+		brst_log( " " );
+	    brst_log( "^\n" );
+	    }
+	else
+	    if( strcmp( cmdname, CMD_COMMENT ) == 0 )
+		{ /* special handling for comments */
+		    cmdptr = cmdbuf;
+		    cmdbuf[strlen(cmdbuf)-1] = '\0'; /* clobber newline */
+		    (*cmdfunc)( (HmItem *) 0 );
+		}
+	    else
+		{ /* Advance pointer past nul at end of
+		     command name. */
+		    cmdptr = cmdbuf + strlen( cmdname ) + 1;
+		    (*cmdfunc)( (HmItem *) 0 );
+		}
+	}
+    batchmode = 0;
+    return;
+}
+
+/*
+  int main( int argc, char *argv[] )
+*/
+int
+main( int argc, char *argv[] )
+{
+    bu_setlinebuf(stderr);
+
+    if(	tmpnam( tmpfname ) == NULL
+	||	(tmpfp = fopen( tmpfname, "w" )) == (FILE *) NULL
+	)
+	{
+	    perror( tmpfname );
+	    (void) fprintf( stderr,
+			    "Write access denied for file (%s).\n",
+			    tmpfname );
+	    goto	death;
+	}
+    if( ! parsArgv( argc, argv ) )
+	{
+	    prntUsage();
+	    goto	clean;
+	}
+
+    setupSigs();
+    if( ! initUi() ) /* must be called before any output is produced */
+	goto	clean;
+
+#if DEBUG_BURST
+    prntTrie( cmdtrie, 0 );
+#endif
+    assert( airids.i_next == NULL );
+    assert( armorids.i_next == NULL );
+    assert( critids.i_next == NULL );
+
+    if( ! isatty( 0 ) || ! tty )
+	readBatchInput( stdin );
+    if( tty )
+	(void) HmHit( mainhmenu );
+    exitCleanly( EXIT_SUCCESS );
+ clean:
+    (void) unlink( tmpfname );
+ death:
+    return EXIT_FAILURE;
+}
+
+/*
+  void exitCleanly( int code )
+
+  Should be only exit from program after success of initUi().
+*/
+void
+exitCleanly( int code )
+{
+    if( tty )
+	closeUi(); /* keep screen straight */
+    (void) fclose( tmpfp );
+    if( unlink( tmpfname ) == -1 )
+	locPerror( tmpfname );
+    exit( code );
+}
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+14.18
+log
+@remove ephemeral data like phone numbers and addresses, including the misleading 'source' statements on code that is continually evolving and receiving contributions from many many sources
+@
+text
+@d25 1
+a25 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/burst/burst.c,v 14.17 2007/04/18 02:53:03 brlcad Exp $ (BRL)";
+d68 1
+a68 1
+		    if( sscanf( buf, "%s", name ) == 1 )
+d78 1
+a78 1
+		    (void) strcpy( name, CMD_COMMENT );
+@
+
+
+14.17
+log
+@rely on EXIT_SUCCESS/FAILURE even if it is c99
+@
+text
+@d22 2
+a23 5
+    Author:		Gary S. Moss
+    U. S. Army Ballistic Research Laboratory
+    Aberdeen Proving Ground
+    Maryland 21005-5066
+*/
+d25 1
+a25 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/burst/burst.c,v 14.16 2007/02/20 08:19:47 brlcad Exp $ (BRL)";
+@
+
+
+14.16
+log
+@update all usages of fgets() to instead use john's swanktastic bu_fgets() that behaves as one would generally want regardless of the line ending type of the compilation platform or of the input files.  bu_fgets() responds to input files that use CR (usually old mac), LF (usually unix, new mac), or CR/LF (usually windows) for the line ending so now these file do too effectivley squashing buggish/bad behavior.
+@
+text
+@d28 1
+a28 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/burst/burst.c,v 14.15 2007/02/02 08:48:28 brlcad Exp $ (BRL)";
+d225 1
+a225 1
+    exitCleanly( BURST_EXIT_SUCCESS );
+d229 1
+a229 1
+    return BURST_EXIT_FAILURE;
+@
+
+
+14.15
+log
+@convert all of the lingering getopt calls to bu_getopt (as well as the related getopt globals optind, opterr, optarg) -- libbu's getopt has the benefit of being re-entrant and is portable to environments where getopt() may not be available.
+@
+text
+@d28 1
+a28 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/burst/burst.c,v 14.14 2007/01/27 01:41:31 brlcad Exp $ (BRL)";
+d67 1
+a67 1
+    while( fgets( buf, len, fp ) != NULL )
+@
+
+
+14.14
+log
+@ws. lots and lots of ws.  see sh/ws.sh for details (cases 'abcdeg').
+@
+text
+@d28 1
+a28 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/burst/burst.c,v 14.13 2007/01/23 01:13:24 brlcad Exp $ (BRL)";
+d133 1
+a133 1
+ while( (c = getopt( argc, argv, "b" )) != EOF )
+@
+
+
+14.13
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@d28 1
+a28 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/burst/burst.c,v 14.12 2007/01/20 14:36:42 brlcad Exp $ (BRL)";
+d220 1
+a220 1
+    
+@
+
+
+14.12
+log
+@update copyright to 2007
+@
+text
+@d8 2
+a9 3
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+d14 1
+a14 1
+ * General Public License for more details.
+d16 2
+a17 2
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+d28 1
+a28 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/burst/burst.c,v 14.11 2006/07/10 19:06:22 brlcad Exp $ (BRL)";
+@
+
+
+14.11
+log
+@refactor away the old BSD block defines among other simple cleanup
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 2004-2006 United States Government as represented by
+d29 1
+a29 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/burst/burst.c,v 14.10 2006/07/09 21:25:17 brlcad Exp $ (BRL)";
+@
+
+
+14.10
+log
+@whitespace, cleanup, bye bye SYSV and STD_C defines
+@
+text
+@d29 1
+a29 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/burst/burst.c,v 14.9 2006/06/03 20:56:08 brlcad Exp $ (BRL)";
+d193 2
+a194 3
+#if ! defined( BSD ) && ! defined( sgi )
+    setvbuf( stderr, (char *) NULL, _IOLBF, BUFSIZ );
+#endif
+@
+
+
+14.9
+log
+@only define sigcld if signal.h doesn't define it
+@
+text
+@d23 4
+a26 4
+	Author:		Gary S. Moss
+			U. S. Army Ballistic Research Laboratory
+			Aberdeen Proving Ground
+			Maryland 21005-5066
+d29 1
+a29 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/burst/burst.c,v 14.8 2006/01/18 06:46:13 brlcad Exp $ (BRL)";
+d46 3
+d53 1
+a53 1
+	boolean getCommand( char *name, char *buf, int len, FILE *fp )
+d55 2
+a56 2
+	Read next command line into buf and stuff the command name into name
+	from input stream fp.  buf must be at least len bytes long.
+d58 1
+a58 1
+	RETURN:	1 for success
+d60 3
+a62 4
+		0 for end of file
+ */
+static boolean
+#if STD_C
+d64 5
+a68 7
+#else
+getCommand( name, buf, len, fp )
+char *name;
+char *buf;
+int len;
+FILE *fp;
+#endif
+d70 1
+a70 4
+	assert( name != NULL );
+	assert( buf != NULL );
+	assert( fp != NULL );
+	while( fgets( buf, len, fp ) != NULL )
+d72 1
+a72 1
+		if( buf[0] != CHAR_COMMENT )
+d74 2
+a75 12
+			if( sscanf( buf, "%s", name ) == 1 )
+				{
+				buf[strlen(buf)-1] = NUL; /* clobber newline */
+				return	1;
+				}
+			else /* Skip over blank lines. */
+				continue;
+			}
+		else
+			{ /* Generate comment command. */
+			(void) strcpy( name, CMD_COMMENT );
+			return	1;
+d77 7
+a84 1
+	return	0; /* EOF */
+d86 2
+d90 4
+a93 1
+	void setupSigs( void )
+a94 2
+	Initialize all signal handlers.
+ */
+a95 1
+#if STD_C
+d97 9
+a105 6
+#else
+setupSigs()
+#endif
+	{	register int i;
+	for( i = 0; i < NSIG; i++ )
+		switch( i )
+d107 5
+a111 10
+		case SIGINT :
+			if( (norml_sig = signal( i, SIG_IGN )) == SIG_IGN )
+				abort_sig = SIG_IGN;
+			else
+				{
+				norml_sig = intr_sig;
+				abort_sig = abort_RT;
+				(void) signal( i,  norml_sig );
+				}
+			break;
+d113 1
+a113 1
+			break; /* leave SIGCLD alone */
+d115 2
+a116 2
+			(void) signal( i, SIG_IGN );
+			break;
+d118 1
+a118 5
+			break;
+#if ! defined( SYSV )
+#if ! defined( SIGTSTP )
+#define SIGTSTP	18
+#endif
+d120 4
+a123 5
+			break;
+#endif
+			}
+	return;
+	}
+d126 1
+a126 1
+	int parsArgv( int argc, char **argv )
+d128 2
+a129 2
+	Parse program command line.
+ */
+a130 1
+#if STD_C
+d132 15
+a146 20
+#else
+parsArgv( argc, argv )
+int argc;
+char **argv;
+#endif
+	{	register int c;
+	/* Parse options.						*/
+	while( (c = getopt( argc, argv, "b" )) != EOF )
+		{
+		switch( c )
+			{
+		case 'b' :
+			tty = 0;
+			break;
+		case '?' :
+			return	0;
+			}
+		}
+	return	1;
+	}
+d149 1
+a149 1
+	void readBatchInput( FILE *fp )
+d151 2
+a152 2
+	Read and execute commands from input stream fp.
+ */
+a153 1
+#if STD_C
+d155 26
+a180 31
+#else
+readBatchInput( fp )
+FILE *fp;
+#endif
+	{
+	assert( fp != (FILE *) NULL );
+	batchmode = 1;
+	while( getCommand( cmdname, cmdbuf, LNBUFSZ, fp ) )
+		{	Func	*cmdfunc;
+		if( (cmdfunc = getTrie( cmdname, cmdtrie )) == NULL )
+			{	register int i, len = strlen( cmdname );
+			brst_log( "ERROR -- command syntax:\n" );
+			brst_log( "\t%s\n", cmdbuf );
+			brst_log( "\t" );
+			for( i = 0; i < len; i++ )
+				brst_log( " " );
+			brst_log( "^\n" );
+			}
+		else
+		if( strcmp( cmdname, CMD_COMMENT ) == 0 )
+			{ /* special handling for comments */
+			cmdptr = cmdbuf;
+			cmdbuf[strlen(cmdbuf)-1] = '\0'; /* clobber newline */
+			(*cmdfunc)( (HmItem *) 0 );
+			}
+		else
+			{ /* Advance pointer past nul at end of
+				command name. */
+			cmdptr = cmdbuf + strlen( cmdname ) + 1;
+			(*cmdfunc)( (HmItem *) 0 );
+			}
+a181 2
+	batchmode = 0;
+	return;
+d183 3
+d188 2
+a189 2
+	int main( int argc, char *argv[] )
+ */
+a190 1
+#if STD_C
+d192 3
+a194 4
+#else
+main( argc, argv )
+int argc;
+char *argv[];
+d196 11
+d208 3
+a210 18
+#if ! defined( BSD ) && ! defined( sgi )
+	setvbuf( stderr, (char *) NULL, _IOLBF, BUFSIZ );
+#endif
+	if(	tmpnam( tmpfname ) == NULL
+	     ||	(tmpfp = fopen( tmpfname, "w" )) == (FILE *) NULL
+		)
+		{
+		perror( tmpfname );
+		(void) fprintf( stderr,
+				"Write access denied for file (%s).\n",
+				tmpfname );
+		goto	death;
+		}
+	if( ! parsArgv( argc, argv ) )
+		{
+		prntUsage();
+		goto	clean;
+		}
+d212 3
+a214 3
+	setupSigs();
+	if( ! initUi() ) /* must be called before any output is produced */
+		goto	clean;
+d217 1
+a217 1
+	prntTrie( cmdtrie, 0 );
+d219 14
+a232 12
+	assert( airids.i_next == NULL );
+	assert( armorids.i_next == NULL );
+	assert( critids.i_next == NULL );
+
+	if( ! isatty( 0 ) || ! tty )
+		readBatchInput( stdin );
+	if( tty )
+		(void) HmHit( mainhmenu );
+	exitCleanly( BURST_EXIT_SUCCESS );
+clean:	(void) unlink( tmpfname );
+death:	return	BURST_EXIT_FAILURE;
+	}
+d235 1
+a235 1
+	void exitCleanly( int code )
+d237 2
+a238 2
+	Should be only exit from program after success of initUi().
+ */
+a239 1
+#if STD_C
+d241 8
+a248 12
+#else
+exitCleanly( code )
+int code;
+#endif
+	{
+	if( tty )
+		closeUi(); /* keep screen straight */
+	(void) fclose( tmpfp );
+	if( unlink( tmpfname ) == -1 )
+		locPerror( tmpfname );
+	exit( code );
+	}
+@
+
+
+14.8
+log
+@update copyright to 2006
+@
+text
+@d29 1
+a29 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/burst/burst.c,v 14.7 2005/11/04 14:50:57 brlcad Exp $ (BRL)";
+d43 3
+a45 1
+#define SIGCLD SIGCHLD
+@
+
+
+14.7
+log
+@burst the non-ansi-yet-willing-to-pretend-we-are-c99 bubble that the burst code likes to use.  that is, use static instead of STATIC and don't clobber the bool/true/false reserved words of the c++ compilers.  clean up the headers to support this.
+@
+text
+@d4 1
+a4 1
+ * Copyright (C) 2004-2005 United States Government as represented by
+d29 1
+a29 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/burst/burst.c,v 14.6 2005/11/04 10:43:04 brlcad Exp $ (BRL)";
+@
+
+
+14.6
+log
+@DEBUG/NDEBUG cleanup, pull the value from and include common.h before system headers
+@
+text
+@d29 1
+a29 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/burst/burst.c,v 14.5 2005/10/23 04:44:29 brlcad Exp $ (BRL)";
+d48 1
+a48 1
+	bool getCommand( char *name, char *buf, int len, FILE *fp )
+d53 1
+a53 1
+	RETURN:	true for success
+d55 1
+a55 1
+		false for end of file
+d57 1
+a57 1
+STATIC bool
+d78 1
+a78 1
+				return	true;
+d86 1
+a86 1
+			return	true;
+d89 1
+a89 1
+	return	false; /* EOF */
+d97 1
+a97 1
+STATIC void
+d140 1
+a140 1
+STATIC int
+d155 1
+a155 1
+			tty = false;
+d161 1
+a161 1
+	return	true;
+d178 1
+a178 1
+	batchmode = true;
+d204 1
+a204 1
+	batchmode = false;
+@
+
+
+14.5
+log
+@trailing ws
+@
+text
+@d29 1
+a29 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/burst/burst.c,v 14.4 2005/01/30 20:30:16 brlcad Exp $ (BRL)";
+d32 1
+a32 6
+#ifndef DEBUG
+#define NDEBUG
+#define STATIC static
+#else
+#define STATIC
+#endif
+@
+
+
+14.4
+log
+@update copyright to 2005
+@
+text
+@d29 1
+a29 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/burst/burst.c,v 14.3 2004/12/18 06:50:49 morrison Exp $ (BRL)";
+d60 1
+a60 1
+		false for end of file 
+@
+
+
+14.4.6.1
+log
+@merge changes from HEAD aka rel-7-6-4 to the rel-7-6-branch just in case someone peeks a gander or tries to continue/build the branch
+@
+text
+@d29 1
+a29 1
+static const char RCSid[] = "@@(#)$Header$ (BRL)";
+d32 6
+a37 1
+#include "common.h"
+d53 1
+a53 1
+	boolean getCommand( char *name, char *buf, int len, FILE *fp )
+d58 1
+a58 1
+	RETURN:	1 for success
+d60 1
+a60 1
+		0 for end of file
+d62 1
+a62 1
+static boolean
+d83 1
+a83 1
+				return	1;
+d91 1
+a91 1
+			return	1;
+d94 1
+a94 1
+	return	0; /* EOF */
+d102 1
+a102 1
+static void
+d145 1
+a145 1
+static int
+d160 1
+a160 1
+			tty = 0;
+d166 1
+a166 1
+	return	1;
+d183 1
+a183 1
+	batchmode = 1;
+d209 1
+a209 1
+	batchmode = 0;
+@
+
+
+14.3
+log
+@break up the doxygen marker to appease emacs M-x indent-region'ing
+@
+text
+@d4 2
+a5 2
+ * Copyright (c) 2004 United States Government as represented by the
+ * U.S. Army Research Laboratory.
+d29 1
+a29 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/burst/burst.c,v 14.2 2004/12/18 01:52:36 morrison Exp $ (BRL)";
+@
+
+
+14.2
+log
+@assign copyright and GPL license
+@
+text
+@d21 2
+a22 1
+ **//** @@file burst.c
+d29 1
+a29 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/burst/burst.c,v 14.1 2004/11/16 19:42:12 morrison Exp $ (BRL)";
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@d1 21
+a21 1
+/*
+d28 1
+a28 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/burst/burst.c,v 1.1 2004/05/20 15:18:43 morrison Exp $ (BRL)";
+@
+
+
+1.1
+log
+@Vast reorganization begins.  Sources moved from top-level directories into src/.
+@
+text
+@d8 1
+a8 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/burst/burst.c,v 1.13 2004/03/18 18:15:13 erikg Exp $ (BRL)";
+d263 10
+@
+

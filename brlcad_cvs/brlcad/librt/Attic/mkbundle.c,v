@@ -1,0 +1,639 @@
+head	11.14;
+access;
+symbols
+	ansi-20040405-merged:11.9.2.2
+	postmerge-20040405-ansi:11.12
+	premerge-20040404-ansi:11.11
+	postmerge-autoconf:11.11
+	autoconf-freeze:11.11
+	premerge-autoconf:11.11
+	ansi-20040316-freeze:11.9.2.1
+	postmerge-20040315-windows:11.11
+	premerge-20040315-windows:11.11
+	windows-20040315-freeze:11.9.4.1
+	autoconf-20031203:11.11
+	autoconf-20031202:11.11
+	autoconf-branch:11.11.0.4
+	phong-branch:11.11.0.2
+	photonmap-branch:11.9.0.6
+	rel-6-1-DP:11.9
+	windows-branch:11.9.0.4
+	rel-6-0-2:11.7
+	ansi-branch:11.9.0.2
+	rel-6-0-1-branch:11.7.0.2
+	hartley-6-0-post:11.8
+	hartley-6-0-pre:11.7
+	rel-6-0-1:11.7
+	rel-6-0:11.7
+	rel-5-4:11.5
+	offsite-5-3-pre:11.6
+	rel-5-3:11.5
+	rel-5-2:11.5
+	rel-5-1-branch:11.5.0.2
+	rel-5-1:11.5;
+locks; strict;
+comment	@ * @;
+
+
+11.14
+date	2004.05.21.18.07.32;	author morrison;	state dead;
+branches;
+next	11.13;
+
+11.13
+date	2004.05.10.15.30.46;	author erikg;	state Exp;
+branches;
+next	11.12;
+
+11.12
+date	2004.04.05.08.48.57;	author morrison;	state Exp;
+branches;
+next	11.11;
+
+11.11
+date	2003.08.13.15.22.27;	author jra;	state Exp;
+branches;
+next	11.10;
+
+11.10
+date	2003.08.13.14.35.57;	author jra;	state Exp;
+branches;
+next	11.9;
+
+11.9
+date	2002.08.20.17.08.02;	author jra;	state Exp;
+branches
+	11.9.2.1
+	11.9.4.1
+	11.9.6.1;
+next	11.8;
+
+11.8
+date	2002.08.15.20.55.14;	author hartley;	state Exp;
+branches;
+next	11.7;
+
+11.7
+date	2001.04.20.22.29.49;	author morrison;	state Exp;
+branches;
+next	11.6;
+
+11.6
+date	2000.07.10.23.01.38;	author mike;	state Exp;
+branches;
+next	11.5;
+
+11.5
+date	99.11.16.01.26.42;	author mike;	state Exp;
+branches;
+next	11.4;
+
+11.4
+date	99.11.16.00.55.42;	author mike;	state Exp;
+branches;
+next	11.3;
+
+11.3
+date	99.11.02.03.07.07;	author mike;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	99.11.01.23.38.35;	author mike;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	99.10.22.23.30.38;	author mike;	state Exp;
+branches;
+next	;
+
+11.9.2.1
+date	2002.09.19.18.01.37;	author morrison;	state Exp;
+branches;
+next	11.9.2.2;
+
+11.9.2.2
+date	2004.03.17.21.18.51;	author morrison;	state Exp;
+branches;
+next	;
+
+11.9.4.1
+date	2004.03.11.23.43.40;	author morrison;	state Exp;
+branches;
+next	;
+
+11.9.6.1
+date	2003.08.26.14.03.35;	author justin;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+11.14
+log
+@moved to src/
+@
+text
+@/*
+ *			M K B U N D L E . C
+ *
+ *  Author -
+ *	Michael John Muuss
+ *
+ *  Source -
+ *	The U. S. Army Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005-5068  USA
+ *  
+ *  Distribution Status -
+ *	This file is public domain, distribution unlimited.
+ */
+#ifndef lint
+static const char RCSmkbundle[] = "@@(#)$Header: /n/xoff/cvs/brlcad/librt/mkbundle.c,v 11.13 2004/05/10 15:30:46 erikg Exp $ (BRL)";
+#endif
+
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+
+#include <stdio.h>
+#include <math.h>
+#include "machine.h"
+#include "vmath.h"
+#include "bu.h"
+#include "bn.h"
+#include "raytrace.h"
+#include "./debug.h"
+
+/*
+ *			R T _ R A Y B U N D L E _ M A K E R
+ *
+ *  Make a bundle of rays around a main ray, with a circular exterior,
+ *  and spiral filling of the interior.
+ *  The outer periphery is sampled with rays_per_ring additional rays,
+ *  preferably at least 3.
+ *
+ *  rp[] must be of size (rays_per_ring*nring)+1.
+ *  Entry 0 is the main ray, and must be provided by the caller.
+ *  The remaining entries will be filled in with extra rays.
+ *  The radius of the bundle is given in mm.
+ *
+ *  rp[0].r_dir must have unit length.
+ *
+ *  XXX Should we require a and b as inputs, for efficiency?
+ */
+void
+rt_raybundle_maker(struct xray *rp, double radius, const fastf_t *avec, const fastf_t *bvec, int rays_per_ring, int nring)
+{
+	register struct xray	*rayp = rp+1;
+	int	ring;
+	double	fraction = 1.0;
+	double	theta;
+	double	delta;
+	double	radial_scale;
+	int	count = 0;
+
+	rp[0].index = count++;
+	rp[0].magic =RT_RAY_MAGIC; 
+
+	for( ring=0; ring < nring; ring++ )  {
+		register int i;
+
+		theta = 0;
+		delta = bn_twopi / rays_per_ring;
+		fraction = ((double)(ring+1)) / nring;
+		theta = delta * fraction;	/* spiral skew */
+		radial_scale = radius * fraction;
+		for( i=0; i < rays_per_ring; i++ )  {
+			register double	ct, st;
+			/* pt = V + cos(theta) * A + sin(theta) * B */
+			ct = cos(theta) * radial_scale;
+			st = sin(theta) * radial_scale;
+			VJOIN2( rayp->r_pt, rp[0].r_pt, ct, avec, st, bvec );
+			VMOVE( rayp->r_dir, rp[0].r_dir );
+			rayp->index = count++;
+			rayp->magic = RT_RAY_MAGIC;
+			theta += delta;
+			rayp++;
+		}
+	}
+}
+
+/*
+ *  Test driver.
+ */
+
+#if 0
+main()
+{
+	FILE	*fp = fopen("bundle.pl", "w");
+	int	rays_per_ring=5;
+	int	nring=3;
+	fastf_t bundle_radius=1000.0;
+	int	i;
+	vect_t avec, bvec;
+	struct xray *rp;
+	vect_t dir;
+
+
+	VSET( dir, 0, 0, -1 );
+	/* create orthogonal rays for basis of bundle */
+	bn_vec_ortho( avec, dir );
+	VCROSS( bvec, dir, avec );
+	VUNITIZE( bvec );
+
+	rp = (struct xray *)bu_calloc( sizeof( struct xray ),
+				       (rays_per_ring * nring) + 1,
+				       "ray bundle" );
+	VSET( rp[0].r_pt, 0, 0, 2000);
+	VMOVE( rp[0].r_dir, dir );
+	rt_raybundle_maker( rp, bundle_radius, avec, bvec, rays_per_ring, nring );
+
+
+	for( i=0; i <= rays_per_ring * nring; i++ )  {
+		point_t	tip;
+		VJOIN1( tip, rp[i].r_pt, 3500, rp[i].r_dir );
+		pdv_3line( fp, rp[i].r_pt, tip );
+	}
+	fclose(fp);
+}
+#endif
+@
+
+
+11.13
+log
+@change conf.h to a wrapped config.h
+@
+text
+@d15 1
+a15 1
+static const char RCSmkbundle[] = "@@(#)$Header: /cvs/brlcad/librt/mkbundle.c,v 11.12 2004/04/05 08:48:57 morrison Exp $ (BRL)";
+@
+
+
+11.12
+log
+@merge of ansi-6-0-branch into HEAD
+@
+text
+@d15 1
+a15 1
+static const char RCSmkbundle[] = "@@(#)$Header$ (BRL)";
+d18 5
+a22 1
+#include "conf.h"
+@
+
+
+11.11
+log
+@Mods to the test driver
+@
+text
+@d15 1
+a15 1
+static const char RCSmkbundle[] = "@@(#)$Header: /c/CVS/brlcad/librt/mkbundle.c,v 11.10 2003/08/13 14:35:57 jra Exp $ (BRL)";
+d47 1
+a47 7
+rt_raybundle_maker( rp, radius, avec, bvec, rays_per_ring, nring )
+struct xray	*rp;
+double		radius;
+const vect_t	avec;
+const vect_t	bvec;
+int		rays_per_ring;
+int		nring;
+@
+
+
+11.10
+log
+@rt_raybundle_maker() now sets magic number for the rays.
+@
+text
+@d15 1
+a15 1
+static const char RCSmkbundle[] = "@@(#)$Header: /c/CVS/brlcad/librt/mkbundle.c,v 11.9 2002/08/20 17:08:02 jra Exp $ (BRL)";
+d97 3
+a99 3
+	struct xray	ray[1000];
+	int	rays_per_ring;
+	int	nring;
+d101 17
+a118 6
+	VSET( ray[0].r_pt, 0, 0, 0 );
+	VSET( ray[0].r_dir, 0, 0, -1 );
+
+	rays_per_ring = 8;
+	nring = 4;
+	rt_raybundle_maker( ray, 1.0, rays_per_ring, nring );
+d122 2
+a123 2
+		VADD2( tip, ray[i].r_pt, ray[i].r_dir );
+		pdv_3line( fp, ray[i].r_pt, tip );
+@
+
+
+11.9
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d15 1
+a15 1
+static const char RCSmkbundle[] = "@@(#)$Header: /c/CVS/brlcad/librt/mkbundle.c,v 11.7 2001/04/20 22:29:49 morrison Exp $ (BRL)";
+d64 1
+d82 1
+@
+
+
+11.9.4.1
+log
+@sync to HEAD...
+@
+text
+@d15 1
+a15 1
+static const char RCSmkbundle[] = "@@(#)$Header: /n/cad/c/CVS/brlcad/librt/mkbundle.c,v 11.11 2003/08/13 15:22:27 jra Exp $ (BRL)";
+a63 1
+	rp[0].magic =RT_RAY_MAGIC; 
+a80 1
+			rayp->magic = RT_RAY_MAGIC;
+d95 3
+a97 3
+	int	rays_per_ring=5;
+	int	nring=3;
+	fastf_t bundle_radius=1000.0;
+a98 17
+	vect_t avec, bvec;
+	struct xray *rp;
+	vect_t dir;
+
+
+	VSET( dir, 0, 0, -1 );
+	/* create orthogonal rays for basis of bundle */
+	bn_vec_ortho( avec, dir );
+	VCROSS( bvec, dir, avec );
+	VUNITIZE( bvec );
+
+	rp = (struct xray *)bu_calloc( sizeof( struct xray ),
+				       (rays_per_ring * nring) + 1,
+				       "ray bundle" );
+	VSET( rp[0].r_pt, 0, 0, 2000);
+	VMOVE( rp[0].r_dir, dir );
+	rt_raybundle_maker( rp, bundle_radius, avec, bvec, rays_per_ring, nring );
+d100 6
+d109 2
+a110 2
+		VJOIN1( tip, rp[i].r_pt, 3500, rp[i].r_dir );
+		pdv_3line( fp, rp[i].r_pt, tip );
+@
+
+
+11.9.6.1
+log
+@updated for merging
+@
+text
+@d15 1
+a15 1
+static const char RCSmkbundle[] = "@@(#)$Header: /c/CVS/brlcad/librt/mkbundle.c,v 11.11 2003/08/13 15:22:27 jra Exp $ (BRL)";
+a63 1
+	rp[0].magic =RT_RAY_MAGIC; 
+a80 1
+			rayp->magic = RT_RAY_MAGIC;
+d95 3
+a97 3
+	int	rays_per_ring=5;
+	int	nring=3;
+	fastf_t bundle_radius=1000.0;
+a98 17
+	vect_t avec, bvec;
+	struct xray *rp;
+	vect_t dir;
+
+
+	VSET( dir, 0, 0, -1 );
+	/* create orthogonal rays for basis of bundle */
+	bn_vec_ortho( avec, dir );
+	VCROSS( bvec, dir, avec );
+	VUNITIZE( bvec );
+
+	rp = (struct xray *)bu_calloc( sizeof( struct xray ),
+				       (rays_per_ring * nring) + 1,
+				       "ray bundle" );
+	VSET( rp[0].r_pt, 0, 0, 2000);
+	VMOVE( rp[0].r_dir, dir );
+	rt_raybundle_maker( rp, bundle_radius, avec, bvec, rays_per_ring, nring );
+d100 6
+d109 2
+a110 2
+		VJOIN1( tip, rp[i].r_pt, 3500, rp[i].r_dir );
+		pdv_3line( fp, rp[i].r_pt, tip );
+@
+
+
+11.9.2.1
+log
+@Initial ANSIfication
+@
+text
+@d15 1
+a15 1
+static const char RCSmkbundle[] = "@@(#)$Header: /c/CVS/brlcad/librt/mkbundle.c,v 11.9 2002/08/20 17:08:02 jra Exp $ (BRL)";
+d47 7
+a53 1
+rt_raybundle_maker(struct xray *rp, double radius, const fastf_t *avec, const fastf_t *bvec, int rays_per_ring, int nring)
+@
+
+
+11.9.2.2
+log
+@sync branch with HEAD
+@
+text
+@d15 1
+a15 1
+static const char RCSmkbundle[] = "@@(#)$Header$ (BRL)";
+a57 1
+	rp[0].magic =RT_RAY_MAGIC; 
+a74 1
+			rayp->magic = RT_RAY_MAGIC;
+d89 3
+a91 3
+	int	rays_per_ring=5;
+	int	nring=3;
+	fastf_t bundle_radius=1000.0;
+a92 17
+	vect_t avec, bvec;
+	struct xray *rp;
+	vect_t dir;
+
+
+	VSET( dir, 0, 0, -1 );
+	/* create orthogonal rays for basis of bundle */
+	bn_vec_ortho( avec, dir );
+	VCROSS( bvec, dir, avec );
+	VUNITIZE( bvec );
+
+	rp = (struct xray *)bu_calloc( sizeof( struct xray ),
+				       (rays_per_ring * nring) + 1,
+				       "ray bundle" );
+	VSET( rp[0].r_pt, 0, 0, 2000);
+	VMOVE( rp[0].r_dir, dir );
+	rt_raybundle_maker( rp, bundle_radius, avec, bvec, rays_per_ring, nring );
+d94 6
+d103 2
+a104 2
+		VJOIN1( tip, rp[i].r_pt, 3500, rp[i].r_dir );
+		pdv_3line( fp, rp[i].r_pt, tip );
+@
+
+
+11.8
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d47 7
+a53 1
+rt_raybundle_maker(struct xray *rp, double radius, const fastf_t *avec, const fastf_t *bvec, int rays_per_ring, int nring)
+@
+
+
+11.7
+log
+@CONST to const
+@
+text
+@d15 1
+a15 1
+static const char RCSmkbundle[] = "@@(#)$Header: /c/CVS/brlcad/librt/mkbundle.c,v 11.6 2000/07/10 23:01:38 mike Exp $ (BRL)";
+d47 1
+a47 7
+rt_raybundle_maker( rp, radius, avec, bvec, rays_per_ring, nring )
+struct xray	*rp;
+double		radius;
+const vect_t	avec;
+const vect_t	bvec;
+int		rays_per_ring;
+int		nring;
+@
+
+
+11.6
+log
+@
+Added "const" to RCSid string, to silence warnings of unused variable
+on GCC compilers
+@
+text
+@d15 1
+a15 1
+static const char RCSmkbundle[] = "@@(#)$Header: /c/CVS/brlcad/librt/mkbundle.c,v 11.5 1999/11/16 01:26:42 mike Exp $ (BRL)";
+d50 2
+a51 2
+CONST vect_t	avec;
+CONST vect_t	bvec;
+@
+
+
+11.5
+log
+@
+Changed calling sequence for 5% faster overall runtime.
+@
+text
+@d15 1
+a15 1
+static char RCSmkbundle[] = "@@(#)$Header: /c/CVS/brlcad/librt/mkbundle.c,v 11.4 1999/11/16 00:55:42 mike Exp $ (BRL)";
+@
+
+
+11.4
+log
+@
+Forgot to include radius in calcuations!
+@
+text
+@d15 1
+a15 1
+static char RCSmkbundle[] = "@@(#)$Header: /c/CVS/brlcad/librt/mkbundle.c,v 11.3 1999/11/02 03:07:07 mike Exp $ (BRL)";
+d47 1
+a47 1
+rt_raybundle_maker( rp, radius, rays_per_ring, nring )
+d50 2
+a54 2
+	vect_t	a;
+	vect_t	b;
+a62 4
+	/* Basis vectors for a disc perpendicular to the ray */
+	bn_vec_ortho( a, rp[0].r_dir );
+	VCROSS( b, rp[0].r_dir, a );
+
+d78 1
+a78 1
+			VJOIN2( rayp->r_pt, rp[0].r_pt, ct, a, st, b );
+@
+
+
+11.3
+log
+@
+bundle improvements
+@
+text
+@d15 1
+a15 1
+static char RCSmkbundle[] = "@@(#)$Header: /c/CVS/brlcad/librt/mkbundle.c,v 11.2 1999/11/01 23:38:35 mike Exp $ (BRL)";
+a57 1
+	double	ct, st;
+d60 1
+d76 1
+d78 1
+d80 2
+a81 2
+			ct = cos(theta) * fraction;
+			st = sin(theta) * fraction;
+d92 1
+a92 3
+ *  NOTES:
+ *	rt_shootray_bundle
+ * It should take a flag indicating whether normal, curvature, uv will be needed.
+@
+
+
+11.2
+log
+@
+return type fix
+@
+text
+@d15 1
+a15 1
+static char RCSmkbundle[] = "@@(#)$Header: /c/CVS/brlcad/librt/mkbundle.c,v 11.1 1999/10/22 23:30:38 mike Exp $ (BRL)";
+d61 1
+d67 2
+d82 1
+@
+
+
+11.1
+log
+@
+Added new module mkbundle.c
+@
+text
+@d15 1
+a15 1
+static char RCSmkbundle[] = "@@(#)$Header: /c/CVS/brlcad/librt/shoot.c,v 11.45 1998/09/22 02:36:04 mike Exp $ (BRL)";
+d46 1
+a46 1
+int
+@
+

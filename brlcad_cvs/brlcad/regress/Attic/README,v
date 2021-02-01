@@ -1,0 +1,320 @@
+head	1.8;
+access;
+symbols
+	ansi-20040405-merged:1.7
+	postmerge-20040405-ansi:1.7
+	premerge-20040404-ansi:1.7
+	postmerge-autoconf:1.7
+	autoconf-freeze:1.7
+	premerge-autoconf:1.7
+	postmerge-20040315-windows:1.7
+	premerge-20040315-windows:1.7
+	windows-20040315-freeze:1.7
+	autoconf-20031203:1.7
+	autoconf-20031202:1.7
+	autoconf-branch:1.7.0.12
+	phong-branch:1.7.0.10
+	photonmap-branch:1.7.0.8
+	rel-6-1-DP:1.7
+	windows-branch:1.7.0.6
+	rel-6-0-2:1.7
+	ansi-branch:1.7.0.4
+	rel-6-0-1-branch:1.7.0.2
+	hartley-6-0-post:1.7
+	hartley-6-0-pre:1.7
+	rel-6-0-1:1.7
+	rel-6-0:1.7;
+locks; strict;
+comment	@# @;
+
+
+1.8
+date	2004.05.19.19.16.08;	author morrison;	state dead;
+branches;
+next	1.7;
+
+1.7
+date	2002.03.14.23.02.59;	author morrison;	state Exp;
+branches;
+next	1.6;
+
+1.6
+date	2001.10.04.18.15.26;	author morrison;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	2001.09.24.22.03.31;	author morrison;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	2001.09.19.08.38.50;	author morrison;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2001.07.23.19.43.39;	author morrison;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2001.06.29.17.43.23;	author butler;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2001.06.28.21.30.58;	author butler;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.8
+log
+@The old regression test scripts are being replaced by something else.  Likely it'll be Corredor with some unit test framework.  The old scripts are so far out of sync and so inadequate that it's simply not worth it any more.
+@
+text
+@*** NOTICE ***
+
+The regression scripts are currently undergoing an overhaul.  The regression
+scripts, source files, and architecture is expected to change drastically
+and should not be relied upon.  You have been warned.
+
+---
+
+This directory contains scripts to perform the regression testing of the
+BRL-CAD package.
+
+Every night the "master.sh" script is run on a single machine.  This deletes
+all files under the regression directory (by default "/c/regress").  It then
+checks out a copy of the target "brlcad" from /c/CVS.  For each architecture
+it creates a semaphore file "start_ARCH" (eg. start_7d).  
+Usage:
+
+	master.sh -d regression_dir [-c cvs_binary] [-R cvs_repository]
+
+The "client_wait.sh" script runs on each test architecture and waits for the
+semaphore file to be created.  It also will not run past a cutoff time.
+Usage:
+	./client_wait.sh -d regression_dir [-r brlcad_root] [-b begin_time] \
+	[-e end_time] [-u notify_user]
+
+When the client_wait.sh script detects that it is ok to run the regression
+test, it starts the client_build.sh script.
+
+
+When the client_build.sh script finishes it starts the client_test.sh to
+actually test the package.
+
+
+
+
+Sean's Notes::
+
+The regression suite may be run from any machine requesting regression tests to occur for any or all of the test machines listed in the systems.d directory.  Depending on the architecture, the regressing machine may work on a copy of the brlcad package provided from 1) cvs, 2) a tar.gz, or 3) cvs and a tar.gz diff.  The package is then either worked on locally over nfs or copied to the remote machine via ssh.
+
+For each requested machine (default is all), a semaphore lock is independantly acquired.  If a lock was successful, then the client.sh script will run on the test architecture.  The client.sh script will wait until it is ok to run (within a timeout) and then runs client_build.sh to build the package cleanly.  If all builds well, client_test.sh is then run and any or all scripts listed in tests.d will exercise different capabilities of the package.
+
+Results are logged to files and summarys are individually mailed out as specified for each systems.d architecture.
+
+[ from http://www.whatis.techtarget.com/definitionsCategor/0,289915,sid9_tax1663,00.html ]
+Regression testing is a process of testing chances to computer programs to make sure that the older programming still works with the new changes.  Regression testing is a normal part of the program development process and, in some companies, is done by code testing specialists.  Test department coders develop code test scenarios and exercises that will test new units of code after they have been written.  These test cases form what becomes the `test bucket'.  Before a new version of a software product is released, the old test cases are run against the new version to make sure that all the old capabilities still work.  The reason they might notwork is because changing or adding new code to a program can easily introduce errors into code that is not intended to be changed.
+
+regression start 
+running all tests on localhost
+
+Default regression script behaviour
+===================================
+parse options
+validate common command settings
+    locate source
+        either from optiondir, ./brlcad, lpwd/parent, ../brlcad, lpwd/../brlcad, or cvs for starters
+
+    make sure we have permission to write in destination
+
+    if systems is all, expand to all systems
+    if tests is all, expand to all systems
+
+    make sure there is a system left to regress on
+
+    if not localhost, validate transport mechanism
+
+if not localhost-only
+
+    if start
+
+        acquire regression directory lock
+
+        if clobbering is on, clobber destination directory
+
+        prepare source
+            if cvs or dir then get and archive up source (into tar.gz) for transport
+
+        iterate over all systems
+            read settings file in systems.d, if any
+
+            transfer file to host via specified transmission method (ssh)
+        
+            transfer tests to remote
+
+            invoke tests as localhost run for each specific test asyncronously & non-blocking
+
+        release regression directory lock
+
+
+if localhost needs run
+    if start
+        acquire architecture-specific lock
+
+        prepare source (checkout, unpack, etc)
+
+        run specified tests on source
+
+        release architecture-specific lock
+
+
+
+
+
+---------------- Old content here --------------------------------------
+
+
+When the "client.sh" script runs, it waits for the semaphore file to be
+created.  It also will not run past a cutoff time of 7am.  This cutoff time
+can be set on the command line.  Running "client.sh 24" will allow the script
+to run at any time.  When the semaphore file is detected, it is deleted, and
+the script begins building BRLCAD from the sources.  When the sources are
+built, a series of regression scripts are run to try to assure correct
+functionality.  For a list of the scripts that are run, see "client.sh" in the
+"ASSURANCE TESTING" section.
+
+When client.sh is done, it mails the results of the build and test to the
+"acst" mailing list.
+@
+
+
+1.7
+log
+@added warning message to readme
+@
+text
+@@
+
+
+1.6
+log
+@added some logic comments about new regression
+@
+text
+@d1 8
+@
+
+
+1.5
+log
+@algorithm for new regression script
+@
+text
+@d30 1
+a30 1
+The master.sh script may be run from any machine requesting regression tests to occur for any or all of the test machines listed in systems.d.  Depending on the architecture, the regressing machine may work on a copy of the brlcad package provided from 1) cvs, 2) a tar.gz, or 3) cvs and a tar.gz diff.  The package is then either worked on locally over nfs or copied to the remote machine via ssh.
+d45 1
+a45 1
+validate system
+a47 1
+    if not localhost, make sure source and destination are not the same
+d54 5
+a58 3
+    for all systems
+        if system has settings file in systems.d, load it
+        validate systems
+d60 1
+a60 1
+    make sure there is a system left to regress on
+d62 1
+d64 1
+a64 1
+if start
+d66 2
+a67 2
+    if not localhost
+        pack up source into a tar.gz file
+d69 1
+a69 1
+        for all systems
+d71 1
+a72 1
+            ensure transfer succeeded
+d74 16
+a89 4
+        for all systems
+            read settings file in systems.d, if any
+            unpack package
+            ensure unpacking succeeded
+a90 3
+        for all systems
+            read settings file in systems.d, if any
+            transfer tests to remote
+a91 10
+            ensure transfer
+            invoke tests as localhost run for each specific test
+    else
+        run script
+
+elif stop
+    if not localhost
+        if there is a lock file in the regress dir, get pid from file
+        if pid is active, try to kill it
+        if successful, remove lock
+a92 5
+        for all systems
+            read settings file in systems.d, if any
+            send stop call to each client
+    else
+        kill running localhost test(s)
+@
+
+
+1.4
+log
+@added definition of regression testing
+@
+text
+@d39 59
+@
+
+
+1.3
+log
+@rebuild of the regression test suite
+
+master.sh now uses a new utility library
+client.sh was broken into different stage files with inidividual post-build tests in the tests.d directory
+client scripts will be updated again later to conform more robustly with new testing architecture
+@
+text
+@d36 2
+@
+
+
+1.2
+log
+@More evolution of the regression test
+@
+text
+@d27 11
+@
+
+
+1.1
+log
+@The regression tests into the distribution.
+@
+text
+@d8 21
+@
+

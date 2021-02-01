@@ -1,0 +1,835 @@
+head	14.15;
+access;
+symbols
+	rel-7-10-4:14.12
+	STABLE:14.12.0.2
+	stable-branch:14.3
+	rel-7-10-2:14.12
+	rel-7-10-0:14.10
+	rel-7-8-4:14.6
+	rel-7-8-2:14.6
+	rel-7-8-0:14.6
+	trimnurbs-branch:14.6.0.2
+	help:14.6
+	temp_tag:14.5
+	bobWinPort-20051223-freeze:14.4
+	postmerge-20051223-bobWinPort:14.5
+	premerge-20051223-bobWinPort:14.5
+	rel-7-6-6:14.5
+	rel-7-6-4:14.5
+	rel-7-6-2:14.4
+	rel-7-6-branch:14.4.0.6
+	rel-7-6-0:14.4
+	rel-7-4-2:14.4
+	rel-7-4-branch:14.4.0.4
+	bobWinPort:14.4.0.2
+	rel-7-4-0:14.4
+	rel-7-2-6:14.4
+	rel-7-2-4:14.4
+	rel-7-2-2:14.3
+	rel-7-2-0:14.3
+	rel-7-0-4:14.2
+	rel-7-0-2:14.2
+	rel-7-0-1:14.2
+	opensource-post:14.2
+	opensource-pre:1.2
+	rel-7-0-branch:1.2.0.2
+	rel-7-0:1.2;
+locks; strict;
+comment	@ * @;
+
+
+14.15
+date	2007.12.17.07.53.18;	author brlcad;	state Exp;
+branches;
+next	14.14;
+
+14.14
+date	2007.12.02.22.34.23;	author brlcad;	state Exp;
+branches;
+next	14.13;
+
+14.13
+date	2007.11.28.14.11.28;	author erikgreenwald;	state Exp;
+branches;
+next	14.12;
+
+14.12
+date	2007.07.26.01.13.58;	author brlcad;	state Exp;
+branches;
+next	14.11;
+
+14.11
+date	2007.05.14.21.04.33;	author brlcad;	state Exp;
+branches;
+next	14.10;
+
+14.10
+date	2007.01.27.01.41.45;	author brlcad;	state Exp;
+branches;
+next	14.9;
+
+14.9
+date	2007.01.26.03.30.46;	author brlcad;	state Exp;
+branches;
+next	14.8;
+
+14.8
+date	2007.01.23.01.13.44;	author brlcad;	state Exp;
+branches;
+next	14.7;
+
+14.7
+date	2007.01.20.14.36.59;	author brlcad;	state Exp;
+branches;
+next	14.6;
+
+14.6
+date	2006.01.18.06.46.23;	author brlcad;	state Exp;
+branches;
+next	14.5;
+
+14.5
+date	2005.10.23.04.44.37;	author brlcad;	state Exp;
+branches;
+next	14.4;
+
+14.4
+date	2005.04.29.15.31.07;	author lbutler;	state Exp;
+branches
+	14.4.6.1;
+next	14.3;
+
+14.3
+date	2005.01.30.20.31.09;	author brlcad;	state Exp;
+branches;
+next	14.2;
+
+14.2
+date	2004.12.21.03.46.08;	author butler;	state Exp;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.30;	author morrison;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2004.08.02.23.01.52;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.15.20.39;	author morrison;	state Exp;
+branches;
+next	;
+
+14.4.6.1
+date	2005.11.13.13.46.19;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.15
+log
+@my bad deprecation instruction, revert/remove the LOCAL -> static conversion.  LOCAL is only static for non-SMP systems, but usually auto.
+@
+text
+@/*                          K U R T . C
+ * BRL-CAD
+ *
+ * Copyright (c) 1986-2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@file kurt.c
+ *
+ *  Program to generate polygons from a multi-valued function.
+ *
+ *  Author -
+ *	Michael John Muuss
+ *
+ */
+
+#include "common.h"
+
+#include <stdio.h>
+#include <math.h>
+
+#include "machine.h"
+#include "bu.h"
+#include "vmath.h"
+#include "bn.h"
+#include "raytrace.h"
+#include "wdb.h"
+
+
+mat_t	identity;
+double degtorad = 0.0174532925199433;
+
+struct val {
+	double	v_z[3];
+	double	v_x;
+	double	v_y;
+	int	v_n;
+} val[20][20];
+
+void	do_cell(struct val *vp, double xc, double yc);
+void	draw_rect(struct val *a, struct val *b, struct val *c, struct val *d);
+void	pnorms(fastf_t (*norms)[3], fastf_t (*verts)[3], fastf_t *centroid, int npts);
+void	do_light(char *name, fastf_t *pos, fastf_t *dir_at, int da_flag, double r, unsigned char *rgb);
+
+struct rt_wdb	*outfp;
+
+int
+main(int argc, char **argv)
+{
+	int	ix, iy;
+	double	x, y;
+	double	size;
+	double	base;
+	int	quant;
+
+	outfp = wdb_fopen("kurt.g");
+	mk_id( outfp, "Kurt's multi-valued function");
+
+	/* Create the detail cells */
+	size = 10;	/* mm */
+	quant = 18;
+	base = -size*(quant/2);
+	for( ix=quant-1; ix>=0; ix-- )  {
+		x = base + ix*size;
+		for( iy=quant-1; iy>=0; iy-- )  {
+			y = base + iy*size;
+			do_cell( &val[ix][iy], x, y );
+		}
+	}
+	/* Draw cells */
+/* XXX This should be a height field / DSP solid! */
+#if 0
+	mk_polysolid( outfp, "kurt" );
+	for( ix=quant-2; ix>=0; ix-- )  {
+		for( iy=quant-2; iy>=0; iy-- )  {
+			draw_rect( &val[ix][iy],
+				   &val[ix+1][iy],
+				   &val[ix][iy+1],
+				   &val[ix+1][iy+1] );
+		}
+	}
+#endif
+
+#ifdef never
+	/* Create some light */
+	white[0] = white[1] = white[2] = 255;
+	base = size*(quant/2+1);
+	VSET( aim, 0, 0, 0 );
+	VSET( pos, base, base, size );
+	do_light( "l1", pos, aim, 1, 100.0, white );
+	VSET( pos, -base, base, size );
+	do_light( "l2", pos, aim, 1, 100.0, white );
+	VSET( pos, -base, -base, size );
+	do_light( "l3", pos, aim, 1, 100.0, white );
+	VSET( pos, base, -base, size );
+	do_light( "l4", pos, aim, 1, 100.0, white );
+
+	/* Build the overall combination */
+	mk_fcomb( outfp, "clut", quant*quant+1+4, 0 );
+	mk_memb( outfp, "plane.r", identity, UNION );
+	for( ix=quant-1; ix>=0; ix-- )  {
+		for( iy=quant-1; iy>=0; iy-- )  {
+			sprintf( name, "x%dy%d", ix, iy );
+			mk_memb( outfp, name, identity, UNION );
+		}
+	}
+	mk_memb( outfp, "l1", identity, UNION );
+	mk_memb( outfp, "l2", identity, UNION );
+	mk_memb( outfp, "l3", identity, UNION );
+	mk_memb( outfp, "l4", identity, UNION );
+#endif
+	return 0;
+}
+
+void
+do_cell(struct val *vp, double xc, double yc)
+
+			/* center coordinates, z=0+ */
+{
+	bn_poly_t	polynom;
+	bn_complex_t	roots[4];	/* roots of final equation */
+	int		l;
+	int		nroots;
+	int		lim;
+
+	polynom.dgr = 3;
+	polynom.cf[0] = 1;
+	polynom.cf[1] = 0;
+	polynom.cf[2] = yc;
+	polynom.cf[3] = xc;
+	vp->v_n = 0;
+	vp->v_x = xc;
+	vp->v_y = yc;
+	nroots = rt_poly_roots( &polynom, roots, "" );
+	if( nroots < 0 || (nroots & 1) == 0 )  {
+		fprintf(stderr,"%d roots?\n", nroots);
+		return;
+	}
+	for ( l=0; l < nroots; l++ ){
+		if ( NEAR_ZERO( roots[l].im, 0.0001 ) )
+			vp->v_z[vp->v_n++] = roots[l].re;
+	}
+	/* Sort in increasing Z */
+	for( lim = nroots-1; lim > 0; lim-- )  {
+		for( l=0; l < lim; l++ )  {
+			register double t;
+			if( (t=vp->v_z[l]) > vp->v_z[l+1] )  {
+				vp->v_z[l] = vp->v_z[l+1];
+				vp->v_z[l+1] = t;
+			}
+		}
+	}
+}
+
+void
+draw_rect(struct val *a, struct val *b, struct val *c, struct val *d)
+{
+	int min, max;
+	register int i;
+	point_t	centroid, work;
+	int	ndiff;
+	int	lvl;
+	int	j;
+	struct val	*vp[4];
+
+	/* Find min and max # of points at the 4 vertices */
+	max = a->v_n;
+	if( b->v_n > max )  max = b->v_n;
+	if( c->v_n > max )  max = c->v_n;
+	if( d->v_n > max )  max = d->v_n;
+	min = a->v_n;
+	if( b->v_n < min )  min = b->v_n;
+	if( c->v_n < min )  min = c->v_n;
+	if( d->v_n < min )  min = d->v_n;
+
+	ndiff = 0;
+	if( a->v_n > min )  vp[ndiff++] = a;
+	if( b->v_n > min )  vp[ndiff++] = b;
+	if( c->v_n > min )  vp[ndiff++] = c;
+	if( d->v_n > min )  vp[ndiff++] = d;
+
+
+	VSET( work, a->v_x, a->v_y, a->v_z[0] );
+	VMOVE( centroid, work );
+	VSET( work, b->v_x, b->v_y, b->v_z[0] );
+	VADD2( centroid, centroid, work );
+	VSET( work, c->v_x, c->v_y, c->v_z[0] );
+	VADD2( centroid, centroid, work );
+	VSET( work, d->v_x, d->v_y, d->v_z[0] );
+	VADD2( centroid, centroid, work );
+	VSCALE( centroid, centroid, 0.25 );
+
+	/* First, the simple part.  Assume that all 4-way shared levels
+	 * are stacked plates.  Do them now, then worry about oddities.
+	 * For general functions, this may be dangerous, but works fine here.
+	 */
+	for( i=0; i<min; i++ )  {
+#if 0
+		VSET( verts[0], a->v_x, a->v_y, a->v_z[i] );
+		VSET( verts[1], b->v_x, b->v_y, b->v_z[i] );
+		VSET( verts[2], c->v_x, c->v_y, c->v_z[i] );
+		/* even # faces point up, odd#s point down */
+		pnorms( norms, verts, (i&1)?down:up, 3 );
+		mk_poly( outfp, 3, verts, norms );
+
+		VSET( verts[0], d->v_x, d->v_y, d->v_z[i] );
+		VSET( verts[1], b->v_x, b->v_y, b->v_z[i] );
+		VSET( verts[2], c->v_x, c->v_y, c->v_z[i] );
+		/* even # faces point up, odd#s point down */
+		pnorms( norms, verts, (i&1)?down:up, 3 );
+		mk_poly( outfp, 3, verts, norms );
+#endif
+	}
+	/* If 0 or 1 corners have something above them, nothing needs drawn */
+	if( ndiff == 0 || ndiff == 1 )  return;
+	/* Harder case:  handle different depths on corners */
+	if( ndiff == 2 &&
+	    vp[0]->v_x != vp[1]->v_x &&
+	    vp[0]->v_y != vp[1]->v_y )  {
+		fprintf(stderr, "2 corners on diagonal differ?\n");
+		return;
+	}
+
+	/* Draw 1 or 2 extra faces to close off each new upper zone */
+	for( lvl = min; lvl < max; lvl += 2 )  {
+		for( i=0; i<ndiff-1; i++ )  {
+			for( j=i; j<ndiff; j++ )  {
+				/* Reject diagonals */
+				if( vp[i]->v_x != vp[j]->v_x &&
+				    vp[i]->v_y != vp[j]->v_y )
+					continue;
+
+#if 0
+				VSET( verts[0],
+					vp[i]->v_x, vp[i]->v_y,
+					vp[i]->v_z[lvl] );
+				VSET( verts[1],
+					vp[j]->v_x, vp[j]->v_y,
+					vp[j]->v_z[lvl] );
+				VSET( verts[2],
+					vp[i]->v_x, vp[i]->v_y,
+					vp[i]->v_z[lvl+1] );
+
+				VSUB2( work, centroid, verts[0] );
+				VUNITIZE( work );
+				pnorms( norms, verts, work, 3 );
+				mk_poly( outfp, 3, verts, norms );
+
+				VSET( verts[0],
+					vp[i]->v_x, vp[i]->v_y,
+					vp[i]->v_z[lvl+1] );
+				VSET( verts[1],
+					vp[j]->v_x, vp[j]->v_y,
+					vp[j]->v_z[lvl] );
+				VSET( verts[2],
+					vp[j]->v_x, vp[j]->v_y,
+					vp[j]->v_z[lvl+1] );
+
+				VSUB2( work, centroid, verts[0] );
+				VUNITIZE( work );
+				pnorms( norms, verts, work, 3 );
+				mk_poly( outfp, 3, verts, norms );
+#endif
+			}
+		}
+	}
+}
+
+/*
+ *  Find the single outward pointing normal for a facet.
+ *  Assumes all points are coplanar (they better be!).
+ */
+void
+pnorms(fastf_t (*norms)[3], fastf_t (*verts)[3], fastf_t *out, int npts)
+
+
+			/* hopefully points outwards */
+
+{
+	register int i;
+	vect_t	ab, ac;
+	vect_t	n;
+
+	VSUB2( ab, verts[1], verts[0] );
+	VSUB2( ac, verts[2], verts[0] );
+	VCROSS( n, ab, ac );
+	VUNITIZE( n );
+
+	/* If normal points inwards, flip it */
+	if( VDOT( n, out ) < 0 )  {
+		VREVERSE( n, n );
+	}
+
+	/* Use same normal for all vertices (flat shading) */
+	for( i=0; i<npts; i++ )  {
+		VMOVE( norms[i], n );
+	}
+}
+
+void
+do_light(char *name, fastf_t *pos, fastf_t *dir_at, int da_flag, double r, unsigned char *rgb)
+
+
+			/* direction or aim point */
+			/* 0 = direction, !0 = aim point */
+			/* radius of light */
+
+{
+	char	nbuf[64];
+	vect_t	center;
+	mat_t	rot;
+	mat_t	xlate;
+	mat_t	both;
+	vect_t	from;
+	vect_t	dir;
+
+	if( da_flag )  {
+		VSUB2( dir, dir_at, pos );
+		VUNITIZE( dir );
+	} else {
+		VMOVE( dir, dir_at );
+	}
+
+	snprintf( nbuf, 64, "%s.s", name );
+	VSETALL( center, 0 );
+	mk_sph( outfp, nbuf, center, r );
+
+	/*
+	 * Need to rotate from 0,0,-1 to vect "dir",
+	 * then xlate to final position.
+	 */
+	VSET( from, 0, 0, -1 );
+	bn_mat_fromto( rot, from, dir );
+	MAT_IDN( xlate );
+	MAT_DELTAS_VEC( xlate, pos);
+	bn_mat_mul( both, xlate, rot );
+
+	mk_region1( outfp, name, nbuf, "light", "shadows=1", rgb );
+}
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+14.14
+log
+@woo hoo, finally got through most of the flawfinder level 4 issues related to string buffer limits (leaving issues that can probably/mostly be ignored).  these changes mostly invovlved using the n-variants of the various string processing functions so that the buffers being written to are properly clamped.
+@
+text
+@a27 3
+#ifndef lint
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/proc-db/kurt.c,v 14.13 2007/11/28 14:11:28 erikgreenwald Exp $ (BRL)";
+#endif
+d132 2
+a133 2
+	static bn_poly_t	polynom;
+	static bn_complex_t	roots[4];	/* roots of final equation */
+@
+
+
+14.13
+log
+@LOCAL->static, per machine.h deprecation list
+@
+text
+@d29 1
+a29 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/proc-db/kurt.c,v 14.12 2007/07/26 01:13:58 brlcad Exp $ (BRL)";
+d339 1
+a339 1
+	sprintf( nbuf, "%s.s", name );
+@
+
+
+14.12
+log
+@remove ephemeral data like phone numbers and addresses, including the misleading 'source' statements on code that is continually evolving and receiving contributions from many many sources
+@
+text
+@d29 1
+a29 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/proc-db/kurt.c,v 14.11 2007/05/14 21:04:33 brlcad Exp $ (BRL)";
+d135 2
+a136 2
+	LOCAL bn_poly_t	polynom;
+	LOCAL bn_complex_t	roots[4];	/* roots of final equation */
+@
+
+
+14.11
+log
+@gah, pick up where someone left off over half a decade ago.  finish updating all of the compat4 symbols throughout the code to their new names.  finally. it's done.  make the deprecated headers obsolete -- make compat4.h obsolete too so we can be sure that all of the changes are now picked up by the compiler as errors.  this change will likely impact muves if they've similarly not updated to the new names too, so the headers are kept with a #warning for now (though will likely disappear down the road entirely).
+@
+text
+@a26 4
+ *  Source -
+ *	SECAD/VLD Computing Consortium, Bldg 394
+ *	The U. S. Army Ballistic Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005-5066
+d29 1
+a29 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/proc-db/kurt.c,v 14.10 2007/01/27 01:41:45 brlcad Exp $ (BRL)";
+@
+
+
+14.10
+log
+@ws. lots and lots of ws.  see sh/ws.sh for details (cases 'abcdeg').
+@
+text
+@d33 1
+a33 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/proc-db/kurt.c,v 14.9 2007/01/26 03:30:46 brlcad Exp $ (BRL)";
+a37 1
+
+d40 1
+d48 1
+d139 1
+a139 1
+	LOCAL poly	polynom;
+@
+
+
+14.9
+log
+@simplify, use MAT_DELTAS_VEC when setting translation elements to a given vector
+@
+text
+@d33 1
+a33 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/proc-db/kurt.c,v 14.8 2007/01/23 01:13:44 brlcad Exp $ (BRL)";
+a38 1
+
+d136 1
+a136 1
+      	       		/* center coordinates, z=0+ */
+d239 1
+a239 1
+	    	return;
+d295 1
+a295 1
+      	    		/* hopefully points outwards */
+d322 3
+a324 3
+      	       		/* direction or aim point */
+   	        	/* 0 = direction, !0 = aim point */
+      	  		/* radius of light */
+@
+
+
+14.8
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@d33 1
+a33 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/proc-db/kurt.c,v 14.7 2007/01/20 14:36:59 brlcad Exp $ (BRL)";
+d354 1
+a354 1
+	MAT_DELTAS( xlate, pos[X], pos[Y], pos[Z] );
+@
+
+
+14.7
+log
+@update copyright to 2007
+@
+text
+@d8 2
+a9 3
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+d14 1
+a14 1
+ * General Public License for more details.
+d16 2
+a17 2
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+d33 1
+a33 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/proc-db/kurt.c,v 14.6 2006/01/18 06:46:23 brlcad Exp $ (BRL)";
+@
+
+
+14.6
+log
+@update copyright to 2006
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 1986-2006 United States Government as represented by
+d34 1
+a34 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/proc-db/kurt.c,v 14.5 2005/10/23 04:44:37 brlcad Exp $ (BRL)";
+@
+
+
+14.5
+log
+@trailing ws
+@
+text
+@d4 1
+a4 1
+ * Copyright (C) 1986-2005 United States Government as represented by
+d34 1
+a34 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/proc-db/kurt.c,v 14.4 2005/04/29 15:31:07 lbutler Exp $ (BRL)";
+@
+
+
+14.4
+log
+@patched for new calling signature of rt_poly_roots()
+@
+text
+@d22 1
+a22 1
+ * 
+d27 1
+a27 1
+ *  
+d34 1
+a34 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/proc-db/kurt.c,v 14.3 2005/01/30 20:31:09 brlcad Exp $ (BRL)";
+d97 2
+a98 2
+				   &val[ix+1][iy], 
+				   &val[ix][iy+1], 
+d137 1
+a137 1
+          	    
+d202 1
+a202 1
+	
+d295 2
+a296 2
+       	            
+       	            
+d298 1
+a298 1
+   	     
+d322 2
+a323 2
+    	      
+       	    
+d327 1
+a327 1
+             	     
+@
+
+
+14.4.6.1
+log
+@merge changes from HEAD aka rel-7-6-4 to the rel-7-6-branch just in case someone peeks a gander or tries to continue/build the branch
+@
+text
+@d22 1
+a22 1
+ *
+d27 1
+a27 1
+ *
+d34 1
+a34 1
+static const char RCSid[] = "@@(#)$Header$ (BRL)";
+d97 2
+a98 2
+				   &val[ix+1][iy],
+				   &val[ix][iy+1],
+d137 1
+a137 1
+
+d202 1
+a202 1
+
+d295 2
+a296 2
+
+
+d298 1
+a298 1
+
+d322 2
+a323 2
+
+
+d327 1
+a327 1
+
+@
+
+
+14.3
+log
+@update copyright to 2005
+@
+text
+@d34 1
+a34 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/proc-db/kurt.c,v 14.2 2004/12/21 03:46:08 butler Exp $ (BRL)";
+d154 1
+a154 1
+	nroots = rt_poly_roots( &polynom, roots );
+@
+
+
+14.2
+log
+@GPL license changes
+@
+text
+@d4 2
+a5 2
+ * Copyright (c) 1986-2004 United States Government as represented by the
+ * U.S. Army Research Laboratory.
+d34 1
+a34 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/proc-db/kurt.c,v 14.1 2004/11/16 19:42:30 morrison Exp $ (BRL)";
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@d1 21
+a21 2
+/*
+ *			K U R T . C
+a31 4
+ *  
+ *  Copyright 
+ *	This software is Copyright (C) 1986-2004 by the United States Army.
+ *	All rights reserved.
+d34 1
+a34 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/proc-db/kurt.c,v 1.2 2004/08/02 23:01:52 morrison Exp $ (BRL)";
+@
+
+
+1.2
+log
+@replace the wrapped config.h block with common.h
+@
+text
+@d19 1
+a19 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/proc-db/kurt.c,v 1.1 2004/05/20 15:20:39 morrison Exp $ (BRL)";
+d345 10
+@
+
+
+1.1
+log
+@Vast reorganization begins.  Sources moved from top-level directories into src/.
+@
+text
+@d19 1
+a19 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/proc-db/kurt.c,v 11.16 2004/05/10 15:30:49 erikg Exp $ (BRL)";
+d22 1
+a22 3
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+@
+

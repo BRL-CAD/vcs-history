@@ -1,0 +1,399 @@
+head	1.3;
+access;
+symbols
+	ansi-20040405-merged:1.1.4.1
+	postmerge-20040405-ansi:1.2
+	premerge-20040404-ansi:1.2
+	postmerge-autoconf:1.2
+	autoconf-freeze:1.2
+	premerge-autoconf:1.2
+	postmerge-20040315-windows:1.2
+	premerge-20040315-windows:1.2
+	windows-20040315-freeze:1.1.6.1
+	autoconf-20031203:1.2
+	autoconf-20031202:1.2
+	autoconf-branch:1.2.0.6
+	phong-branch:1.2.0.4
+	photonmap-branch:1.2.0.2
+	rel-6-1-DP:1.1
+	windows-branch:1.1.0.6
+	rel-6-0-2:1.1
+	ansi-branch:1.1.0.4
+	rel-6-0-1-branch:1.1.0.2
+	hartley-6-0-post:1.1
+	hartley-6-0-pre:1.1
+	rel-6-0-1:1.1;
+locks; strict;
+comment	@# @;
+
+
+1.3
+date	2004.05.21.16.41.44;	author morrison;	state dead;
+branches;
+next	1.2;
+
+1.2
+date	2003.03.13.19.45.33;	author jra;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2002.07.08.17.27.53;	author rbowers;	state Exp;
+branches
+	1.1.4.1
+	1.1.6.1;
+next	;
+
+1.1.4.1
+date	2004.03.17.21.23.16;	author morrison;	state Exp;
+branches;
+next	;
+
+1.1.6.1
+date	2004.03.11.23.52.25;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.3
+log
+@moved to src/tclscripts/
+@
+text
+@#
+# DbPage.itk
+#
+# This file provides a page for specifying the database to be loaded.
+#
+
+package require Itcl
+package require Itk
+package require Iwidgets
+
+namespace eval RtWizard {
+
+    package provide DbPage 1.0
+
+    #
+    # dbpage - Provides a lowercased access method for the 
+    #          DbPage class.
+    #
+    proc dbpage {pathName args} {
+	uplevel DbPage $pathName $args
+    }
+
+    #
+    # Add options
+    #
+    option add *DbPage.borderWidth 2 widgetDefault
+    option add *DbPage.labelPos wn widgetDefault
+    option add *DbPage.listHeight 150 widgetDefault
+    option add *DbPage.hscrollMode dynamic widgetDefault
+    option add *DbPage.vscrollMode dynamic widgetDefault
+    option add *DbPage.textBackground seashell
+    
+    #
+    # Define the usual options
+    #
+    ::itk::usual DbPage {
+	keep -activebackground \
+		-activerelief \
+		-background \
+		-borderwidth \
+		-cursor \
+		-elementborderwidth \
+		-foreground \
+		-highlightcolor \
+		-highlightthickness \
+		-insertbackground \
+		-insertborderwidth \
+		-insertofftime \
+		-insertontime \
+		-insertwidth \
+		-jump \
+		-labelfont \
+		-selectbackground \
+		-selectborderwidth \
+		-textbackground \
+		-troughcolor
+    }
+
+    #
+    # DbPage -
+    #
+    # The DbPage megawidget is very simple. It is a fileselector and
+    # some help text.
+    #
+    # The DbPage is a support page, not a "step."
+    #
+    itcl::class DbPage {
+	inherit ::iwidgets::Labeledframe
+
+	#
+	# Configuration variables
+	#
+	
+	# None!
+		
+	public {
+	    #
+	    # methods
+	    #
+	    constructor {args} {};
+
+	    method onSelect {}
+	    method onDeselect {}
+	    method getStepInfo {}
+	   
+	    method getDbFile {}
+	}
+	
+	private {
+	    method onOK {}
+	    method onCancel {}
+	}    
+    }
+
+    #--------------------#
+    #   Public Methods   #
+    #--------------------#    
+    #
+    # constructor - builds the Database Page
+    #
+    ::itcl::body DbPage::constructor {args} {
+	
+	#
+	# Set up the childsite
+	#
+	set cs [ $this childsite ]
+	$cs configure -relief groove -bd 2
+
+	#
+	# Create the help panel
+	#
+	itk_component add helpPanel {
+	    ::iwidgets::scrolledtext $cs.#auto \
+		    -hscrollmode none \
+		    -vscrollmode none \
+		    -visibleitems 80x3 \
+		    -wrap word \
+		    -relief flat \
+		    -textfont $::RtWizard::helpFont
+	} {
+	    usual
+	    ignore -textbackground
+	    ignore -textfont
+	}
+
+	#
+	# Add the help text.
+	#
+	$itk_component(helpPanel) insert end \
+		"Please select the BRL-CAD database that contains the "
+	$itk_component(helpPanel) insert end \
+		"objects that you wish to render."
+	$itk_component(helpPanel) configure -state disabled
+
+	#
+	# Create the fileselector for the database name.
+	#
+	itk_component add fileSelect { 
+	    ::iwidgets::fileselectionbox $cs.#auto \
+		    -height 340
+
+	} {
+	    usual
+	}
+	
+	#
+	# Look only for BRL-CAD databases
+	#
+	$itk_component(fileSelect) configure -mask "*.g"
+	
+
+	#
+	# Create a button box for the OK button
+	#
+	itk_component add bbox {
+	    ::iwidgets::buttonbox $cs.#auto
+	} {
+	    usual
+	}
+
+	$itk_component(bbox) add OK \
+		-text "OK" \
+		-command "[::itcl::code $this onOK]"
+
+	$itk_component(bbox) add cancel \
+		-text "Cancel" \
+		-command "[::itcl::code $this onCancel]"
+	
+	$itk_component(bbox) default cancel
+
+	#
+	# Pack the items
+	#
+	pack $itk_component(helpPanel) \
+		-side top \
+		-fill x \
+		-expand 1 
+	pack $itk_component(fileSelect) \
+		-fill both \
+		-expand yes \
+		-padx 4 \
+		-pady 4 
+	pack $itk_component(bbox) \
+		-side right \
+		-expand 0 \
+		-pady 2
+	
+	#
+	# Configure the labeled widget
+	#
+	$this configure -labeltext "Select a Database"
+	$this configure -labelpos nw
+	
+	#
+	# Evaluate any user supplied args.
+	#
+	eval itk_initialize $args
+    }
+
+    #
+    # onSelect
+    #
+    # Makes any necessary changes to the Wizard configuration
+    # when this page is selected.
+    #
+    itcl::body DbPage::onSelect {} {
+	#
+	# Nothing yet!
+	#
+    }
+
+    #
+    # onDeselect
+    #
+    # Cleans up when the page is deselected
+    #
+    itcl::body DbPage::onDeselect {} {	
+	#
+	# Nothing yet!
+	#
+    }
+
+    #
+    # getStepInfo
+    #
+    # In principal, returns a name for the step, and a variable that
+    # can be queried for state. The database page is not a 'step', so
+    # it returns "No Step"
+    #
+    itcl::body DbPage::getStepInfo {} {
+	set a "No Step"
+	set b "banana"
+	return [list $a $b]
+    }
+
+    #
+    # getDbFile - returns the currently selected file.
+    #
+    ::itcl::body DbPage::getDbFile { } {
+	return [ $itk_component(fileSelect) get ]
+    }
+
+    #--------------------#
+    #  Private Methods   #
+    #--------------------#    
+    #
+    # onOK - called when the OK button is called
+    #
+    itcl::body DbPage::onOK {} {
+	set ::RtWizard::dbFile [getDbFile]
+	$::wizardInstance select exp
+    }
+
+    #
+    # onCancel - called when the OK button is called
+    #
+    itcl::body DbPage::onCancel {} {
+	exit
+#	$::wizardInstance selectPrev
+    }
+
+
+
+
+}
+#end namespace
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+@
+
+
+1.2
+log
+@*** empty log message ***
+@
+text
+@@
+
+
+1.1
+log
+@-* moved rtwizard files to brlcad/tclscripts/rtwizard
+@
+text
+@d9 1
+a9 1
+package require Iwidgets 3.0
+@
+
+
+1.1.4.1
+log
+@sync branch with HEAD
+@
+text
+@d9 1
+a9 1
+package require Iwidgets
+@
+
+
+1.1.6.1
+log
+@sync to HEAD...
+@
+text
+@d9 1
+a9 1
+package require Iwidgets
+@
+
+

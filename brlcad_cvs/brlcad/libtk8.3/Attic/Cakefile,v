@@ -1,0 +1,259 @@
+head	1.5;
+access;
+symbols
+	ansi-20040316-freeze:1.4
+	rel-6-1-DP:1.4
+	rel-6-0-2:1.4
+	rel-6-0-1-branch:1.4.0.2
+	hartley-6-0-post:1.4
+	hartley-6-0-pre:1.4
+	rel-6-0-1:1.4
+	rel-6-0:1.4
+	rel-5-4:1.1.1.1.2.1
+	offsite-5-3-pre:1.2
+	rel-5-3:1.1.1.1.2.1
+	rel-5-1-branch:1.1.1.1.0.2
+	windows-6-0-branch:1.4.0.6
+	ansi-6-0-branch:1.4.0.4
+	tk8-3:1.1.1.1
+	scriptics:1.1.1;
+locks; strict;
+comment	@# @;
+
+
+1.5
+date	2003.03.13.19.12.59;	author jra;	state dead;
+branches;
+next	1.4;
+
+1.4
+date	2002.02.28.22.58.17;	author kermit;	state Exp;
+branches
+	1.4.4.1
+	1.4.6.1;
+next	1.3;
+
+1.3
+date	2001.04.02.21.20.40;	author bparker;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2000.12.07.23.39.44;	author bparker;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2000.12.06.21.34.14;	author bparker;	state Exp;
+branches
+	1.1.1.1;
+next	;
+
+1.1.1.1
+date	2000.12.06.21.34.14;	author bparker;	state Exp;
+branches
+	1.1.1.1.2.1;
+next	;
+
+1.1.1.1.2.1
+date	2000.12.07.23.35.58;	author bparker;	state Exp;
+branches;
+next	;
+
+1.4.4.1
+date	2004.03.17.07.15.00;	author morrison;	state dead;
+branches;
+next	;
+
+1.4.6.1
+date	2004.03.11.23.45.07;	author morrison;	state dead;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.5
+log
+@Update to tk 8.4
+@
+text
+@/*
+ *			libtk/Cakefile
+ */
+#define SRCDIR	[[echo libtk''TCLTK_VERS]]
+#define	SRCSUFF	.c
+#define MANSECTION	3
+
+#include "../Cakefile.defs"
+
+#if !defined(NO_LIBTK)
+
+/* Since we're building a library, we can't also list a regular
+ * program (like tclsh) in the PRODUCTS rule, it will confuse
+ * the BUILD_LIBRARY rule in Cakefile.defs.
+ * Hence the EXTRA_PRODUCTS dodge
+ */
+
+#if !defined(BUILD_LIBRARY)
+#define BUILD_LIBRARY	ar r
+#define TK_OPTS	--srcdir=[[pwd]]/../SRCDIR/"unix" --cache-file cache.MTYPE \
+			 --exec-prefix=BASEDIR --prefix=BASEDIR \
+			 --x-includes=XINCDIR --x-libraries=XLIBDIR \
+			 --with-tcl=[[pwd]]/LIBTCL_DIR \
+			 --disable-shared --quiet
+#define PRODUCTS	[[echo libtk''TCLTK_VERS.a]]
+#define	AFTER_MAKE	rm -f libtk.a ; ln -s PRODUCTS libtk.a
+#else
+#define TK_OPTS	--srcdir=[[pwd]]/../SRCDIR/"unix" --enable-shared \
+			 --cache-file cache.MTYPE --exec-prefix=BASEDIR --prefix=BASEDIR \
+			 --x-includes=XINCDIR --x-libraries=XLIBDIR \
+			 --with-tcl=[[pwd]]/LIBTCL_DIR \
+			 --quiet
+#define PRODUCTS	[[echo libtk''TCLTK_VERS.so]]
+#define	SHARED_PRODUCT  libtk''TCLTK_VERS.so''[[LIBVERS]]
+#define	AFTER_MAKE	mv -f libtk''TCLTK_VERS.so SHARED_PRODUCT ; sharedliblink.sh SHARED_PRODUCT ; rm -f libtk.so ; ln -s SHARED_PRODUCT libtk.so
+#endif
+#define EXTRA_PRODUCTS	wish
+
+/* Rule to see if cake is running with -s flag */
+#define MINUS_S	[[echo CAKEFLAGS | tr '\040' '\012' | sed -n -e /-s/p ]]
+
+PRODUCTS: Makefile.MTYPE cache.MTYPE
+	make MINUS_S -f Makefile.MTYPE CAKEFLAGS EXTRA_PRODUCTS
+	AFTER_MAKE
+
+EXTRA_PRODUCTS: Makefile.MTYPE cache.MTYPE
+	make MINUS_S -f Makefile.MTYPE CAKEFLAGS EXTRA_PRODUCTS
+	AFTER_MAKE
+
+Makefile.MTYPE cache.MTYPE:		if not exist Makefile.MTYPE or not exist cache.MTYPE
+	( \C\F\L\A\G\S=\"GFLAG OPTIMIZER PROFILER\"; \
+		\A\F\T\E\R\_\M\A\K\E=\"AFTER_MAKE\"; \
+		\R\A\N\L\I\B=\"RANLIB\";\
+		\L\D\F\L\A\G\S=\"LDFLAGS\"; \
+		\B\U\I\L\D\_\L\I\B\R\A\R\Y=\"BUILD_LIBRARY\"; \
+		\C\C=\"CC\"; \
+		 export \C\F\L\A\G\S \R\A\N\L\I\B \L\D\F\L\A\G\S \B\U\I\L\D\_\L\I\B\R\A\R\Y \C\C \A\F\T\E\R\_\M\A\K\E; \
+		 ../SRCDIR/"unix"/configure TK_OPTS; \
+		../SRCDIR/fix_makefile.sh > Makefile.MTYPE)
+
+clean&:	Makefile.MTYPE
+	make -f Makefile.MTYPE clean
+
+noprod&:
+	rm -rf *.so *.a wish tktest
+
+clobber&: Makefile.MTYPE
+	make -f Makefile.MTYPE clean
+	rm -f *.o libtk* wish tktest *.MTYPE tkConfig.sh config.log config.status Makefile 
+
+install&: Makefile.MTYPE
+	make -f Makefile.MTYPE install
+	(cd BASEDIR/lib; AFTER_MAKE)
+
+install-nobak&: Makefile.MTYPE
+	make -f Makefile.MTYPE install
+	(cd BASEDIR/lib; AFTER_MAKE)
+
+tktest: Makefile.MTYPE
+	make -f Makefile.MTYPE tktest
+
+test&: Makefile.MTYPE
+	make -f Makefile.MTYPE test
+
+/* dltest:			if not exist dltest
+	cp -r ../SRCDIR/"unix"/dltest .
+*/
+#else
+all&:
+	@@echo "SRCDIR:  all done"
+
+clean&:
+	@@echo "" > /dev/null
+
+noprod&:
+	@@echo "" > /dev/null
+
+clobber&:
+	@@echo "" > /dev/null
+#endif
+@
+
+
+1.4
+log
+@Added CC definition so it can be passed through from Cakefile.defs.
+@
+text
+@@
+
+
+1.4.4.1
+log
+@sync branch with HEAD
+@
+text
+@@
+
+
+1.4.6.1
+log
+@sync to HEAD...
+@
+text
+@@
+
+
+1.3
+log
+@*- remove Tk dependencies
+@
+text
+@d56 2
+a57 1
+		 export \C\F\L\A\G\S \R\A\N\L\I\B \L\D\F\L\A\G\S \B\U\I\L\D\_\L\I\B\R\A\R\Y \A\F\T\E\R\_\M\A\K\E; \
+@
+
+
+1.2
+log
+@Mods for static compile
+@
+text
+@d10 2
+d87 13
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d22 1
+a22 1
+			 --quiet
+@
+
+
+1.1.1.1
+log
+@Import tk8.3
+@
+text
+@@
+
+
+1.1.1.1.2.1
+log
+@Mod for static compile.
+@
+text
+@d22 1
+a22 1
+			 --disable-shared --quiet
+@
+

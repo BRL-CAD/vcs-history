@@ -1,0 +1,2558 @@
+head	1.22;
+access;
+symbols
+	rel-7-10-4:1.21.2.1
+	STABLE:1.21.0.2
+	rel-7-10-2:1.21
+	rel-7-10-0:1.21
+	rel-7-8-4:1.18
+	rel-7-8-2:1.18
+	rel-7-8-0:1.15
+	trimnurbs-branch:1.15.0.2
+	help:1.15
+	temp_tag:1.14
+	postmerge-20051223-bobWinPort:1.14
+	premerge-20051223-bobWinPort:1.14
+	rel-7-6-6:1.14
+	rel-7-6-branch:1.7.0.2
+	rel-7-6-4:1.7;
+locks; strict;
+comment	@ * @;
+
+
+1.22
+date	2007.09.18.16.51.16;	author erikgreenwald;	state Exp;
+branches;
+next	1.21;
+
+1.21
+date	2007.01.27.01.41.44;	author brlcad;	state Exp;
+branches
+	1.21.2.1;
+next	1.20;
+
+1.20
+date	2007.01.23.01.13.43;	author brlcad;	state Exp;
+branches;
+next	1.19;
+
+1.19
+date	2007.01.20.14.36.58;	author brlcad;	state Exp;
+branches;
+next	1.18;
+
+1.18
+date	2006.06.03.21.42.24;	author brlcad;	state Exp;
+branches;
+next	1.17;
+
+1.17
+date	2006.06.03.21.37.34;	author brlcad;	state Exp;
+branches;
+next	1.16;
+
+1.16
+date	2006.06.03.21.02.04;	author brlcad;	state Exp;
+branches;
+next	1.15;
+
+1.15
+date	2006.01.18.06.46.23;	author brlcad;	state Exp;
+branches;
+next	1.14;
+
+1.14
+date	2005.12.05.18.31.45;	author erikgreenwald;	state Exp;
+branches;
+next	1.13;
+
+1.13
+date	2005.11.18.21.28.43;	author brlcad;	state Exp;
+branches;
+next	1.12;
+
+1.12
+date	2005.11.18.14.35.36;	author brlcad;	state Exp;
+branches;
+next	1.11;
+
+1.11
+date	2005.11.18.14.13.17;	author brlcad;	state Exp;
+branches;
+next	1.10;
+
+1.10
+date	2005.11.18.12.18.20;	author brlcad;	state Exp;
+branches;
+next	1.9;
+
+1.9
+date	2005.11.18.10.18.16;	author brlcad;	state Exp;
+branches;
+next	1.8;
+
+1.8
+date	2005.11.18.00.10.23;	author brlcad;	state Exp;
+branches;
+next	1.7;
+
+1.7
+date	2005.11.08.21.12.11;	author brlcad;	state Exp;
+branches
+	1.7.2.1;
+next	1.6;
+
+1.6
+date	2005.11.07.16.13.30;	author brlcad;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	2005.11.07.16.07.39;	author brlcad;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	2005.11.03.17.21.56;	author brlcad;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2005.11.01.20.34.36;	author brlcad;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2005.10.30.21.58.57;	author brlcad;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2005.10.29.21.28.58;	author brlcad;	state Exp;
+branches;
+next	;
+
+1.7.2.1
+date	2005.11.08.21.12.11;	author brlcad;	state dead;
+branches;
+next	1.7.2.2;
+
+1.7.2.2
+date	2005.11.13.17.45.01;	author brlcad;	state Exp;
+branches;
+next	;
+
+1.21.2.1
+date	2007.09.28.14.04.36;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.22
+log
+@re-organize and clean up (fixing compiler warnings)
+@
+text
+@/*                       P R O C E S S . C
+ * BRL-CAD
+ *
+ * Copyright (c) 2004-2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ *
+ */
+/** @@file process.c
+ *
+ * Data structures for the comma-separated value point file parser.
+ *
+ * Author -
+ *   Christopher Sean Morrison
+ */
+
+#include "common.h"
+
+/* interface header */
+#include "./process.h"
+
+#include <stdio.h>
+#ifdef HAVE_STDINT_H
+#  include <stdint.h>
+#else
+#  ifdef HAVE_INTTYPES_H
+#    include <inttypes.h>
+#  endif
+#endif
+
+#include "bu.h"
+#include "vmath.h"
+
+extern Tcl_Interp *twerp;
+
+/* some os's (like OpenBSD) lack an INT32_MAX define. Cross fingers and hope
+ * that INT_MAX exists and is 32b...  */
+#ifndef INT32_MAX
+#  ifdef INT_MAX
+#    define INT32_MAX INT_MAX
+#  else
+#    define INT32_MAX 0x7fffffff
+#  endif
+#endif
+
+#define TOL 1.5
+
+#define PRINT_DEBUG 1
+#define PRINT_SCRIPT 1
+#define RUN_SCRIPT 1
+
+#define PRINT_ARRAY 0
+#if PRINT_ARRAY
+static int 
+print_array(point_line_t **plta, int count) {
+    int i;
+    point_line_t *plt = NULL;
+
+    for (i = 0; i < count; i++) {
+	plt = &(*plta)[i];
+	if (plt && plt->type)
+	    printf("\t%s %d: (%f,%f,%f)\n", plt->type, plt->index, plt->val[X], plt->val[Y], plt->val[Z]);
+	else
+	    printf("\tNULL POINT\n");
+    }
+
+    return 1;
+}
+#endif
+
+/* FIXME: not verified in the least bit */
+static int 
+create_cyl(point_line_t **plta, int count) {
+    int i;
+    point_line_t *plt = NULL;
+
+    struct bu_vls vls;
+    struct bu_vls vls2;
+
+    bu_vls_init(&vls);
+    bu_vls_init(&vls2);
+
+    for (i = 0; i < count; i++) {
+	plt = &(*plta)[i];
+	if (plt && plt->type)
+	    bu_vls_printf(&vls, "{ %f %f %f } ", plt->val[X], plt->val[Y], plt->val[Z]);
+    }
+    bu_vls_printf(&vls2, "cylinder { %S }", &vls);
+#if PRINT_SCRIPT
+    fprintf(stderr, "%s\n", bu_vls_addr(&vls2));
+#endif
+#if RUN_SCRIPT
+    Tcl_Eval(twerp, bu_vls_addr(&vls2));
+    if (twerp->result[0] != '\0')
+	bu_log("create_cyl failure: %s\n", twerp->result);
+    else
+	bu_log("create_cyl created\n");
+#endif
+
+    return 1;
+}
+
+/* FIXME: takes a list of points, not triplets */
+static int 
+create_sphere(point_line_t **plta, int count) {
+    int i;
+    point_line_t *plt = NULL;
+
+    struct bu_vls vls;
+    struct bu_vls vls2;
+
+    bu_vls_init(&vls);
+    bu_vls_init(&vls2);
+
+    for (i = 0; i < count; i++) {
+	plt = &(*plta)[i];
+	if (plt && plt->type) 
+	    bu_vls_printf(&vls, " %f %f %f  ", plt->val[X], plt->val[Y], plt->val[Z]);
+    }
+    bu_vls_printf(&vls2, "sph { %S }", &vls);
+#if PRINT_SCRIPT
+    fprintf(stderr, "%s\n", bu_vls_addr(&vls2));
+#endif
+#if RUN_SCRIPT
+    Tcl_Eval(twerp, bu_vls_addr(&vls2));
+    if (twerp->result[0] != '\0') 
+	bu_log("create_cylinder failure: %s\n", twerp->result);
+     else 
+	bu_log("create_cylinder created\n");
+#endif
+
+    return 1;
+}
+
+void 
+process_value(point_line_t *plt, double value) {
+    if (!plt) {
+	printf("WARNING: Unexpected call to process_value with a NULL point structure\n");
+	return;
+    }
+
+    if (plt->count > Z) {
+	printf("WARNING: Unexpected call to process_value with a full point structure\n");
+	return;
+    }
+
+    plt->val[plt->count++] = value;
+
+    return;
+}
+
+void 
+process_type(point_line_t *plt, const char *type, int code) {
+    if (!plt) {
+	printf("WARNING: Unexpected call to process_value with a NULL point structure\n");
+	return;
+    }
+
+    plt->type = type;
+    plt->code = code;;
+
+    return;
+}
+
+void 
+process_point(point_line_t *plt) {
+    static int code_state = INT32_MAX;
+    static int points = 0;
+    static point_line_t *plta = NULL;
+
+    if (!plt) {
+	printf("WARNING: Unexpected call to process_point with a NULL point structure\n");
+	return;
+    }
+
+    /* state change, we're either starting or ending */
+    if (code_state != plt->code) {
+	if (points > 0) {
+	    process_multi_group(&plta, points, TOL);
+	    printf("END OF BLOCK %d\n", code_state);
+
+	    /* finish up this batch */
+	    bu_free((genptr_t)plta, "end point_line_t group");
+	    plta = NULL;
+	}
+
+	if (plt->type)
+	    printf("BEGIN OF BLOCK %s (%d)\n", plt->type, plt->code);
+
+	/* get ready for the new batch */
+	code_state = plt->code;
+	points = 0;
+    }
+
+    /* allocate room for the new point */
+    if (!plta)
+	plta = (point_line_t *) bu_malloc(sizeof(point_line_t), "begin point_line_t group");
+    else
+	plta = (point_line_t *) bu_realloc(plta, sizeof(point_line_t) * (points + 1), "add point_line_t");
+    COPY_POINT_LINE_T(plta[points], *plt);
+    points++;
+}
+
+int 
+condense_points(point_line_t **plta, int count) {
+    int i;
+    point_line_t *plt = NULL;
+    int valid_count = 0;
+
+    if (!plta) {
+	printf("WARNING: Unexpected call to delete_points with a NULL point array\n");
+	return 0;
+    }
+
+    for (i=0; i < count; i++) {
+	plt = &(*plta)[i];
+
+	if (plt && plt->type) {
+	    if (valid_count != i) {
+		COPY_POINT_LINE_T((*plta)[valid_count], *plt);
+		/* zap */
+		INITIALIZE_POINT_LINE_T(*plt);
+	    }
+	    valid_count++;
+	}
+
+    }
+
+#if PRINT_DEBUG
+    if (valid_count != count)
+	bu_log("Started with %d points, condensed to %d points\n", count, valid_count);
+#endif
+
+    return valid_count;
+}
+
+int 
+delete_points(point_line_t **plta, int count, double tolerance) {
+    int i;
+    point_line_t *plt = NULL;
+    point_line_t *previous_plt = NULL;
+    /*    point_line_t average_plt; */
+    int repeats = 0;
+    int repeat_counter = 0;
+    int removed = 0;
+
+    if (!plta) {
+	printf("WARNING: Unexpected call to delete_points with a NULL point array\n");
+	return 0;
+    }
+
+    if (count < 6) {
+	printf("WARNING: Unexpected call to delete_points with insufficient points\n");
+	return 0;
+    }
+
+    /*    INITIALIZE_POINT_LINE_T(average_plt); */
+    previous_plt = &(*plta)[0];
+
+    for (i=1; i < count; i++) {
+	plt = &(*plta)[i];
+
+	if (DIST_PT_PT(previous_plt->val, plt->val) < tolerance) {
+	    repeats++;
+	} else {
+	    /* not a repeat, so check if we need to remove the repeats
+	     * and the previous as convention.
+	     */
+	    if (repeats >= 4) {
+		/* 5+ repeated values in a row */
+		repeat_counter = 1;
+		while (repeats >= 0 && repeat_counter <= count) {
+		    plt = &(*plta)[i-repeat_counter];
+		    if (plt && plt->type) {
+			/* zap */
+#if PRINT_DEBUG
+			bu_log("removed point: %d\n", plt->index);
+#endif
+			INITIALIZE_POINT_LINE_T(*plt);
+			repeats--;
+		    }
+		    repeat_counter++;
+		}
+
+		/* we're not necessarily condensed, so search for the
+		 * first non-null point and delete it as well.
+		 */
+		plt = &(*plta)[i-repeat_counter];
+		while (!plt || !plt->type) {
+		    repeat_counter--;
+		    plt = &(*plta)[i-repeat_counter];
+		}
+		/* zap */
+		bu_log("removed REAL point: %d\n", plt->index);
+		INITIALIZE_POINT_LINE_T(*plt);
+
+		removed++;
+	    }
+	    repeats = 0;
+	}
+
+	previous_plt = plt;
+    }
+
+#if PRINT_DEBUG
+    if (removed > 0)
+	bu_log("Found and removed %d invalid points\n", removed);
+#endif
+
+
+#if 0
+    bu_log("--- BEFORE ---\n");
+    print_array(plta, count);
+#endif
+
+    /* resort the list, put nulls at the end */
+    count = condense_points(plta, count);
+
+#if 0
+    bu_log("--- AFTER ---\n");
+    print_array(plta, count);
+#endif
+
+    return count;
+}
+
+/**
+ * handle a group of points of a particular type, with potentially
+ * multiple sets delimited by triplicate points.
+ */
+void 
+process_multi_group(point_line_t **plta, int count, double tolerance) {
+    int i;
+    point_line_t *plt = NULL;
+
+    int points = 0;
+    point_line_t *pltg = NULL;
+
+    int marker = 0;
+    point_line_t *prev_plt = NULL;
+
+    if (!plta) {
+	printf("WARNING: Unexpected call to process_multi_group with a NULL point array\n");
+	return;
+    }
+
+#if PRINT_ARRAY
+    static int print_counter = 0;
+    if (print_counter == 0) {
+	bu_log("--- BEFORE ---\n");
+	print_array(plta, count);
+    }
+#endif
+
+    /* remove points marked as bogus, 5-identical points in succession */
+    count = delete_points(plta, count, tolerance);
+
+#if PRINT_ARRAY
+    if (print_counter == 0) {
+	print_counter++;
+	bu_log("--- AFTER ---\n");
+	print_array(plta, count);
+    }
+#endif
+
+    /* isolate groups and pass them on to the group processing routine */
+    for (i = 0; i < count; i++) {
+	plt = &(*plta)[i];
+	if (!plt || !plt->type) {
+	    printf("WARNING: Unexpected NULL encountered while processing a point array (%d of %d)\n", i, count);
+	    continue;
+	}
+
+	/* if this is the first point of a group, allocate and initialize */
+	if (!prev_plt) {
+	    prev_plt = &(*plta)[i];
+	    pltg = (point_line_t *) bu_malloc(sizeof(point_line_t), "begin point_line_t subgroup");
+	    COPY_POINT_LINE_T(*pltg, *prev_plt);
+	    marker = 0;
+	    continue;
+	}
+
+	if (marker) {
+	    /* gobble up repeats points used as a marker, average new point */
+	    if (DIST_PT_PT(prev_plt->val, plt->val) < tolerance) {
+		prev_plt->val[X] = (prev_plt->val[X] + plt->val[X]) / 2.0;
+		prev_plt->val[Y] = (prev_plt->val[Y] + plt->val[Y]) / 2.0;
+		prev_plt->val[Z] = (prev_plt->val[Z] + plt->val[Z]) / 2.0;
+		INITIALIZE_POINT_LINE_T(*plt); /* poof */
+		continue;
+	    }
+
+	    if (process_group(&pltg, points+1)) {
+		bu_free((genptr_t)pltg, "end subgroup: point_line_t");
+		pltg = NULL;
+		prev_plt = NULL;
+		points = 0;
+		marker = 0;
+		--i;
+		continue;
+	    } else {
+		/* process_group is allowed to return non-zero if
+		   there are not enough points -- they get returned to
+		   the stack for processing again */
+		printf("warning, process_group returned 0\n");
+	    }
+
+	    marker = 0;
+	    continue;
+	}
+
+	/* FIXME: shouldn't just average to the average, later points
+	   get weighted too much.. */
+	if (DIST_PT_PT(prev_plt->val, plt->val) < tolerance) {
+	    /*	    printf("%d: CLOSE DISTANCE of %f\n", plt->index, DIST_PT_PT(prev_plt->val, plt->val));*/
+	    marker = points;
+	    (pltg[marker]).val[X] = (prev_plt->val[X] + plt->val[X]) / 2.0;
+	    (pltg[marker]).val[Y] = (prev_plt->val[Y] + plt->val[Y]) / 2.0;
+	    (pltg[marker]).val[Z] = (prev_plt->val[Z] + plt->val[Z]) / 2.0;
+	    continue;
+	}
+
+	if (!pltg) {
+	    printf("Blah! Error. Group array is null. Shouldn't be here!\n");
+	    return;
+	}
+
+	pltg = (point_line_t *) bu_realloc(pltg, sizeof(point_line_t) * (points + 2), "add subgroup: point_line_t");
+
+	points++;
+	COPY_POINT_LINE_T(pltg[points], *plt);
+	prev_plt = plt;
+    }
+    printf("i: %d, count: %d", i, count);
+
+    /* make sure we're not at the end of a list (i.e. no end marker,
+       but we're at the end of this group */
+    if (points > 0) {
+	if (process_group(&pltg, points+1)) {
+	    bu_free((genptr_t)pltg, "end point_line_t subgroup");
+	    pltg = NULL;
+	    prev_plt = NULL;
+	    points = 0;
+	    marker = 0;
+	} else {
+	    /* this one shouldn't return zero, we're at the end of a multiblock */
+	    printf("ERROR, process_group returned 0\n");
+	}
+    }
+
+}
+
+int 
+create_plate(point_line_t **plta, int count) {
+    int i;
+    point_line_t *plt = NULL;
+
+    struct bu_vls vls;
+    struct bu_vls vls2;
+
+    bu_vls_init(&vls);
+    bu_vls_init(&vls2);
+
+    for (i = 0; i < count; i++) {
+	plt = &(*plta)[i];
+	if (plt && plt->type) {
+	    bu_vls_printf(&vls, "{ %f %f %f } ", plt->val[X], plt->val[Y], plt->val[Z]);
+	}
+    }
+    bu_vls_printf(&vls2, "plate { %S }", &vls);
+#if PRINT_SCRIPT
+    fprintf(stderr, "%s\n", bu_vls_addr(&vls2));
+#endif
+#if RUN_SCRIPT
+    Tcl_Eval(twerp, bu_vls_addr(&vls2));
+    if (twerp->result[0] != '\0') {
+	bu_log("create_plate failure: %s\n", twerp->result);
+    } else {
+	bu_log("create_plate created\n");
+    }
+#endif
+
+    return 1;
+}
+
+int 
+create_arb(point_line_t **plta, int count) {
+    int i;
+    point_line_t *plt = NULL;
+
+    struct bu_vls vls;
+    struct bu_vls vls2;
+
+    bu_vls_init(&vls);
+    bu_vls_init(&vls2);
+
+    for (i = 0; i < count; i++) {
+	plt = &(*plta)[i];
+	if (plt && plt->type) {
+	    bu_vls_printf(&vls, "{ %f %f %f } ", plt->val[X], plt->val[Y], plt->val[Z]);
+	}
+    }
+    bu_vls_printf(&vls2, "arb { %S }", &vls);
+#if PRINT_SCRIPT
+    fprintf(stderr, "%s\n", bu_vls_addr(&vls2));
+#endif
+#if RUN_SCRIPT
+    Tcl_Eval(twerp, bu_vls_addr(&vls2));
+    if (twerp->result[0] != '\0')
+	bu_log("create_arb failure: %s\n", twerp->result);
+    else
+	bu_log("create_arb created\n");
+#endif
+
+    return 1;
+}
+
+int 
+create_cylinder(point_line_t **plta, int count) {
+    int i;
+    point_line_t *plt = NULL;
+
+    struct bu_vls vls;
+    struct bu_vls vls2;
+
+    bu_vls_init(&vls);
+    bu_vls_init(&vls2);
+
+    for (i = 0; i < count; i++) {
+	plt = &(*plta)[i];
+	if (plt && plt->type)
+	    bu_vls_printf(&vls, "{ %f %f %f } ", plt->val[X], plt->val[Y], plt->val[Z]);
+    }
+    bu_vls_printf(&vls2, "cyls { %S }", &vls);
+#if PRINT_SCRIPT
+    fprintf(stderr, "%s\n", bu_vls_addr(&vls2));
+#endif
+#if RUN_SCRIPT
+    Tcl_Eval(twerp, bu_vls_addr(&vls2));
+    if (twerp->result[0] != '\0')
+	bu_log("create_cylinder failure: %s\n", twerp->result);
+    else
+	bu_log("create_cylinder created\n");
+#endif
+
+    return 1;
+}
+
+int 
+create_pipe(point_line_t **plta, int count) {
+    int i;
+    point_line_t *plt = NULL;
+
+    struct bu_vls vls;
+    struct bu_vls vls2;
+
+    bu_vls_init(&vls);
+    bu_vls_init(&vls2);
+
+    for (i = 0; i < count; i++) {
+	plt = &(*plta)[i];
+	if (plt && plt->type)
+	    bu_vls_printf(&vls, "{ %f %f %f } ", plt->val[X], plt->val[Y], plt->val[Z]);
+    }
+    bu_vls_printf(&vls2, "pipe { %S }", &vls);
+#if PRINT_SCRIPT
+    fprintf(stderr, "%s\n", bu_vls_addr(&vls2));
+#endif
+#if RUN_SCRIPT
+    Tcl_Eval(twerp, bu_vls_addr(&vls2));
+    if (twerp->result[0] != '\0') 
+	bu_log("create_pipe failure: %s\n", twerp->result);
+     else 
+	bu_log("create_pipe created\n");
+#endif
+
+    return 1;
+}
+
+int 
+create_points(point_line_t **plta, int count) {
+    int i;
+    point_line_t *plt = NULL;
+
+    struct bu_vls vls;
+    struct bu_vls vls2;
+
+    bu_vls_init(&vls);
+    bu_vls_init(&vls2);
+
+    for (i = 0; i < count; i++) {
+	plt = &(*plta)[i];
+	if (plt && plt->type) 
+	    bu_vls_printf(&vls, " %f %f %f  ", plt->val[X], plt->val[Y], plt->val[Z]);
+    }
+    bu_vls_printf(&vls2, "points { %S }", &vls);
+#if PRINT_SCRIPT
+    fprintf(stderr, "%s\n", bu_vls_addr(&vls2));
+#endif
+#if RUN_SCRIPT
+    Tcl_Eval(twerp, bu_vls_addr(&vls2));
+    if (twerp->result[0] != '\0') 
+	bu_log("create_points failure: %s\n", twerp->result);
+     else 
+	bu_log("create_points created\n");
+#endif
+
+    return 1;
+}
+
+/** 
+ * wrapper func to validate the block of points being processed and to
+ * call the appropriate handler.
+ */
+int
+process_group(point_line_t **plta, int count) {
+    int valid_count = 0;
+
+    if (!plta) {
+	printf("WARNING: Unexpected call to process_multi_group with a NULL point array\n");
+	return 0;
+    }
+
+    bu_log("processing a group!\n");
+
+    /* resort the list, put nulls at the end */
+    valid_count = condense_points(plta, count);
+
+    /* ignore insufficient counts */
+    if (valid_count <= 2)
+	switch((*plta)[0].code) {
+	    case(PLATE): /* need at least 3 (triangle) */
+		/*		printf("IGNORING PLATE POINT DUPLICATE(S)\n"); */
+		return 0;
+	    case(ARB): /* need 8 */
+		/*		printf("IGNORING ARB POINT DUPLICATE(S)\n");*/
+		return 0;
+	    case(CYLINDER): /* need at least 3 (2 for length + diam) */
+		/* printf("IGNORING CYLINDER POINT DUPLICATE(S)\n"); */
+		return 0;
+	}
+
+    /* FIXME: callbacks should really be registered in the lexer or
+       parser when a point-line of that particular type is
+       encountered
+    */
+    switch((*plta)[0].code) {
+	case(PLATE):
+	    return create_plate(plta, valid_count);
+	case(ARB):
+	    return create_arb(plta, valid_count);
+	case(CYLINDER):
+	    return create_cylinder(plta, valid_count);
+	case(CYL):
+	    return create_cyl(plta, valid_count);
+	case(POINTS):
+#if PRINT_ARRAY
+    static int print_counter = 0;
+    if (print_counter == 0) {
+	bu_log("--- POINTS ---\n");
+	print_array(plta, count);
+    }
+#endif
+	    return create_points(plta, valid_count);
+	case(SYMMETRY):
+	    return create_points(plta, valid_count);
+	case(PIPE):
+	    return create_pipe(plta, valid_count);
+	case(SPHERE):
+	    return create_sphere(plta, valid_count);
+    }
+
+    printf("WARNING, unsupported point code encountered (%d)\n", (*plta)[0].code);
+    return 0;
+}
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+1.21
+log
+@ws. lots and lots of ws.  see sh/ws.sh for details (cases 'abcdeg').
+@
+text
+@d64 4
+a67 1
+static int print_array(point_line_t **plta, int count) {
+d73 1
+a73 1
+	if (plt && plt->type) {
+d75 1
+a75 1
+	} else {
+a76 1
+	}
+d81 33
+d115 5
+d121 28
+a148 2
+void process_value(point_line_t *plt, double value)
+{
+d164 2
+a165 2
+void process_type(point_line_t *plt, const char *type, int code)
+{
+d177 2
+a178 1
+void process_point(point_line_t *plt) {
+d199 1
+a199 1
+	if (plt->type) {
+a200 1
+	}
+d208 1
+a208 1
+    if (!plta) {
+d210 1
+a210 1
+    } else {
+a211 1
+    }
+d216 2
+a217 2
+
+int condense_points(point_line_t **plta, int count) {
+d242 1
+a242 1
+    if (valid_count != count) {
+a243 1
+    }
+d249 2
+a250 2
+
+int delete_points(point_line_t **plta, int count, double tolerance) {
+d318 1
+a318 1
+    if (removed > 0) {
+a319 1
+    }
+a338 1
+
+d343 2
+a344 1
+void process_multi_group(point_line_t **plta, int count, double tolerance) {
+d359 1
+a359 1
+#if 0
+d370 1
+a370 1
+#if 0
+d465 2
+a466 73
+
+/** wrapper func to validate the block of points being processed and to
+ * call the appropriate handler.
+ */
+int
+process_group(point_line_t **plta, int count) {
+    int valid_count = 0;
+
+    if (!plta) {
+	printf("WARNING: Unexpected call to process_multi_group with a NULL point array\n");
+	return 0;
+    }
+
+    bu_log("processing a group!\n");
+
+    /* resort the list, put nulls at the end */
+    valid_count = condense_points(plta, count);
+
+    /* ignore insufficient counts */
+    if (valid_count <= 2) {
+	switch((*plta)[0].code) {
+	    case(PLATE): /* need at least 3 (triangle) */
+		/*		printf("IGNORING PLATE POINT DUPLICATE(S)\n"); */
+		return 0;
+	    case(ARB): /* need 8 */
+		/*		printf("IGNORING ARB POINT DUPLICATE(S)\n");*/
+		return 0;
+	    case(CYLINDER): /* need at least 3 (2 for length + diam) */
+		/* printf("IGNORING CYLINDER POINT DUPLICATE(S)\n"); */
+		return 0;
+	}
+    }
+
+    /* FIXME: callbacks should really be registered in the lexer or
+       parser when a point-line of that particular type is
+       encountered
+    */
+    switch((*plta)[0].code) {
+	case(PLATE):
+	    return create_plate(plta, valid_count);
+	case(ARB):
+	    return create_arb(plta, valid_count);
+	case(CYLINDER):
+	    return create_cylinder(plta, valid_count);
+	case(CYL):
+	    return create_cyl(plta, valid_count);
+	case(POINTS):
+#if 0
+    static int print_counter = 0;
+    if (print_counter == 0) {
+	bu_log("--- POINTS ---\n");
+	print_array(plta, count);
+    }
+#endif
+	    return create_points(plta, valid_count);
+	case(SYMMETRY):
+	    return create_points(plta, valid_count);
+	case(PIPE):
+	    return create_pipe(plta, valid_count);
+	case(SPHERE):
+	    return create_sphere(plta, valid_count);
+    }
+
+    printf("WARNING, unsupported point code encountered (%d)\n", (*plta)[0].code);
+    return 0;
+}
+
+
+/***
+ * process each of the individual creation types
+ ***/
+
+int create_plate(point_line_t **plta, int count) {
+d498 2
+a499 1
+int create_arb(point_line_t **plta, int count) {
+d521 1
+a521 1
+    if (twerp->result[0] != '\0') {
+d523 1
+a523 1
+    } else {
+a524 1
+    }
+d529 3
+a531 1
+int create_cylinder(point_line_t **plta, int count) {
+d543 1
+a543 1
+	if (plt && plt->type) {
+a544 1
+	}
+d552 1
+a552 1
+    if (twerp->result[0] != '\0') {
+d554 1
+a554 1
+    } else {
+a555 1
+    }
+a559 10
+/* FIXME: not verified in the least bit */
+int create_cyl(point_line_t **plta, int count) {
+    int i;
+    point_line_t *plt = NULL;
+
+    struct bu_vls vls;
+    struct bu_vls vls2;
+
+    bu_vls_init(&vls);
+    bu_vls_init(&vls2);
+d561 2
+a562 22
+    for (i = 0; i < count; i++) {
+	plt = &(*plta)[i];
+	if (plt && plt->type) {
+	    bu_vls_printf(&vls, "{ %f %f %f } ", plt->val[X], plt->val[Y], plt->val[Z]);
+	}
+    }
+    bu_vls_printf(&vls2, "cylinder { %S }", &vls);
+#if PRINT_SCRIPT
+    fprintf(stderr, "%s\n", bu_vls_addr(&vls2));
+#endif
+#if RUN_SCRIPT
+    Tcl_Eval(twerp, bu_vls_addr(&vls2));
+    if (twerp->result[0] != '\0') {
+	bu_log("create_cyl failure: %s\n", twerp->result);
+    } else {
+	bu_log("create_cyl created\n");
+    }
+#endif
+
+    return 1;
+}
+int create_pipe(point_line_t **plta, int count) {
+d574 1
+a574 1
+	if (plt && plt->type) {
+a575 1
+	}
+d583 1
+a583 1
+    if (twerp->result[0] != '\0') {
+d585 1
+a585 1
+    } else {
+a586 1
+    }
+d591 3
+a593 2
+/* FIXME: takes a list of points, not triplets */
+int create_sphere(point_line_t **plta, int count) {
+d605 2
+a606 3
+	if (plt && plt->type) {
+	    bu_vls_printf(&vls, "{ %f %f %f } ", plt->val[X], plt->val[Y], plt->val[Z]);
+	}
+d608 1
+a608 1
+    bu_vls_printf(&vls2, "sph { %S }", &vls);
+d614 4
+a617 5
+    if (twerp->result[0] != '\0') {
+	bu_log("create_cylinder failure: %s\n", twerp->result);
+    } else {
+	bu_log("create_cylinder created\n");
+    }
+a621 3
+int create_points(point_line_t **plta, int count) {
+    int i;
+    point_line_t *plt = NULL;
+d623 14
+a636 2
+    struct bu_vls vls;
+    struct bu_vls vls2;
+d638 2
+a639 2
+    bu_vls_init(&vls);
+    bu_vls_init(&vls2);
+d641 12
+a652 4
+    for (i = 0; i < count; i++) {
+	plt = &(*plta)[i];
+	if (plt && plt->type) {
+	    bu_vls_printf(&vls, "{ %f %f %f } ", plt->val[X], plt->val[Y], plt->val[Z]);
+d654 20
+a674 3
+    bu_vls_printf(&vls2, "points { %S }", &vls);
+#if PRINT_SCRIPT
+    fprintf(stderr, "%s\n", bu_vls_addr(&vls2));
+d676 7
+a682 6
+#if RUN_SCRIPT
+    Tcl_Eval(twerp, bu_vls_addr(&vls2));
+    if (twerp->result[0] != '\0') {
+	bu_log("create_points failure: %s\n", twerp->result);
+    } else {
+	bu_log("create_points created\n");
+a683 1
+#endif
+d685 2
+a686 1
+    return 1;
+@
+
+
+1.21.2.1
+log
+@more merging from HEAD.  bring in build system tweakage updates that should fix some library symbol problems from croping up post-release.
+@
+text
+@d64 1
+a64 4
+#define PRINT_ARRAY 0
+#if PRINT_ARRAY
+static int 
+print_array(point_line_t **plta, int count) {
+d70 1
+a70 1
+	if (plt && plt->type)
+d72 1
+a72 1
+	else
+d74 1
+a78 33
+#endif
+
+/* FIXME: not verified in the least bit */
+static int 
+create_cyl(point_line_t **plta, int count) {
+    int i;
+    point_line_t *plt = NULL;
+
+    struct bu_vls vls;
+    struct bu_vls vls2;
+
+    bu_vls_init(&vls);
+    bu_vls_init(&vls2);
+
+    for (i = 0; i < count; i++) {
+	plt = &(*plta)[i];
+	if (plt && plt->type)
+	    bu_vls_printf(&vls, "{ %f %f %f } ", plt->val[X], plt->val[Y], plt->val[Z]);
+    }
+    bu_vls_printf(&vls2, "cylinder { %S }", &vls);
+#if PRINT_SCRIPT
+    fprintf(stderr, "%s\n", bu_vls_addr(&vls2));
+#endif
+#if RUN_SCRIPT
+    Tcl_Eval(twerp, bu_vls_addr(&vls2));
+    if (twerp->result[0] != '\0')
+	bu_log("create_cyl failure: %s\n", twerp->result);
+    else
+	bu_log("create_cyl created\n");
+#endif
+
+    return 1;
+}
+a79 5
+/* FIXME: takes a list of points, not triplets */
+static int 
+create_sphere(point_line_t **plta, int count) {
+    int i;
+    point_line_t *plt = NULL;
+d81 2
+a82 28
+    struct bu_vls vls;
+    struct bu_vls vls2;
+
+    bu_vls_init(&vls);
+    bu_vls_init(&vls2);
+
+    for (i = 0; i < count; i++) {
+	plt = &(*plta)[i];
+	if (plt && plt->type) 
+	    bu_vls_printf(&vls, " %f %f %f  ", plt->val[X], plt->val[Y], plt->val[Z]);
+    }
+    bu_vls_printf(&vls2, "sph { %S }", &vls);
+#if PRINT_SCRIPT
+    fprintf(stderr, "%s\n", bu_vls_addr(&vls2));
+#endif
+#if RUN_SCRIPT
+    Tcl_Eval(twerp, bu_vls_addr(&vls2));
+    if (twerp->result[0] != '\0') 
+	bu_log("create_cylinder failure: %s\n", twerp->result);
+     else 
+	bu_log("create_cylinder created\n");
+#endif
+
+    return 1;
+}
+
+void 
+process_value(point_line_t *plt, double value) {
+d98 2
+a99 2
+void 
+process_type(point_line_t *plt, const char *type, int code) {
+d111 1
+a111 2
+void 
+process_point(point_line_t *plt) {
+d132 1
+a132 1
+	if (plt->type)
+d134 1
+d142 1
+a142 1
+    if (!plta)
+d144 1
+a144 1
+    else
+d146 1
+d151 2
+a152 2
+int 
+condense_points(point_line_t **plta, int count) {
+d177 1
+a177 1
+    if (valid_count != count)
+d179 1
+d185 2
+a186 2
+int 
+delete_points(point_line_t **plta, int count, double tolerance) {
+d254 1
+a254 1
+    if (removed > 0)
+d256 1
+d276 1
+d281 1
+a281 2
+void 
+process_multi_group(point_line_t **plta, int count, double tolerance) {
+d296 1
+a296 1
+#if PRINT_ARRAY
+d307 1
+a307 1
+#if PRINT_ARRAY
+d402 73
+a474 2
+int 
+create_plate(point_line_t **plta, int count) {
+d506 1
+a506 2
+int 
+create_arb(point_line_t **plta, int count) {
+d528 1
+a528 1
+    if (twerp->result[0] != '\0')
+d530 1
+a530 1
+    else
+d532 1
+d537 1
+a537 3
+
+int 
+create_cylinder(point_line_t **plta, int count) {
+d549 1
+a549 1
+	if (plt && plt->type)
+d551 1
+d559 1
+a559 1
+    if (twerp->result[0] != '\0')
+d561 1
+a561 1
+    else
+d563 1
+d568 10
+d579 22
+a600 2
+int 
+create_pipe(point_line_t **plta, int count) {
+d612 1
+a612 1
+	if (plt && plt->type)
+d614 1
+d622 1
+a622 1
+    if (twerp->result[0] != '\0') 
+d624 1
+a624 1
+     else 
+d626 1
+d631 2
+a632 3
+
+int 
+create_points(point_line_t **plta, int count) {
+d644 3
+a646 2
+	if (plt && plt->type) 
+	    bu_vls_printf(&vls, " %f %f %f  ", plt->val[X], plt->val[Y], plt->val[Z]);
+d648 1
+a648 1
+    bu_vls_printf(&vls2, "points { %S }", &vls);
+d654 5
+a658 4
+    if (twerp->result[0] != '\0') 
+	bu_log("create_points failure: %s\n", twerp->result);
+     else 
+	bu_log("create_points created\n");
+d663 3
+d667 2
+a668 7
+/** 
+ * wrapper func to validate the block of points being processed and to
+ * call the appropriate handler.
+ */
+int
+process_group(point_line_t **plta, int count) {
+    int valid_count = 0;
+d670 2
+a671 4
+    if (!plta) {
+	printf("WARNING: Unexpected call to process_multi_group with a NULL point array\n");
+	return 0;
+    }
+d673 4
+a676 17
+    bu_log("processing a group!\n");
+
+    /* resort the list, put nulls at the end */
+    valid_count = condense_points(plta, count);
+
+    /* ignore insufficient counts */
+    if (valid_count <= 2)
+	switch((*plta)[0].code) {
+	    case(PLATE): /* need at least 3 (triangle) */
+		/*		printf("IGNORING PLATE POINT DUPLICATE(S)\n"); */
+		return 0;
+	    case(ARB): /* need 8 */
+		/*		printf("IGNORING ARB POINT DUPLICATE(S)\n");*/
+		return 0;
+	    case(CYLINDER): /* need at least 3 (2 for length + diam) */
+		/* printf("IGNORING CYLINDER POINT DUPLICATE(S)\n"); */
+		return 0;
+a677 20
+
+    /* FIXME: callbacks should really be registered in the lexer or
+       parser when a point-line of that particular type is
+       encountered
+    */
+    switch((*plta)[0].code) {
+	case(PLATE):
+	    return create_plate(plta, valid_count);
+	case(ARB):
+	    return create_arb(plta, valid_count);
+	case(CYLINDER):
+	    return create_cylinder(plta, valid_count);
+	case(CYL):
+	    return create_cyl(plta, valid_count);
+	case(POINTS):
+#if PRINT_ARRAY
+    static int print_counter = 0;
+    if (print_counter == 0) {
+	bu_log("--- POINTS ---\n");
+	print_array(plta, count);
+d679 3
+d683 6
+a688 7
+	    return create_points(plta, valid_count);
+	case(SYMMETRY):
+	    return create_points(plta, valid_count);
+	case(PIPE):
+	    return create_pipe(plta, valid_count);
+	case(SPHERE):
+	    return create_sphere(plta, valid_count);
+d690 1
+d692 1
+a692 2
+    printf("WARNING, unsupported point code encountered (%d)\n", (*plta)[0].code);
+    return 0;
+@
+
+
+1.20
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@d48 1
+a48 1
+/* some os's (like OpenBSD) lack an INT32_MAX define. Cross fingers and hope 
+d67 1
+a67 1
+    
+d94 1
+a94 1
+    
+d107 1
+a107 1
+    
+d173 1
+a173 1
+	
+d199 1
+a199 1
+    
+d210 1
+a210 1
+	
+d215 2
+a216 2
+             * and the previous as convention.
+             */
+d354 1
+a354 1
+		printf("warning, process_group returned 0\n"); 
+d376 1
+a376 1
+	
+d413 1
+a413 1
+    } 
+@
+
+
+1.19
+log
+@update copyright to 2007
+@
+text
+@d8 2
+a9 3
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+d14 1
+a14 1
+ * General Public License for more details.
+d16 2
+a17 2
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+@
+
+
+1.18
+log
+@remove the usage if you're going to remove the decl
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 2004-2006 United States Government as represented by
+@
+
+
+1.17
+log
+@ws
+@
+text
+@a414 1
+    plt = &(*plta)[0]; /* use first for reference */
+@
+
+
+1.16
+log
+@remove unused variables, quell warnings
+@
+text
+@d407 2
+a408 1
+int process_group(point_line_t **plta, int count) {
+@
+
+
+1.15
+log
+@update copyright to 2006
+@
+text
+@d191 1
+a191 1
+    point_line_t average_plt;
+a194 1
+    int removed_counter = 0;
+d206 1
+a206 1
+    INITIALIZE_POINT_LINE_T(average_plt);
+a407 2
+    int i;
+    point_line_t *plt = NULL;
+@
+
+
+1.14
+log
+@OpenBSD lacks INT32_MAX, but provides INT_MAX which is (hopefully)
+equivelant. So we kluge^Wtest and set in the cpp.
+@
+text
+@d4 1
+a4 1
+ * Copyright (C) 2004-2005 United States Government as represented by
+@
+
+
+1.13
+log
+@rewrite of the multigroup process handler where jason found lots of nastiness and fixed it for me :)
+@
+text
+@d49 10
+@
+
+
+1.12
+log
+@off by one on the end marker
+@
+text
+@d49 1
+a49 1
+#define TOL 1.2
+d315 1
+a315 1
+	/* if this is the first point of a set, allocate and initialize */
+a319 1
+	    points++;
+a323 8
+	/* should only hit the else, but allocate room for the current point regardless */
+	if (!pltg) {
+	    pltg = (point_line_t *) bu_malloc(sizeof(point_line_t), "begin point_line_t subgroup");
+	} else {
+	    pltg = (point_line_t *) bu_realloc(pltg, sizeof(point_line_t) * (points + 1), "add subgroup point_line_t");
+	}
+	COPY_POINT_LINE_T(pltg[points], *plt);
+
+a330 1
+		points++;
+d334 2
+a335 2
+	    if (process_group(&pltg, marker+1)) {
+		bu_free((genptr_t)pltg, "end point_line_t subgroup");
+d340 1
+d346 1
+a346 1
+		/*		printf("warning, process_group returned 0\n"); */
+d357 1
+a357 1
+	    marker = points - 1;
+d361 1
+a361 1
+	    INITIALIZE_POINT_LINE_T(pltg[points]); /* poof */
+d364 9
+a373 1
+	points++;
+d375 1
+d380 1
+a380 1
+	if (process_group(&pltg, points)) {
+@
+
+
+1.11
+log
+@off by one error in the group processing, include the last point\!
+@
+text
+@a296 1
+    printf("COUNT Before %d\n", count);
+a297 1
+    printf("COUNT after %d\n", count);
+d344 1
+a344 1
+	    if (process_group(&pltg, points)) {
+d359 1
+@
+
+
+1.10
+log
+@yuck, delete points was returning the count deleted not the total remaining .. we need to know how many remain.  separate out the debug printing from the printing of the objects from the creation of the objects
+@
+text
+@d346 1
+a346 1
+	    if (process_group(&pltg, points - 1)) {
+d381 1
+a381 1
+	if (process_group(&pltg, points - 1)) {
+d444 7
+d548 1
+a548 1
+    bu_vls_printf(&vls2, "cylinder { %S }", &vls);
+d580 1
+a580 1
+    bu_vls_printf(&vls2, "cyl { %S }", &vls);
+d643 1
+a643 1
+    bu_vls_printf(&vls2, "sphere { %S }", &vls);
+@
+
+
+1.9
+log
+@fix an off-by-one in the 5+-point removal where the last point wasn't getting removed. condense points doesn't need tolerance. add some debug printing to verify condense_points.
+@
+text
+@d49 1
+a49 1
+#define TOL 2.0
+d51 1
+d53 1
+a53 1
+
+d167 4
+a170 2
+#if PRINT_SCRIPT
+    bu_log("Valid points left are %d, started with %d\n", valid_count, count);
+d216 1
+a216 1
+#if PRINT_SCRIPT
+d245 4
+a248 2
+#if PRINT_SCRIPT
+    bu_log("Found and removed %d invalid points\n", removed);
+d251 2
+d255 1
+d258 1
+a258 1
+    condense_points(plta, count);
+d260 1
+d263 1
+d265 1
+a265 1
+    return removed;
+d288 8
+d297 1
+d299 9
+d313 1
+a313 1
+	    printf("WARNING: Unexpected NULL encountered while processing a point array\n");
+d377 16
+d481 2
+a482 1
+#else
+d513 2
+a514 1
+#else
+d544 2
+a545 1
+#else
+d576 2
+a577 1
+#else
+d607 2
+a608 1
+#else
+d639 2
+a640 1
+#else
+d670 2
+a671 1
+#else
+@
+
+
+1.8
+log
+@add support for CYL and SPHERE lines, hook in to the callbacks
+@
+text
+@d54 17
+d142 1
+a142 1
+int condense_points(point_line_t **plta, int count, double tolerance) {
+d166 4
+a169 1
+    bu_log("valid points left are %d, deleted %d\n", valid_count, count - valid_count);
+a194 1
+
+d209 1
+a209 1
+		while (repeats > 0 && repeat_counter <= count) {
+d223 1
+a223 1
+		 * first non-null point and delete it aas well.
+d242 7
+d250 4
+a253 1
+    condense_points(plta, count, tolerance);
+d279 1
+a279 1
+    //    count = delete_points(plta, count, tolerance);
+d326 4
+a329 1
+		/*		printf("process_group returned 0\n");*/
+d335 2
+d368 2
+a369 12
+    /* count valid points and compress the array down */
+    for (i = 0; i < count; i++) {
+	plt = &(*plta)[i];
+
+	if (plt && plt->type) {
+	    if (valid_count != i) {
+		COPY_POINT_LINE_T((*plta)[valid_count], *plt);
+		INITIALIZE_POINT_LINE_T(*plt);
+	    }
+	    valid_count++;
+	}
+    }
+d386 4
+a413 19
+static int print_array(point_line_t **plta, int count) {
+    int i;
+    point_line_t *plt = NULL;
+    
+    printf("\tBEGIN %s GROUP\n", (*plta)[0].type);
+    for (i = 0; i < count; i++) {
+	plt = &(*plta)[i];
+	if (plt && plt->type) {
+	    printf("\t\t%s %d: (%f,%f,%f)\n", plt->type, plt->index, plt->val[X], plt->val[Y], plt->val[Z]);
+	} else {
+	    printf("\t\tBOGUS POINT FOUND??\n");
+	}
+    }
+    printf("\tEND %s GROUP\n", (*plta)[0].type);
+
+    return 1;
+}
+
+
+@
+
+
+1.7
+log
+@rename the create functions to have a create_ prefix (e.g. create_plate), add condense_points and delete_points for removing null points from a set and deleting detected 5-point replicates in the input (implying a need to delete the previous point).
+@
+text
+@d51 1
+a51 1
+#define PRINT_SCRIPT 0
+d149 1
+a174 1
+    INITIALIZE_POINT_LINE_T(*previous_plt);
+d194 1
+d196 1
+d250 1
+a250 1
+    count = delete_points(plta, count, tolerance);
+d252 1
+a252 1
+    /* condense triplicates and pass on to the group processing routine */
+d332 2
+d369 2
+d377 2
+d500 31
+d561 31
+@
+
+
+1.7.2.1
+log
+@file process.c was added on branch rel-7-6-branch on 2005-11-13 17:45:01 +0000
+@
+text
+@d1 561
+@
+
+
+1.7.2.2
+log
+@more merging changes from HEAD aka rel-7-6-4 to the rel-7-6-branch, adding the items that were moved and resolving rcs keyword conflicts
+@
+text
+@a0 561
+/*                       P R O C E S S . C
+ * BRL-CAD
+ *
+ * Copyright (C) 2004-2005 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+ * information.
+ *
+ */
+/** @@file process.c
+ *
+ * Data structures for the comma-separated value point file parser.
+ *
+ * Author -
+ *   Christopher Sean Morrison
+ */
+
+#include "common.h"
+
+/* interface header */
+#include "./process.h"
+
+#include <stdio.h>
+#ifdef HAVE_STDINT_H
+#  include <stdint.h>
+#else
+#  ifdef HAVE_INTTYPES_H
+#    include <inttypes.h>
+#  endif
+#endif
+
+#include "bu.h"
+#include "vmath.h"
+
+extern Tcl_Interp *twerp;
+
+#define TOL 2.0
+
+#define PRINT_SCRIPT 0
+
+
+void process_value(point_line_t *plt, double value)
+{
+    if (!plt) {
+	printf("WARNING: Unexpected call to process_value with a NULL point structure\n");
+	return;
+    }
+
+    if (plt->count > Z) {
+	printf("WARNING: Unexpected call to process_value with a full point structure\n");
+	return;
+    }
+
+    plt->val[plt->count++] = value;
+    
+    return;
+}
+
+void process_type(point_line_t *plt, const char *type, int code)
+{
+    if (!plt) {
+	printf("WARNING: Unexpected call to process_value with a NULL point structure\n");
+	return;
+    }
+
+    plt->type = type;
+    plt->code = code;;
+    
+    return;
+}
+
+void process_point(point_line_t *plt) {
+    static int code_state = INT32_MAX;
+    static int points = 0;
+    static point_line_t *plta = NULL;
+
+    if (!plt) {
+	printf("WARNING: Unexpected call to process_point with a NULL point structure\n");
+	return;
+    }
+
+    /* state change, we're either starting or ending */
+    if (code_state != plt->code) {
+	if (points > 0) {
+	    process_multi_group(&plta, points, TOL);
+	    printf("END OF BLOCK %d\n", code_state);
+
+	    /* finish up this batch */
+	    bu_free((genptr_t)plta, "end point_line_t group");
+	    plta = NULL;
+	}
+
+	if (plt->type) {
+	    printf("BEGIN OF BLOCK %s (%d)\n", plt->type, plt->code);
+	}
+
+	/* get ready for the new batch */
+	code_state = plt->code;
+	points = 0;
+    }
+
+    /* allocate room for the new point */
+    if (!plta) {
+	plta = (point_line_t *) bu_malloc(sizeof(point_line_t), "begin point_line_t group");
+    } else {
+	plta = (point_line_t *) bu_realloc(plta, sizeof(point_line_t) * (points + 1), "add point_line_t");
+    }
+    COPY_POINT_LINE_T(plta[points], *plt);
+    points++;
+}
+
+
+int condense_points(point_line_t **plta, int count, double tolerance) {
+    int i;
+    point_line_t *plt = NULL;
+    int valid_count = 0;
+
+    if (!plta) {
+	printf("WARNING: Unexpected call to delete_points with a NULL point array\n");
+	return 0;
+    }
+
+    for (i=0; i < count; i++) {
+	plt = &(*plta)[i];
+
+	if (plt && plt->type) {
+	    if (valid_count != i) {
+		COPY_POINT_LINE_T((*plta)[valid_count], *plt);
+		/* zap */
+		INITIALIZE_POINT_LINE_T(*plt);
+	    }
+	    valid_count++;
+	}
+	
+    }
+
+    return valid_count;
+}
+
+
+int delete_points(point_line_t **plta, int count, double tolerance) {
+    int i;
+    point_line_t *plt = NULL;
+    point_line_t *previous_plt = NULL;
+    point_line_t average_plt;
+    int repeats = 0;
+    int repeat_counter = 0;
+    int removed = 0;
+    int removed_counter = 0;
+
+    if (!plta) {
+	printf("WARNING: Unexpected call to delete_points with a NULL point array\n");
+	return 0;
+    }
+    
+    if (count < 6) {
+	printf("WARNING: Unexpected call to delete_points with insufficient points\n");
+	return 0;
+    }
+
+    INITIALIZE_POINT_LINE_T(average_plt);
+    INITIALIZE_POINT_LINE_T(*previous_plt);
+
+    previous_plt = &(*plta)[0];
+
+    for (i=1; i < count; i++) {
+	plt = &(*plta)[i];
+	
+	if (DIST_PT_PT(previous_plt->val, plt->val) < tolerance) {
+	    repeats++;
+	} else {
+	    /* not a repeat, so check if we need to remove the repeats
+             * and the previous as convention.
+             */
+	    if (repeats >= 4) {
+		/* 5+ repeated values in a row */
+		repeat_counter = 1;
+		while (repeats > 0 && repeat_counter <= count) {
+		    plt = &(*plta)[i-repeat_counter];
+		    if (plt && plt->type) {
+			/* zap */
+			bu_log("removed point: %d\n", plt->index);
+			INITIALIZE_POINT_LINE_T(*plt);
+			repeats--;
+		    }
+		    repeat_counter++;
+		}
+
+		/* we're not necessarily condensed, so search for the
+		 * first non-null point and delete it aas well.
+		 */
+		plt = &(*plta)[i-repeat_counter];
+		while (!plt || !plt->type) {
+		    repeat_counter--;
+		    plt = &(*plta)[i-repeat_counter];
+		}
+		/* zap */
+		bu_log("removed REAL point: %d\n", plt->index);
+		INITIALIZE_POINT_LINE_T(*plt);
+
+		removed++;
+	    }
+	    repeats = 0;
+	}
+
+	previous_plt = plt;
+    }
+
+    /* resort the list, put nulls at the end */
+    condense_points(plta, count, tolerance);
+
+    return removed;
+}
+
+
+/**
+ * handle a group of points of a particular type, with potentially
+ * multiple sets delimited by triplicate points.
+ */
+void process_multi_group(point_line_t **plta, int count, double tolerance) {
+    int i;
+    point_line_t *plt = NULL;
+
+    int points = 0;
+    point_line_t *pltg = NULL;
+
+    int marker = 0;
+    point_line_t *prev_plt = NULL;
+
+    if (!plta) {
+	printf("WARNING: Unexpected call to process_multi_group with a NULL point array\n");
+	return;
+    }
+
+    /* remove points marked as bogus, 5-identical points in succession */
+    count = delete_points(plta, count, tolerance);
+
+    /* condense triplicates and pass on to the group processing routine */
+    for (i = 0; i < count; i++) {
+	plt = &(*plta)[i];
+	if (!plt || !plt->type) {
+	    printf("WARNING: Unexpected NULL encountered while processing a point array\n");
+	    continue;
+	}
+
+	/* if this is the first point of a set, allocate and initialize */
+	if (!prev_plt) {
+	    prev_plt = &(*plta)[i];
+	    pltg = (point_line_t *) bu_malloc(sizeof(point_line_t), "begin point_line_t subgroup");
+	    COPY_POINT_LINE_T(*pltg, *prev_plt);
+	    points++;
+	    marker = 0;
+	    continue;
+	}
+
+	/* should only hit the else, but allocate room for the current point regardless */
+	if (!pltg) {
+	    pltg = (point_line_t *) bu_malloc(sizeof(point_line_t), "begin point_line_t subgroup");
+	} else {
+	    pltg = (point_line_t *) bu_realloc(pltg, sizeof(point_line_t) * (points + 1), "add subgroup point_line_t");
+	}
+	COPY_POINT_LINE_T(pltg[points], *plt);
+
+	if (marker) {
+	    /* gobble up repeats points used as a marker, average new point */
+	    if (DIST_PT_PT(prev_plt->val, plt->val) < tolerance) {
+		prev_plt->val[X] = (prev_plt->val[X] + plt->val[X]) / 2.0;
+		prev_plt->val[Y] = (prev_plt->val[Y] + plt->val[Y]) / 2.0;
+		prev_plt->val[Z] = (prev_plt->val[Z] + plt->val[Z]) / 2.0;
+		INITIALIZE_POINT_LINE_T(*plt); /* poof */
+		points++;
+		continue;
+	    }
+
+	    if (process_group(&pltg, points - 1)) {
+		bu_free((genptr_t)pltg, "end point_line_t subgroup");
+		pltg = NULL;
+		prev_plt = NULL;
+		points = 0;
+		marker = 0;
+		continue;
+	    } else {
+		/*		printf("process_group returned 0\n");*/
+	    }
+
+	    marker = 0;
+	}
+
+	if (DIST_PT_PT(prev_plt->val, plt->val) < tolerance) {
+	    /*	    printf("%d: CLOSE DISTANCE of %f\n", plt->index, DIST_PT_PT(prev_plt->val, plt->val));*/
+	    marker = points - 1;
+	    (pltg[marker]).val[X] = (prev_plt->val[X] + plt->val[X]) / 2.0;
+	    (pltg[marker]).val[Y] = (prev_plt->val[Y] + plt->val[Y]) / 2.0;
+	    (pltg[marker]).val[Z] = (prev_plt->val[Z] + plt->val[Z]) / 2.0;
+	    INITIALIZE_POINT_LINE_T(pltg[points]); /* poof */
+	}
+
+	prev_plt = plt;
+	points++;
+    }
+}
+
+
+/** wrapper func to validate the block of points being processed and to
+ * call the appropriate handler.
+ */
+int process_group(point_line_t **plta, int count) {
+    int i;
+    point_line_t *plt = NULL;
+    int valid_count = 0;
+
+    if (!plta) {
+	printf("WARNING: Unexpected call to process_multi_group with a NULL point array\n");
+	return 0;
+    } 
+    plt = &(*plta)[0]; /* use first for reference */
+
+    /* count valid points and compress the array down */
+    for (i = 0; i < count; i++) {
+	plt = &(*plta)[i];
+
+	if (plt && plt->type) {
+	    if (valid_count != i) {
+		COPY_POINT_LINE_T((*plta)[valid_count], *plt);
+		INITIALIZE_POINT_LINE_T(*plt);
+	    }
+	    valid_count++;
+	}
+    }
+
+    /* ignore insufficient counts */
+    if (valid_count <= 2) {
+	switch((*plta)[0].code) {
+	    case(PLATE): /* need at least 3 (triangle) */
+		/*		printf("IGNORING PLATE POINT DUPLICATE(S)\n"); */
+		return 0;
+	    case(ARB): /* need 8 */
+		/*		printf("IGNORING ARB POINT DUPLICATE(S)\n");*/
+		return 0;
+	    case(CYLINDER): /* need at least 3 (2 for length + diam) */
+		/* printf("IGNORING CYLINDER POINT DUPLICATE(S)\n"); */
+		return 0;
+	}
+    }
+
+    switch((*plta)[0].code) {
+	case(PLATE):
+	    return create_plate(plta, valid_count);
+	case(ARB):
+	    return create_arb(plta, valid_count);
+	case(CYLINDER):
+	    return create_cylinder(plta, valid_count);
+	case(POINTS):
+	    return create_points(plta, valid_count);
+	case(SYMMETRY):
+	    return create_points(plta, valid_count);
+	case(PIPE):
+	    return create_pipe(plta, valid_count);
+    }
+
+    printf("WARNING, unsupported point code encountered (%d)\n", (*plta)[0].code);
+    return 0;
+}
+
+
+static int print_array(point_line_t **plta, int count) {
+    int i;
+    point_line_t *plt = NULL;
+    
+    printf("\tBEGIN %s GROUP\n", (*plta)[0].type);
+    for (i = 0; i < count; i++) {
+	plt = &(*plta)[i];
+	if (plt && plt->type) {
+	    printf("\t\t%s %d: (%f,%f,%f)\n", plt->type, plt->index, plt->val[X], plt->val[Y], plt->val[Z]);
+	} else {
+	    printf("\t\tBOGUS POINT FOUND??\n");
+	}
+    }
+    printf("\tEND %s GROUP\n", (*plta)[0].type);
+
+    return 1;
+}
+
+
+/***
+ * process each of the individual creation types
+ ***/
+
+int create_plate(point_line_t **plta, int count) {
+    int i;
+    point_line_t *plt = NULL;
+
+    struct bu_vls vls;
+    struct bu_vls vls2;
+
+    bu_vls_init(&vls);
+    bu_vls_init(&vls2);
+
+    for (i = 0; i < count; i++) {
+	plt = &(*plta)[i];
+	if (plt && plt->type) {
+	    bu_vls_printf(&vls, "{ %f %f %f } ", plt->val[X], plt->val[Y], plt->val[Z]);
+	}
+    }
+    bu_vls_printf(&vls2, "plate { %S }", &vls);
+#if PRINT_SCRIPT
+    fprintf(stderr, "%s\n", bu_vls_addr(&vls2));
+#else
+    Tcl_Eval(twerp, bu_vls_addr(&vls2));
+    if (twerp->result[0] != '\0') {
+	bu_log("create_plate failure: %s\n", twerp->result);
+    } else {
+	bu_log("create_plate created\n");
+    }
+#endif
+
+    return 1;
+}
+
+int create_arb(point_line_t **plta, int count) {
+    int i;
+    point_line_t *plt = NULL;
+
+    struct bu_vls vls;
+    struct bu_vls vls2;
+
+    bu_vls_init(&vls);
+    bu_vls_init(&vls2);
+
+    for (i = 0; i < count; i++) {
+	plt = &(*plta)[i];
+	if (plt && plt->type) {
+	    bu_vls_printf(&vls, "{ %f %f %f } ", plt->val[X], plt->val[Y], plt->val[Z]);
+	}
+    }
+    bu_vls_printf(&vls2, "arb { %S }", &vls);
+#if PRINT_SCRIPT
+    fprintf(stderr, "%s\n", bu_vls_addr(&vls2));
+#else
+    Tcl_Eval(twerp, bu_vls_addr(&vls2));
+    if (twerp->result[0] != '\0') {
+	bu_log("create_arb failure: %s\n", twerp->result);
+    } else {
+	bu_log("create_arb created\n");
+    }
+#endif
+
+    return 1;
+}
+int create_cylinder(point_line_t **plta, int count) {
+    int i;
+    point_line_t *plt = NULL;
+
+    struct bu_vls vls;
+    struct bu_vls vls2;
+
+    bu_vls_init(&vls);
+    bu_vls_init(&vls2);
+
+    for (i = 0; i < count; i++) {
+	plt = &(*plta)[i];
+	if (plt && plt->type) {
+	    bu_vls_printf(&vls, "{ %f %f %f } ", plt->val[X], plt->val[Y], plt->val[Z]);
+	}
+    }
+    bu_vls_printf(&vls2, "cylinder { %S }", &vls);
+#if PRINT_SCRIPT
+    fprintf(stderr, "%s\n", bu_vls_addr(&vls2));
+#else
+    Tcl_Eval(twerp, bu_vls_addr(&vls2));
+    if (twerp->result[0] != '\0') {
+	bu_log("create_cylinder failure: %s\n", twerp->result);
+    } else {
+	bu_log("create_cylinder created\n");
+    }
+#endif
+
+    return 1;
+}
+int create_pipe(point_line_t **plta, int count) {
+    int i;
+    point_line_t *plt = NULL;
+
+    struct bu_vls vls;
+    struct bu_vls vls2;
+
+    bu_vls_init(&vls);
+    bu_vls_init(&vls2);
+
+    for (i = 0; i < count; i++) {
+	plt = &(*plta)[i];
+	if (plt && plt->type) {
+	    bu_vls_printf(&vls, "{ %f %f %f } ", plt->val[X], plt->val[Y], plt->val[Z]);
+	}
+    }
+    bu_vls_printf(&vls2, "pipe { %S }", &vls);
+#if PRINT_SCRIPT
+    fprintf(stderr, "%s\n", bu_vls_addr(&vls2));
+#else
+    Tcl_Eval(twerp, bu_vls_addr(&vls2));
+    if (twerp->result[0] != '\0') {
+	bu_log("create_pipe failure: %s\n", twerp->result);
+    } else {
+	bu_log("create_pipe created\n");
+    }
+#endif
+
+    return 1;
+}
+int create_points(point_line_t **plta, int count) {
+    int i;
+    point_line_t *plt = NULL;
+
+    struct bu_vls vls;
+    struct bu_vls vls2;
+
+    bu_vls_init(&vls);
+    bu_vls_init(&vls2);
+
+    for (i = 0; i < count; i++) {
+	plt = &(*plta)[i];
+	if (plt && plt->type) {
+	    bu_vls_printf(&vls, "{ %f %f %f } ", plt->val[X], plt->val[Y], plt->val[Z]);
+	}
+    }
+    bu_vls_printf(&vls2, "points { %S }", &vls);
+#if PRINT_SCRIPT
+    fprintf(stderr, "%s\n", bu_vls_addr(&vls2));
+#else
+    Tcl_Eval(twerp, bu_vls_addr(&vls2));
+    if (twerp->result[0] != '\0') {
+	bu_log("create_points failure: %s\n", twerp->result);
+    } else {
+	bu_log("create_points created\n");
+    }
+#endif
+
+    return 1;
+}
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+1.6
+log
+@do instead of say what we're doing
+@
+text
+@d124 108
+d247 4
+d258 1
+d268 1
+d288 1
+a288 1
+		bu_free((genptr_t)pltg, "end point_lint_t subgroup");
+d315 4
+d360 1
+a360 1
+	    return plate(plta, valid_count);
+d362 1
+a362 1
+	    return arb(plta, valid_count);
+d364 1
+a364 1
+	    return cylinder(plta, valid_count);
+d366 1
+a366 1
+	    return points(plta, valid_count);
+d368 1
+a368 1
+	    return points(plta, valid_count);
+d370 1
+a370 1
+	    return ppipe(plta, valid_count);
+d377 1
+d396 6
+a401 1
+int plate(point_line_t **plta, int count) {
+d423 1
+a423 1
+	bu_log("plate failure: %s\n", twerp->result);
+d425 1
+a425 1
+	bu_log("plate created\n");
+d432 1
+a432 1
+int arb(point_line_t **plta, int count) {
+d454 1
+a454 1
+	bu_log("arb failure: %s\n", twerp->result);
+d456 1
+a456 1
+	bu_log("arb created\n");
+d462 1
+a462 1
+int cylinder(point_line_t **plta, int count) {
+d484 1
+a484 1
+	bu_log("cylinder failure: %s\n", twerp->result);
+d486 1
+a486 1
+	bu_log("cylinder created\n");
+d492 1
+a492 1
+int ppipe(point_line_t **plta, int count) {
+d514 1
+a514 1
+	bu_log("pipe failure: %s\n", twerp->result);
+d516 1
+a516 1
+	bu_log("pipe created\n");
+d522 1
+a522 1
+int points(point_line_t **plta, int count) {
+d544 1
+a544 1
+	bu_log("points failure: %s\n", twerp->result);
+d546 1
+a546 1
+	bu_log("points created\n");
+@
+
+
+1.5
+log
+@make it easier to toggle between printing and doing
+@
+text
+@d51 1
+a51 1
+#define PRINT_SCRIPT 1
+@
+
+
+1.4
+log
+@accomodate irix's lack of c99 compliance
+@
+text
+@d51 3
+d294 3
+a296 1
+#if 0
+a302 2
+#else
+    fprintf(stderr, "%s\n", bu_vls_addr(&vls2));
+d325 3
+a327 1
+#if 0
+a333 2
+#else
+    fprintf(stderr, "%s\n", bu_vls_addr(&vls2));
+d355 3
+a357 1
+#if 0
+a363 2
+#else
+    fprintf(stderr, "%s\n", bu_vls_addr(&vls2));
+d385 3
+a387 1
+#if 0
+a393 2
+#else
+    fprintf(stderr, "%s\n", bu_vls_addr(&vls2));
+d415 3
+a417 1
+#if 0
+a423 2
+#else
+    fprintf(stderr, "%s\n", bu_vls_addr(&vls2));
+@
+
+
+1.3
+log
+@check for stdint.h and inttypes.h (irix doesn't have stdint.h)
+@
+text
+@d279 2
+a281 1
+    struct bu_vls vls2;
+d310 2
+a312 1
+    struct bu_vls vls2;
+d340 2
+a342 1
+    struct bu_vls vls2;
+d370 2
+a372 1
+    struct bu_vls vls2;
+d400 2
+a402 1
+    struct bu_vls vls2;
+@
+
+
+1.2
+log
+@remove C++-style // comments as there's no assumption of c99 compiler compliance yet, only c89 (mostly aix compiler though other old compilers too)
+@
+text
+@d36 7
+a42 1
+#include <stdint.h>
+@
+
+
+1.1
+log
+@initial files for a points file parser that reads them all in and processes groups of them at a time based on recognized line labels.  data collected in a requisite order may then be automatically turned into geometry using a tclscript helper code.
+@
+text
+@a276 2
+    //    print_array(plta, count);
+
+a306 2
+    //    print_array(plta, count);
+
+a335 2
+    //    print_array(plta, count);
+
+a364 2
+    //    print_array(plta, count);
+
+a393 2
+    //    print_array(plta, count);
+
+@
+

@@ -1,0 +1,579 @@
+head	11.7;
+access;
+symbols
+	ansi-20040405-merged:11.4.2.1
+	postmerge-20040405-ansi:11.5
+	premerge-20040404-ansi:11.4
+	postmerge-autoconf:11.4
+	autoconf-freeze:11.4
+	premerge-autoconf:11.4
+	postmerge-20040315-windows:11.4
+	premerge-20040315-windows:11.4
+	windows-20040315-freeze:11.4
+	autoconf-20031203:11.4
+	autoconf-20031202:11.4
+	autoconf-branch:11.4.0.10
+	phong-branch:11.4.0.8
+	photonmap-branch:11.4.0.6
+	rel-6-1-DP:11.4
+	windows-branch:11.4.0.4
+	rel-6-0-2:11.2
+	ansi-branch:11.4.0.2
+	rel-6-0-1-branch:11.2.0.2
+	hartley-6-0-post:11.3
+	hartley-6-0-pre:11.2
+	rel-6-0-1:11.2
+	rel-6-0:11.2
+	rel-5-4:11.1
+	offsite-5-3-pre:11.2
+	rel-5-3:11.1
+	rel-5-2:11.1
+	rel-5-1-branch:11.1.0.2
+	rel-5-1:11.1
+	rel-5-0:11.1
+	rel-5-0-beta:11.1
+	rel-4-5:11.1
+	ctj-4-5-post:11.1
+	ctj-4-5-pre:11.1
+	rel-4-4:11.1
+	rel-4-0:10.1;
+locks; strict;
+comment	@ * @;
+
+
+11.7
+date	2004.05.21.16.39.02;	author morrison;	state dead;
+branches;
+next	11.6;
+
+11.6
+date	2004.05.10.15.30.50;	author erikg;	state Exp;
+branches;
+next	11.5;
+
+11.5
+date	2004.04.05.05.46.01;	author morrison;	state Exp;
+branches;
+next	11.4;
+
+11.4
+date	2002.08.20.17.08.51;	author jra;	state Exp;
+branches
+	11.4.2.1;
+next	11.3;
+
+11.3
+date	2002.08.15.20.56.03;	author hartley;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	2000.08.24.22.49.57;	author mike;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	95.01.04.10.21.38;	author mike;	state Rel4_4;
+branches;
+next	10.2;
+
+10.2
+date	94.08.11.20.09.27;	author gdurf;	state Exp;
+branches;
+next	10.1;
+
+10.1
+date	91.10.12.06.53.12;	author mike;	state Rel4_0;
+branches;
+next	1.1;
+
+1.1
+date	91.01.03.20.45.43;	author butler;	state Exp;
+branches;
+next	;
+
+11.4.2.1
+date	2002.09.19.18.02.31;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@dist
+@
+
+
+11.7
+log
+@moved to src/tools/
+@
+text
+@/* 
+ * unslice.c - Build a finished frame from a series of slices
+ * 
+ * Author:	John W. Peterson
+ * 		Computer Science Dept.
+ * 		University of Utah
+ * Date:	Tue May 19 1987
+ * Copyright (c) 1987, University of Utah
+ *
+ * Lots of this code is swiped from comp.c
+ */
+
+/*
+ * The "control file" is a text file with two numbers per line, each
+ * line giving the starting and ending lines (inclusive) that are to
+ * be taken from each input file to the output file.  This allows
+ * potentially ragged portions of slices to be cropped away.
+ *
+ * If no control file is given, then the extents given in the slices' headers
+ * are used.  If two files overlap, the first lines from the second file
+ * are thrown away.  The maximum y of the image must be specified this way.
+ */
+
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+
+#include <stdio.h>
+
+#include "machine.h"
+#include "externs.h"		/* For malloc and free */
+#include "rle.h"
+#include "rle_code.h"
+#include "rle_raw.h"
+
+void do_slice(int num, char *filename);
+void copy_scanline(int ypos, int copy_flag);
+
+rle_hdr in_hdr;
+rle_hdr out_hdr;
+
+/* 
+ * Global raw data structures for copy_scanline.
+ */
+rle_op ** out_raw;
+int * out_nraw;
+
+int max_y = 0;			/* Maximum Y value */
+int num_skip = 0;		/* Counter for keeping track of raw lines */
+
+int ctlflag = 0;		/* If true then we are using a ctl file */
+int ctl_lines;			/* Number of lines in control file */
+int *start_line,
+    *stop_line;			/* Start and ending lines for the slices */
+
+char default_ctl_file[] = "unslice.ctl";
+char *progname;
+char **gargv;
+
+int
+main(int argc, char **argv)
+{
+    int nfiles, i;
+    char **slicefiles;
+    FILE *ctlfile;
+    int y_flag, oflag = 0;
+
+    char * ctlfilename = NULL, * out_fname = NULL;
+
+    progname = cmd_name( argv );
+    gargv = argv;
+
+    if (! scanargs(argc, argv,
+		   "% y%-ymax!d f%-ctlfile!s files!*s o%-outfile!s",
+		   &y_flag, &max_y,
+		   &ctlflag, &ctlfilename, &nfiles, &slicefiles,
+                   &oflag, &out_fname ))
+	exit(1);
+
+    /* Open the output file */
+    out_hdr.rle_file = rle_open_f(progname, out_fname, "w");
+
+    if (! (start_line = (int *) malloc( nfiles * sizeof(int) )))
+    {
+    	fprintf(stderr, "%s: memory allocation failed.\n", progname);
+    	exit(-1);
+    }
+    if (! (stop_line = (int *) malloc( nfiles * sizeof(int) )))
+    {
+    	fprintf(stderr, "%s: memory allocation failed.\n", progname);
+    	exit(-1);
+    }
+
+    if (ctlflag)		/* Read in and verify the control file */
+    {
+	if (! ctlfilename)
+	    ctlfilename = default_ctl_file;
+
+	/* Read in the control file */
+
+	ctlfile = rle_open_f( progname, ctlfilename, "r" );
+
+	ctl_lines = 0;
+	while (! feof( ctlfile ))
+	{
+	    fscanf( ctlfile, "%d %d",
+		   &(start_line[ctl_lines]), &(stop_line[ctl_lines]) );
+
+	    if (start_line[ctl_lines] >= stop_line[ctl_lines])
+		fprintf( stderr, "%s: ctl file garbled? (start %d, stop %d)\n",
+			 progname,
+			 start_line[ctl_lines], stop_line[ctl_lines] );
+	    ctl_lines++;
+	}
+	ctl_lines--;
+
+	if (ctl_lines > nfiles)
+	    fprintf(stderr,
+		    "%s: Warning: not enough slices for ctl file\n", progname);
+	if (ctl_lines < nfiles)
+	    fprintf(stderr,
+		    "%s: Warning: too many slices for ctl file\n", progname);
+
+    }
+    else
+	if (! max_y)
+	{
+	    fprintf(stderr,
+		    "%s: max y (-y ymax) must be given if no ctl file used\n",
+		    progname);
+	    exit(-1);
+	}
+
+    /* Process the slices */
+
+    for (i = 0; i < nfiles; i++)
+	do_slice( i, slicefiles[i] );
+
+    rle_puteof( &out_hdr );
+
+    exit( 0 );
+}
+
+/*****************************************************************
+ * TAG( do_slice )
+ * 
+ * Read one slice from the given file and write it to the output.
+ * Also generate the output header if it's the first file.
+ */
+void
+do_slice(int num, char *filename)
+{
+    register int y;
+    static int current_y = 0;
+
+    in_hdr.rle_file = rle_open_f(progname, filename, "r");
+    
+    /*
+     * Many sanity checks.  Code must be 3am-proof!
+     */
+
+    rle_get_setup_ok( &in_hdr, progname, filename );
+    
+    if (ctlflag &&
+       ((start_line[num] > in_hdr.ymax) ||
+	(stop_line[num] < in_hdr.ymin)))
+    {
+	fprintf(stderr, "%s: %s is out of slice range (%d %d)\n",
+		progname, filename, start_line[num], stop_line[num]);
+	exit(-1);
+    }
+
+    /* 
+     * If this is the first slice, generate the output header.
+     */
+    
+    if (num == 0)
+    {
+	FILE *f = out_hdr.rle_file;
+
+	out_hdr = in_hdr;
+	out_hdr.rle_file = f;
+	rle_addhist( gargv, (rle_hdr *)0, &out_hdr );
+
+	if (ctlflag)
+	{
+	    out_hdr.ymin = start_line[0];
+	    out_hdr.ymax = stop_line[ctl_lines-1];
+	}
+	else
+	{
+	    out_hdr.ymin = in_hdr.ymin;
+	    out_hdr.ymax = max_y;
+	}
+	current_y = out_hdr.ymin;
+	rle_put_setup( &out_hdr );
+
+	if (rle_raw_alloc( &out_hdr, &out_raw, &out_nraw ))
+	{
+	    fprintf(stderr,"%s: not enough heap\n", progname);
+	    exit(-1);
+	}
+    }
+
+    if ((! ctlflag) && (in_hdr.ymax < current_y))
+    {
+	fprintf(stderr,
+	       "%s: warning: slice %s completely ignored (wrong order?)\n",
+		progname, filename);
+ 	fclose( in_hdr.rle_file );
+	return;
+    }
+
+    /*
+     * Copy the file to the output.
+     */
+    num_skip = 0;
+
+    if (ctlflag)
+    {
+	for (y = in_hdr.ymin; y <= in_hdr.ymax; y++ )
+	    if ((y >= start_line[num]) && (y <= stop_line[num]))
+		copy_scanline( y, 1 );
+	    else
+		copy_scanline( y, 0 ); /* Data out of range, just toss it. */
+    }
+    else
+    {
+	for (y = in_hdr.ymin; y <= in_hdr.ymax; y++ )
+	    if (y >= current_y)
+		copy_scanline( y, 1 );
+	    else
+		copy_scanline( y, 0 );
+
+	current_y = in_hdr.ymax + 1;
+    }
+
+    fclose( in_hdr.rle_file );
+}
+
+/*
+ * The "skip counter" is stolen from comp.  It works like this:
+ * if num_skip == 0, then we read the next line normally.  If it's
+ * positive, then it tells us how many blank lines before the
+ * next available real data.  If it's -1, then it means that the
+ * output raw data should be used before calling rle_getraw again.
+ */
+
+/*****************************************************************
+ * TAG( copy_scanline )
+ * 
+ * Copy the scanlines using the raw format, if the copy_flag is on.  If
+ * copy_flag is false, scanlines are just eaten away from the input file.
+ */
+void
+copy_scanline(int ypos, int copy_flag)
+         
+              			/* If true, write the output */
+{
+
+ SKIP_ROW:
+
+    if (num_skip > 0)		/* Must skip blank rows */
+    {
+	if (copy_flag)
+	    rle_skiprow( &out_hdr, 1 );
+	num_skip--;
+	if (num_skip == 0)
+	    num_skip = -1;	/* Flag raw data available */
+	return;
+    }
+
+    if (num_skip == 0)		/* ...Must read new data */
+	num_skip = rle_getraw( &in_hdr, out_raw, out_nraw );
+    else
+	num_skip = ypos;	/* num_skip < 0, data was already there */
+
+    if (num_skip == 32768)	/* Hit the EOF */
+    {
+	if (copy_flag)
+	    rle_skiprow( &out_hdr, 1 );
+	return;
+    }
+
+    num_skip -= ypos;		/* Find how many blank lines left */
+
+    if (num_skip > 0)
+	goto SKIP_ROW;
+
+    if (copy_flag)
+	rle_putraw( out_raw, out_nraw, &out_hdr );
+    rle_freeraw( &out_hdr, out_raw, out_nraw );
+}
+@
+
+
+11.6
+log
+@change conf.h to a wrapped config.h
+@
+text
+@@
+
+
+11.5
+log
+@merge of ansi-6-0-branch into head
+@
+text
+@d24 5
+a28 1
+#include "conf.h"
+@
+
+
+11.4
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d34 2
+a35 1
+void do_slice(), copy_scanline();
+d37 2
+a38 1
+rle_hdr in_hdr, out_hdr;
+d59 1
+a59 3
+main(argc, argv)
+int argc;
+char **argv;
+d149 1
+a149 3
+do_slice( num, filename )
+int num;
+char *filename;
+d254 3
+a256 3
+copy_scanline( ypos, copy_flag )
+int ypos;
+int copy_flag;			/* If true, write the output */
+@
+
+
+11.4.2.1
+log
+@Initial ANSIfication
+@
+text
+@d34 1
+a34 1
+void do_slice(int num, char *filename), copy_scanline(int ypos, int copy_flag);
+d57 3
+a59 1
+main(int argc, char **argv)
+d149 3
+a151 1
+do_slice(int num, char *filename)
+d256 3
+a258 3
+copy_scanline(int ypos, int copy_flag)
+         
+              			/* If true, write the output */
+@
+
+
+11.3
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d34 1
+a34 1
+void do_slice(int num, char *filename), copy_scanline(int ypos, int copy_flag);
+d57 3
+a59 1
+main(int argc, char **argv)
+d149 3
+a151 1
+do_slice(int num, char *filename)
+d256 3
+a258 3
+copy_scanline(int ypos, int copy_flag)
+         
+              			/* If true, write the output */
+@
+
+
+11.2
+log
+@
+lint
+@
+text
+@d34 1
+a34 1
+void do_slice(), copy_scanline();
+d57 1
+a57 3
+main(argc, argv)
+int argc;
+char **argv;
+d147 1
+a147 3
+do_slice( num, filename )
+int num;
+char *filename;
+d252 3
+a254 3
+copy_scanline( ypos, copy_flag )
+int ypos;
+int copy_flag;			/* If true, write the output */
+@
+
+
+11.1
+log
+@Release_4.4
+@
+text
+@d56 2
+a57 2
+void
+main (argc, argv)
+@
+
+
+10.2
+log
+@Altered #defines and #includes to conform to BRL-CAD standards
+@
+text
+@@
+
+
+10.1
+log
+@Release_4.0
+@
+text
+@d24 2
+a26 13
+#include <rle.h>
+#include <rle_raw.h>
+
+#ifdef USE_STDLIB_H
+#include <stdlib.h>
+#else
+
+#ifdef VOID_STAR
+extern void *malloc();
+#else
+extern char *malloc();
+#endif
+extern void free();
+d28 5
+a32 1
+#endif /* USE_STDLIB_H */
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@@

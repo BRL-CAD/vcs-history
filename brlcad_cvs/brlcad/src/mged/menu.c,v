@@ -1,0 +1,715 @@
+head	14.9;
+access;
+symbols
+	rel-7-10-4:14.9
+	STABLE:14.9.0.2
+	stable-branch:14.3
+	rel-7-10-2:14.9
+	rel-7-10-0:14.9
+	rel-7-8-4:14.6
+	rel-7-8-2:14.6
+	rel-7-8-0:14.6
+	trimnurbs-branch:14.6.0.2
+	help:14.6
+	temp_tag:14.5
+	bobWinPort-20051223-freeze:14.3
+	postmerge-20051223-bobWinPort:14.5
+	premerge-20051223-bobWinPort:14.5
+	rel-7-6-6:14.5
+	rel-7-6-4:14.5
+	rel-7-6-2:14.3
+	rel-7-6-branch:14.3.0.6
+	rel-7-6-0:14.3
+	rel-7-4-2:14.3
+	rel-7-4-branch:14.3.0.4
+	bobWinPort:14.3.0.2
+	rel-7-4-0:14.3
+	rel-7-2-6:14.3
+	rel-7-2-4:14.3
+	rel-7-2-2:14.3
+	rel-7-2-0:14.3
+	rel-7-0-4:14.2
+	rel-7-0-2:14.2
+	rel-7-0-1:14.2
+	opensource-post:14.2
+	opensource-pre:1.3
+	rel-7-0-branch:1.3.0.2
+	rel-7-0:1.3;
+locks; strict;
+comment	@ * @;
+
+
+14.9
+date	2007.01.27.01.41.43;	author brlcad;	state Exp;
+branches;
+next	14.8;
+
+14.8
+date	2007.01.23.01.13.42;	author brlcad;	state Exp;
+branches;
+next	14.7;
+
+14.7
+date	2007.01.20.14.36.57;	author brlcad;	state Exp;
+branches;
+next	14.6;
+
+14.6
+date	2006.01.18.06.46.19;	author brlcad;	state Exp;
+branches;
+next	14.5;
+
+14.5
+date	2005.10.23.04.44.37;	author brlcad;	state Exp;
+branches;
+next	14.4;
+
+14.4
+date	2005.09.16.18.51.53;	author brlcad;	state Exp;
+branches;
+next	14.3;
+
+14.3
+date	2005.01.30.20.31.06;	author brlcad;	state Exp;
+branches
+	14.3.6.1;
+next	14.2;
+
+14.2
+date	2004.12.21.04.17.27;	author butler;	state Exp;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.17;	author morrison;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2004.08.02.23.01.51;	author morrison;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2004.06.08.22.04.28;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.15.20.25;	author morrison;	state Exp;
+branches;
+next	;
+
+14.3.6.1
+date	2005.11.13.13.46.18;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.9
+log
+@ws. lots and lots of ws.  see sh/ws.sh for details (cases 'abcdeg').
+@
+text
+@/*                          M E N U . C
+ * BRL-CAD
+ *
+ * Copyright (c) 1985-2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@file menu.c
+ *
+ * Functions -
+ *	mmenu_init		Clear global menu data
+ *	mmenu_display		Add a list of items to the display list
+ *	mmenu_select		Called by usepen() for menu pointing
+ *	mmenu_pntr		Reset the pointer to a menu item
+ *
+ * Authors -
+ *	Bob Suckling
+ *	Michael John Muuss
+ *
+ *  Source -
+ *	SECAD/VLD Computing Consortium, Bldg 394
+ *	The U. S. Army Ballistic Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005
+ */
+#ifndef lint
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/mged/menu.c,v 14.8 2007/01/23 01:13:42 brlcad Exp $ (BRL)";
+#endif
+
+#include "common.h"
+
+#include "tcl.h"
+
+#include <stdio.h>
+#include "machine.h"
+#include "bu.h"
+#include "vmath.h"
+#include "raytrace.h"
+#include "./ged.h"
+#include "./titles.h"
+#include "./mged_dm.h"
+
+
+extern struct menu_item second_menu[], sed_menu[];
+
+void set_menucurrent();
+int set_arrowloc();
+
+int
+cmd_mmenu_get(ClientData clientData, Tcl_Interp *interp, int argc, char **argv)
+{
+    int index;
+
+    if (argc > 2) {
+	struct bu_vls vls;
+
+	bu_vls_init(&vls);
+	bu_vls_printf(&vls, "helpdevel mmenu_get");
+	Tcl_Eval(interp, bu_vls_addr(&vls));
+	bu_vls_free(&vls);
+	return TCL_ERROR;
+    }
+
+    if (argc == 2) {
+	register struct menu_item **m, *mptr;
+
+	if (Tcl_GetInt(interp, argv[1], &index) != TCL_OK)
+	    return TCL_ERROR;
+
+	if (index < 0 || NMENU <= index) {
+	    Tcl_AppendResult(interp, "index out of range", (char *)NULL);
+	    return TCL_ERROR;
+	}
+
+	m = menu_state->ms_menus+index;
+	if (*m == MENU_NULL)
+	    return TCL_OK;
+
+	for (mptr = *m; mptr->menu_string[0] != '\0'; mptr++)
+	    Tcl_AppendElement(interp, mptr->menu_string);
+    } else {
+	register struct menu_item **m;
+	struct bu_vls result;
+	int status;
+
+	bu_vls_init(&result);
+	bu_vls_strcat(&result, "list");
+	for (m = menu_state->ms_menus; m - menu_state->ms_menus < NMENU; m++)
+	    bu_vls_printf(&result, " [%s %d]", argv[0], m-menu_state->ms_menus);
+
+	status = Tcl_Eval(interp, bu_vls_addr(&result));
+	bu_vls_free(&result);
+
+	return status;
+    }
+
+    return TCL_OK;
+}
+
+
+/*
+ *			M M E N U _ I N I T
+ *
+ * Clear global data
+ */
+void
+mmenu_init(void)
+{
+	menu_state->ms_flag = 0;
+	menu_state->ms_menus[MENU_L1] = MENU_NULL;
+	menu_state->ms_menus[MENU_L2] = MENU_NULL;
+	menu_state->ms_menus[MENU_GEN] = MENU_NULL;
+#if 0
+	(void)Tcl_CreateCommand(interp, "mmenu_set", cmd_nop, (ClientData)NULL,
+				(Tcl_CmdDeleteProc *)NULL);
+	(void)Tcl_CreateCommand(interp, "mmenu_get", cmd_mmenu_get,
+				(ClientData)NULL, (Tcl_CmdDeleteProc *)NULL);
+#endif
+}
+
+
+/*
+ *			M M E N U _ S E T
+ */
+
+void
+mmenu_set(int index, struct menu_item *value)
+{
+    struct dm_list *dlp;
+
+    Tcl_DString ds_menu;
+    struct bu_vls menu_string;
+
+    menu_state->ms_menus[index] = value;  /* Change the menu internally */
+
+    bu_vls_init(&menu_string);
+    Tcl_DStringInit(&ds_menu);
+
+    bu_vls_printf(&menu_string, "mmenu_set %S %d ", &curr_cmd_list->cl_name, index);
+
+    (void)Tcl_Eval(interp, bu_vls_addr(&menu_string));
+
+    Tcl_DStringFree(&ds_menu);
+    bu_vls_free(&menu_string);
+
+    FOR_ALL_DISPLAYS(dlp, &head_dm_list.l){
+      if(menu_state == dlp->dml_menu_state &&
+	 dlp->dml_mged_variables->mv_faceplate &&
+	 dlp->dml_mged_variables->mv_orig_gui)
+	dlp->dml_dirty = 1;
+    }
+}
+
+void
+mmenu_set_all(int index, struct menu_item *value)
+{
+  struct dm_list *p;
+  struct cmd_list *save_cmd_list;
+  struct dm_list *save_dm_list;
+
+  save_cmd_list = curr_cmd_list;
+  save_dm_list = curr_dm_list;
+  FOR_ALL_DISPLAYS(p, &head_dm_list.l){
+    if(p->dml_tie)
+      curr_cmd_list = p->dml_tie;
+
+    curr_dm_list = p;
+    mmenu_set( index, value );
+  }
+
+  curr_cmd_list = save_cmd_list;
+  curr_dm_list = save_dm_list;
+}
+
+void
+mged_highlight_menu_item(struct menu_item *mptr, int y)
+{
+  switch(mptr->menu_arg){
+  case BV_RATE_TOGGLE:
+    if(mged_variables->mv_rateknobs){
+      DM_SET_FGCOLOR(dmp,
+		     color_scheme->cs_menu_text1[0],
+		     color_scheme->cs_menu_text1[1],
+		     color_scheme->cs_menu_text1[2], 1, 1.0);
+      DM_DRAW_STRING_2D(dmp, "Rate",
+			GED2PM1(MENUX), GED2PM1(y-15), 0, 0);
+      DM_SET_FGCOLOR(dmp,
+		     color_scheme->cs_menu_text2[0],
+		     color_scheme->cs_menu_text2[1],
+		     color_scheme->cs_menu_text2[2], 1, 1.0);
+      DM_DRAW_STRING_2D(dmp, "/Abs",
+			GED2PM1(MENUX+4*40), GED2PM1(y-15), 0, 0);
+    }else{
+      DM_SET_FGCOLOR(dmp,
+		     color_scheme->cs_menu_text2[0],
+		     color_scheme->cs_menu_text2[1],
+		     color_scheme->cs_menu_text2[2], 1, 1.0);
+      DM_DRAW_STRING_2D(dmp, "Rate/",
+			GED2PM1(MENUX), GED2PM1(y-15), 0, 0);
+      DM_SET_FGCOLOR(dmp,
+		     color_scheme->cs_menu_text1[0],
+		     color_scheme->cs_menu_text1[1],
+		     color_scheme->cs_menu_text1[2], 1, 1.0);
+      DM_DRAW_STRING_2D(dmp, "Abs",
+			GED2PM1(MENUX+5*40), GED2PM1(y-15), 0, 0);
+    }
+    break;
+  default:
+    break;
+  }
+}
+
+/*
+ *			M M E N U _ D I S P L A Y
+ *
+ *  Draw one or more menus onto the display.
+ *  If "menu_state->ms_flag" is non-zero, then the last selected
+ *  menu item will be indicated with an arrow.
+ */
+void
+mmenu_display(int y_top)
+{
+  static int menu, item;
+  register struct menu_item	**m;
+  register struct menu_item	*mptr;
+  register int y = y_top;
+
+  menu_state->ms_top = y - MENU_DY / 2;
+  DM_SET_FGCOLOR(dmp,
+		 color_scheme->cs_menu_line[0],
+		 color_scheme->cs_menu_line[1],
+		 color_scheme->cs_menu_line[2], 1, 1.0);
+#if 1
+  DM_SET_LINE_ATTR(dmp, mged_variables->mv_linewidth, 0);
+#else
+  DM_SET_LINE_ATTR(dmp, 1, 0);
+#endif
+  DM_DRAW_LINE_2D(dmp,
+		  GED2PM1(MENUXLIM), GED2PM1(menu_state->ms_top),
+		  GED2PM1(XMIN), GED2PM1(menu_state->ms_top));
+
+  for( menu=0, m = menu_state->ms_menus; m - menu_state->ms_menus < NMENU; m++,menu++ )  {
+    if( *m == MENU_NULL )  continue;
+    for( item=0, mptr = *m;
+	 mptr->menu_string[0] != '\0' && y > TITLE_YBASE;
+	 mptr++, y += MENU_DY, item++ )  {
+#if 0
+      if((*m == (struct menu_item *)second_menu && (mptr->menu_arg == BV_RATE_TOGGLE ||
+				  mptr->menu_arg == BV_EDIT_TOGGLE))
+	  || (*m == (struct menu_item *)sed_menu && mptr->menu_arg == BE_S_CONTEXT))
+#else
+      if((*m == (struct menu_item *)second_menu &&
+	  (mptr->menu_arg == BV_RATE_TOGGLE ||
+	   mptr->menu_arg == BV_EDIT_TOGGLE ||
+	   mptr->menu_arg == BV_EYEROT_TOGGLE)))
+#endif
+	mged_highlight_menu_item(mptr, y);
+      else{
+	if(mptr == *m)
+	  DM_SET_FGCOLOR(dmp,
+			 color_scheme->cs_menu_title[0],
+			 color_scheme->cs_menu_title[1],
+			 color_scheme->cs_menu_title[2], 1, 1.0);
+	else
+	  DM_SET_FGCOLOR(dmp,
+			 color_scheme->cs_menu_text2[0],
+			 color_scheme->cs_menu_text2[1],
+			 color_scheme->cs_menu_text2[2], 1, 1.0);
+	DM_DRAW_STRING_2D(dmp, mptr->menu_string,
+			  GED2PM1(MENUX), GED2PM1(y-15), 0, 0);
+      }
+      DM_SET_FGCOLOR(dmp,
+		     color_scheme->cs_menu_line[0],
+		     color_scheme->cs_menu_line[1],
+		     color_scheme->cs_menu_line[2], 1, 1.0);
+      DM_DRAW_LINE_2D(dmp,
+		      GED2PM1(MENUXLIM), GED2PM1(y+(MENU_DY/2)),
+		      GED2PM1(XMIN), GED2PM1(y+(MENU_DY/2)));
+      if( menu_state->ms_cur_item == item && menu_state->ms_cur_menu == menu && menu_state->ms_flag )  {
+	/* prefix item selected with "==>" */
+	DM_SET_FGCOLOR(dmp,
+		       color_scheme->cs_menu_arrow[0],
+		       color_scheme->cs_menu_arrow[1],
+		       color_scheme->cs_menu_arrow[2], 1, 1.0);
+	DM_DRAW_STRING_2D(dmp, "==>",
+			  GED2PM1(XMIN), GED2PM1(y-15), 0, 0);
+      }
+    }
+  }
+
+  if( y == y_top )
+    return;	/* no active menus */
+
+  DM_SET_FGCOLOR(dmp,
+		 color_scheme->cs_menu_line[0],
+		 color_scheme->cs_menu_line[1],
+		 color_scheme->cs_menu_line[2], 1, 1.0);
+#if 1
+  DM_SET_LINE_ATTR(dmp, mged_variables->mv_linewidth, 0);
+#else
+  DM_SET_LINE_ATTR(dmp, 1, 0);
+#endif
+  DM_DRAW_LINE_2D( dmp,
+		   GED2PM1(MENUXLIM), GED2PM1(menu_state->ms_top-1),
+		   GED2PM1(MENUXLIM), GED2PM1(y-(MENU_DY/2)) );
+}
+
+/*
+ *			M M E N U _ S E L E C T
+ *
+ *  Called with Y coordinate of pen in menu area.
+ *
+ * Returns:	1 if menu claims these pen co-ordinates,
+ *		0 if pen is BELOW menu
+ *		-1 if pen is ABOVE menu	(error)
+ */
+int
+mmenu_select( int pen_y, int do_func )
+{
+	static int menu, item;
+	struct menu_item	**m;
+	register struct menu_item	*mptr;
+	register int			yy;
+
+	if( pen_y > menu_state->ms_top )
+		return(-1);	/* pen above menu area */
+
+	/*
+	 * Start at the top of the list and see if the pen is
+	 * above here.
+	 */
+	yy = menu_state->ms_top;
+
+	for( menu=0, m=menu_state->ms_menus; m - menu_state->ms_menus < NMENU; m++,menu++ )  {
+		if( *m == MENU_NULL )  continue;
+		for( item=0, mptr = *m;
+		     mptr->menu_string[0] != '\0';
+		     mptr++, item++ )  {
+			yy += MENU_DY;
+			if( pen_y <= yy )
+				continue;	/* pen is below this item */
+			menu_state->ms_cur_item = item;
+			menu_state->ms_cur_menu = menu;
+			menu_state->ms_flag = 1;
+			/* It's up to the menu_func to set menu_state->ms_flag=0
+			 * if no arrow is desired */
+			if( do_func && mptr->menu_func != ((void (*)())0) )
+				(*(mptr->menu_func))(mptr->menu_arg, menu, item);
+
+			return( 1 );		/* menu claims pen value */
+		}
+	}
+	return( 0 );		/* pen below menu area */
+}
+
+/*
+ *			M M E N U _ P N T R
+ *
+ *  Routine to allow user to reset the arrow to any menu & item desired.
+ *  Example:  menu_pntr( MENU_L1, 3 ).
+ *  The arrow can always be eliminated by setting menu_state->ms_flag=0, view_state->flag=1.
+ */
+void
+mmenu_pntr(int menu, int item)
+{
+	menu_state->ms_cur_menu = menu;
+	menu_state->ms_cur_item = item;
+	if( menu_state->ms_cur_menu >= 0 )
+		menu_state->ms_flag = 1;
+}
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+14.8
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@d38 1
+a38 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/mged/menu.c,v 14.7 2007/01/20 14:36:57 brlcad Exp $ (BRL)";
+d356 2
+a357 2
+		     	/* It's up to the menu_func to set menu_state->ms_flag=0
+		     	 * if no arrow is desired */
+@
+
+
+14.7
+log
+@update copyright to 2007
+@
+text
+@d8 2
+a9 3
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+d14 1
+a14 1
+ * General Public License for more details.
+d16 2
+a17 2
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+d38 1
+a38 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/mged/menu.c,v 14.6 2006/01/18 06:46:19 brlcad Exp $ (BRL)";
+@
+
+
+14.6
+log
+@update copyright to 2006
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 1985-2006 United States Government as represented by
+d39 1
+a39 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/mged/menu.c,v 14.5 2005/10/23 04:44:37 brlcad Exp $ (BRL)";
+@
+
+
+14.5
+log
+@trailing ws
+@
+text
+@d4 1
+a4 1
+ * Copyright (C) 1985-2005 United States Government as represented by
+d39 1
+a39 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/mged/menu.c,v 14.4 2005/09/16 18:51:53 brlcad Exp $ (BRL)";
+@
+
+
+14.4
+log
+@rework tkwin into cmd.c and profide the DM_X and DM_OGL defines to the build.  probably fixes a bug or two of some sort on the display manager.  also migrate the tolerance vars together along with other ws and header cleanup
+@
+text
+@d32 1
+a32 1
+ *  
+d39 1
+a39 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/mged/menu.c,v 14.3 2005/01/30 20:31:06 brlcad Exp $ (BRL)";
+d65 1
+a65 1
+    
+d234 1
+a234 1
+{ 
+d331 1
+a331 1
+{ 
+@
+
+
+14.3
+log
+@update copyright to 2005
+@
+text
+@d39 1
+a39 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/mged/menu.c,v 14.2 2004/12/21 04:17:27 butler Exp $ (BRL)";
+a43 2
+
+
+a54 1
+#include "./mgedtcl.h"
+@
+
+
+14.3.6.1
+log
+@merge changes from HEAD aka rel-7-6-4 to the rel-7-6-branch just in case someone peeks a gander or tries to continue/build the branch
+@
+text
+@d32 1
+a32 1
+ *
+d39 1
+a39 1
+static const char RCSid[] = "@@(#)$Header$ (BRL)";
+d44 2
+d57 1
+d68 1
+a68 1
+
+d237 1
+a237 1
+{
+d334 1
+a334 1
+{
+@
+
+
+14.2
+log
+@GPL License changes
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 1985-2004 United States Government as represented by
+d39 1
+a39 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/mged/menu.c,v 14.1 2004/11/16 19:42:17 morrison Exp $ (BRL)";
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@d1 21
+a21 2
+/*
+ *			M E N U . C
+a36 4
+ *  
+ *  Copyright Notice -
+ *	This software is Copyright (C) 1985-2004 by the United States Army.
+ *	All rights reserved.
+d39 1
+a39 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/mged/menu.c,v 1.3 2004/08/02 23:01:51 morrison Exp $ (BRL)";
+@
+
+
+1.3
+log
+@replace the wrapped config.h block with common.h
+@
+text
+@d24 1
+a24 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/mged/menu.c,v 1.2 2004/06/08 22:04:28 morrison Exp $ (BRL)";
+d371 10
+@
+
+
+1.2
+log
+@obliterate externs.h
+@
+text
+@d24 1
+a24 1
+static const char RCSid[] = "@@(#)$Header$ (BRL)";
+d27 1
+a27 3
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+@
+
+
+1.1
+log
+@Vast reorganization begins.  Sources moved from top-level directories into src/.
+@
+text
+@d24 1
+a24 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/mged/menu.c,v 11.41 2004/05/10 15:30:48 erikg Exp $ (BRL)";
+a36 1
+#include "externs.h"
+@
+

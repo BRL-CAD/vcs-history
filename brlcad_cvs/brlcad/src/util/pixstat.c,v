@@ -1,0 +1,547 @@
+head	14.10;
+access;
+symbols
+	rel-7-10-4:14.9
+	STABLE:14.9.0.2
+	rel-7-10-2:14.9
+	rel-7-10-0:14.8
+	rel-7-8-4:14.5
+	rel-7-8-2:14.5
+	rel-7-8-0:14.5
+	trimnurbs-branch:14.5.0.2
+	help:14.5
+	temp_tag:14.4
+	bobWinPort-20051223-freeze:14.3
+	postmerge-20051223-bobWinPort:14.4
+	premerge-20051223-bobWinPort:14.4
+	rel-7-6-6:14.4
+	rel-7-6-4:14.4
+	rel-7-6-2:14.3
+	rel-7-6-branch:14.3.0.6
+	rel-7-6-0:14.3
+	rel-7-4-2:14.3
+	rel-7-4-branch:14.3.0.4
+	bobWinPort:14.3.0.2
+	rel-7-4-0:14.3
+	rel-7-2-6:14.3
+	rel-7-2-4:14.3
+	rel-7-2-2:14.3
+	rel-7-2-0:14.3
+	rel-7-0-4:14.2
+	rel-7-0-2:14.2
+	rel-7-0-1:14.2
+	opensource-post:14.2
+	opensource-pre:1.2
+	rel-7-0-branch:1.2.0.2
+	rel-7-0:1.2;
+locks; strict;
+comment	@ * @;
+
+
+14.10
+date	2007.09.15.16.23.23;	author brlcad;	state Exp;
+branches;
+next	14.9;
+
+14.9
+date	2007.07.26.01.14.00;	author brlcad;	state Exp;
+branches;
+next	14.8;
+
+14.8
+date	2007.01.27.01.41.54;	author brlcad;	state Exp;
+branches;
+next	14.7;
+
+14.7
+date	2007.01.23.01.13.56;	author brlcad;	state Exp;
+branches;
+next	14.6;
+
+14.6
+date	2007.01.20.14.37.07;	author brlcad;	state Exp;
+branches;
+next	14.5;
+
+14.5
+date	2006.01.18.06.46.28;	author brlcad;	state Exp;
+branches;
+next	14.4;
+
+14.4
+date	2005.10.23.04.44.39;	author brlcad;	state Exp;
+branches;
+next	14.3;
+
+14.3
+date	2005.01.30.20.31.33;	author brlcad;	state Exp;
+branches
+	14.3.6.1;
+next	14.2;
+
+14.2
+date	2004.12.21.03.45.41;	author butler;	state Exp;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.32;	author morrison;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2004.08.02.23.01.53;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.15.21.54;	author morrison;	state Exp;
+branches;
+next	;
+
+14.3.6.1
+date	2005.11.13.13.46.21;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.10
+log
+@more c89 embracing.  c89 provides string.h for all of the various str*() and mem*() functions, so remove the check for its presence.  there is still likely to be work required for strict c89 conformance for the various bsd strings.h functions that may be in use.
+@
+text
+@/*                       P I X S T A T . C
+ * BRL-CAD
+ *
+ * Copyright (c) 1986-2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@file pixstat.c
+ *
+ * Compute statistics of pixels in a PIX file.
+ * Gives min, max, mode, median, mean, s.d., var, and skew
+ * for each color.
+ * Will optionally dump the histogram of values.
+ *
+ * We compute these from a histogram which is a real win for
+ * discrete values of small range.  Statistics can then be
+ * calculated on the lump sums in the bins rather than individual
+ * samples.  Also only one pass is required over the input file.
+ * (lastly, some statistics such as mode and median, require the
+ *  histogram)
+ *
+ *  Author -
+ *	Phillip Dykstra
+ *	6 Aug 1986
+ *
+ */
+#ifndef lint
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/pixstat.c,v 14.9 2007/07/26 01:14:00 brlcad Exp $ (BRL)";
+#endif
+
+#include "common.h"
+
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+#include <math.h>
+
+#ifdef HAVE_UNISTD_H
+#  include <unistd.h>
+#endif
+
+
+#define	IBUFSIZE 3*1024		/* Max read size in rgb pixels */
+unsigned char buf[IBUFSIZE];	/* Input buffer */
+
+int	verbose = 0;
+
+/* our statistics pool */
+struct	{
+	long	bin[256];
+	int	max, min, mode, median;
+	double	mean, var, skew;
+	long	sum, partial_sum;
+} r, g, b;
+
+void	show_hist(void);
+
+static char *Usage = "usage: pixstat [-v] [file.pix]\n";
+
+int
+main(int argc, char **argv)
+{
+	int	i, n, num;
+	double	d;
+	long	num_pixels;
+	register unsigned char *bp;
+	FILE	*fp;
+
+	/* check for verbose flag */
+	if( argc > 1 && strcmp(argv[1], "-v") == 0 ) {
+		verbose++;
+		argv++;
+		argc--;
+	}
+
+	/* check for optional input file */
+	if( argc > 1 ) {
+		if( (fp = fopen(argv[1],"r")) == 0 ) {
+			fprintf( stderr, "pixstat: can't open \"%s\"\n", argv[1] );
+			exit( 1 );
+		}
+		argv++;
+		argc--;
+	} else
+		fp = stdin;
+
+	/* check usage */
+	if( argc > 1 || isatty(fileno(fp)) ) {
+		fputs( Usage, stderr );
+		exit( 1 );
+	}
+
+	/*
+	 * Build the histogram.
+	 */
+	num_pixels = 0;
+	while( (n = fread(&buf[0], sizeof(*buf), IBUFSIZE, fp)) > 0 ) {
+		num = n/3;
+		num_pixels += num;
+		bp = &buf[0];
+		for( i = 0; i < num; i++ ) {
+			r.bin[ *bp++ ]++;
+			g.bin[ *bp++ ]++;
+			b.bin[ *bp++ ]++;
+		}
+	}
+
+	/*
+	 * Find sum, min, max, mode.
+	 */
+	r.sum = g.sum = b.sum = 0;
+	r.min = g.min = b.min = 256;
+	r.max = g.max = b.max = -1;
+	r.mode = g.mode = b.mode = 0;
+	for( i = 0; i < 256; i++ ) {
+		/* sum */
+		r.sum += i * r.bin[i];
+		g.sum += i * g.bin[i];
+		b.sum += i * b.bin[i];
+		/* min */
+		if( i < r.min && r.bin[i] != 0 )
+			r.min = i;
+		if( i < g.min && g.bin[i] != 0 )
+			g.min = i;
+		if( i < b.min && b.bin[i] != 0 )
+			b.min = i;
+		/* max */
+		if( i > r.max && r.bin[i] != 0 )
+			r.max = i;
+		if( i > g.max && g.bin[i] != 0 )
+			g.max = i;
+		if( i > b.max && b.bin[i] != 0 )
+			b.max = i;
+		/* mode */
+		if( r.bin[i] > r.bin[r.mode] )
+			r.mode = i;
+		if( g.bin[i] > g.bin[g.mode] )
+			g.mode = i;
+		if( b.bin[i] > b.bin[b.mode] )
+			b.mode = i;
+	}
+	r.mean = (double)r.sum/(double)num_pixels;
+	g.mean = (double)g.sum/(double)num_pixels;
+	b.mean = (double)b.sum/(double)num_pixels;
+
+	/*
+	 * Now do a second pass to compute median,
+	 *  variance and skew.
+	 */
+	for( i = 0; i < 256; i++ ) {
+		/* median */
+		if( r.partial_sum < r.sum/2.0 ) {
+			r.partial_sum += i * r.bin[i];
+			r.median = i;
+		}
+		if( g.partial_sum < g.sum/2.0 ) {
+			g.partial_sum += i * g.bin[i];
+			g.median = i;
+		}
+		if( b.partial_sum < b.sum/2.0 ) {
+			b.partial_sum += i * b.bin[i];
+			b.median = i;
+		}
+		/* var and skew */
+		d = (double)i - r.mean;
+		r.var += r.bin[i] * d * d;
+		r.skew += r.bin[i] * d * d * d;
+		d = (double)i - g.mean;
+		g.var += g.bin[i] * d * d;
+		g.skew += g.bin[i] * d * d * d;
+		d = (double)i - b.mean;
+		b.var += b.bin[i] * d * d;
+		b.skew += b.bin[i] * d * d * d;
+	}
+	r.var /= (double)num_pixels;
+	g.var /= (double)num_pixels;
+	b.var /= (double)num_pixels;
+	r.skew /= (double)num_pixels;
+	g.skew /= (double)num_pixels;
+	b.skew /= (double)num_pixels;
+
+	/*
+	 * Display the results.
+	 */
+	printf( "Pixels  %14ld (%.0f x %.0f)\n", num_pixels,
+		sqrt((double)num_pixels), sqrt((double)num_pixels) );
+	printf( "Min     %14d%14d%14d\n", r.min, g.min, b.min );
+	printf( "Max     %14d%14d%14d\n", r.max, g.max, b.max );
+	printf( "Mode    %14d%14d%14d\n", r.mode, g.mode, b.mode );
+	printf( "Num@@mode%14ld%14ld%14ld\n", r.bin[r.mode], g.bin[g.mode], b.bin[b.mode] );
+	printf( "Median  %14d%14d%14d\n", r.median, g.median, b.median );
+	printf( "Mean    %14.3f%14.3f%14.3f\n", r.mean, g.mean, b.mean );
+	printf( "s.d.    %14.3f%14.3f%14.3f\n", sqrt(r.var), sqrt(g.var), sqrt(b.var) );
+	printf( "Var     %14.3f%14.3f%14.3f\n", r.var, g.var, b.var );
+	printf( "Skew    %14.3f%14.3f%14.3f\n", r.skew, g.skew, b.skew );
+
+	if( verbose )
+		show_hist();
+	return 0;
+}
+
+/*
+ * Display the histogram values.
+ */
+void
+show_hist(void)
+{
+	int	i;
+
+	printf( "Histogram:\n" );
+
+	for( i = 0; i < 256; i++ ) {
+		printf( "%3d: %10ld %10ld %10ld\n",
+			i, r.bin[i], g.bin[i], b.bin[i] );
+	}
+}
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+14.9
+log
+@remove ephemeral data like phone numbers and addresses, including the misleading 'source' statements on code that is continually evolving and receiving contributions from many many sources
+@
+text
+@d40 1
+a40 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/pixstat.c,v 14.8 2007/01/27 01:41:54 brlcad Exp $ (BRL)";
+a44 1
+
+a45 1
+#ifdef HAVE_STRING_H
+a46 4
+#else
+#include <strings.h>
+#endif
+#include <unistd.h>
+d50 5
+@
+
+
+14.8
+log
+@ws. lots and lots of ws.  see sh/ws.sh for details (cases 'abcdeg').
+@
+text
+@a37 4
+ *  Source -
+ *	SECAD/VLD Computing Consortium, Bldg 394
+ *	The U. S. Army Ballistic Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005-5066
+d40 1
+a40 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/pixstat.c,v 14.7 2007/01/23 01:13:56 brlcad Exp $ (BRL)";
+@
+
+
+14.7
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@d44 1
+a44 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/pixstat.c,v 14.6 2007/01/20 14:37:07 brlcad Exp $ (BRL)";
+a49 1
+
+@
+
+
+14.6
+log
+@update copyright to 2007
+@
+text
+@d8 2
+a9 3
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+d14 1
+a14 1
+ * General Public License for more details.
+d16 2
+a17 2
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+d44 1
+a44 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/pixstat.c,v 14.5 2006/01/18 06:46:28 brlcad Exp $ (BRL)";
+@
+
+
+14.5
+log
+@update copyright to 2006
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 1986-2006 United States Government as represented by
+d45 1
+a45 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/pixstat.c,v 14.4 2005/10/23 04:44:39 brlcad Exp $ (BRL)";
+@
+
+
+14.4
+log
+@trailing ws
+@
+text
+@d4 1
+a4 1
+ * Copyright (C) 1986-2005 United States Government as represented by
+d45 1
+a45 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/pixstat.c,v 14.3 2005/01/30 20:31:33 brlcad Exp $ (BRL)";
+@
+
+
+14.3
+log
+@update copyright to 2005
+@
+text
+@d38 1
+a38 1
+ *  
+d45 1
+a45 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/pixstat.c,v 14.2 2004/12/21 03:45:41 butler Exp $ (BRL)";
+@
+
+
+14.3.6.1
+log
+@merge changes from HEAD aka rel-7-6-4 to the rel-7-6-branch just in case someone peeks a gander or tries to continue/build the branch
+@
+text
+@d38 1
+a38 1
+ *
+d45 1
+a45 1
+static const char RCSid[] = "@@(#)$Header$ (BRL)";
+@
+
+
+14.2
+log
+@GPL license changes
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 1986-2004 United States Government as represented by
+d45 1
+a45 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/util/pixstat.c,v 14.1 2004/11/16 19:42:32 morrison Exp $ (BRL)";
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@d1 21
+a21 2
+/*
+ *		P I X S T A T . C
+a42 4
+ *  
+ *  Copyright Notice -
+ *	This software is Copyright (C) 1986-2004 by the United States Army.
+ *	All rights reserved.
+d45 1
+a45 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/util/pixstat.c,v 1.2 2004/08/02 23:01:53 morrison Exp $ (BRL)";
+@
+
+
+1.2
+log
+@replace the wrapped config.h block with common.h
+@
+text
+@d30 1
+a30 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/util/pixstat.c,v 1.1 2004/05/20 15:21:54 morrison Exp $ (BRL)";
+d221 10
+@
+
+
+1.1
+log
+@Vast reorganization begins.  Sources moved from top-level directories into src/.
+@
+text
+@d30 1
+a30 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/util/pixstat.c,v 11.10 2004/05/10 15:30:51 erikg Exp $ (BRL)";
+d33 1
+a33 3
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+@
+

@@ -1,0 +1,666 @@
+head	1.4;
+access;
+symbols
+	rel-7-10-4:1.3
+	STABLE:1.3.0.2
+	rel-7-10-2:1.3
+	rel-7-10-0:1.1;
+locks; strict;
+comment	@ * @;
+
+
+1.4
+date	2007.11.06.21.38.50;	author erikgreenwald;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2007.05.07.04.17.46;	author brlcad;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2007.04.20.17.22.25;	author joevalleyfield;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2007.03.02.21.49.55;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.4
+log
+@tk 8.5a6->8.5b1
+@
+text
+@/*
+ * tkMacOSXMenus.c --
+ *
+ *	These calls set up and manage the menubar for the
+ *	Macintosh version of Tk.
+ *
+ * Copyright (c) 1995-1996 Sun Microsystems, Inc.
+ * Copyright 2001, Apple Computer, Inc.
+ * Copyright (c) 2005-2007 Daniel A. Steffen <das@@users.sourceforge.net>
+ *
+ * See the file "license.terms" for information on usage and redistribution
+ * of this file, and for a DISCLAIMER OF ALL WARRANTIES.
+ *
+ * RCS: @@(#) $Id: tkMacOSXMenus.c,v 1.18 2007/06/29 03:20:02 das Exp $
+ */
+
+#include "tkMacOSXPrivate.h"
+
+#define kAppleMenu		256
+#define kAppleAboutItem		1
+#define kFileMenu		2
+#define kEditMenu		3
+
+#define kSourceItem		1
+#define kCloseItem		2
+
+#define EDIT_CUT		1
+#define EDIT_COPY		2
+#define EDIT_PASTE		3
+#define EDIT_CLEAR		4
+
+MenuRef tkAppleMenu;
+MenuRef tkFileMenu;
+MenuRef tkEditMenu;
+
+static Tcl_Interp * gInterp;	    /* Interpreter for this application. */
+
+static void GenerateEditEvent(int flag);
+static void SourceDialog(void);
+
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * TkMacOSXHandleMenuSelect --
+ *
+ *	Handles events that occur in the Menu bar.
+ *
+ * Results:
+ *	None.
+ *
+ * Side effects:
+ *	None.
+ *
+ *----------------------------------------------------------------------
+ */
+
+void
+TkMacOSXHandleMenuSelect(
+    MenuID theMenu,
+    MenuItemIndex theItem,
+    int optionKeyPressed)
+{
+    Tk_Window tkwin;
+    Window window;
+    TkDisplay *dispPtr;
+
+    if (theItem == 0) {
+	TkMacOSXClearMenubarActive();
+	return;
+    }
+
+    switch (theMenu) {
+	case kAppleMenu:
+	    switch (theItem) {
+		case kAppleAboutItem:
+		    {
+			Tcl_CmdInfo dummy;
+			if (optionKeyPressed || gInterp == NULL ||
+			    Tcl_GetCommandInfo(gInterp,
+				"tkAboutDialog", &dummy) == 0) {
+			    TkAboutDlg();
+			} else {
+			    Tcl_EvalEx(gInterp, "tkAboutDialog", -1,
+				    TCL_EVAL_GLOBAL);
+			}
+			break;
+		    }
+	    }
+	    break;
+	case kFileMenu:
+	    switch (theItem) {
+		case kSourceItem:
+		    /*
+		     * TODO: source script
+		     */
+
+		    SourceDialog();
+		    break;
+		case kCloseItem:
+		    /* Send close event */
+		    window = TkMacOSXGetXWindow(ActiveNonFloatingWindow());
+		    dispPtr = TkGetDisplayList();
+		    tkwin = Tk_IdToWindow(dispPtr->display, window);
+		    TkGenWMDestroyEvent(tkwin);
+		    break;
+	    }
+	    break;
+	case kEditMenu:
+	    /*
+	     * This implementation just send the keysyms Tk thinks are
+	     * associated with function keys that do Cut, Copy & Paste on
+	     * a Sun keyboard.
+	     */
+	    GenerateEditEvent(theItem);
+	    break;
+	default:
+	    TkMacOSXDispatchMenuEvent(theMenu, theItem);
+	    break;
+    }
+    /*
+     * Finally we unhighlight the menu.
+     */
+    HiliteMenu(0);
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * TkMacOSXInitMenus --
+ *
+ *	This procedure initializes the Macintosh menu bar.
+ *
+ * Results:
+ *	None.
+ *
+ * Side effects:
+ *	None.
+ *
+ *----------------------------------------------------------------------
+ */
+
+void
+TkMacOSXInitMenus(
+    Tcl_Interp *interp)
+{
+    OSStatus err;
+    gInterp = interp;
+
+    if (TkMacOSXUseMenuID(kAppleMenu) != TCL_OK) {
+	Tcl_Panic("Menu ID %d is already in use!", kAppleMenu);
+    }
+    err = ChkErr(CreateNewMenu, kAppleMenu, kMenuAttrDoNotUseUserCommandKeys,
+	    &tkAppleMenu);
+    if (err != noErr) {
+	Tcl_Panic("CreateNewMenu failed !");
+    }
+    SetMenuTitle(tkAppleMenu, "\p\024");
+    InsertMenu(tkAppleMenu, 0);
+    AppendMenu(tkAppleMenu, "\pAbout Tcl & Tk\xc9");
+    AppendMenu(tkAppleMenu, "\p(-");
+
+    if (TkMacOSXUseMenuID(kFileMenu) != TCL_OK) {
+	Tcl_Panic("Menu ID %d is already in use!", kFileMenu);
+    }
+    err = ChkErr(CreateNewMenu, kFileMenu, kMenuAttrDoNotUseUserCommandKeys,
+	    &tkFileMenu);
+    if (err != noErr) {
+	Tcl_Panic("CreateNewMenu failed !");
+    }
+    SetMenuTitle(tkFileMenu, "\pFile");
+    InsertMenu(tkFileMenu, 0);
+    AppendMenu(tkFileMenu, "\pSource\xc9");
+    AppendMenu(tkFileMenu, "\pClose/W");
+
+    if (TkMacOSXUseMenuID(kEditMenu) != TCL_OK) {
+	Tcl_Panic("Menu ID %d is already in use!", kEditMenu);
+    }
+    err = ChkErr(CreateNewMenu, kEditMenu, kMenuAttrDoNotUseUserCommandKeys,
+	    &tkEditMenu);
+    if (err != noErr) {
+	Tcl_Panic("CreateNewMenu failed !");
+    }
+    SetMenuTitle(tkEditMenu, "\pEdit");
+    InsertMenu(tkEditMenu, 0);
+    AppendMenu(tkEditMenu, "\pCut/X");
+    AppendMenu(tkEditMenu, "\pCopy/C");
+    AppendMenu(tkEditMenu, "\pPaste/V");
+    AppendMenu(tkEditMenu, "\pClear");
+    if (TkMacOSXUseMenuID(kHMHelpMenuID) != TCL_OK) {
+	Tcl_Panic("Help menu ID %s is already in use!", kHMHelpMenuID);
+    }
+
+    /*
+     * Workaround a Carbon bug with kHICommandPreferences: the first call to
+     * IsMenuKeyEvent returns false for the preferences menu item key shorcut
+     * event (even if the corresponding menu item is dynamically enabled by a
+     * kEventCommandUpdateStatus handler), unless the kHICommandPreferences
+     * menu item has previously been enabled manually. [Bug 1481503]
+     */
+    EnableMenuCommand(NULL, kHICommandPreferences);
+
+    DrawMenuBar();
+    return;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * GenerateEditEvent --
+ *
+ *	Takes an edit menu item and posts the corasponding a virtual
+ *	event to Tk's event queue.
+ *
+ * Results:
+ *	None.
+ *
+ * Side effects:
+ *	May place events of queue.
+ *
+ *----------------------------------------------------------------------
+ */
+
+static void
+GenerateEditEvent(
+    int flag)
+{
+    XVirtualEvent event;
+    int x, y;
+    Tk_Window tkwin;
+    Window window;
+    TkDisplay *dispPtr;
+
+    window = TkMacOSXGetXWindow(ActiveNonFloatingWindow());
+    dispPtr = TkGetDisplayList();
+    tkwin = Tk_IdToWindow(dispPtr->display, window);
+    tkwin = (Tk_Window) ((TkWindow *) tkwin)->dispPtr->focusPtr;
+    if (tkwin == NULL) {
+	return;
+    }
+
+    bzero(&event, sizeof(XVirtualEvent));
+    event.type = VirtualEvent;
+    event.serial = Tk_Display(tkwin)->request;
+    event.send_event = false;
+    event.display = Tk_Display(tkwin);
+    event.event = Tk_WindowId(tkwin);
+    event.root = XRootWindow(Tk_Display(tkwin), 0);
+    event.subwindow = None;
+    event.time = TkpGetMS();
+
+    XQueryPointer(NULL, None, NULL, NULL,
+	    &event.x_root, &event.y_root, &x, &y, &event.state);
+    tkwin = Tk_TopCoordsToWindow(tkwin, x, y, &event.x, &event.y);
+    event.same_screen = true;
+
+    switch (flag) {
+	case EDIT_CUT:
+	    event.name = Tk_GetUid("Cut");
+	    break;
+	case EDIT_COPY:
+	    event.name = Tk_GetUid("Copy");
+	    break;
+	case EDIT_PASTE:
+	    event.name = Tk_GetUid("Paste");
+	    break;
+	case EDIT_CLEAR:
+	    event.name = Tk_GetUid("Clear");
+	    break;
+    }
+    Tk_QueueWindowEvent((XEvent *) &event, TCL_QUEUE_TAIL);
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * SourceDialog --
+ *
+ *	Presents a dialog to the user for selecting a Tcl file. The
+ *	selected file will be sourced into the main interpreter.
+ *
+ * Results:
+ *	None.
+ *
+ * Side effects:
+ *	None.
+ *
+ *----------------------------------------------------------------------
+ */
+
+static void
+SourceDialog(void)
+{
+    int result;
+    const char *path;
+    const char *openCmd = "tk_getOpenFile -filetypes {\
+	    {{TCL Scripts} {.tcl} TEXT} {{Text Files} {} TEXT}}";
+
+    if (gInterp == NULL) {
+	return;
+    }
+    if (Tcl_EvalEx(gInterp, openCmd, -1, TCL_EVAL_GLOBAL) != TCL_OK) {
+	return;
+    }
+    path = Tcl_GetStringResult(gInterp);
+    if (strlen(path) == 0) {
+	return;
+    }
+    result = Tcl_EvalFile(gInterp, path);
+    if (result == TCL_ERROR) {
+	Tcl_BackgroundError(gInterp);
+    }
+}
+@
+
+
+1.3
+log
+@upgrade to tcl/tk 8.5a6 (from 8.5a5) .. includes even more (extensive) aquatk fixes/enhancements
+@
+text
+@d14 1
+a14 1
+ * RCS: @@(#) $Id: tkMacOSXMenus.c,v 1.16 2007/04/23 21:24:33 das Exp $
+d17 1
+a17 1
+#include "tkMacOSXInt.h"
+d94 4
+a97 1
+		    /* TODO: source script */
+@
+
+
+1.2
+log
+@remove dependency on -fpascal-strings when building for aqua
+@
+text
+@d1 1
+a1 1
+/* 
+d4 2
+a5 2
+ *        These calls set up and manage the menubar for the
+ *        Macintosh version of Tk.
+d9 1
+a9 1
+ * Copyright (c) 2005-2006 Daniel A. Steffen <das@@users.sourceforge.net>
+d14 1
+a14 1
+ * RCS: @@(#) $Id: tkMacOSXMenus.c,v 1.1 2007/03/02 21:49:55 brlcad Exp $
+d19 12
+a30 17
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 1030
+    /* Define constants only available on Mac OS X 10.3 or later */
+    #define kMenuAttrDoNotUseUserCommandKeys (1 << 7)
+#endif
+
+#define kAppleMenu              256
+#define kAppleAboutItem         1
+#define kFileMenu               2
+#define kEditMenu               3
+
+#define kSourceItem             1
+#define kCloseItem              2
+
+#define EDIT_CUT                1
+#define EDIT_COPY               2
+#define EDIT_PASTE              3
+#define EDIT_CLEAR              4
+d36 1
+a36 1
+static Tcl_Interp * gInterp;        /* Interpreter for this application. */
+d38 2
+a39 2
+static void GenerateEditEvent _ANSI_ARGS_((int flag));
+static void SourceDialog _ANSI_ARGS_((void));
+d41 1
+d47 1
+a47 1
+ *        Handles events that occur in the Menu bar.
+d50 1
+a50 1
+ *        None.
+d53 1
+a53 1
+ *        None.
+d58 1
+a58 1
+void 
+d69 2
+a70 3
+        TkMacOSXHandleTearoffMenu();
+        TkMacOSXClearMenubarActive();
+        return;
+d74 43
+a116 43
+        case kAppleMenu:
+            switch (theItem) {
+                case kAppleAboutItem:
+                    {
+                        Tcl_CmdInfo dummy;
+                        if (optionKeyPressed || gInterp == NULL ||
+                            Tcl_GetCommandInfo(gInterp,
+                                "tkAboutDialog", &dummy) == 0) {
+                            TkAboutDlg();
+                        } else {
+                            Tcl_Eval(gInterp, "tkAboutDialog");
+                        }
+                        break;
+                    }
+            }
+            break;
+        case kFileMenu:
+            switch (theItem) {
+                case kSourceItem:
+                    /* TODO: source script */
+                    SourceDialog();
+                    break;
+                case kCloseItem:
+                    /* Send close event */
+                    window = TkMacOSXGetXWindow(ActiveNonFloatingWindow());
+                    dispPtr = TkGetDisplayList();
+                    tkwin = Tk_IdToWindow(dispPtr->display, window);
+                    TkGenWMDestroyEvent(tkwin);
+                    break;
+            }
+            break;
+        case kEditMenu:
+            /*
+             * This implementation just send keysyms
+             * the Tk thinks are associated with function keys that
+             * do Cut, Copy & Paste on a Sun keyboard.
+             */
+            GenerateEditEvent(theItem);
+            break;
+        default:
+            TkMacOSXDispatchMenuEvent(theMenu, theItem);
+            TkMacOSXClearMenubarActive();
+            break;
+d123 1
+a123 1
+
+d129 1
+a129 1
+ *        This procedure initializes the Macintosh menu bar.
+d132 1
+a132 1
+ *        None.
+d135 1
+a135 1
+ *        None.
+d140 1
+a140 1
+void 
+d150 2
+a151 2
+    err = CreateNewMenu(kAppleMenu, kMenuAttrDoNotUseUserCommandKeys,
+            &tkAppleMenu);
+d153 1
+a153 1
+        Tcl_Panic("CreateNewMenu failed !");
+d155 1
+a155 3
+
+    SetMenuTitleWithCFString(tkAppleMenu, CFSTR("\024"));
+
+d157 2
+a158 4
+    AppendMenuItemTextWithCFString(tkAppleMenu,
+        CFSTR("About Tcl & Tk?"), 0, 0, 0);
+    AppendMenuItemTextWithCFString(tkAppleMenu, 
+        0, kMenuItemAttrSeparator, 0, 0);
+d163 2
+a164 2
+    err = CreateNewMenu(kFileMenu, kMenuAttrDoNotUseUserCommandKeys,
+            &tkFileMenu);
+d166 1
+a166 1
+        Tcl_Panic("CreateNewMenu failed !");
+d168 1
+a168 1
+    SetMenuTitleWithCFString(tkFileMenu, CFSTR("File"));
+d170 2
+a171 5
+    AppendMenuItemTextWithCFString(tkFileMenu,
+        CFSTR("Source?"), 0, 0, 0);
+    AppendMenuItemTextWithCFString(tkFileMenu,
+        CFSTR("Close"), 0, 0, 0);
+    SetMenuItemCommandKey(tkFileMenu, 2, false, 'W');
+d176 2
+a177 2
+    err = CreateNewMenu(kEditMenu, kMenuAttrDoNotUseUserCommandKeys,
+            &tkEditMenu);
+d179 1
+a179 1
+        Tcl_Panic("CreateNewMenu failed !");
+d181 1
+a181 1
+    SetMenuTitleWithCFString(tkEditMenu, CFSTR("Edit"));
+d183 4
+a186 11
+    AppendMenuItemTextWithCFString(tkEditMenu,
+        CFSTR("Cut"), 0, 0, 0);
+    SetMenuItemCommandKey(tkEditMenu, 1, false, 'X');
+    AppendMenuItemTextWithCFString(tkEditMenu,
+        CFSTR("Copy"), 0, 0, 0);
+    SetMenuItemCommandKey(tkEditMenu, 2, false, 'C');
+    AppendMenuItemTextWithCFString(tkEditMenu,
+        CFSTR("Paste"), 0, 0, 0);
+    SetMenuItemCommandKey(tkEditMenu, 3, false, 'V');
+    AppendMenuItemTextWithCFString(tkEditMenu,
+        CFSTR("Clear"), 0, 0, 0);
+d209 2
+a210 2
+ *        Takes an edit menu item and posts the corasponding a virtual 
+ *        event to Tk's event queue.
+d213 1
+a213 1
+ *        None.
+d216 1
+a216 1
+ *        May place events of queue.
+d221 1
+a221 1
+static void 
+d236 1
+a236 1
+        return;
+d248 1
+a248 1
+    
+d250 1
+a250 1
+            &event.x_root, &event.y_root, &x, &y, &event.state);
+d255 12
+a266 12
+        case EDIT_CUT:
+            event.name = Tk_GetUid("Cut");
+            break;
+        case EDIT_COPY:
+            event.name = Tk_GetUid("Copy");
+            break;
+        case EDIT_PASTE:
+            event.name = Tk_GetUid("Paste");
+            break;
+        case EDIT_CLEAR:
+            event.name = Tk_GetUid("Clear");
+            break;
+d276 2
+a277 2
+ *        Presents a dialog to the user for selecting a Tcl file.  The
+ *        selected file will be sourced into the main interpreter.
+d280 1
+a280 1
+ *        None.
+d283 1
+a283 1
+ *        None.
+d288 2
+a289 2
+static void 
+SourceDialog()
+d292 4
+a295 4
+    CONST char *path;
+    CONST char *openCmd = "tk_getOpenFile -filetypes {\
+            {{TCL Scripts} {.tcl} TEXT} {{Text Files} {} TEXT}}";
+    
+d297 1
+a297 1
+        return;
+d299 2
+a300 2
+    if (Tcl_Eval(gInterp, openCmd) != TCL_OK) {
+        return;
+d304 1
+a304 1
+        return;
+d308 2
+a309 2
+        Tcl_BackgroundError(gInterp);
+    }           
+a310 5
+/*
+ * Local Variables:
+ * coding: macintosh;
+ * End:
+ */
+@
+
+
+1.1
+log
+@upgrade tcl/tk from 8.4.6 to 8.5a5; also move to a recursive configure, using AC_CONFIG_SUBDIRS to call upon tcl, tk, and enigma's configure scripts as needed instead of redoing their build systems for our purpose.  this has a rather drastic impact on the way the libraries are linked together, including the need to compile tcl/tk static so as to avoid libtool portability issues as well as letting us take advantage of their build system for reduced maintenance and easing future upgrades.  undoubtedly more build issues to be worked out with other platforms given the extent of this change.  this does move us one step closer towards correctly linking against system tcl/tk installations too.
+@
+text
+@d14 1
+a14 1
+ * RCS: @@(#) $Id: tkMacOSXMenus.c,v 1.15 2006/08/18 07:47:11 das Exp $
+d160 3
+a162 1
+    SetMenuTitle(tkAppleMenu, "\p\024");
+d164 4
+a167 2
+    AppendMenu(tkAppleMenu, "\pAbout Tcl & Tk…");
+    AppendMenu(tkAppleMenu, "\p(-");
+d177 1
+a177 1
+    SetMenuTitle(tkFileMenu, "\pFile");
+d179 5
+a183 2
+    AppendMenu(tkFileMenu, "\pSource…");
+    AppendMenu(tkFileMenu, "\pClose/W");
+d193 1
+a193 1
+    SetMenuTitle(tkEditMenu, "\pEdit");
+d195 11
+a205 4
+    AppendMenu(tkEditMenu, "\pCut/X");
+    AppendMenu(tkEditMenu, "\pCopy/C");
+    AppendMenu(tkEditMenu, "\pPaste/V");
+    AppendMenu(tkEditMenu, "\pClear");
+@
+

@@ -1,0 +1,547 @@
+head	14.8;
+access;
+symbols
+	rel-7-10-4:14.8
+	STABLE:14.8.0.2
+	stable-branch:14.2
+	rel-7-10-2:14.7
+	rel-7-10-0:14.7
+	rel-7-8-4:14.4
+	rel-7-8-2:14.3
+	rel-7-8-0:14.3
+	trimnurbs-branch:14.3.0.6
+	help:14.3
+	temp_tag:14.3
+	bobWinPort-20051223-freeze:14.3
+	postmerge-20051223-bobWinPort:14.3
+	premerge-20051223-bobWinPort:14.3
+	rel-7-6-6:14.3
+	rel-7-6-4:14.3
+	rel-7-6-2:14.3
+	rel-7-6-branch:14.3.0.4
+	rel-7-6-0:14.3
+	rel-7-4-2:14.2
+	rel-7-4-branch:14.2.0.2
+	bobWinPort:14.3.0.2
+	rel-7-4-0:14.2
+	rel-7-2-6:14.2
+	rel-7-2-4:14.2
+	rel-7-2-2:14.1
+	rel-7-2-0:14.1
+	rel-7-0-4:14.1
+	rel-7-0-2:14.1
+	rel-7-0-1:14.1
+	opensource-post:14.1
+	opensource-pre:1.2
+	rel-7-0-branch:1.2.0.2
+	rel-7-0:1.2;
+locks; strict;
+comment	@ * @;
+
+
+14.8
+date	2007.08.18.03.15.11;	author brlcad;	state Exp;
+branches;
+next	14.7;
+
+14.7
+date	2007.01.23.01.13.34;	author brlcad;	state Exp;
+branches;
+next	14.6;
+
+14.6
+date	2007.01.21.04.45.42;	author brlcad;	state Exp;
+branches;
+next	14.5;
+
+14.5
+date	2007.01.21.01.25.32;	author brlcad;	state Exp;
+branches;
+next	14.4;
+
+14.4
+date	2006.08.08.06.47.05;	author brlcad;	state Exp;
+branches;
+next	14.3;
+
+14.3
+date	2005.08.12.22.30.12;	author lbutler;	state Exp;
+branches;
+next	14.2;
+
+14.2
+date	2005.04.13.01.43.20;	author brlcad;	state Exp;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.14;	author morrison;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2004.08.02.23.01.48;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.15.19.42;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.8
+log
+@remove the fblocal.h header file.  it was only used in three places (two files) and only contained one macro (wrapper to fb_log an error), so keep it simple until it's really needed.
+@
+text
+@/*                         I F _ A P . C
+ * BRL-CAD
+ *
+ * Copyright (c) 1989-2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This library is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@addtogroup if */
+/** @@{ */
+/** @@file if_ap.c
+ *
+ *  Apollo display interface using GPR.  This interface runs under the
+ *  display manager(direct mode).
+ *
+ *  Author-
+ *           Dave Barber
+ *
+ *  Source -
+ *           Idaho National Engineering Lab
+ *           P.O. Box 1625
+ *           Idaho Falls, ID 83415-2408
+ *           (208)526-9415
+ *
+ *  BRL NOTE: This is only the scant beginnings of an Apollo interface.
+ *   We have no way of testing this, and given the changes in LIBFB this
+ *   code may not even compile any longer.  If you make improvements to
+ *   this please let us know.
+ */
+/** @@} */
+
+#include "common.h"
+
+#include <stdio.h>
+#include <time.h>
+
+#include "machine.h"
+#include "base.h"
+#include "gpr.h"
+#include "fb.h"
+
+
+HIDDEN int	ap_open(),
+		ap_close(),
+		ap_clear(),
+		ap_read(),
+		ap_write(),
+		ap_rmap(),
+		ap_wmap(),
+		ap_setcursor(),
+		ap_cursor(),
+		ap_help();
+
+/* This is the ONLY thing that we normally "export" */
+FBIO ap_interface =  {
+	0,
+	ap_open,		/* device_open		*/
+	ap_close,		/* device_close		*/
+	ap_clear,		/* device_clear		*/
+	ap_read,		/* buffer_read		*/
+	ap_write,		/* buffer_write		*/
+	ap_rmap,		/* colormap_read	*/
+	ap_wmap,		/* colormap_write	*/
+	fb_sim_view,		/* set view		*/
+	fb_sim_getview,		/* get view		*/
+	ap_setcursor,		/* define cursor	*/
+	ap_cursor,		/* set cursor		*/
+	fb_sim_getcursor,	/* get cursor		*/
+	fb_sim_readrect,
+	fb_sim_writerect,
+	fb_sim_bwreadrect,
+	fb_sim_bwwriterect,
+	fb_null,			/* poll */
+	fb_null,			/* flush */
+	fb_null,			/* free */
+	ap_help,			/* help message		*/
+	"Apollo General Primitive Resource",/* device description	*/
+	1280,				/* max width		*/
+	1024,				/* max height		*/
+	"/dev/shortname",		/* short device name	*/
+	1280,				/* default/current width  */
+	1024,				/* default/current height */
+	-1,				/* select fd		*/
+	-1,				/* file descriptor	*/
+	1, 1,				/* zoom			*/
+	640, 512,			/* window center	*/
+	0, 0, 0,			/* cursor		*/
+	PIXEL_NULL,			/* page_base		*/
+	PIXEL_NULL,			/* page_curp		*/
+	PIXEL_NULL,			/* page_endp		*/
+	-1,				/* page_no		*/
+	0,				/* page_dirty		*/
+	0L,				/* page_curpos		*/
+	0L,				/* page_pixels		*/
+	0				/* debug		*/
+};
+
+gpr_$bitmap_desc_t	display_bm;
+static char window_id	'1';
+gpr_$event_t		event_type;
+gpr_$keyset_t		key_set;
+char			event_data;
+gpr_$position_t		position;
+char			unobs;
+char			delete_display=false;
+
+HIDDEN void
+ap_storepixel( ifp, x, y, pixelp, count )
+FBIO	*ifp;
+int	x, y;
+RGBpixel	*pixelp;
+int	count;
+{
+	{	register RGBpixel *memp;
+	for( 	memp = (RGBpixel *)
+			(&ifp->if_mem[(y*ifp->if_width+x)*sizeof(RGBpixel)]);
+		count > 0;
+		memp++, p++, count--)
+		{
+			COPYRGB(*memp, *p);
+		}
+	return(count);
+}
+
+HIDDEN int
+ap_open( ifp, file, width, height )
+FBIO	*ifp;
+char	*file;
+int	width, height;
+{
+    static gpr_$display_mode_t	mode = gpr_$direct;
+    ios_$id_t			graphics_strid;
+    pad_$window_desc_t		window;
+    gpr_$offset_t		display_bm_size;
+    static gpr_$rgb_plane_t	hi_plane = 1;
+    status_$t status;
+
+    FB_CK_FBIO(ifp);
+
+/*  Create a window  */
+
+    window.top = 0;
+    window.left = 0;
+    window.width = width;
+    window.height = height;
+    pad_$create_window("",0,pad_$transcript,1,window,graphics_strid,status);
+
+/*  Size and initialize the window  */
+
+    display_bm_size.x_size = width;
+    display_bm_size.y_size = height;
+    gpr_$init(mode,graphics_strid,display_bm_size,hi_plane,display_bm,status);
+    gpr_$set_window_id(window_id,status);
+    gpr_$enable_input(gpr_$entered_window,key_set,status);
+    gpr_$set_auto_close(grpahics_strid,1,true,status);
+    gpr_$set_obscured_opt(gpr_$pop_if_obs,status);
+    gpr_$set_auto_refresh(true,status);
+    return(0);
+}
+
+HIDDEN int
+ap_close( ifp )
+FBIO	*ifp;
+{
+    status_$t status;
+    gpr_$terminate(false,status);
+    return(0);
+}
+
+HIDDEN int
+ap_clear( ifp, pp )
+FBIO	*ifp;
+RGBpixel	*pp;
+{
+    status_$t status;
+
+/*  Clear to the background color  */
+
+    gpr_$clear(-2,status);
+    return(0);
+}
+
+HIDDEN int
+ap_read( ifp, x, y, pixelp, count )
+FBIO	*ifp;
+int	x, y;
+RGBpixel	*pixelp;
+int	count;
+{
+	{	register RGBpixel *memp;
+	for( 	memp = (RGBpixel *)
+			(&ifp->if_mem[(y*ifp->if_width+x)*sizeof(RGBpixel)]);
+		count > 0;
+		memp++, p++, count--)
+		{
+			COPYRGB(*p, *memp);
+		}
+	return(count);
+}
+
+HIDDEN int
+ap_write( ifp, x, y, pixelp, count )
+FBIO	*ifp;
+int	x, y;
+RGBpixel	*pixelp;
+int	count;
+{
+	return(count);
+}
+
+HIDDEN int
+ap_rmap( ifp, cmp )
+FBIO	*ifp;
+ColorMap	*cmp;
+{
+	return(0);
+}
+
+HIDDEN int
+ap_wmap( ifp, cmp )
+FBIO	*ifp;
+ColorMap	*cmp;
+{
+	return(0);
+}
+
+HIDDEN int
+ap_setcursor( ifp, bits, xbits, ybits, xorig, yorig )
+FBIO	*ifp;
+unsigned char *bits;
+int	xbits, ybits;
+int	xorig, yorig;
+{
+	return(0);
+}
+
+HIDDEN int
+ap_cursor( ifp, mode, x, y )
+FBIO	*ifp;
+int	mode;
+int	x, y;
+{
+	fb_sim_cursor( ifp, mode, x, y );
+	return(0);
+}
+
+HIDDEN int
+ap_help( ifp )
+FBIO	*ifp;
+{
+	fb_log( "Description: %s\n", ap_interface.if_type );
+	fb_log( "Device: %s\n", ifp->if_name );
+	fb_log( "Max width/height: %d %d\n",
+		ap_interface.if_max_width,
+		ap_interface.if_max_height );
+	fb_log( "Default width/height: %d %d\n",
+		ap_interface.if_width,
+		ap_interface.if_height );
+	return(0);
+}
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+14.7
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@a51 1
+#include "./fblocal.h"
+@
+
+
+14.6
+log
+@ugh, what tedium.  put some effort towards cleaning up the doxygen labels and making the headers more consistent.  also exclusively using @@ for doxygen instead of \ to try to keep things more consistent.
+@
+text
+@d9 1
+a9 1
+ * as published by the Free Software Foundation.
+@
+
+
+14.5
+log
+@dept of energy is part of the u.s. government and while there ability to claim copyright back in '89 is dubious, since they are government they can fall under the same significant conversion and copyright assignment conditions that was initially required.  so either way, the header can be cleaned up.
+@
+text
+@d20 1
+a20 1
+/** \addtogroup if */
+@
+
+
+14.4
+log
+@get rid of the libfb-specific _LOCAL_ macro, instead using HIDDEN like everyone else (currently still provided by machine.h)
+@
+text
+@d1 19
+d21 21
+a41 24
+/*@@{*/
+/** \file if_ap.c
+*  Apollo display interface using GPR.  This interface runs under the
+*  display manager(direct mode).
+*
+*  Author-
+*           Dave Barber
+*
+*  Source -
+*           Idaho National Engineering Lab
+*           P.O. Box 1625
+*           Idaho Falls, ID 83415-2408
+*           (208)526-9415
+*
+*  Copyright Notice -
+*           This software is Copyright (C) 1989 by the Department of Energy.
+*           All rights reserved.
+*
+*  BRL NOTE: This is only the scant beginnings of an Apollo interface.
+*   We have no way of testing this, and given the changes in LIBFB this
+*   code may not even compile any longer.  If you make improvements to
+*   this please let us know.
+*/
+/*@@}*/
+@
+
+
+14.3
+log
+@Doxygen changes
+@
+text
+@a28 2
+
+
+d38 2
+a39 1
+_LOCAL_ int	ap_open(),
+d103 1
+a103 1
+_LOCAL_ void
+d121 1
+a121 1
+_LOCAL_ int
+d157 1
+a157 1
+_LOCAL_ int
+d166 1
+a166 1
+_LOCAL_ int
+d179 1
+a179 1
+_LOCAL_ int
+d197 1
+a197 1
+_LOCAL_ int
+d207 1
+a207 1
+_LOCAL_ int
+d215 1
+a215 1
+_LOCAL_ int
+d223 1
+a223 1
+_LOCAL_ int
+d233 1
+a233 1
+_LOCAL_ int
+d243 1
+a243 1
+_LOCAL_ int
+@
+
+
+14.2
+log
+@remove specific references to ARL addresses.  instead use brlcad.org mail aliases and the new sf.net mailing lists.
+@
+text
+@d1 3
+a3 3
+/*
+*			I F _ A P . C
+*
+d25 1
+a25 1
+
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@d23 1
+a23 1
+*   this please let us know. <phil@@brl.mil>
+@
+
+
+1.2
+log
+@replace the wrapped config.h block with common.h
+@
+text
+@d258 10
+@
+
+
+1.1
+log
+@Vast reorganization begins.  Sources moved from top-level directories into src/.
+@
+text
+@d27 1
+a27 3
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+@
+

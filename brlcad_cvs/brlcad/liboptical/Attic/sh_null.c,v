@@ -1,0 +1,280 @@
+head	1.6;
+access;
+symbols
+	ansi-20040405-merged:1.3.2.1
+	postmerge-20040405-ansi:1.4
+	premerge-20040404-ansi:1.3
+	postmerge-autoconf:1.3
+	autoconf-freeze:1.3
+	premerge-autoconf:1.3
+	ansi-20040316-freeze:1.3.2.1
+	postmerge-20040315-windows:1.3
+	premerge-20040315-windows:1.3
+	windows-20040315-freeze:1.3
+	autoconf-20031203:1.3
+	autoconf-20031202:1.3
+	autoconf-branch:1.3.0.10
+	phong-branch:1.3.0.8
+	photonmap-branch:1.3.0.6
+	rel-6-1-DP:1.3
+	windows-branch:1.3.0.4
+	rel-6-0-2:1.1
+	ansi-branch:1.3.0.2
+	rel-6-0-1-branch:1.1.0.2
+	hartley-6-0-post:1.2
+	hartley-6-0-pre:1.1
+	rel-6-0-1:1.1
+	rel-6-0:1.1;
+locks; strict;
+comment	@ * @;
+
+
+1.6
+date	2004.05.21.18.07.27;	author morrison;	state dead;
+branches;
+next	1.5;
+
+1.5
+date	2004.05.10.15.30.45;	author erikg;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	2004.04.05.07.43.37;	author morrison;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2002.08.20.17.07.51;	author jra;	state Exp;
+branches
+	1.3.2.1;
+next	1.2;
+
+1.2
+date	2002.08.15.20.55.04;	author hartley;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2002.03.07.22.25.20;	author morrison;	state Exp;
+branches;
+next	;
+
+1.3.2.1
+date	2002.09.19.18.01.25;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.6
+log
+@moved to src/
+@
+text
+@/*
+ *	S H _ N U L L . C
+ *
+ * Notes - 
+ * This is the null, aka invisible, shader.  It is potentially useful as a performance
+ * metric as well as to hide objects from a scene rendering.  It simply does nothing.
+ *
+ * This is the most basic shader.
+ *
+ * Author -
+ * Christopher Sean Morrison
+ *
+ * Source -
+ * The U.S. Army Research Laboratory
+ * Aberdeen Proving Ground, Maryland  21005-5068  USA
+ */
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+
+#include <stdio.h>
+#include <math.h>
+#include "machine.h"
+#include "vmath.h"
+#include "raytrace.h"
+#include "shadefuncs.h"
+#include "shadework.h"
+#include "rtprivate.h"
+
+extern int rr_render(struct application *ap, struct partition *pp, struct shadework *swp);
+
+HIDDEN int	null_setup(register struct region *rp, struct bu_vls *matparm, char **dpp, struct mfuncs *mfp, struct rt_i *rtip), null_render(struct application *ap, struct partition *pp, struct shadework *swp, char *dp);
+HIDDEN void	null_print(register struct region *rp, char *dp), null_free(char *cp);
+
+/* The "mfuncs" table describes what the user interface may call this shader.
+ * The null shader may be referred to as null or invisible.  Note that the 
+ * four shader functions *must* be defined, even if they do nothing.
+ */
+struct mfuncs null_mfuncs[] = {
+	{MF_MAGIC,	"null",		0,		MFI_HIT,	0,
+	null_setup,	null_render,	null_print,	null_free },
+
+	{MF_MAGIC,	"invisible",		0,		MFI_HIT,	0,
+	null_setup,	null_render,	null_print,	null_free },
+
+	{0,		(char *)0,	0,		0,		0,
+	0,		0,		0,		0 }
+};
+
+
+/*	N U L L _ S E T U P
+ *
+ *	This routine is called (at prep time) once for each region which uses this
+ *  shader.  Any shader-specific initialization should be done here.  It should
+ *  return 1 on success and -1 on failure.  Alternatively, this routine should
+ *  return 0 to delete this region's shader information after setup (i.e. it's
+ *  not needed for whatever reason to it won't be rendered).
+ *
+ *  The null shader has nothing to do during setup since it doesn't actually 
+ *  have anything to do during render0.  It's setup returns 0 since there's no 
+ *  need to keep any region info.  This means that null_render will not even 
+ *  get called.
+ */
+HIDDEN int
+null_setup( register struct region *rp, struct bu_vls *matparm, char **dpp, struct mfuncs *mfp, struct rt_i *rtip ) {
+
+	/* no point to check the arguments since we do nothing with them.  we leave the error
+	 * checking to elsewhere when used.
+	 */
+
+	/* no point in keeping this region's data around */
+	return 0;
+}
+
+
+/*
+ *	N U L L _ R E N D E R
+ *
+ *	This is called (from viewshade() in shade.c) once for each hit point
+ *	to be shaded.  The purpose here is to fill in values in the shadework
+ *	structure.  This is, of course, not necessary when setup returns 0.
+ *
+ *  The null shader actually does "something", though it is not called.  
+ *  It has to at least pass the ray through so that it can actually 
+ *  raytrace what is visible behind the invisible object.  Otherwise,
+ *  an empty black void would be rendered.  this is not really important
+ *  though, since it shouldn't normally be called.
+ */
+HIDDEN int
+null_render( struct application *ap, struct partition *pp, struct shadework *swp, char *dp ) {
+
+	/* check the validity of the arguments we got */
+	RT_AP_CHECK(ap);
+	RT_CHECK_PT(pp);
+	/* shadework structures do not have magic numbers or other means to test
+	 * their validity
+	 */
+
+	bu_log("Who called null_render explicitly?");
+
+	/* here is what actually makes the object invisible/null instead of being a
+	 * black void (if render ever is called).
+	 */
+	(void)rr_render(ap, pp, swp);
+
+	return(1);
+}
+
+
+/*
+ *	N U L L _ P R I N T
+ * 
+ * This routine is called if setup fails (which it never should).
+ */
+HIDDEN void
+null_print( register struct region *rp, char *dp ) {
+	bu_log("%S uses the null shader\n", rp->reg_name);
+}
+
+
+/*
+ *	N U L L _ F R E E
+ *  
+ *  This routine is called after all rendering has completed.  The intent is
+ *  normally to release any specific structures that were allocated during
+ *  setup or rendering.
+ *
+ *  The null shader allocates nothing.  Therefore it releases nothing.
+ */
+HIDDEN void
+null_free( char *cp ) {
+}
+@
+
+
+1.5
+log
+@change conf.h to a wrapped config.h
+@
+text
+@@
+
+
+1.4
+log
+@merge of ansi-6-0-branch into HEAD
+@
+text
+@d17 5
+a21 1
+#include "conf.h"
+@
+
+
+1.3
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d30 2
+a31 2
+HIDDEN int	null_setup(), null_render();
+HIDDEN void	null_print(), null_free();
+@
+
+
+1.3.2.1
+log
+@Initial ANSIfication
+@
+text
+@d30 2
+a31 2
+HIDDEN int	null_setup(register struct region *rp, struct bu_vls *matparm, char **dpp, struct mfuncs *mfp, struct rt_i *rtip), null_render(struct application *ap, struct partition *pp, struct shadework *swp, char *dp);
+HIDDEN void	null_print(register struct region *rp, char *dp), null_free(char *cp);
+@
+
+
+1.2
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d30 2
+a31 2
+HIDDEN int	null_setup(register struct region *rp, struct bu_vls *matparm, char **dpp, struct mfuncs *mfp, struct rt_i *rtip), null_render(struct application *ap, struct partition *pp, struct shadework *swp, char *dp);
+HIDDEN void	null_print(register struct region *rp, char *dp), null_free(char *cp);
+@
+
+
+1.1
+log
+@This is a null/invisible shader.  Objects set to this shader will not render (null_setup returns 0 which causes the objects raytrace structure to go *poof* and null_render never gets called).
+@
+text
+@d30 2
+a31 2
+HIDDEN int	null_setup(), null_render();
+HIDDEN void	null_print(), null_free();
+@
+

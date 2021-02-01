@@ -1,0 +1,731 @@
+head	1.14;
+access;
+symbols
+	ansi-20040405-merged:1.12.4.1
+	postmerge-20040405-ansi:1.13
+	premerge-20040404-ansi:1.13
+	postmerge-autoconf:1.13
+	autoconf-freeze:1.13
+	premerge-autoconf:1.13
+	postmerge-20040315-windows:1.13
+	premerge-20040315-windows:1.13
+	windows-20040315-freeze:1.12.6.2
+	autoconf-20031203:1.13
+	autoconf-20031202:1.13
+	autoconf-branch:1.13.0.6
+	phong-branch:1.13.0.4
+	photonmap-branch:1.13.0.2
+	rel-6-1-DP:1.12
+	windows-branch:1.12.0.6
+	rel-6-0-2:1.12
+	ansi-branch:1.12.0.4
+	rel-6-0-1-branch:1.12.0.2
+	hartley-6-0-post:1.12
+	hartley-6-0-pre:1.12
+	rel-6-0-1:1.12
+	rel-6-0:1.12
+	rel-5-4:1.10.2.2
+	offsite-5-3-pre:1.12
+	rel-5-3:1.10.2.2
+	rel-5-2:1.10
+	rel-5-1-branch:1.10.0.2
+	rel-5-1:1.10
+	rel-5-0:1.10
+	rel-5-0-beta:1.9;
+locks; strict;
+comment	@# @;
+
+
+1.14
+date	2004.05.21.16.41.23;	author morrison;	state dead;
+branches;
+next	1.13;
+
+1.13
+date	2003.03.13.19.45.31;	author jra;	state Exp;
+branches;
+next	1.12;
+
+1.12
+date	2001.02.16.22.30.02;	author bparker;	state Exp;
+branches
+	1.12.4.1
+	1.12.6.1;
+next	1.11;
+
+1.11
+date	2000.12.22.00.35.15;	author bparker;	state Exp;
+branches;
+next	1.10;
+
+1.10
+date	99.09.08.13.16.17;	author bparker;	state Exp;
+branches
+	1.10.2.1;
+next	1.9;
+
+1.9
+date	99.04.09.21.27.10;	author bparker;	state Exp;
+branches;
+next	1.8;
+
+1.8
+date	99.01.19.22.31.28;	author bparker;	state Exp;
+branches;
+next	1.7;
+
+1.7
+date	98.11.23.20.35.22;	author bparker;	state Exp;
+branches;
+next	1.6;
+
+1.6
+date	98.11.13.22.21.19;	author bparker;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	98.06.15.19.28.20;	author bparker;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	98.06.09.18.12.24;	author bparker;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	98.05.01.21.04.04;	author bparker;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	98.04.23.13.42.05;	author bparker;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	98.04.09.20.43.42;	author bparker;	state Exp;
+branches;
+next	;
+
+1.10.2.1
+date	2000.12.22.00.02.28;	author bparker;	state Exp;
+branches;
+next	1.10.2.2;
+
+1.10.2.2
+date	2001.02.08.21.53.24;	author bparker;	state Exp;
+branches;
+next	;
+
+1.12.4.1
+date	2004.03.17.21.23.10;	author morrison;	state Exp;
+branches;
+next	;
+
+1.12.6.1
+date	2002.09.26.23.04.17;	author morrison;	state Exp;
+branches;
+next	1.12.6.2;
+
+1.12.6.2
+date	2004.03.11.23.48.58;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.14
+log
+@moved to src/tclscripts/
+@
+text
+@#			C O M B M E N U . T C L
+#
+#	Author -
+#		Robert G. Parker
+#
+#	Description -
+#		Tcl routines to specify a combination for editing
+#		from among all combinations in the database or from
+#		among those currently being displayed.
+#
+#
+
+if ![info exists mged_default(display)] {
+    if [info exists env(DISPLAY)] {
+	set mged_default(display) $env(DISPLAY)
+    } else {
+	set mged_default(display) :0
+    }
+}
+
+if ![info exists mged_gui(mged,screen)] {
+    set mged_gui(mged,screen) $mged_default(display)
+}
+
+#	Ensure that all commands that this script uses without defining
+#	are provided by the calling application
+check_externs "_mged_x _mged_press"
+
+proc build_comb_menu_all_displayed {} {
+    global mged_players
+    global mged_gui
+    global mouse_behavior
+    global ::tk::Priv
+
+    set win [winset]
+    set id [get_player_id_dm $win]
+
+    if {[info exists mged_gui($id,edit_menu)] && \
+	    [winfo exists $mged_gui($id,edit_menu)]} {
+	destroy $mged_gui($id,edit_menu)
+    }
+
+    set paths [_mged_x -1]
+    if {![llength $paths]} {
+	cad_dialog $::tk::Priv(cad_dialog) $mged_gui($id,screen)\
+		"No combinations are being displayed!"\
+		"No combinations are being displayed!"\
+		"" 0 OK
+	return
+    }
+
+    _mged_press reject
+    set combs [build_comb_list $paths]
+    build_comb_menu $id $combs
+
+    mged_apply_all [winset] "set mouse_behavior d"
+    foreach id $mged_players {
+	set mged_gui($id,mouse_behavior) d
+    }
+}
+
+proc ray_build_comb_menu { x y } {
+    global mged_players
+    global mged_gui
+    global mouse_behavior
+
+    set win [winset]
+    set id [get_player_id_dm $win]
+
+    if {[info exists mged_gui($id,edit_menu)] && \
+	    [winfo exists $mged_gui($id,edit_menu)]} {
+	destroy $mged_gui($id,edit_menu)
+    }
+
+    set ray [mouse_shoot_ray $x $y]
+    set paths [ray_get_info $ray in path]
+
+    _mged_press reject
+    set combs [build_comb_list $paths]
+    build_comb_menu $id $combs
+
+    mged_apply_all [winset] "set mouse_behavior d"
+    foreach id $mged_players {
+	set mged_gui($id,mouse_behavior) d
+    }
+}
+
+proc build_comb_menu { id combs } {
+    global comb_control
+    global mged_gui
+
+    if {[info exists mged_gui($id,edit_menu)] && \
+	    [winfo exists $mged_gui($id,edit_menu)]} {
+	destroy $mged_gui($id,edit_menu)
+    }
+
+    set top .cm$id
+    if [winfo exists $top] {
+	destroy $top
+    }
+
+    if [info exists mged_gui($id,screen)] {
+	set screen $mged_gui($id,screen)
+    } else {
+	set win [winset]
+	set screen [winfo screen $win]
+    }
+
+    create_listbox $top $screen Combination $combs "destroy $top"
+    set mged_gui($id,edit_menu) $top
+
+    bind_listbox $top "<B1-Motion>"\
+	    "set comb \[%W get @@%x,%y\];\
+	    set spath \[comb_get_solid_path \$comb\];\
+	    set path_pos \[comb_get_path_pos \$spath \$comb\];\
+	    matrix_illum \$spath \$path_pos"
+if 0 {
+    bind_listbox $top "<ButtonPress-1>"\
+	    "set comb \[%W get @@%x,%y\];\
+	    set spath \[comb_get_solid_path \$comb\];\
+	    set path_pos \[comb_get_path_pos \$spath \$comb\];\
+	    matrix_illum \$spath \$path_pos"
+    bind_listbox $top "<Double-1>"\
+	    "set comb_control($id,name) \[%W get @@%x,%y\];\
+	    comb_reset $id;\
+	    destroy $top"
+} else {
+    bind_listbox $top "<ButtonPress-1>" \
+	    "lbdcHack %W %x %y %t $id c2 junkpath"
+}
+    bind_listbox $top "<ButtonRelease-1>"\
+	    "%W selection clear 0 end;\
+	    _mged_press reject"
+}
+
+proc build_comb_menu_all_regions {} {
+    set win [winset]
+    set id [get_player_id_dm $win]
+
+    set combs [_mged_ls -r]
+    build_comb_menu2 $id $combs
+}
+
+proc build_comb_menu_all {} {
+    set win [winset]
+    set id [get_player_id_dm $win]
+
+    set combs [_mged_ls -c]
+    build_comb_menu2 $id $combs
+}
+
+proc build_comb_menu2 { id combs } {
+    global comb_control
+    global mged_gui
+
+    if {[info exists mged_gui($id,edit_menu)] && \
+	    [winfo exists $mged_gui($id,edit_menu)]} {
+	destroy $mged_gui($id,edit_menu)
+    }
+
+    set top .cm$id
+    if [winfo exists $top] {
+	destroy $top
+    }
+
+    if [info exists mged_gui($id,screen)] {
+	set screen $mged_gui($id,screen)
+    } else {
+	set win [winset]
+	set screen [winfo screen $win]
+    }
+
+    create_listbox $top $screen Combination $combs "destroy $top"
+    set mged_gui($id,edit_menu) $top
+
+if 0 {
+    bind_listbox $top "<Double-1>"\
+	    "set comb_control($id,name) \[%W get @@%x,%y\];\
+	    comb_reset $id;\
+	    destroy $top"
+} else {
+    bind_listbox $top "<ButtonPress-1>" \
+	    "lbdcHack %W %x %y %t $id c3 junkpath"
+}
+    bind_listbox $top "<ButtonRelease-1>"\
+	    "%W selection clear 0 end"
+}
+
+proc build_comb_list { paths } {
+    set all_combs {}
+    set combs {}
+
+    foreach path $paths {
+	# remove leading /'s
+	regexp "\[^/\].*" $path match
+	set path_components [split $match /]
+
+	# Append all path components except the last which is a solid
+	set n [expr [llength $path_components] - 1]
+	for { set i 0 } { $i < $n } { incr i } {
+	    lappend all_combs [lindex $path_components $i]
+	}
+    }
+
+    foreach comb $all_combs {
+	# Put $comb into combs if not already there
+	if { [lsearch -exact $combs $comb] == -1 } {
+	    lappend combs $comb
+	}
+    }
+
+    return $combs
+}
+
+proc comb_get_solid_path { comb } {
+    set paths [_mged_x -1]
+
+    if {[llength $paths] == 0} {
+	return ""
+    }
+
+    set path_index [lsearch $paths *$comb*]
+    set spath [lindex $paths $path_index]
+
+    return $spath
+}
+
+proc comb_get_path_pos { spath comb } {
+    regexp "\[^/\].*" $spath match
+    set path_components [split $match /]
+    set path_pos [lsearch -exact $path_components $comb]
+
+    return $path_pos
+}
+@
+
+
+1.13
+log
+@*** empty log message ***
+@
+text
+@@
+
+
+1.12
+log
+@*- use lbdcHack to get around the <Double-1> problem
+   (i.e. this event is not consistently recognized)
+@
+text
+@d33 1
+a33 1
+    global tkPriv
+d45 1
+a45 1
+	cad_dialog $tkPriv(cad_dialog) $mged_gui($id,screen)\
+@
+
+
+1.12.4.1
+log
+@sync branch with HEAD
+@
+text
+@d33 1
+a33 1
+    global ::tk::Priv
+d45 1
+a45 1
+	cad_dialog $::tk::Priv(cad_dialog) $mged_gui($id,screen)\
+@
+
+
+1.12.6.1
+log
+@Modifications (on a 6.0 source distribution) for initial port to windows (merged with sources close to 6.0.2)
+@
+text
+@d33 1
+a33 1
+    variable ::tk::Priv
+d45 1
+a45 1
+	cad_dialog $Priv(cad_dialog) $mged_gui($id,screen)\
+@
+
+
+1.12.6.2
+log
+@sync to HEAD...
+@
+text
+@d33 1
+a33 1
+    global ::tk::Priv
+d45 1
+a45 1
+	cad_dialog $::tk::Priv(cad_dialog) $mged_gui($id,screen)\
+@
+
+
+1.11
+log
+@Use tkPriv(cad_dialog) for dialog name.
+@
+text
+@d117 1
+d127 4
+d176 1
+d181 4
+@
+
+
+1.10
+log
+@*- routines to support new "Name" menu items
+*- add motion bindings so that the highlighted object
+   changes as the mouse traverses items in the list
+@
+text
+@d33 1
+d45 1
+a45 1
+	cad_dialog .$id.combDialog $mged_gui($id,screen)\
+@
+
+
+1.10.2.1
+log
+@Use tkPriv(cad_dialog) for dialog name.
+@
+text
+@a32 1
+    global tkPriv
+d44 1
+a44 1
+	cad_dialog $tkPriv(cad_dialog) $mged_gui($id,screen)\
+@
+
+
+1.10.2.2
+log
+@*- use lbdcHack
+@
+text
+@a116 1
+if 0 {
+a125 4
+} else {
+    bind_listbox $top "<ButtonPress-1>" \
+	    "lbdcHack %W %x %y %t $id c2 junkpath"
+}
+a170 1
+if 0 {
+a174 4
+} else {
+    bind_listbox $top "<ButtonPress-1>" \
+	    "lbdcHack %W %x %y %t $id c3 junkpath"
+}
+@
+
+
+1.9
+log
+@*- call mged_apply_all with pathname of current display manager window
+@
+text
+@d8 2
+a9 1
+#		from among those currently being displayed.
+d29 1
+a29 1
+proc build_comb_menu_all {} {
+d111 5
+d120 1
+a120 1
+	    matrix_illum \$spath \$path_pos; break"
+d124 1
+a124 1
+	    destroy $top; break"
+d127 49
+a175 1
+	    _mged_press reject; break"
+d183 1
+d187 1
+a187 1
+# Append all path components except the last which is a solid
+d195 1
+a195 1
+# Put $comb into combs if not already there
+@
+
+
+1.8
+log
+@*- cleanup variables
+@
+text
+@d54 1
+a54 1
+    mged_apply_all "set mouse_behavior d"
+d80 1
+a80 1
+    mged_apply_all "set mouse_behavior d"
+@
+
+
+1.7
+log
+@*- change comb_name($id) to comb_control($id,name)
+@
+text
+@d12 1
+a12 1
+if ![info exists mged_default_display] {
+d14 1
+a14 1
+	set mged_default_display $env(DISPLAY)
+d16 1
+a16 1
+	set mged_default_display :0
+d20 2
+a21 2
+if ![info exists player_screen(mged)] {
+    set player_screen(mged) $mged_default_display
+a28 1
+    global player_screen
+d30 1
+a30 1
+    global mged_mouse_behavior
+a31 1
+    global mged_edit_menu
+d36 3
+a38 3
+    if {[info exists mged_edit_menu($id)] && \
+	    [winfo exists $mged_edit_menu($id)]} {
+	destroy $mged_edit_menu($id)
+d43 1
+a43 1
+	cad_dialog .$id.combDialog $player_screen($id)\
+d56 1
+a56 1
+	set mged_mouse_behavior($id) d
+a60 1
+    global player_screen
+d62 1
+a62 1
+    global mged_mouse_behavior
+a63 1
+    global mged_edit_menu
+d68 3
+a70 3
+    if {[info exists mged_edit_menu($id)] && \
+	    [winfo exists $mged_edit_menu($id)]} {
+	destroy $mged_edit_menu($id)
+d82 1
+a82 1
+	set mged_mouse_behavior($id) d
+a86 1
+    global player_screen
+d88 1
+a88 1
+    global mged_edit_menu
+d90 3
+a92 3
+    if {[info exists mged_edit_menu($id)] && \
+	    [winfo exists $mged_edit_menu($id)]} {
+	destroy $mged_edit_menu($id)
+d100 2
+a101 2
+    if [info exists player_screen($id)] {
+	set screen $player_screen($id)
+d108 1
+a108 1
+    set mged_edit_menu($id) $top
+@
+
+
+1.6
+log
+@*- name change
+@
+text
+@d92 1
+a92 1
+    global comb_name
+d121 1
+a121 1
+	    "set comb_name($id) \[%W get @@%x,%y\];\
+@
+
+
+1.5
+log
+@*- append "break" to bindings to prevent further processing
+@
+text
+@d122 1
+a122 1
+	    comb_load_defaults $id;\
+@
+
+
+1.4
+log
+@*- use cad_dialog instead of mged_dialog
+@
+text
+@d119 1
+a119 1
+	    matrix_illum \$spath \$path_pos"
+d123 1
+a123 1
+	    destroy $top"
+d126 1
+a126 1
+	    _mged_press reject"
+@
+
+
+1.3
+log
+@added proc: comb_get_solid_path and comb_get_path_pos
+@
+text
+@d45 1
+a45 1
+	mged_dialog .$id.combDialog $player_screen($id)\
+@
+
+
+1.2
+log
+@mods to proc build_comb_menu
+@
+text
+@d30 1
+a32 1
+    global mged_active_dm
+d56 4
+a59 9
+#    if {$mouse_behavior == "c" || \
+#	    $mouse_behavior == "o" || \
+#	    $mouse_behavior == "s"} {
+#	set mouse_behavior d
+#	if {[info exists mged_active_dm($id)] && $win == $mged_active_dm($id)} {
+#	    set mged_mouse_behavior($id) d
+#	    set tmp ""
+#	}
+#    }
+d64 1
+a66 1
+    global mged_active_dm
+d84 4
+a87 9
+#    if {$mouse_behavior == "c" || \
+#	    $mouse_behavior == "o" || \
+#	    $mouse_behavior == "s"} {
+#	set mouse_behavior d
+#	if {[info exists mged_active_dm($id)] && $win == $mged_active_dm($id)} {
+#	    set mged_mouse_behavior($id) d
+#	    set tmp ""
+#	}
+#    }
+d115 12
+a126 4
+    bind_listbox $top "<ButtonPress-1>" "comb_illum %W %x %y"
+    bind_listbox $top "<Double-1>" "set comb_name($id) \[%W get @@%x,%y\];\
+	    comb_load_defaults $id; destroy $top"
+    bind_listbox $top "<ButtonRelease-1>" "%W selection clear 0 end; _mged_press reject"
+d152 21
+@
+
+
+1.1
+log
+@Tcl routines to specify a combination for editing
+from among those currently being displayed.
+@
+text
+@d122 2
+a123 1
+    create_listbox $top $screen Combination $combs
+@

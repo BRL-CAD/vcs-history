@@ -1,0 +1,833 @@
+head	1.20;
+access;
+symbols
+	rel-7-10-4:1.18
+	STABLE:1.18.0.2
+	rel-7-10-2:1.17
+	rel-7-10-0:1.17
+	rel-7-8-4:1.11
+	rel-7-8-2:1.11
+	rel-7-8-0:1.11
+	trimnurbs-branch:1.11.0.2
+	help:1.11
+	temp_tag:1.11
+	bobWinPort-20051223-freeze:1.8
+	postmerge-20051223-bobWinPort:1.11
+	premerge-20051223-bobWinPort:1.11
+	rel-7-6-6:1.11
+	rel-7-6-4:1.11
+	rel-7-6-2:1.8
+	rel-7-6-branch:1.8.0.4
+	rel-7-6-0:1.8
+	rel-7-4-2:1.4.2.1
+	rel-7-4-branch:1.4.0.2
+	bobWinPort:1.8.0.2
+	rel-7-4-0:1.4;
+locks; strict;
+comment	@ * @;
+
+
+1.20
+date	2007.12.05.21.24.13;	author erikgreenwald;	state Exp;
+branches;
+next	1.19;
+
+1.19
+date	2007.11.29.21.55.29;	author erikgreenwald;	state Exp;
+branches;
+next	1.18;
+
+1.18
+date	2007.08.30.19.11.29;	author brlcad;	state Exp;
+branches;
+next	1.17;
+
+1.17
+date	2007.03.20.20.05.07;	author brlcad;	state Exp;
+branches;
+next	1.16;
+
+1.16
+date	2007.02.08.06.49.18;	author brlcad;	state Exp;
+branches;
+next	1.15;
+
+1.15
+date	2007.02.02.19.46.34;	author erikgreenwald;	state Exp;
+branches;
+next	1.14;
+
+1.14
+date	2007.01.23.01.13.22;	author brlcad;	state Exp;
+branches;
+next	1.13;
+
+1.13
+date	2007.01.21.00.51.05;	author brlcad;	state Exp;
+branches;
+next	1.12;
+
+1.12
+date	2007.01.18.22.17.57;	author erikgreenwald;	state Exp;
+branches;
+next	1.11;
+
+1.11
+date	2005.10.23.04.44.28;	author brlcad;	state Exp;
+branches;
+next	1.10;
+
+1.10
+date	2005.09.21.16.02.42;	author twingy;	state Exp;
+branches;
+next	1.9;
+
+1.9
+date	2005.09.21.02.17.11;	author twingy;	state dead;
+branches;
+next	1.8;
+
+1.8
+date	2005.07.29.17.48.17;	author twingy;	state Exp;
+branches
+	1.8.4.1;
+next	1.7;
+
+1.7
+date	2005.07.26.18.37.20;	author twingy;	state Exp;
+branches;
+next	1.6;
+
+1.6
+date	2005.07.18.21.59.06;	author twingy;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	2005.07.18.21.20.38;	author twingy;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	2005.06.30.09.02.46;	author twingy;	state Exp;
+branches
+	1.4.2.1;
+next	1.3;
+
+1.3
+date	2005.06.29.21.04.43;	author twingy;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2005.06.29.20.21.17;	author twingy;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2005.06.29.17.07.39;	author twingy;	state Exp;
+branches;
+next	;
+
+1.4.2.1
+date	2005.08.16.21.03.46;	author brlcad;	state Exp;
+branches;
+next	;
+
+1.8.4.1
+date	2005.11.13.13.46.12;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.20
+log
+@merge in updated librender
+@
+text
+@/*                         S P A L L . C
+ * BRL-CAD / ADRT
+ *
+ * Copyright (c) 2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This library is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@file spall.c
+ *
+ *  Author -
+ *      Justin L. Shumaker
+ *
+ */
+
+#include "spall.h"
+#include "render_util.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include "adrt_struct.h"
+#include "hit.h"
+
+#define TESSELATION 32
+#define SPALL_LEN 20
+
+void* render_spall_hit(tie_ray_t *ray, tie_id_t *id, tie_tri_t *tri, void *ptr);
+void render_plane(tie_t *tie, tie_ray_t *ray, TIE_3 *pixel);
+
+
+typedef struct render_spall_hit_s {
+  tie_id_t id;
+  adrt_mesh_t *mesh;
+  tfloat plane[4];
+  tfloat mod;
+} render_spall_hit_t;
+
+
+void render_spall_init(render_t *render, TIE_3 ray_pos, TIE_3 ray_dir, tfloat angle) {
+  render_spall_t *d;
+  TIE_3 *tri_list, *vec_list, normal, up;
+  tfloat plane[4];
+  int i;
+
+  render->work = render_spall_work;
+  render->free = render_spall_free;
+
+  render->data = (render_spall_t *)malloc(sizeof(render_spall_t));
+  if (!render->data) {
+      perror("render->data");
+      exit(1);
+  }
+  d = (render_spall_t *)render->data;
+
+  d->ray_pos = ray_pos;
+  d->ray_dir = ray_dir;
+
+  tie_init(&d->tie, TESSELATION, TIE_KDTREE_FAST);
+
+  /* Calculate the normal to be used for the plane */
+  up.v[0] = 0;
+  up.v[1] = 0;
+  up.v[2] = 1;
+
+  MATH_VEC_CROSS(normal, ray_dir, up);
+  MATH_VEC_UNITIZE(normal);
+
+  /* Construct the plane */
+  d->plane[0] = normal.v[0];
+  d->plane[1] = normal.v[1];
+  d->plane[2] = normal.v[2];
+  MATH_VEC_DOT(plane[3], normal, ray_pos); /* up is really new ray_pos */
+  d->plane[3] = -plane[3];
+
+  /******************/
+  /* The spall Cone */
+  /******************/
+  vec_list = (TIE_3 *)malloc(sizeof(TIE_3) * TESSELATION);
+  if (!vec_list) {
+      perror("vec_list");
+      exit(1);
+  }
+  tri_list = (TIE_3 *)malloc(sizeof(TIE_3) * TESSELATION * 3);
+  if (!tri_list) {
+      perror("tri_list");
+      exit(1);
+  }
+
+  render_util_spall_vec(ray_dir, angle, TESSELATION, vec_list);
+
+  /* triangles to approximate */
+  for(i = 0; i < TESSELATION; i++) {
+    tri_list[3*i+0] = ray_pos;
+
+    MATH_VEC_MUL_SCALAR(tri_list[3*i+1], vec_list[i], SPALL_LEN);
+    MATH_VEC_ADD(tri_list[3*i+1], tri_list[3*i+1], ray_pos);
+
+    if(i == TESSELATION - 1) {
+      MATH_VEC_MUL_SCALAR(tri_list[3*i+2], vec_list[0], SPALL_LEN);
+      MATH_VEC_ADD(tri_list[3*i+2], tri_list[3*i+2], ray_pos);
+    } else {
+      MATH_VEC_MUL_SCALAR(tri_list[3*i+2], vec_list[i+1], SPALL_LEN);
+      MATH_VEC_ADD(tri_list[3*i+2], tri_list[3*i+2], ray_pos);
+    }
+  }
+
+/*  tie_push(&d->tie, tri_list, TESSELATION, NULL, 0);   */
+  tie_prep(&d->tie);
+
+  free(vec_list);
+  free(tri_list);
+}
+
+
+void render_spall_free(render_t *render) {
+  free(render->data);
+}
+
+
+static void* render_arrow_hit(tie_ray_t *ray, tie_id_t *id, tie_tri_t *tri, void *ptr) {
+  return(tri);
+}
+
+
+void* render_spall_hit(tie_ray_t *ray, tie_id_t *id, tie_tri_t *tri, void *ptr) {
+  render_spall_hit_t *hit = (render_spall_hit_t *)ptr;
+
+  hit->id = *id;
+  hit->mesh = (adrt_mesh_t *)(tri->ptr);
+  return( hit );
+}
+
+
+void render_spall_work(render_t *render, tie_t *tie, tie_ray_t *ray, TIE_3 *pixel) {
+  render_spall_t *rd;
+  render_spall_hit_t hit;
+  TIE_3 color;
+  tie_id_t id;
+  tfloat t, dot;
+
+
+  rd = (render_spall_t *)render->data;
+
+  /* Draw spall Cone */
+  if(tie_work(&rd->tie, ray, &id, render_arrow_hit, NULL)) {
+    pixel->v[0] = 0.4;
+    pixel->v[1] = 0.4;
+    pixel->v[2] = 0.4;
+  }
+
+  /*
+  * I don't think this needs to be done for every pixel?
+  * Flip plane normal to face us.
+  */
+  t = ray->pos.v[0]*rd->plane[0] + ray->pos.v[1]*rd->plane[1] + ray->pos.v[2]*rd->plane[2] + rd->plane[3];
+  hit.mod = t < 0 ? 1 : -1;
+
+
+  /*
+  * Optimization:
+  * First intersect this ray with the plane and fire the ray from there 
+  * Plane: Ax + By + Cz + D = 0
+  * Ray = O + td
+  * t = -(Pn · R0 + D) / (Pn · Rd)
+  * 
+  */
+
+  t = (rd->plane[0]*ray->pos.v[0] + rd->plane[1]*ray->pos.v[1] + rd->plane[2]*ray->pos.v[2] + rd->plane[3]) /
+      (rd->plane[0]*ray->dir.v[0] + rd->plane[1]*ray->dir.v[1] + rd->plane[2]*ray->dir.v[2]);
+
+  /* Ray never intersects plane */
+  if(t > 0)
+    return;
+
+  ray->pos.v[0] += -t * ray->dir.v[0];
+  ray->pos.v[1] += -t * ray->dir.v[1];
+  ray->pos.v[2] += -t * ray->dir.v[2];
+
+  hit.plane[0] = rd->plane[0];
+  hit.plane[1] = rd->plane[1];
+  hit.plane[2] = rd->plane[2];
+  hit.plane[3] = rd->plane[3];
+
+  /* Render Geometry */
+  if(!tie_work(tie, ray, &id, render_spall_hit, &hit))
+    return;
+
+
+  /*
+  * If the point after the splitting plane is an outhit, fill it in as if it were solid.
+  * If the point after the splitting plane is an inhit, then just shade as usual.
+  */
+
+  MATH_VEC_DOT(dot, ray->dir, hit.id.norm);
+  /* flip normal */
+  dot = fabs(dot);
+  
+
+  if(hit.mesh->flags == 1) {
+    MATH_VEC_SET(color, 0.9, 0.2, 0.2);
+  } else {
+    /* Mix actual color with white 4:1, shade 50% darker */
+    MATH_VEC_SET(color, 1.0, 1.0, 1.0);
+    MATH_VEC_MUL_SCALAR(color, color, 3.0);
+    MATH_VEC_ADD(color, color, hit.mesh->attributes->color);
+    MATH_VEC_MUL_SCALAR(color, color, 0.125);
+  }
+
+#if 0
+  if(dot < 0) {
+#endif
+    /* Shade using inhit */
+    MATH_VEC_MUL_SCALAR(color, color, (dot*0.50));
+    MATH_VEC_ADD((*pixel), (*pixel), color);
+#if 0
+  } else {
+    /* shade solid */
+    MATH_VEC_SUB(vec, ray->pos, hit.id.pos);
+    MATH_VEC_UNITIZE(vec);
+    angle = vec.v[0]*hit.mod*-hit.plane[0] + vec.v[1]*-hit.mod*hit.plane[1] + vec.v[2]*-hit.mod*hit.plane[2];
+    MATH_VEC_MUL_SCALAR((*pixel), color, (angle*0.50));
+  }
+#endif
+
+  pixel->v[0] += 0.1;
+  pixel->v[1] += 0.1;
+  pixel->v[2] += 0.1;
+}
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+1.19
+log
+@update the tie_init() calls with the new parm
+@
+text
+@d32 1
+a32 1
+#include "adrt_common.h"
+a33 1
+#include "umath.h"
+d44 1
+a44 1
+  common_mesh_t *mesh;
+d52 2
+a53 2
+  TIE_3 *tri_list, *vec_list, normal, up, vec;
+  tfloat plane[4], radius, t;
+d118 1
+a118 1
+  tie_push(&d->tie, &tri_list, TESSELATION, NULL, 0);
+d140 1
+a140 1
+  hit->mesh = ((common_triangle_t *)(tri->ptr))->mesh;
+d148 1
+a148 1
+  TIE_3 vec, color;
+d150 1
+a150 1
+  tfloat t, angle, dot;
+d172 1
+a172 1
+  * First intersect this ray with the plane and fire the ray from there
+d176 1
+a176 1
+  *
+d208 1
+a208 1
+
+d216 1
+a216 1
+    MATH_VEC_ADD(color, color, hit.mesh->prop->color);
+@
+
+
+1.18
+log
+@TFLOAT changed to tfloat.  also quell a few warnings/bugs related to passing the wrong TIE_3 pointer type.
+@
+text
+@d70 1
+a70 1
+  tie_init(&d->tie, TESSELATION);
+@
+
+
+1.17
+log
+@since adrt uses malloc, add checks on use for a null return value.  this probably would be a good reason to being associating with libbu.. (this fixes sf bug 1680679 - Check return codes everywhere; submitted by Markus Elfring (elfring))
+@
+text
+@d46 2
+a47 2
+  TFLOAT plane[4];
+  TFLOAT mod;
+d51 1
+a51 1
+void render_spall_init(render_t *render, TIE_3 ray_pos, TIE_3 ray_dir, TFLOAT angle) {
+d54 1
+a54 1
+  TFLOAT plane[4], radius, t;
+d119 1
+a119 1
+  tie_push(&d->tie, tri_list, TESSELATION, NULL, 0);
+d151 1
+a151 1
+  TFLOAT t, angle, dot;
+@
+
+
+1.16
+log
+@give adrt some distinctiveness in the header
+@
+text
+@d61 4
+d91 4
+d96 4
+@
+
+
+1.15
+log
+@finish changing all #defined symbols to uppercase...
+@
+text
+@d2 1
+a2 1
+ * BRL-CAD
+@
+
+
+1.14
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@d46 2
+a47 2
+  tfloat plane[4];
+  tfloat mod;
+d51 1
+a51 1
+void render_spall_init(render_t *render, TIE_3 ray_pos, TIE_3 ray_dir, tfloat angle) {
+d54 1
+a54 1
+  tfloat plane[4], radius, t;
+d139 1
+a139 1
+  tfloat t, angle, dot;
+@
+
+
+1.13
+log
+@standard header and footer cleanup
+@
+text
+@d9 1
+a9 1
+ * as published by the Free Software Foundation.
+@
+
+
+1.12
+log
+@uppercase all #define symbols
+@
+text
+@d1 26
+d229 10
+@
+
+
+1.11
+log
+@trailing ws
+@
+text
+@d47 2
+a48 2
+  math_vec_cross(normal, ray_dir, up);
+  math_vec_unitize(normal);
+d54 1
+a54 1
+  math_vec_dot(plane[3], normal, ray_pos); /* up is really new ray_pos */
+d69 2
+a70 2
+    math_vec_mul_scalar(tri_list[3*i+1], vec_list[i], SPALL_LEN);
+    math_vec_add(tri_list[3*i+1], tri_list[3*i+1], ray_pos);
+d73 2
+a74 2
+      math_vec_mul_scalar(tri_list[3*i+2], vec_list[0], SPALL_LEN);
+      math_vec_add(tri_list[3*i+2], tri_list[3*i+2], ray_pos);
+d76 2
+a77 2
+      math_vec_mul_scalar(tri_list[3*i+2], vec_list[i+1], SPALL_LEN);
+      math_vec_add(tri_list[3*i+2], tri_list[3*i+2], ray_pos);
+d168 1
+a168 1
+  math_vec_dot(dot, ray->dir, hit.id.norm);
+d174 1
+a174 1
+    math_vec_set(color, 0.9, 0.2, 0.2);
+d177 4
+a180 4
+    math_vec_set(color, 1.0, 1.0, 1.0);
+    math_vec_mul_scalar(color, color, 3.0);
+    math_vec_add(color, color, hit.mesh->prop->color);
+    math_vec_mul_scalar(color, color, 0.125);
+d187 2
+a188 2
+    math_vec_mul_scalar(color, color, (dot*0.50));
+    math_vec_add((*pixel), (*pixel), color);
+d192 2
+a193 2
+    math_vec_sub(vec, ray->pos, hit.id.pos);
+    math_vec_unitize(vec);
+d195 1
+a195 1
+    math_vec_mul_scalar((*pixel), color, (angle*0.50));
+@
+
+
+1.10
+log
+@libvis->librender
+@
+text
+@d81 1
+a81 1
+  tie_push(&d->tie, tri_list, TESSELATION, NULL, 0);  
+d135 1
+a135 1
+  * First intersect this ray with the plane and fire the ray from there 
+d139 1
+a139 1
+  * 
+d171 1
+a171 1
+  
+@
+
+
+1.9
+log
+@removed
+@
+text
+@@
+
+
+1.8
+log
+@* Adjusted colors for plane and spall.
+* Fixed the axis aligned geometry intersections.
+* Added in_hit to observer overlay
+@
+text
+@@
+
+
+1.8.4.1
+log
+@merge changes from HEAD aka rel-7-6-4 to the rel-7-6-branch just in case someone peeks a gander or tries to continue/build the branch
+@
+text
+@d81 1
+a81 1
+  tie_push(&d->tie, tri_list, TESSELATION, NULL, 0);
+d135 1
+a135 1
+  * First intersect this ray with the plane and fire the ray from there
+d139 1
+a139 1
+  *
+d171 1
+a171 1
+
+@
+
+
+1.7
+log
+@adjusted colors for render methods.
+@
+text
+@d176 3
+a178 3
+    /* Mix actual color with gray 8:1 */
+    math_vec_set(color, 0.8, 0.8, 0.8);
+    math_vec_mul_scalar(color, color, 7.0);
+@
+
+
+1.6
+log
+@Faded coloring a bit more.
+@
+text
+@d174 1
+a174 1
+    math_vec_set(color, 0.9, 0.3, 0.3);
+d176 3
+a178 2
+    math_vec_set(color, 0.8, 0.8, 0.7);
+    math_vec_mul_scalar(color, color, 3.0);
+d180 1
+a180 1
+    math_vec_mul_scalar(color, color, 0.25);
+@
+
+
+1.5
+log
+@plane view and spall view now use partial component color to better visualize internals.
+@
+text
+@d177 3
+a179 2
+    math_vec_add(color, color, (*pixel));
+    math_vec_mul_scalar(color, color, 0.5);
+@
+
+
+1.4
+log
+@Shotline remapped to '/' on num pad.  Spall cone mapped to '*' on num pad.
+Spall cone now fires 32 full angle, 16 half angle, 12 quarter angle rays.
+Shotline moved into render utilities.
+@
+text
+@d174 1
+a174 3
+    color.v[0] = 0.9;
+    color.v[1] = 0.3;
+    color.v[2] = 0.3;
+d176 3
+a178 3
+    color.v[0] = 0.8;
+    color.v[1] = 0.8;
+    color.v[2] = 0.7;
+@
+
+
+1.4.2.1
+log
+@merge in changes through Aug10 for 7.4.2 release
+@
+text
+@d174 3
+a176 1
+    math_vec_set(color, 0.9, 0.2, 0.2);
+d178 3
+a180 5
+    /* Mix actual color with white 4:1, shade 50% darker */
+    math_vec_set(color, 1.0, 1.0, 1.0);
+    math_vec_mul_scalar(color, color, 3.0);
+    math_vec_add(color, color, hit.mesh->prop->color);
+    math_vec_mul_scalar(color, color, 0.125);
+@
+
+
+1.3
+log
+@Spall cone emits from entry point of geometry now.
+@
+text
+@d63 1
+a63 1
+  render_util_spall(ray_dir, angle, TESSELATION, vec_list);
+d120 3
+a122 3
+    pixel->v[0] = 0.3;
+    pixel->v[1] = 0.3;
+    pixel->v[2] = 0.3;
+d187 1
+a187 1
+    math_vec_mul_scalar(color, color, (dot*0.60));
+d195 1
+a195 1
+    math_vec_mul_scalar((*pixel), color, (angle*0.60));
+@
+
+
+1.2
+log
+@Generating a spall cone is now a utility.
+@
+text
+@d120 3
+a122 3
+    pixel->v[0] = 0.5;
+    pixel->v[1] = 0.0;
+    pixel->v[2] = 0.0;
+d174 1
+a174 1
+    color.v[0] = 0.3;
+d176 1
+a176 1
+    color.v[2] = 0.9;
+d187 1
+a187 1
+    math_vec_mul_scalar(color, color, (dot*0.90));
+d195 1
+a195 1
+    math_vec_mul_scalar((*pixel), color, (angle*0.90));
+@
+
+
+1.1
+log
+@spawl -> spall.
+@
+text
+@d2 1
+d10 1
+a10 2
+#define thickness 0.02
+#define TESSELATION 30
+d27 1
+a27 1
+  TIE_3 list[3*TESSELATION], normal, up, vec;
+d60 2
+d63 1
+a63 9
+  /* Figure out the rotations of the ray direction */
+  vec = ray_dir;
+  vec.v[2] = 0;
+
+  radius = sqrt(vec.v[0]*vec.v[0] + vec.v[1]*vec.v[1]);
+  vec.v[0] /= radius;
+  vec.v[1] /= radius;
+
+  vec.v[0] = vec.v[1] < 0 ? 360.0 - acos(vec.v[0])*math_rad2deg : acos(vec.v[0])*math_rad2deg;
+d67 4
+a70 14
+    list[3*i+0] = ray_pos;
+    list[3*i+1] = ray_pos;
+    list[3*i+2] = ray_pos;
+
+    t = angle * sin((i * 360 / TESSELATION) * math_deg2rad);
+    list[3*i+1].v[0] += SPALL_LEN * cos((vec.v[0] + t) * math_deg2rad);
+    list[3*i+1].v[1] += SPALL_LEN * sin((vec.v[0] + t) * math_deg2rad);
+
+    t = angle * cos((i * 360 / TESSELATION) * math_deg2rad);
+    list[3*i+1].v[2] += SPALL_LEN * cos(acos(ray_dir.v[2]) + t * math_deg2rad);
+
+    t = angle * sin(((i+1) * 360 / TESSELATION) * math_deg2rad);
+    list[3*i+2].v[0] += SPALL_LEN * cos((vec.v[0] + t) * math_deg2rad);
+    list[3*i+2].v[1] += SPALL_LEN * sin((vec.v[0] + t) * math_deg2rad);
+d72 7
+a78 2
+    t = angle * cos(((i+1) * 360 / TESSELATION) * math_deg2rad);
+    list[3*i+2].v[2] += SPALL_LEN * cos(acos(ray_dir.v[2]) + t * math_deg2rad);
+d81 1
+a81 1
+  tie_push(&d->tie, list, TESSELATION, NULL, 0);  
+d83 3
+@
+

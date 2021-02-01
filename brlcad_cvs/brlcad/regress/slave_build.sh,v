@@ -1,0 +1,499 @@
+head	1.7;
+access;
+symbols
+	rel-7-10-4:1.6
+	STABLE:1.6.0.2
+	rel-7-10-2:1.6
+	rel-7-10-0:1.6
+	rel-7-8-4:1.5
+	rel-7-8-2:1.5
+	rel-7-8-0:1.3
+	trimnurbs-branch:1.3.0.2
+	help:1.3
+	temp_tag:1.3
+	postmerge-20051223-bobWinPort:1.3
+	premerge-20051223-bobWinPort:1.3
+	rel-7-6-6:1.3
+	rel-7-6-branch:1.2.0.2
+	rel-7-6-4:1.2;
+locks; strict;
+comment	@# @;
+
+
+1.7
+date	2007.10.22.04.36.21;	author brlcad;	state Exp;
+branches;
+next	1.6;
+
+1.6
+date	2007.01.27.00.31.38;	author brlcad;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	2006.04.20.15.19.53;	author lbutler;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	2006.04.20.15.15.16;	author lbutler;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2005.12.18.00.29.04;	author brlcad;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2005.10.23.04.44.27;	author brlcad;	state Exp;
+branches
+	1.2.2.1;
+next	1.1;
+
+1.1
+date	2005.09.12.14.53.12;	author lbutler;	state Exp;
+branches;
+next	;
+
+1.2.2.1
+date	2005.10.23.04.44.27;	author brlcad;	state dead;
+branches;
+next	1.2.2.2;
+
+1.2.2.2
+date	2005.11.13.13.46.10;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.7
+log
+@more consistent echo output
+@
+text
+@#!/bin/sh
+
+#
+# If the user specified a working directory, we cd into it.
+#
+if [ $# = 1 ] ; then
+    if [ -d $1 ] ; then
+	cd $1
+    else
+     #
+     # wait for the directory in case it hasn't been built
+     #
+     while [ ! -d $1 ] ; do
+
+       NOW=`date "+%y%m%d%H%M"`
+       DELTA=`expr $START_TIME - $NOW`
+
+       if [ $DELTA -gt 300 ] ; then
+	   # we log that we're quitting
+	   echo "$1 does not exist giving up at $NOW" >> $LOG_FILE
+	   exit 1
+       fi
+    fi
+fi
+
+export MYNAME=`hostname | awk -F '.' '{print $1}'`
+export START_TIME=`date "+%y%m%d%H%M"`
+export LOG_FILE=`pwd`/${MYNAME}_${START_TIME}.log
+
+#
+# wait to be told we can proceed
+#
+while [ ! -f $MYNAME ] ; do
+
+    NOW=`date "+%y%m%d%H%M"`
+    DELTA=`expr $START_TIME - $NOW`
+
+    if [ $DELTA -gt 300 ] ; then
+	# we log that we're quitting
+	echo "$MYNAME giving up at $NOW" >> $LOG_FILE
+	exit 1
+    fi
+
+    sleep 10
+done
+
+echo "Starting build"
+VERSION=`cat $MYNAME`
+rm $MYNAME
+
+#
+# get any host specific flags set up
+#
+case $MYNAME in
+wopr)
+    export CONF_FLAGS="--enable-everything" ;
+    export MAKE_CMD="make" ;
+    export MAKE_OPTS="-j11" ;;
+
+liu)
+    export CONF_FLAGS="--enable-everything" ;
+    export MAKE_CMD="make" ;
+    export MAKE_OPTS="-j2" ;;
+
+amdws2)
+    export CONF_FLAGS="--enable-everything" ;
+    export MAKE_CMD="make" ;
+    export MAKE_OPTS="-j2" ;;
+
+vast)
+    export CONF_FLAGS="CC=cc CFLAGS=-64 LDFLAGS=-64 --enable-everything --enable-64bit-build" ;
+    export MAKE_CMD="/usr/gnu/bin/make" ;
+    export MAKE_OPTS="-j5" ;;
+
+cocoa)
+    export CONF_FLAGS="" ;
+    export MAKE_CMD="make" ;
+    export MAKE_OPTS="-j2" ;;
+*)
+    echo "hostname \"$MYNAME\" not recognized"
+    exit 1
+esac
+
+#
+# create the build directory
+#
+BUILD_DIR=`pwd`/${MYNAME}_${START_TIME}.dir
+rm -f $BUILD_DIR
+mkdir $BUILD_DIR
+if [ ! -d $BUILD_DIR ] ; then
+    echo "Creation of $BUILD_DIR failed"
+    exit 1
+fi
+
+#
+# move into build directory
+#
+cd $BUILD_DIR
+
+#
+# configure
+#
+echo ../brlcad-$VERSION/configure \
+    $CONF_FLAGS \
+    --enable-optimized \
+    --prefix=/usr/brlcad/rel-$VERSION \
+    >> $LOG_FILE 2>&1
+
+../brlcad-$VERSION/configure \
+    $CONF_FLAGS \
+    --enable-optimized \
+    --prefix=/usr/brlcad/rel-$VERSION \
+    >> $LOG_FILE 2>&1
+
+echo "running: $MAKE_CMD $MAKE_OPTS" >> $LOG_FILE 2>&1
+
+#
+# build
+#
+$MAKE_CMD $MAKE_OPTS > build.log 2>&1
+STATUS=$?
+if [ $STATUS != 0 ] ; then
+    echo "Build failed with status $STATUS"
+    exit 1
+fi
+
+#
+# run the regression tests
+#
+if [ ! -s build.log ] ; then
+    echo "Build failed, zero length log file"
+    exit 1
+fi
+
+cd regress
+make test > test.log 2>&1
+if [ X`grep failed test.log` != X ] ; then
+    echo "regression testing FAILED"
+else
+    echo "regression testing succeeded"
+fi
+make install
+@
+
+
+1.6
+log
+@ws, test two
+@
+text
+@d20 1
+a20 1
+	   /bin/echo $1 does not exist giving up at $NOW >> $LOG_FILE
+d40 1
+a40 1
+	/bin/echo $MYNAME giving up at $NOW >> $LOG_FILE
+d47 1
+a47 1
+/bin/echo "Starting build"
+d80 1
+a80 1
+    echo hostname \"$MYNAME\" not recognized
+d91 1
+a91 1
+    echo create $BUILD_DIR failed
+d115 1
+a115 1
+echo runnig: $MAKE_CMD $MAKE_OPTS >> $LOG_FILE 2>&1
+d123 1
+a123 1
+    echo build failed status $STATUS
+d131 1
+a131 1
+    echo build failed zero length log
+d138 1
+a138 1
+    /bin/echo regression test failed
+d140 1
+a140 1
+    /bin/echo regression test succeeded
+@
+
+
+1.5
+log
+@Updates to make it easier to check the status of a regression test.  Each test
+now reports its notion of whether it succeeded or failed.
+@
+text
+@d14 1
+a14 1
+ 
+d17 1
+a17 1
+ 
+d19 3
+a21 3
+           # we log that we're quitting
+           /bin/echo $1 does not exist giving up at $NOW >> $LOG_FILE
+           exit 1
+@
+
+
+1.4
+log
+@Make sure directory has been created (slave_build.sh) or wait for it.
+
+Indicate that the regression test is done, but not whether it was successful or not. (Makefile.am)
+@
+text
+@d56 1
+a56 1
+    export CONF_FLAGS="" ;
+d61 1
+a61 1
+    export CONF_FLAGS="" ;
+d66 1
+a66 1
+    export CONF_FLAGS="" ;
+d71 1
+a71 1
+    export CONF_FLAGS="CC=cc CFLAGS=-64 LDFLAGS=-64 --enable-64bit-build" ;
+d130 1
+a130 4
+if [ -s build.log ] ; then
+    cd regress
+    make test > test.log 2>&1
+else
+d134 9
+@
+
+
+1.3
+log
+@negative numbers are not valid exit codes.  they're 8 bit unsigned values, so just exit 1 instead to indicate the error.
+@
+text
+@d10 13
+a22 1
+	/bin/echo $1 is not a directory
+@
+
+
+1.2
+log
+@trailing ws
+@
+text
+@d29 1
+a29 1
+	exit
+d69 1
+a69 1
+    exit
+d80 1
+a80 1
+    exit -1
+d112 1
+a112 1
+    exit -1
+d123 1
+a123 1
+    exit -1
+@
+
+
+1.2.2.1
+log
+@file slave_build.sh was added on branch rel-7-6-branch on 2005-11-13 13:46:10 +0000
+@
+text
+@d1 124
+@
+
+
+1.2.2.2
+log
+@merge changes from HEAD aka rel-7-6-4 to the rel-7-6-branch just in case someone peeks a gander or tries to continue/build the branch
+@
+text
+@a0 124
+#!/bin/sh
+
+#
+# If the user specified a working directory, we cd into it.
+#
+if [ $# = 1 ] ; then
+    if [ -d $1 ] ; then
+	cd $1
+    else
+	/bin/echo $1 is not a directory
+    fi
+fi
+
+export MYNAME=`hostname | awk -F '.' '{print $1}'`
+export START_TIME=`date "+%y%m%d%H%M"`
+export LOG_FILE=`pwd`/${MYNAME}_${START_TIME}.log
+
+#
+# wait to be told we can proceed
+#
+while [ ! -f $MYNAME ] ; do
+
+    NOW=`date "+%y%m%d%H%M"`
+    DELTA=`expr $START_TIME - $NOW`
+
+    if [ $DELTA -gt 300 ] ; then
+	# we log that we're quitting
+	/bin/echo $MYNAME giving up at $NOW >> $LOG_FILE
+	exit
+    fi
+
+    sleep 10
+done
+
+/bin/echo "Starting build"
+VERSION=`cat $MYNAME`
+rm $MYNAME
+
+#
+# get any host specific flags set up
+#
+case $MYNAME in
+wopr)
+    export CONF_FLAGS="" ;
+    export MAKE_CMD="make" ;
+    export MAKE_OPTS="-j11" ;;
+
+liu)
+    export CONF_FLAGS="" ;
+    export MAKE_CMD="make" ;
+    export MAKE_OPTS="-j2" ;;
+
+amdws2)
+    export CONF_FLAGS="" ;
+    export MAKE_CMD="make" ;
+    export MAKE_OPTS="-j2" ;;
+
+vast)
+    export CONF_FLAGS="CC=cc CFLAGS=-64 LDFLAGS=-64 --enable-64bit-build" ;
+    export MAKE_CMD="/usr/gnu/bin/make" ;
+    export MAKE_OPTS="-j5" ;;
+
+cocoa)
+    export CONF_FLAGS="" ;
+    export MAKE_CMD="make" ;
+    export MAKE_OPTS="-j2" ;;
+*)
+    echo hostname \"$MYNAME\" not recognized
+    exit
+esac
+
+#
+# create the build directory
+#
+BUILD_DIR=`pwd`/${MYNAME}_${START_TIME}.dir
+rm -f $BUILD_DIR
+mkdir $BUILD_DIR
+if [ ! -d $BUILD_DIR ] ; then
+    echo create $BUILD_DIR failed
+    exit -1
+fi
+
+#
+# move into build directory
+#
+cd $BUILD_DIR
+
+#
+# configure
+#
+echo ../brlcad-$VERSION/configure \
+    $CONF_FLAGS \
+    --enable-optimized \
+    --prefix=/usr/brlcad/rel-$VERSION \
+    >> $LOG_FILE 2>&1
+
+../brlcad-$VERSION/configure \
+    $CONF_FLAGS \
+    --enable-optimized \
+    --prefix=/usr/brlcad/rel-$VERSION \
+    >> $LOG_FILE 2>&1
+
+echo runnig: $MAKE_CMD $MAKE_OPTS >> $LOG_FILE 2>&1
+
+#
+# build
+#
+$MAKE_CMD $MAKE_OPTS > build.log 2>&1
+STATUS=$?
+if [ $STATUS != 0 ] ; then
+    echo build failed status $STATUS
+    exit -1
+fi
+
+#
+# run the regression tests
+#
+if [ -s build.log ] ; then
+    cd regress
+    make test > test.log 2>&1
+else
+    echo build failed zero length log
+    exit -1
+fi
+@
+
+
+1.1
+log
+@Scripts to support new architecture for nightly regression tests
+@
+text
+@d26 1
+a26 1
+    if [ $DELTA -gt 300 ] ; then 
+d42 1
+a42 1
+case $MYNAME in 
+@
+

@@ -1,0 +1,778 @@
+head	1.13;
+access;
+symbols
+	rel-7-10-4:1.7
+	STABLE:1.7.0.2
+	rel-7-10-2:1.7
+	rel-7-10-0:1.6
+	rel-7-8-4:1.4
+	rel-7-8-2:1.4
+	rel-7-8-0:1.4
+	trimnurbs-branch:1.4.0.2
+	help:1.4
+	temp_tag:1.2
+	postmerge-20051223-bobWinPort:1.2
+	premerge-20051223-bobWinPort:1.2
+	rel-7-6-6:1.2
+	rel-7-6-branch:1.1.0.2
+	rel-7-6-4:1.1;
+locks; strict;
+comment	@ * @;
+
+
+1.13
+date	2007.11.21.20.49.09;	author erikgreenwald;	state Exp;
+branches;
+next	1.12;
+
+1.12
+date	2007.11.21.19.49.12;	author erikgreenwald;	state Exp;
+branches;
+next	1.11;
+
+1.11
+date	2007.11.09.04.47.31;	author brlcad;	state Exp;
+branches;
+next	1.10;
+
+1.10
+date	2007.11.08.14.32.03;	author erikgreenwald;	state Exp;
+branches;
+next	1.9;
+
+1.9
+date	2007.11.08.04.15.47;	author brlcad;	state Exp;
+branches;
+next	1.8;
+
+1.8
+date	2007.09.14.15.21.10;	author erikgreenwald;	state Exp;
+branches;
+next	1.7;
+
+1.7
+date	2007.08.16.18.40.57;	author brlcad;	state Exp;
+branches;
+next	1.6;
+
+1.6
+date	2007.01.23.01.13.43;	author brlcad;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	2007.01.20.14.36.58;	author brlcad;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	2006.01.28.00.36.29;	author brlcad;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2006.01.18.06.46.23;	author brlcad;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2005.11.18.00.10.23;	author brlcad;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2005.10.29.21.28.58;	author brlcad;	state Exp;
+branches
+	1.1.2.1;
+next	;
+
+1.1.2.1
+date	2005.10.29.21.28.58;	author brlcad;	state dead;
+branches;
+next	1.1.2.2;
+
+1.1.2.2
+date	2005.11.13.17.45.01;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.13
+log
+@pass bu_exit a NULL instead of an empty string
+@
+text
+@/*                   P O I N T S _ S C A N . L
+ * BRL-CAD
+ *
+ * Copyright (c) 2005-2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+ * information.
+ *
+ */
+/** @@file points_scan.l
+ *
+ * Scan tokens out of a comma-separated value file
+ *
+ * Author -
+ *   Christopher Sean Morrison
+ */
+%{
+/*                   P O I N T S _ S C A N . L
+ * BRL-CAD
+ *
+ * Copyright (c) 2005-2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+ * information.
+ *
+ */
+/** @@file points_scan.c
+ *
+ * This lexer grammar is to tokenize comma-separated value point
+ * files.
+ *
+ * Author -
+ *   Christopher Sean Morrison
+ */
+
+#include "common.h"
+
+#include <stdlib.h>
+#include <stdio.h>
+#include <math.h>
+#include <string.h>
+
+#include "machine.h"
+#include "vmath.h"
+
+/* increase token limits of at&t and mk2 lex */
+#undef YYLMAX
+#define YYLMAX 4096
+
+/* increase token limits of pclex (2x) */
+#undef F_BUFSIZE
+#define F_BUFSIZE 2048
+
+#include "./count.h"
+#include "./process.h"
+
+extern int yyerror(char *msg);
+extern YYSTYPE yylval;
+
+/* used to set the initial state */
+static int first_token = 1;
+char previous_linebuffer[YYLMAX+1] = {0};
+char linebuffer[YYLMAX+1] = {0};
+
+%}
+
+%s LINE
+
+LETTER		[a-zA-Z_]
+PUNCT		[<>:|]
+INTDIGIT	[0-9]
+FLOATTYPE	(f|F|l|L)
+DIGITTYPE	(u|U|l|L)*
+SPACE		[ \t\v\f]+
+EOL		[\n\r]+
+NONPRINT	[^[:print:]]
+
+EXPONENT	[Ee][+-]?{INTDIGIT}+
+
+FLOATA	([+-])?{INTDIGIT}*"."{INTDIGIT}+({EXPONENT})?{FLOATTYPE}?
+FLOATB	([+-])?{INTDIGIT}+"."{INTDIGIT}*({EXPONENT})?{FLOATTYPE}?
+
+INT	\-?[0-9]+{INTDIGIT}*{DIGITTYPE}?
+
+FLOAT	({FLOATA}|{FLOATB})
+
+COMMENT	#([^\n])*
+
+COMMA	[,]
+
+%%
+
+%{
+    /* if we haven't gotten a token yet, get ready to read a block tag */
+    if (first_token) {
+	BEGIN(LINE);
+	first_token = 0;
+    }
+
+    /* BEGIN BZFlag-specific lexer declarations */
+%}
+
+<LINE>"PLATE" {
+    BEGIN(INITIAL);
+    process_type(&yylval, "PLATE", PLATE);
+    COUNT(PLATE);
+}
+<LINE>"STRIPPLATE" {
+    BEGIN(INITIAL);
+    process_type(&yylval, "PLATE", PLATE);
+    COUNT(PLATE);
+}
+<LINE>"ARB" {
+    BEGIN(INITIAL);
+    process_type(&yylval, "ARB", ARB);
+    COUNT(PLATE);
+}
+<LINE>"SYMMETRY" {
+    BEGIN(INITIAL);
+    process_type(&yylval, "POINTS", SYMMETRY);
+    COUNT(SYMMETRY);
+}
+<LINE>"POINTS" {
+    BEGIN(INITIAL);
+    process_type(&yylval, "POINTS", POINTS);
+    COUNT(POINTS);
+}
+<LINE>"GROUND" {
+    BEGIN(INITIAL);
+    process_type(&yylval, "POINTS", POINTS);
+    COUNT(POINTS);
+}
+<LINE>"CYLINDER" {
+    BEGIN(INITIAL);
+    process_type(&yylval, "CYLINDER", CYLINDER);
+    COUNT(CYLINDER);
+}
+<LINE>"CYL" {
+    BEGIN(INITIAL);
+    process_type(&yylval, "CYL", CYL);
+    COUNT(CYL);
+}
+<LINE>"PIPE" {
+    BEGIN(INITIAL);
+    process_type(&yylval, "PIPE", PIPE);
+    COUNT(PIPE);
+}
+<LINE>"SPHERE" {
+    BEGIN(INITIAL);
+    process_type(&yylval, "SPHERE", SPHERE);
+    COUNT(SPHERE);
+}
+
+%{
+    /* END BZFlag-specific lexer declarations */
+%}
+
+{INT} {
+    count(INT, yytext);
+    /* printf("found int: %s (int %ld)\n", yytext, atol(yytext)); */
+    if (yylval.index > 0 || yylval.count > 0) {
+	process_value(&yylval, atof(yytext));
+    } else {
+	yylval.index = atol(yytext);
+    }
+    return INT;
+}
+
+{FLOAT} {
+    count(FLT, yytext);
+    /* printf("found a float: %s (flt %lf)\n", yytext, atof(yytext)); */
+    process_value(&yylval, atof(yytext));
+    return FLT;
+}
+
+{COMMENT} {
+    count(COMMENT, yytext);
+    /* printf("found a comment: %s\n", yytext); */
+    /*    yylval = strdup(yytext);*/
+    return COMMENT;
+}
+
+{COMMA} {
+    return COMMA;
+}
+
+{SPACE} {
+    count(0, yytext);
+}
+
+{EOL}.* {
+    int i=0;
+
+    BEGIN(LINE);
+
+    /* save the next line for error reporting */
+    strncpy(previous_linebuffer, linebuffer, YYLMAX);
+    previous_linebuffer[YYLMAX] = '\0';
+
+    strncpy(linebuffer, yytext+1, YYLMAX);
+    linebuffer[YYLMAX] = '\0';
+
+    while (i < yyleng && (yytext[i] == '\n' || yytext[i] == '\r')) {
+	if (yytext[i] == '\n') {
+	    count(NL, "\n");
+	}
+	i++;
+    }
+    yyless(i);
+
+    /* collapse them all to one */
+    return NL;
+}
+
+{NONPRINT} {
+    printf("WARNING: Ignoring non-printable character (0x%x) on line %ld  (file offset %ld)\n", yytext[0], get_lines()+1, get_bytes());
+}
+
+. {
+    /* bad input?  */
+    printf("TOKENIZE ERROR: Unexpected character ('%c' 0x%x) on line %ld, column %ld  (file offset %ld)\n", yytext[0], yytext[0], get_lines()+1, get_column(), get_bytes());
+    yyerror(yytext);
+    unput(' '); /* unreached, quell yyunput unused warning instead of using YY_NO_UNPUT */
+    bu_exit(1, NULL);
+}
+%%
+
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+1.12
+log
+@exit->bu_exit where applicable
+@
+text
+@d246 1
+a246 1
+    bu_exit(1, "");
+@
+
+
+1.11
+log
+@declare extern YYSTYPE yylval to appease the files generated from flex+byacc on stock freebsd 6.3
+@
+text
+@d246 1
+a246 1
+    exit(1);
+@
+
+
+1.10
+log
+@Curly braces and brackets cannot be used interchangeably.
+@
+text
+@d80 1
+@
+
+
+1.9
+log
+@minor tweaks, preventive null terminating of strncmp'd strings
+@
+text
+@d222 1
+a222 1
+    linebuffer[YYLMAX} = '\0';
+@
+
+
+1.8
+log
+@removed trailing whitespace
+@
+text
+@d83 2
+a84 2
+char previous_linebuffer[YYLMAX] = {0};
+char linebuffer[YYLMAX] = {0};
+d219 2
+d222 1
+@
+
+
+1.7
+log
+@note that we could have used YY_NO_UNPUT instead of the hack
+@
+text
+@d237 1
+a237 1
+. {   
+@
+
+
+1.6
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@d241 1
+a241 1
+    unput(' '); /* unreached, quell yyunput unused warning */
+@
+
+
+1.5
+log
+@update copyright to 2007
+@
+text
+@d9 1
+a9 2
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+d37 1
+a37 2
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+@
+
+
+1.4
+log
+@header cleanup, atof() requires stdlib.h on altix/posix, fix 64-bitness
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 2005-2006 United States Government as represented by
+d33 1
+a33 1
+ * Copyright (c) 2005-2006 United States Government as represented by
+@
+
+
+1.3
+log
+@update copyright to 2006
+@
+text
+@d62 1
+a63 1
+#include <stdlib.h>
+@
+
+
+1.2
+log
+@add support for CYL and SPHERE lines, hook in to the callbacks
+@
+text
+@d4 1
+a4 1
+ * Copyright (C) 2005 United States Government as represented by
+d33 1
+a33 1
+ * Copyright (C) 2005 United States Government as represented by
+@
+
+
+1.1
+log
+@initial files for a points file parser that reads them all in and processes groups of them at a time based on recognized line labels.  data collected in a requisite order may then be automatically turned into geometry using a tclscript helper code.
+@
+text
+@d161 5
+d171 5
+@
+
+
+1.1.2.1
+log
+@file points_scan.l was added on branch rel-7-6-branch on 2005-11-13 17:45:01 +0000
+@
+text
+@d1 247
+@
+
+
+1.1.2.2
+log
+@more merging changes from HEAD aka rel-7-6-4 to the rel-7-6-branch, adding the items that were moved and resolving rcs keyword conflicts
+@
+text
+@a0 247
+/*                   P O I N T S _ S C A N . L
+ * BRL-CAD
+ *
+ * Copyright (C) 2005 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+ * information.
+ *
+ */
+/** @@file points_scan.l
+ *
+ * Scan tokens out of a comma-separated value file
+ *
+ * Author -
+ *   Christopher Sean Morrison
+ */
+%{
+/*                   P O I N T S _ S C A N . L
+ * BRL-CAD
+ *
+ * Copyright (C) 2005 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+ * information.
+ *
+ */
+/** @@file points_scan.c
+ *
+ * This lexer grammar is to tokenize comma-separated value point
+ * files.
+ *
+ * Author -
+ *   Christopher Sean Morrison
+ */
+
+#include "common.h"
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <math.h>
+#include <string.h>
+
+#include "machine.h"
+#include "vmath.h"
+
+/* increase token limits of at&t and mk2 lex */
+#undef YYLMAX
+#define YYLMAX 4096
+
+/* increase token limits of pclex (2x) */
+#undef F_BUFSIZE
+#define F_BUFSIZE 2048
+
+#include "./count.h"
+#include "./process.h"
+
+extern int yyerror(char *msg);
+
+/* used to set the initial state */
+static int first_token = 1;
+char previous_linebuffer[YYLMAX] = {0};
+char linebuffer[YYLMAX] = {0};
+
+%}
+
+%s LINE
+
+LETTER		[a-zA-Z_]
+PUNCT		[<>:|]
+INTDIGIT	[0-9]
+FLOATTYPE	(f|F|l|L)
+DIGITTYPE	(u|U|l|L)*
+SPACE		[ \t\v\f]+
+EOL		[\n\r]+
+NONPRINT	[^[:print:]]
+
+EXPONENT	[Ee][+-]?{INTDIGIT}+
+
+FLOATA	([+-])?{INTDIGIT}*"."{INTDIGIT}+({EXPONENT})?{FLOATTYPE}?
+FLOATB	([+-])?{INTDIGIT}+"."{INTDIGIT}*({EXPONENT})?{FLOATTYPE}?
+
+INT	\-?[0-9]+{INTDIGIT}*{DIGITTYPE}?
+
+FLOAT	({FLOATA}|{FLOATB})
+
+COMMENT	#([^\n])*
+
+COMMA	[,]
+
+%%
+
+%{
+    /* if we haven't gotten a token yet, get ready to read a block tag */
+    if (first_token) {
+	BEGIN(LINE);
+	first_token = 0;
+    }
+
+    /* BEGIN BZFlag-specific lexer declarations */
+%}
+
+<LINE>"PLATE" {
+    BEGIN(INITIAL);
+    process_type(&yylval, "PLATE", PLATE);
+    COUNT(PLATE);
+}
+<LINE>"STRIPPLATE" {
+    BEGIN(INITIAL);
+    process_type(&yylval, "PLATE", PLATE);
+    COUNT(PLATE);
+}
+<LINE>"ARB" {
+    BEGIN(INITIAL);
+    process_type(&yylval, "ARB", ARB);
+    COUNT(PLATE);
+}
+<LINE>"SYMMETRY" {
+    BEGIN(INITIAL);
+    process_type(&yylval, "POINTS", SYMMETRY);
+    COUNT(SYMMETRY);
+}
+<LINE>"POINTS" {
+    BEGIN(INITIAL);
+    process_type(&yylval, "POINTS", POINTS);
+    COUNT(POINTS);
+}
+<LINE>"GROUND" {
+    BEGIN(INITIAL);
+    process_type(&yylval, "POINTS", POINTS);
+    COUNT(POINTS);
+}
+<LINE>"CYLINDER" {
+    BEGIN(INITIAL);
+    process_type(&yylval, "CYLINDER", CYLINDER);
+    COUNT(CYLINDER);
+}
+<LINE>"PIPE" {
+    BEGIN(INITIAL);
+    process_type(&yylval, "PIPE", PIPE);
+    COUNT(PIPE);
+}
+
+%{
+    /* END BZFlag-specific lexer declarations */
+%}
+
+{INT} {
+    count(INT, yytext);
+    /* printf("found int: %s (int %ld)\n", yytext, atol(yytext)); */
+    if (yylval.index > 0 || yylval.count > 0) {
+	process_value(&yylval, atof(yytext));
+    } else {
+	yylval.index = atol(yytext);
+    }
+    return INT;
+}
+
+{FLOAT} {
+    count(FLT, yytext);
+    /* printf("found a float: %s (flt %lf)\n", yytext, atof(yytext)); */
+    process_value(&yylval, atof(yytext));
+    return FLT;
+}
+
+{COMMENT} {
+    count(COMMENT, yytext);
+    /* printf("found a comment: %s\n", yytext); */
+    /*    yylval = strdup(yytext);*/
+    return COMMENT;
+}
+
+{COMMA} {
+    return COMMA;
+}
+
+{SPACE} {
+    count(0, yytext);
+}
+
+{EOL}.* {
+    int i=0;
+
+    BEGIN(LINE);
+
+    /* save the next line for error reporting */
+    strncpy(previous_linebuffer, linebuffer, YYLMAX);
+    strncpy(linebuffer, yytext+1, YYLMAX);
+
+    while (i < yyleng && (yytext[i] == '\n' || yytext[i] == '\r')) {
+	if (yytext[i] == '\n') {
+	    count(NL, "\n");
+	}
+	i++;
+    }
+    yyless(i);
+
+    /* collapse them all to one */
+    return NL;
+}
+
+{NONPRINT} {
+    printf("WARNING: Ignoring non-printable character (0x%x) on line %ld  (file offset %ld)\n", yytext[0], get_lines()+1, get_bytes());
+}
+
+. {   
+    /* bad input?  */
+    printf("TOKENIZE ERROR: Unexpected character ('%c' 0x%x) on line %ld, column %ld  (file offset %ld)\n", yytext[0], yytext[0], get_lines()+1, get_column(), get_bytes());
+    yyerror(yytext);
+    unput(' '); /* unreached, quell yyunput unused warning */
+    exit(1);
+}
+%%
+
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+

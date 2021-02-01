@@ -1,0 +1,348 @@
+head	14.8;
+access;
+symbols
+	rel-7-10-4:14.8
+	STABLE:14.8.0.2
+	stable-branch:14.5
+	rel-7-10-2:14.8
+	rel-7-10-0:14.8
+	rel-7-8-4:14.6
+	rel-7-8-2:14.6
+	rel-7-8-0:14.6
+	trimnurbs-branch:14.6.0.2
+	help:14.6
+	temp_tag:14.5
+	bobWinPort-20051223-freeze:14.5
+	postmerge-20051223-bobWinPort:14.5
+	premerge-20051223-bobWinPort:14.5
+	rel-7-6-6:14.5
+	rel-7-6-4:14.5
+	rel-7-6-2:14.5
+	rel-7-6-branch:14.5.0.6
+	rel-7-6-0:14.5
+	rel-7-4-2:14.5
+	rel-7-4-branch:14.5.0.4
+	bobWinPort:14.5.0.2
+	rel-7-4-0:14.5
+	rel-7-2-6:14.5
+	rel-7-2-4:14.5
+	rel-7-2-2:14.5
+	rel-7-2-0:14.5
+	rel-7-0-4:14.4
+	rel-7-0-2:14.4
+	rel-7-0-1:14.4
+	opensource-post:14.4
+	opensource-pre:1.1
+	rel-7-0-branch:1.1.0.2
+	rel-7-0:1.1;
+locks; strict;
+comment	@# @;
+
+
+14.8
+date	2007.01.23.01.13.50;	author brlcad;	state Exp;
+branches;
+next	14.7;
+
+14.7
+date	2007.01.20.14.37.03;	author brlcad;	state Exp;
+branches;
+next	14.6;
+
+14.6
+date	2006.01.18.06.46.25;	author brlcad;	state Exp;
+branches;
+next	14.5;
+
+14.5
+date	2005.01.30.20.31.14;	author brlcad;	state Exp;
+branches;
+next	14.4;
+
+14.4
+date	2004.12.21.06.18.52;	author morrison;	state Exp;
+branches;
+next	14.3;
+
+14.3
+date	2004.12.21.05.45.28;	author morrison;	state Exp;
+branches;
+next	14.2;
+
+14.2
+date	2004.12.21.04.46.06;	author morrison;	state Exp;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.31;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.15.21.05;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.8
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@#                     E X T R A C T . T C L
+# BRL-CAD
+#
+# Copyright (c) 2004-2007 United States Government as represented by
+# the U.S. Army Research Laboratory.
+#
+# This library is free software; you can redistribute it and/or
+# modify it under the terms of the GNU Lesser General Public License
+# version 2.1 as published by the Free Software Foundation.
+#
+# This library is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public
+# License along with this file; see the file named COPYING for more
+# information.
+#
+###
+#
+#			E X T R A C T . T C L
+#
+#	Tool for extracting objects out of the current MGED database.
+#
+#	Author - Robert G. Parker
+#
+
+check_externs "_mged_opendb _mged_keep db_glob"
+
+proc init_extractTool { id } {
+    global mged_gui
+    global ex_control
+    global ::tk::Priv
+
+    if {[opendb] == ""} {
+	cad_dialog $::tk::Priv(cad_dialog) $mged_gui($id,screen) "No database." \
+		"No database has been opened!" info 0 OK
+	return
+    }
+
+    set top .$id.do_extract
+
+    if [winfo exists $top] {
+	raise $top
+	return
+    }
+
+    if ![info exists ex_control($id,file)] {
+	regsub \.g$ [_mged_opendb] _keep.g default_file
+	set ex_control($id,file) $default_file
+    }
+
+    set ex_control($id,objects) [_mged_who]
+
+    toplevel $top -screen $mged_gui($id,screen)
+
+    frame $top.gridF
+    frame $top.gridF2
+
+    set tmp_hoc_data {{summary "Enter a filename specifying where to put
+the extracted objects."} {see_also keep}}
+    label $top.fileL -text "File Name" -anchor w
+    hoc_register_data $top.fileL "File Name" $tmp_hoc_data
+    entry $top.fileE -width 24 -textvar ex_control($id,file)
+    hoc_register_data $top.fileE "File Name" $tmp_hoc_data
+
+    set tmp_hoc_data {{summary "Enter the objects to extract."}
+	    {see_also keep}}
+    label $top.objectsL -text "Objects" -anchor w
+    hoc_register_data $top.objectsL "Objects" $tmp_hoc_data
+    entry $top.objectsE -width 24 -textvar ex_control($id,objects)
+    hoc_register_data $top.objectsE "Objects" $tmp_hoc_data
+
+    button $top.okB -relief raised -text "OK"\
+	    -command "do_extract $id; catch {destroy $top}"
+    hoc_register_data $top.okB "Extract" {{summary "
+Extract the listed objects from the current database
+and put them into the specified file. The extract dialog
+is then dismissed. Note - these objects are not removed
+from the current database."} {see_also keep}}
+    button $top.extractB -relief raised -text "Extract"\
+	    -command "do_extract $id"
+    hoc_register_data $top.extractB "Extract" {{summary "
+Extract the listed objects from the current database
+and put them into the specified file. Note - these
+objects are not removed from the current database."} {see_also keep}}
+    button $top.dismissB -relief raised -text "Dismiss"\
+	    -command "catch { destroy $top }"
+    hoc_register_data $top.dismissB "Dismiss" {{summary "Dismiss the entry dialog without
+extracting database objects."}}
+
+    grid $top.fileE $top.fileL -sticky "ew" -in $top.gridF -pady 4
+    grid $top.objectsE $top.objectsL -sticky "ew" -in $top.gridF -pady 4
+    grid columnconfigure $top.gridF 0 -weight 1
+
+    grid  $top.okB $top.extractB x $top.dismissB -in $top.gridF2
+    grid columnconfigure $top.gridF2 2 -weight 1
+
+    pack $top.gridF $top.gridF2 -side top -expand 1 -fill both\
+	    -padx 8 -pady 8
+
+    place_near_mouse $top
+    wm title $top "Extract Objects"
+}
+
+proc do_extract { id } {
+    global mged_gui
+    global ex_control
+    global ::tk::Priv
+
+    cmd_win set $id
+    set ex_cmd "_mged_keep"
+
+    if {$ex_control($id,file) != ""} {
+	if [file exists $ex_control($id,file)] {
+	    set result [cad_dialog $::tk::Priv(cad_dialog) $mged_gui($id,screen)\
+		    "Append to $ex_control($id,file)?"\
+		    "Append to $ex_control($id,file)?"\
+		    "" 0 OK Cancel]
+
+	    if {$result} {
+		return
+	    }
+	}
+    } else {
+	cad_dialog $::tk::Priv(cad_dialog) $mged_gui($id,screen)\
+		"No file name specified!"\
+		"No file name specified!"\
+		"" 0 OK
+
+	return
+    }
+
+    append ex_cmd " $ex_control($id,file)"
+
+    if {$ex_control($id,objects) != ""} {
+	set globbed_str [db_glob $ex_control($id,objects)]
+	append ex_cmd " $globbed_str"
+    } else {
+	cad_dialog $::tk::Priv(cad_dialog) $mged_gui($id,screen)\
+		"No objects specified!"\
+		"No objects specified!"\
+		"" 0 OK
+
+	return
+    }
+
+    set result [catch {eval $ex_cmd}]
+    return $result
+}
+# Local Variables:
+# mode: Tcl
+# tab-width: 8
+# c-basic-offset: 4
+# tcl-indent-level: 4
+# indent-tabs-mode: t
+# End:
+# ex: shiftwidth=4 tabstop=8
+@
+
+
+14.7
+log
+@update copyright to 2007
+@
+text
+@d9 1
+a9 2
+# as published by the Free Software Foundation; either version 2 of
+# the License, or (at your option) any later version.
+d14 1
+a14 1
+# Library General Public License for more details.
+@
+
+
+14.6
+log
+@update copyright to 2006
+@
+text
+@d4 1
+a4 1
+# Copyright (c) 2004-2006 United States Government as represented by
+@
+
+
+14.5
+log
+@update copyright to 2005
+@
+text
+@d4 1
+a4 1
+# Copyright (C) 2004-2005 United States Government as represented by
+@
+
+
+14.4
+log
+@they should have received a copy of the LGPL with LGPL'd files
+@
+text
+@d4 2
+a5 2
+# Copyright (c) 2004 United States Government as represented by the
+# U.S. Army Research Laboratory.
+@
+
+
+14.3
+log
+@s/GNU Library General/GNU Lesser General/g
+@
+text
+@d17 2
+a18 2
+# You should have received a copy of the GNU General Public License
+# along with this file; see the file named COPYING for more
+@
+
+
+14.2
+log
+@assign copyright and LGPL
+@
+text
+@d8 1
+a8 1
+# modify it under the terms of the GNU Library General Public License
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@d1 21
+@
+
+
+1.1
+log
+@Vast reorganization begins.  Sources moved from top-level directories into src/.
+@
+text
+@d131 9
+a139 1
+}@
+

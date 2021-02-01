@@ -1,0 +1,341 @@
+head	11.8;
+access;
+symbols
+	ansi-20040405-merged:11.5.2.1
+	postmerge-20040405-ansi:11.6
+	premerge-20040404-ansi:11.5
+	postmerge-autoconf:11.5
+	autoconf-freeze:11.5
+	premerge-autoconf:11.5
+	postmerge-20040315-windows:11.5
+	premerge-20040315-windows:11.5
+	windows-20040315-freeze:11.5
+	autoconf-20031203:11.5
+	autoconf-20031202:11.5
+	autoconf-branch:11.5.0.10
+	phong-branch:11.5.0.8
+	photonmap-branch:11.5.0.6
+	rel-6-1-DP:11.5
+	windows-branch:11.5.0.4
+	rel-6-0-2:11.3
+	ansi-branch:11.5.0.2
+	rel-6-0-1-branch:11.3.0.2
+	hartley-6-0-post:11.4
+	hartley-6-0-pre:11.3
+	rel-6-0-1:11.3
+	rel-6-0:11.3
+	rel-5-4:11.1
+	offsite-5-3-pre:11.1
+	rel-5-3:11.1
+	rel-5-2:11.1
+	rel-5-1-branch:11.1.0.2
+	rel-5-1:11.1
+	rel-5-0:11.1
+	rel-5-0-beta:11.1
+	rel-4-5:11.1
+	ctj-4-5-post:11.1
+	ctj-4-5-pre:11.1
+	rel-4-4:11.1
+	rel-4-0:10.1;
+locks; strict;
+comment	@ * @;
+
+
+11.8
+date	2004.05.21.16.45.04;	author morrison;	state dead;
+branches;
+next	11.7;
+
+11.7
+date	2004.05.10.15.30.50;	author erikg;	state Exp;
+branches;
+next	11.6;
+
+11.6
+date	2004.04.05.05.45.59;	author morrison;	state Exp;
+branches;
+next	11.5;
+
+11.5
+date	2002.08.20.17.08.42;	author jra;	state Exp;
+branches
+	11.5.2.1;
+next	11.4;
+
+11.4
+date	2002.08.15.20.55.53;	author hartley;	state Exp;
+branches;
+next	11.3;
+
+11.3
+date	2001.08.21.18.21.47;	author jra;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	2001.08.10.21.22.45;	author morrison;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	95.01.04.10.19.06;	author mike;	state Rel4_4;
+branches;
+next	10.3;
+
+10.3
+date	94.12.30.03.31.15;	author mike;	state Exp;
+branches;
+next	10.2;
+
+10.2
+date	94.08.23.18.12.49;	author gdurf;	state Exp;
+branches;
+next	10.1;
+
+10.1
+date	91.10.12.06.51.01;	author mike;	state Rel4_0;
+branches;
+next	1.2;
+
+1.2
+date	91.07.02.02.15.45;	author butler;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	90.10.25.20.13.31;	author butler;	state Exp;
+branches;
+next	;
+
+11.5.2.1
+date	2002.09.19.18.02.20;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@safety check in
+@
+
+
+11.8
+log
+@moved to src/sig/
+@
+text
+@/*
+ *		D A U T O . C
+ *
+ *  Compute the autocorrelation function of doubles.
+ *  Given L elements at a time, data[0..L-1], we estimate
+ *  the autocorrelation at lag 0, trough lag L-1, r[0..L-1].
+ *  The first value is based on L samples, the last on only one.
+ *  Zeros are assumed outside of the range of an input record.
+ */
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+
+#ifdef USE_STRING_H
+#include <string.h>
+#else
+#include <strings.h>
+#endif
+
+#include <unistd.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <math.h>
+#include "machine.h"
+
+double	*data;			/* Input buffer */
+double	*r;			/* autocor output */
+double	*weight;		/* weights to unbias estimation */
+
+static char usage[] = "\
+Usage: dauto [window_size (512)] < doubles\n";
+
+int main(int argc, char **argv)
+{
+	int	i, j, n, L;
+	register double *dp1, *dp2;
+
+	if( isatty(fileno(stdin)) || isatty(fileno(stdout)) ) {
+		fprintf( stderr, usage );
+		exit( 1 );
+	}
+
+	L = (argc > 1) ? atoi(argv[1]) : 512;
+	data = (double *)calloc( L, sizeof(double) );
+	r = (double *)calloc( L, sizeof(double) );
+	weight = (double *)calloc( L, sizeof(double) );
+
+	for( i = 0; i < L; i++ ) {
+		weight[i] = 1.0 / (double)(L-i);
+	}
+
+	while( !feof( stdin ) ) {
+		n = fread( data, sizeof(*data), L, stdin );
+		if( n <= 0 )
+			break;
+		if( n < L )
+			bzero( (char *)&data[n], (L-n)*sizeof(*data) );
+
+		for( i = 0; i < L; i++ ) {
+			r[i] = 0;
+			dp1 = &data[0];
+			dp2 = &data[i];
+			for( j = L-i; j > 0; j-- ) {
+				r[i] += *dp1++ * *dp2++;
+			}
+		}
+
+		/* unbias the estimation */
+		for( i = 0; i < L; i++ ) {
+			r[i] *= weight[i];
+		}
+
+		fwrite( r, sizeof(*r), L, stdout );
+	}
+
+	return 0;
+}
+@
+
+
+11.7
+log
+@change conf.h to a wrapped config.h
+@
+text
+@@
+
+
+11.6
+log
+@merge of ansi-6-0-branch into head
+@
+text
+@d10 5
+a14 1
+#include "conf.h"
+@
+
+
+11.5
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d31 1
+a31 3
+int main( argc, argv )
+int	argc;
+char	**argv;
+@
+
+
+11.5.2.1
+log
+@Initial ANSIfication
+@
+text
+@d31 3
+a33 1
+int main(int argc, char **argv)
+@
+
+
+11.4
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d31 3
+a33 1
+int main(int argc, char **argv)
+@
+
+
+11.3
+log
+@Added some includes
+@
+text
+@d31 1
+a31 3
+int main( argc, argv )
+int	argc;
+char	**argv;
+@
+
+
+11.2
+log
+@added proper checking for string.h/strings.h
+added int return type to main
+added return 0 to main
+@
+text
+@d18 2
+@
+
+
+11.1
+log
+@Release_4.4
+@
+text
+@d12 6
+d29 1
+a29 1
+main( argc, argv )
+d73 2
+@
+
+
+10.3
+log
+@DEC Alpha
+@
+text
+@@
+
+
+10.2
+log
+@Added include of conf.h
+@
+text
+@d49 1
+a49 1
+			bzero( &data[n], (L-n)*sizeof(*data) );
+@
+
+
+10.1
+log
+@Release_4.0
+@
+text
+@d10 2
+@
+
+
+1.2
+log
+@Minor nits
+@
+text
+@@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d12 1
+@

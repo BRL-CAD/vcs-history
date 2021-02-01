@@ -1,0 +1,711 @@
+head	14.13;
+access;
+symbols
+	rel-7-10-4:14.11
+	STABLE:14.11.0.2
+	stable-branch:14.4
+	rel-7-10-2:14.11
+	rel-7-10-0:14.10
+	rel-7-8-4:14.8
+	rel-7-8-2:14.8
+	rel-7-8-0:14.8
+	trimnurbs-branch:14.8.0.2
+	help:14.8
+	temp_tag:14.7
+	bobWinPort-20051223-freeze:14.4
+	postmerge-20051223-bobWinPort:14.7
+	premerge-20051223-bobWinPort:14.7
+	rel-7-6-6:14.7
+	rel-7-6-4:14.7
+	rel-7-6-2:14.4
+	rel-7-6-branch:14.4.0.6
+	rel-7-6-0:14.4
+	rel-7-4-2:14.4
+	rel-7-4-branch:14.4.0.4
+	bobWinPort:14.4.0.2
+	rel-7-4-0:14.4
+	rel-7-2-6:14.4
+	rel-7-2-4:14.4
+	rel-7-2-2:14.4
+	rel-7-2-0:14.4
+	rel-7-0-4:14.3
+	rel-7-0-2:14.3
+	rel-7-0-1:14.3
+	opensource-post:14.3
+	opensource-pre:1.5
+	rel-7-0-branch:1.5.0.2
+	rel-7-0:1.5;
+locks; strict;
+comment	@ * @;
+
+
+14.13
+date	2007.11.21.20.49.07;	author erikgreenwald;	state Exp;
+branches;
+next	14.12;
+
+14.12
+date	2007.11.21.19.09.24;	author erikgreenwald;	state Exp;
+branches;
+next	14.11;
+
+14.11
+date	2007.07.26.01.13.53;	author brlcad;	state Exp;
+branches;
+next	14.10;
+
+14.10
+date	2007.01.23.01.13.27;	author brlcad;	state Exp;
+branches;
+next	14.9;
+
+14.9
+date	2007.01.20.14.36.48;	author brlcad;	state Exp;
+branches;
+next	14.8;
+
+14.8
+date	2006.01.18.06.46.15;	author brlcad;	state Exp;
+branches;
+next	14.7;
+
+14.7
+date	2005.10.23.04.44.30;	author brlcad;	state Exp;
+branches;
+next	14.6;
+
+14.6
+date	2005.09.21.19.00.27;	author brlcad;	state Exp;
+branches;
+next	14.5;
+
+14.5
+date	2005.09.21.17.17.18;	author brlcad;	state Exp;
+branches;
+next	14.4;
+
+14.4
+date	2005.01.30.20.30.21;	author brlcad;	state Exp;
+branches
+	14.4.6.1;
+next	14.3;
+
+14.3
+date	2004.12.21.06.38.19;	author morrison;	state Exp;
+branches;
+next	14.2;
+
+14.2
+date	2004.12.18.06.09.12;	author morrison;	state Exp;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.13;	author morrison;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	2004.09.08.20.31.24;	author kermit;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	2004.08.02.23.01.47;	author morrison;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2004.06.09.17.56.22;	author erikg;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2004.06.08.22.04.11;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.15.19.02;	author morrison;	state Exp;
+branches;
+next	;
+
+14.4.6.1
+date	2005.11.13.13.46.13;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.13
+log
+@pass bu_exit a NULL instead of an empty string
+@
+text
+@/*                        F B G R I D . C
+ * BRL-CAD
+ *
+ * Copyright (c) 1986-2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ *
+ */
+/** @@file fbgrid.c
+ *
+ *  Author -
+ *	Phillip Dykstra
+ *  	Includes the old fbgrid code by:
+ *	Michael John Muuss
+ *	Gary S. Moss
+ *
+ */
+#ifndef lint
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/fb/fbgrid.c,v 14.12 2007/11/21 19:09:24 erikgreenwald Exp $ (BRL)";
+#endif
+
+#include "common.h"
+
+#ifdef HAVE_UNISTD_H
+# include <unistd.h>
+#endif
+#include <stdlib.h>
+#include <stdio.h>
+
+#include "machine.h"
+#include "bu.h"
+#include "fb.h"
+
+static unsigned char	*white_line, *grey_line, *dark_line;
+static FBIO	*fbp;
+static char	*framebuffer = NULL;
+
+#define OLD	0
+#define	BINARY	1
+#define	DECIMAL 2
+
+static int	fbwidth = 0;
+static int	fbheight = 0;
+static int	flavor = DECIMAL;
+static int	clear = 0;
+
+void		grid(FBIO *fbp, unsigned char *line, int spacing), oldflavor(void);
+
+static char usage[] = "\
+Usage: fbgrid [-h -c] [-b | -d | -o] [-F framebuffer]\n\
+	[-S squaresize] [-W width] [-N height]\n";
+
+int
+get_args(int argc, register char **argv)
+{
+	register int c;
+
+	while ( (c = bu_getopt( argc, argv, "hcbdoF:s:w:n:S:W:N:" )) != EOF )  {
+		switch( c )  {
+		case 'h':
+			/* high-res */
+			fbheight = fbwidth = 1024;
+			break;
+		case 'c':
+			clear = 1;
+			break;
+		case 'b':
+			flavor = BINARY;
+			break;
+		case 'd':
+			flavor = DECIMAL;
+			break;
+		case 'o':
+			flavor = OLD;
+			break;
+		case 'F':
+			framebuffer = bu_optarg;
+			break;
+		case 'S':
+		case 's':
+			/* square size */
+			fbheight = fbwidth = atoi(bu_optarg);
+			break;
+		case 'W':
+		case 'w':
+			fbwidth = atoi(bu_optarg);
+			break;
+		case 'N':
+		case 'n':
+			fbheight = atoi(bu_optarg);
+			break;
+
+		default:		/* '?' */
+			return(0);
+		}
+	}
+
+	if ( argc > ++bu_optind )
+		(void)fprintf( stderr, "fbgrid: excess argument(s) ignored\n" );
+
+	return(1);		/* OK */
+}
+
+int
+main(int argc, char **argv)
+{
+	int	i;
+
+	if ( !get_args( argc, argv ) )  {
+		(void)fputs(usage, stderr);
+		bu_exit( 1, NULL );
+	}
+
+	if( flavor == OLD )
+		oldflavor();	/* exits */
+
+	if( (fbp = fb_open( framebuffer, fbwidth, fbheight )) == NULL )
+		bu_exit( 2, NULL );
+
+	fbwidth = fb_getwidth( fbp );
+	fbheight = fb_getheight( fbp );
+
+	/* Initialize the color lines */
+	white_line = (unsigned char *)malloc( fbwidth * sizeof(RGBpixel) );
+	grey_line  = (unsigned char *)malloc( fbwidth * sizeof(RGBpixel) );
+	dark_line  = (unsigned char *)malloc( fbwidth * sizeof(RGBpixel) );
+	for( i = 0; i < fbwidth; i++ ) {
+		white_line[3*i+RED] = white_line[3*i+GRN] = white_line[3*i+BLU] = 255;
+		grey_line[3*i+RED] = grey_line[3*i+GRN] = grey_line[3*i+BLU] = 128;
+		dark_line[3*i+RED] = dark_line[3*i+GRN] = dark_line[3*i+BLU] = 64;
+	}
+
+	if( clear )
+		fb_clear( fbp, PIXEL_NULL );
+
+	if( flavor == BINARY ) {
+		/* Dark lines every 8 */
+		grid( fbp, dark_line, 8 );
+		/* Grey lines every 64 */
+		grid( fbp, grey_line, 64 );
+		/* White line every 128 */
+		grid( fbp, white_line, 128 );
+	} else { /* DECIMAL */
+		/* Dark lines every 10 */
+		grid( fbp, dark_line, 10 );
+		/* Grey lines every 50 */
+		grid( fbp, grey_line, 50 );
+		/* White line every 100 */
+		grid( fbp, white_line, 100 );
+	}
+
+	fb_close( fbp );
+	return(0);
+}
+
+void
+grid(FBIO *fbp, unsigned char *line, int spacing)
+{
+	int	x, y;
+
+	for( y = 0; y < fbheight; y += spacing )
+		fb_write( fbp, 0, y, line, fbwidth );
+	for( x = 0; x < fbwidth; x += spacing ) {
+		fb_writerect( fbp, x, 0, 1, fbheight, line );
+	}
+}
+
+void
+oldflavor(void)
+{
+	register FBIO	*fbp;
+	register int	x, y;
+	register int	middle;
+	register int	mask;
+	register int	fb_sz;
+	static RGBpixel	black, white, red;
+
+	if( (fbp = fb_open( NULL, fbwidth, fbheight )) == NULL ) {
+		bu_exit( 1, NULL );
+	}
+
+	fb_sz = fb_getwidth(fbp);
+	white[RED] = white[GRN] = white[BLU] = 255;
+	black[RED] = black[GRN] = black[BLU] = 0;
+	red[RED] = 255;
+	middle = fb_sz/2;
+	fb_ioinit(fbp);
+	if( fb_sz <= 512 )
+		mask = 0x7;
+	else
+		mask = 0xf;
+
+	for( y = fb_sz-1; y >= 0; y-- )  {
+		for( x = 0; x < fb_sz; x++ ) {
+			if( x == y || x == fb_sz - y ) {
+				FB_WPIXEL( fbp, white );
+			} else
+			if( x == middle || y == middle ) {
+				FB_WPIXEL( fbp, red );
+			} else
+			if( (x & mask) && (y & mask) ) {
+				FB_WPIXEL( fbp, black );
+			} else {
+				FB_WPIXEL( fbp, white );
+			}
+		}
+	}
+	fb_close( fbp );
+	bu_exit( 0, NULL );
+}
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+14.12
+log
+@exit->bu_exit where applicable
+@
+text
+@d31 1
+a31 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/fb/fbgrid.c,v 14.11 2007/07/26 01:13:53 brlcad Exp $ (BRL)";
+d123 1
+a123 1
+		bu_exit( 1, "" );
+d130 1
+a130 1
+		bu_exit( 2, "" );
+d191 1
+a191 1
+		bu_exit( 1, "" );
+d221 1
+a221 1
+	bu_exit( 0, "" );
+@
+
+
+14.11
+log
+@remove ephemeral data like phone numbers and addresses, including the misleading 'source' statements on code that is continually evolving and receiving contributions from many many sources
+@
+text
+@d31 1
+a31 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/fb/fbgrid.c,v 14.10 2007/01/23 01:13:27 brlcad Exp $ (BRL)";
+d123 1
+a123 1
+		exit( 1 );
+d130 1
+a130 1
+		exit( 2 );
+d191 1
+a191 1
+		exit( 1 );
+d221 1
+a221 1
+	exit( 0 );
+@
+
+
+14.10
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@a28 5
+ *  Source -
+ *	SECAD/VLD Computing Consortium, Bldg 394
+ *	The U. S. Army Ballistic Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005-5066
+ *
+d31 1
+a31 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/fb/fbgrid.c,v 14.9 2007/01/20 14:36:48 brlcad Exp $ (BRL)";
+@
+
+
+14.9
+log
+@update copyright to 2007
+@
+text
+@d8 2
+a9 3
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+d14 1
+a14 1
+ * General Public License for more details.
+d16 2
+a17 2
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+d36 1
+a36 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/fb/fbgrid.c,v 14.8 2006/01/18 06:46:15 brlcad Exp $ (BRL)";
+@
+
+
+14.8
+log
+@update copyright to 2006
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 1986-2006 United States Government as represented by
+d37 1
+a37 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/fb/fbgrid.c,v 14.7 2005/10/23 04:44:30 brlcad Exp $ (BRL)";
+@
+
+
+14.7
+log
+@trailing ws
+@
+text
+@d4 1
+a4 1
+ * Copyright (C) 1986-2005 United States Government as represented by
+d37 1
+a37 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/fb/fbgrid.c,v 14.6 2005/09/21 19:00:27 brlcad Exp $ (BRL)";
+@
+
+
+14.6
+log
+@needs bu.h for bu_getopt
+@
+text
+@d29 1
+a29 1
+ *  
+d34 1
+a34 1
+ *  
+d37 1
+a37 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/fb/fbgrid.c,v 14.5 2005/09/21 17:17:18 brlcad Exp $ (BRL)";
+d45 1
+a45 1
+#include <stdlib.h>                                                                                                                                                                            
+@
+
+
+14.5
+log
+@use bu_optarg, bu_optind and bu_getopt
+@
+text
+@d37 1
+a37 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/fb/fbgrid.c,v 14.4 2005/01/30 20:30:21 brlcad Exp $ (BRL)";
+d49 1
+@
+
+
+14.4
+log
+@update copyright to 2005
+@
+text
+@d37 1
+a37 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/fb/fbgrid.c,v 14.3 2004/12/21 06:38:19 morrison Exp $ (BRL)";
+d75 1
+a75 1
+	while ( (c = getopt( argc, argv, "hcbdoF:s:w:n:S:W:N:" )) != EOF )  {
+d94 1
+a94 1
+			framebuffer = optarg;
+d99 1
+a99 1
+			fbheight = fbwidth = atoi(optarg);
+d103 1
+a103 1
+			fbwidth = atoi(optarg);
+d107 1
+a107 1
+			fbheight = atoi(optarg);
+d115 1
+a115 1
+	if ( argc > ++optind )
+@
+
+
+14.4.6.1
+log
+@merge changes from HEAD aka rel-7-6-4 to the rel-7-6-branch just in case someone peeks a gander or tries to continue/build the branch
+@
+text
+@d29 1
+a29 1
+ *
+d34 1
+a34 1
+ *
+d37 1
+a37 1
+static const char RCSid[] = "@@(#)$Header$ (BRL)";
+d45 1
+a45 1
+#include <stdlib.h>
+a48 1
+#include "bu.h"
+d75 1
+a75 1
+	while ( (c = bu_getopt( argc, argv, "hcbdoF:s:w:n:S:W:N:" )) != EOF )  {
+d94 1
+a94 1
+			framebuffer = bu_optarg;
+d99 1
+a99 1
+			fbheight = fbwidth = atoi(bu_optarg);
+d103 1
+a103 1
+			fbwidth = atoi(bu_optarg);
+d107 1
+a107 1
+			fbheight = atoi(bu_optarg);
+d115 1
+a115 1
+	if ( argc > ++bu_optind )
+@
+
+
+14.3
+log
+@remove the old copyright notice section
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 1986-2004 United States Government as represented by
+d37 1
+a37 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/fb/fbgrid.c,v 14.2 2004/12/18 06:09:12 morrison Exp $ (BRL)";
+@
+
+
+14.2
+log
+@assign copyright and GPL license
+@
+text
+@a34 3
+ *  Copyright Notice -
+ *	This software is Copyright (C) 1986-2004 by the United States Army.
+ *	All rights reserved.
+d37 1
+a37 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/fb/fbgrid.c,v 14.1 2004/11/16 19:42:13 morrison Exp $ (BRL)";
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@d1 22
+a22 2
+/*
+ *			F B G R I D . C
+d40 1
+a40 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/fb/fbgrid.c,v 1.5 2004/09/08 20:31:24 kermit Exp $ (BRL)";
+@
+
+
+1.5
+log
+@Added <stdlib.h> to fix implicit cast (for IA64 architecture).
+@
+text
+@d20 1
+a20 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/fb/fbgrid.c,v 1.4 2004/08/02 23:01:47 morrison Exp $ (BRL)";
+d211 10
+@
+
+
+1.4
+log
+@replace the wrapped config.h block with common.h
+@
+text
+@d20 1
+a20 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/fb/fbgrid.c,v 1.3 2004/06/09 17:56:22 erikg Exp $ (BRL)";
+d28 1
+a28 1
+                                                                                                                                                                            
+d30 1
+@
+
+
+1.3
+log
+@fix missing header issues
+@
+text
+@d20 1
+a20 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/fb/fbgrid.c,v 1.2 2004/06/08 22:04:11 morrison Exp $ (BRL)";
+d23 1
+a23 3
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+@
+
+
+1.2
+log
+@obliterate externs.h
+@
+text
+@d20 1
+a20 1
+static const char RCSid[] = "@@(#)$Header$ (BRL)";
+d27 4
+a30 2
+
+
+@
+
+
+1.1
+log
+@Vast reorganization begins.  Sources moved from top-level directories into src/.
+@
+text
+@d20 1
+a20 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/fb/fbgrid.c,v 11.8 2004/05/10 15:30:42 erikg Exp $ (BRL)";
+a30 1
+#include "externs.h"
+@
+

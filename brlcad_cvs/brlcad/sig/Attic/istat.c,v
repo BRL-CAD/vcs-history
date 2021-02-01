@@ -1,0 +1,436 @@
+head	11.8;
+access;
+symbols
+	ansi-20040405-merged:11.5.2.1
+	postmerge-20040405-ansi:11.6
+	premerge-20040404-ansi:11.5
+	postmerge-autoconf:11.5
+	autoconf-freeze:11.5
+	premerge-autoconf:11.5
+	postmerge-20040315-windows:11.5
+	premerge-20040315-windows:11.5
+	windows-20040315-freeze:11.5
+	autoconf-20031203:11.5
+	autoconf-20031202:11.5
+	autoconf-branch:11.5.0.10
+	phong-branch:11.5.0.8
+	photonmap-branch:11.5.0.6
+	rel-6-1-DP:11.5
+	windows-branch:11.5.0.4
+	rel-6-0-2:11.3
+	ansi-branch:11.5.0.2
+	rel-6-0-1-branch:11.3.0.2
+	hartley-6-0-post:11.4
+	hartley-6-0-pre:11.3
+	rel-6-0-1:11.3
+	rel-6-0:11.3
+	rel-5-4:11.1
+	offsite-5-3-pre:11.1
+	rel-5-3:11.1
+	rel-5-2:11.1
+	rel-5-1-branch:11.1.0.2
+	rel-5-1:11.1
+	rel-5-0:11.1
+	rel-5-0-beta:11.1
+	rel-4-5:11.1
+	ctj-4-5-post:11.1
+	ctj-4-5-pre:11.1
+	rel-4-4:11.1
+	rel-4-0:10.1;
+locks; strict;
+comment	@ * @;
+
+
+11.8
+date	2004.05.21.16.45.05;	author morrison;	state dead;
+branches;
+next	11.7;
+
+11.7
+date	2004.05.10.15.30.50;	author erikg;	state Exp;
+branches;
+next	11.6;
+
+11.6
+date	2004.04.05.05.46.00;	author morrison;	state Exp;
+branches;
+next	11.5;
+
+11.5
+date	2002.08.20.17.08.44;	author jra;	state Exp;
+branches
+	11.5.2.1;
+next	11.4;
+
+11.4
+date	2002.08.15.20.55.56;	author hartley;	state Exp;
+branches;
+next	11.3;
+
+11.3
+date	2001.08.21.18.41.36;	author jra;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	2001.08.10.21.22.46;	author morrison;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	95.01.04.10.19.19;	author mike;	state Rel4_4;
+branches;
+next	10.2;
+
+10.2
+date	94.08.23.19.04.28;	author gdurf;	state Exp;
+branches;
+next	10.1;
+
+10.1
+date	91.10.12.06.51.14;	author mike;	state Rel4_0;
+branches;
+next	1.2;
+
+1.2
+date	91.07.11.22.49.54;	author butler;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	90.10.31.19.28.15;	author butler;	state Exp;
+branches;
+next	;
+
+11.5.2.1
+date	2002.09.19.18.02.24;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@compute statistics on input of signed short integers.
+@
+
+
+11.8
+log
+@moved to src/sig/
+@
+text
+@/*	I S T A T . C --- gather statistics on file of shorts
+ *
+ *	Options
+ *	h	help
+ */
+
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+
+#include <stdio.h>
+#ifdef USE_STRING_H
+#include <string.h>
+#else
+#include <strings.h>
+#endif
+
+#include "machine.h"
+#include "externs.h"		/* For getopt */
+
+/* declarations to support use of getopt() system call */
+char *options = "h";
+char *progname = "(noname)";
+
+/*
+ *	U S A G E --- tell user how to invoke this program, then exit
+ */
+void usage(void)
+{
+	(void) fprintf(stderr, "Usage: %s [ file ]\n", progname);
+	exit(1);
+}
+
+/*
+ *	P A R S E _ A R G S --- Parse through command line flags
+ */
+int parse_args(int ac, char **av)
+{
+	int  c;
+
+	if (!(progname=strrchr(*av, '/')))
+		progname = *av;
+	
+	/* Turn off getopt's error messages */
+	opterr = 0;
+
+	/* get all the option flags from the command line */
+	while ((c=getopt(ac,av,options)) != EOF)
+		switch (c) {
+		case '?'	:
+		case 'h'	:
+		default		: usage(); break;
+		}
+
+	return(optind);
+}
+
+void comp_stats(FILE *fd)
+{
+	short *buffer=(short *)NULL;
+	short min, max;
+	double stdev, sum, sum_sq, num, sqrt(double);
+	int count;
+	int i;
+
+
+	buffer = (short *)calloc(10240, sizeof(short));
+	if (buffer == (short *)NULL) {
+		(void)fprintf(stderr, "%s: cannot allocate buffer\n",
+			progname);
+		exit(-1);
+	}
+
+	stdev = sum = sum_sq = count = num = 0.0;
+	min = 32767;
+	max = -32768;
+
+	while ( (count=fread((void *)buffer, sizeof(short), 10240, fd)) ) {
+		for (i=0 ; i < count ; ++i) {
+			sum += (double)buffer[i];
+			sum_sq += (double)(buffer[i] * buffer[i]);
+			if (buffer[i] > max) max = buffer[i];
+			if (buffer[i] < min) min = buffer[i];
+		}
+		num += (double)count;
+	}
+
+	stdev = sqrt( ((num * sum_sq) - (sum*sum)) / (num * (num-1)) );
+
+	(void)printf("   Num: %g\n   Min: %hd\n   Max: %hd\n   Sum: %g\n  Mean: %g\nSStdev: %g\n",
+		num, min, max, sum, sum/num, stdev);
+
+}
+
+
+/*
+ *	M A I N
+ *
+ *	Call parse_args to handle command line arguments first, then
+ *	process input.
+ */
+int main(int ac, char **av)
+{
+	int arg_index;
+
+	/* parse command flags
+	 */
+	arg_index = parse_args(ac, av);
+	if (arg_index < ac) {
+		/* open file of shorts */
+		if (freopen(av[arg_index], "r", stdin) == (FILE *)NULL) {
+			perror(av[arg_index]);
+			return(-1);
+		}
+	} else if (isatty((int)fileno(stdin))) {
+		usage();
+	}
+
+	comp_stats(stdin);
+
+	return 0;
+}
+@
+
+
+11.7
+log
+@change conf.h to a wrapped config.h
+@
+text
+@@
+
+
+11.6
+log
+@merge of ansi-6-0-branch into head
+@
+text
+@d7 5
+a11 1
+#include "conf.h"
+@
+
+
+11.5
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d26 1
+a26 1
+void usage()
+d35 1
+a35 3
+int parse_args(ac, av)
+int ac;
+char *av[];
+d56 1
+a56 2
+void comp_stats(fd)
+FILE *fd;
+d60 1
+a60 1
+	double stdev, sum, sum_sq, num, sqrt();
+d100 1
+a100 3
+int main(ac,av)
+int ac;
+char *av[];
+@
+
+
+11.5.2.1
+log
+@Initial ANSIfication
+@
+text
+@d26 1
+a26 1
+void usage(void)
+d35 3
+a37 1
+int parse_args(int ac, char **av)
+d58 2
+a59 1
+void comp_stats(FILE *fd)
+d63 1
+a63 1
+	double stdev, sum, sum_sq, num, sqrt(double);
+d103 3
+a105 1
+int main(int ac, char **av)
+@
+
+
+11.4
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d26 1
+a26 1
+void usage(void)
+d35 3
+a37 1
+int parse_args(int ac, char **av)
+d58 2
+a59 1
+void comp_stats(FILE *fd)
+d63 1
+a63 1
+	double stdev, sum, sum_sq, num, sqrt(double);
+d103 3
+a105 1
+int main(int ac, char **av)
+@
+
+
+11.3
+log
+@lint
+@
+text
+@d26 1
+a26 1
+void usage()
+d35 1
+a35 3
+int parse_args(ac, av)
+int ac;
+char *av[];
+d56 1
+a56 2
+void comp_stats(fd)
+FILE *fd;
+d60 1
+a60 1
+	double stdev, sum, sum_sq, num, sqrt();
+d100 1
+a100 3
+int main(ac,av)
+int ac;
+char *av[];
+@
+
+
+11.2
+log
+@added proper checking for string.h/strings.h
+added int return type to main
+added return 0 to main
+@
+text
+@d79 1
+a79 1
+	while (count=fread((void *)buffer, sizeof(short), 10240, fd)) {
+@
+
+
+11.1
+log
+@Release_4.4
+@
+text
+@d124 1
+a124 1
+	return(0);
+@
+
+
+10.2
+log
+@Cleaned up includes, ifdefs
+@
+text
+@@
+
+
+10.1
+log
+@Release_4.0
+@
+text
+@d6 3
+d10 5
+d16 2
+a17 3
+#if !defined(SYSV) && defined(BSD) && BSD < 43
+#define strrchr rindex
+#endif
+a20 3
+extern char *optarg;
+extern int optind, opterr, getopt();
+
+a39 1
+	char *strrchr();
+@
+
+
+1.2
+log
+@added macro definition for strrchr on BSD < 43
+@
+text
+@@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d8 4
+@

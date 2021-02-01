@@ -1,0 +1,661 @@
+head	1.12;
+access;
+symbols
+	ansi-20040405-merged:1.8.2.2
+	postmerge-20040405-ansi:1.10
+	premerge-20040404-ansi:1.9
+	postmerge-autoconf:1.9
+	autoconf-freeze:1.8.10.1
+	premerge-autoconf:1.9
+	postmerge-20040315-windows:1.9
+	premerge-20040315-windows:1.9
+	windows-20040315-freeze:1.8.4.1
+	autoconf-20031203:1.8
+	autoconf-20031202:1.8
+	autoconf-branch:1.8.0.10
+	phong-branch:1.8.0.8
+	photonmap-branch:1.8.0.6
+	rel-6-1-DP:1.8
+	windows-branch:1.8.0.4
+	rel-6-0-2:1.6
+	ansi-branch:1.8.0.2
+	rel-6-0-1-branch:1.6.0.2
+	hartley-6-0-post:1.7
+	hartley-6-0-pre:1.6
+	rel-6-0-1:1.6
+	rel-6-0:1.6
+	rel-5-4:1.3
+	offsite-5-3-pre:1.4
+	rel-5-3:1.3
+	rel-5-2:1.3
+	rel-5-1-branch:1.3.0.2
+	rel-5-1:1.3
+	rel-5-0:1.3
+	rel-5-0-beta:1.3
+	rel-4-5:1.3
+	ctj-4-5-post:1.3
+	ctj-4-5-pre:1.3;
+locks; strict;
+comment	@ * @;
+
+
+1.12
+date	2004.05.21.14.57.50;	author morrison;	state dead;
+branches;
+next	1.11;
+
+1.11
+date	2004.05.10.15.30.50;	author erikg;	state Exp;
+branches;
+next	1.10;
+
+1.10
+date	2004.04.05.05.46.02;	author morrison;	state Exp;
+branches;
+next	1.9;
+
+1.9
+date	2004.02.02.17.39.46;	author morrison;	state Exp;
+branches;
+next	1.8;
+
+1.8
+date	2002.08.20.17.09.02;	author jra;	state Exp;
+branches
+	1.8.2.1
+	1.8.4.1
+	1.8.10.1;
+next	1.7;
+
+1.7
+date	2002.08.15.20.56.13;	author hartley;	state Exp;
+branches;
+next	1.6;
+
+1.6
+date	2001.10.17.07.40.07;	author morrison;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	2001.08.10.20.57.06;	author butler;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	2000.09.01.03.23.54;	author mike;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	96.12.23.13.54.09;	author jra;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	96.01.02.19.45.59;	author gdurf;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	95.12.19.15.43.35;	author stay;	state Exp;
+branches;
+next	;
+
+1.8.2.1
+date	2002.09.19.18.02.40;	author morrison;	state Exp;
+branches;
+next	1.8.2.2;
+
+1.8.2.2
+date	2004.03.17.21.23.28;	author morrison;	state Exp;
+branches;
+next	;
+
+1.8.4.1
+date	2004.03.11.23.52.31;	author morrison;	state Exp;
+branches;
+next	;
+
+1.8.10.1
+date	2004.02.12.19.43.10;	author erikg;	state Exp;
+branches;
+next	;
+
+
+desc
+@Blend two pix or Bw images together using a simple linear blend
+@
+
+
+1.12
+log
+@moved to src/util/
+@
+text
+@/*
+ *  			P I X B L E N D . C
+ *  
+ *  Given two streams of data, typically pix(5) or bw(5) images,
+ *  generate an output stream of the same size, where the value of
+ *  each pixel in the output is determined by either:
+ *    1) a linear interpolation between the two corresponding pixels in the
+ *       input streams; or,
+ *    2) the pixel of either the first stream or the second stream, chosen
+ *       randomly.  
+ *
+ *  This routine operates on a pixel-by-pixel basis, and thus
+ *  is independent of the resolution of the image.
+ *  
+ *  Authors -
+ *	Paul Randal Stay
+ *      Glenn Durfee
+ *  
+ *  Source -
+ *	SECAD/VLD Computing Consortium, Bldg 394
+ *	The U. S. Army Ballistic Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005-5066
+ *  
+ *  Copyright Notice -
+ *	This software is Copyright (C) 1995-2004 by the United States Army.
+ *      All rights reserved.
+ */
+
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+
+#include <sys/time.h>
+#include <stdio.h>
+#ifdef HAVE_STRING_H
+#include <string.h>
+#else
+#include <strings.h>
+#endif
+#include <stdlib.h>
+
+#include "machine.h"
+#include "externs.h"			/* For malloc and getopt */
+
+static char	*f1_name;
+static char	*f2_name;
+static FILE	*f1;
+static FILE	*f2;
+
+/* CHUNK should be a multiple of 3 (the pixel size) */
+#define CHUNK	3*1024
+static char	*b1;			/* fg input buffer */
+static char	*b2;			/* bg input buffer */
+static char	*b3;			/* output buffer */
+
+double		value, gvalue;
+int             iflg, rflg, gflg;
+int             seed;
+
+static char usage[] = "\
+Usage: pixblend [-{r|i} value] [-s [seed]] file1.pix file2.pix > out.pix\n";
+
+int
+timeseed(void)
+{
+    struct timeval tv;
+    gettimeofday(&tv, (struct timezone *)NULL);
+    return (int)tv.tv_usec;
+}
+
+int
+get_args(int argc, register char **argv)
+{
+	register int c;
+
+	while ( (c = getopt( argc, argv, "r:i:Ss:g:" )) != EOF )  {
+		switch( c )  {
+		case 'r':
+		    if (iflg)
+			return 0;
+		    else {
+			value = atof( optarg );
+			++rflg;
+		    }
+		    break;
+		case 'i':
+		    if (rflg)
+			return 0;
+		    else {
+			if (gflg) {
+			    fprintf(stderr, "The -g and -i options do not make sense together.\n");
+			    return 0;
+			}
+			value = atof( optarg );
+			++iflg;
+		    }
+		    break;
+		case 'S':
+		    seed = timeseed();
+		    break;
+		case 's':
+		    seed = atoi( optarg );
+		    break;
+		case 'g':
+		    if (iflg) {
+			fprintf(stderr, "The -g and -i options do not make sense together.\n");
+			return 0;
+		    }
+		    ++gflg;
+		    gvalue = atof( optarg );
+		    break;
+		default:		/* '?' */
+		    return(0);
+		}
+	}
+
+	if( optind+2 > argc )
+		return(0);
+
+	f1_name = argv[optind++];
+	if( strcmp( f1_name, "-" ) == 0 )
+		f1 = stdin;
+	else if( (f1 = fopen(f1_name, "r")) == NULL )  {
+		perror(f1_name);
+		(void)fprintf( stderr,
+			"pixblend: cannot open \"%s\" for reading\n",
+			f1_name );
+		return(0);
+	}
+
+	f2_name = argv[optind++];
+	if( strcmp( f2_name, "-" ) == 0 )
+		f2 = stdin;
+	else if( (f2 = fopen(f2_name, "r")) == NULL )  {
+		perror(f2_name);
+		(void)fprintf( stderr,
+			"pixblend: cannot open \"%s\" for reading\n",
+			f2_name );
+		return(0);
+	}
+
+	if ( argc > optind )
+		(void)fprintf( stderr, "pixblend: excess argument(s) ignored\n" );
+
+	/* Adjust value upwards if glitterize option is used */
+	value += gvalue * (1 - value);
+
+	return(1);		/* OK */
+}
+
+int
+main(int argc, char **argv)
+{
+#ifndef HAVE_DRAND48
+	int threshold = 0;
+	int gthreshold = 0;
+#endif
+        int c = 0;
+	
+	if ( !get_args( argc, argv ) || isatty(fileno(stdout)) )  {
+		(void)fputs(usage, stderr);
+		exit( 1 );
+	}
+
+	gvalue = 0.0;
+	if (!iflg && !rflg) {   /* Default action: interpolate by 50% */
+	    iflg = 1;
+	    value = 0.5;
+	}
+
+	if( value < 0.0 || value > 1.0)
+	{
+		fprintf(stderr,"pixblend: Blend value must be between 0.0 and 1.0\n");
+		exit(0);
+
+	}
+
+	if (rflg) {
+#ifdef HAVE_DRAND48
+	    srand48((long)seed);
+#else
+	    threshold = (int) (value * 65536.0);
+	    gthreshold = (int) (gvalue * 65536.0);
+	    srandom(seed);
+#endif
+	}
+
+	if( (b1 = (char *)malloc( CHUNK )) == (char *)0 ||
+	    (b2 = (char *)malloc( CHUNK )) == (char *)0 ||
+	    (b3 = (char *)malloc( CHUNK )) == (char *)0 ) {
+	    	fprintf(stderr, "pixblend:  malloc failure\n");
+	    	exit(3);
+	}
+
+	while(1)  {
+		unsigned char	*cb1, *cb2;	/* current input buf ptrs */
+		register unsigned char	*cb3; 	/* current output buf ptr */
+		int r1, r2, len, todo;
+
+	        ++c;
+		r1 = fread( b1, 1, CHUNK, f1 );
+		r2 = fread( b2, 1, CHUNK, f2 );
+		len = r1;
+		if( r2 < len )
+			len = r2;
+		if( len <= 0 )
+			break;
+
+		cb1 = (unsigned char *)b1;
+		cb2 = (unsigned char *)b2;
+		cb3 = (unsigned char *)b3;
+		todo = len;
+		if (iflg) {
+		    while( todo-- ) {
+			*cb3++ = (char) ((1.0 - value) * (*cb1++) +
+					 value * (*cb2++));
+		    }
+		} else {
+		    while( todo > 0 ) {
+			if (cb1[0] == cb2[0] &&
+			    cb1[1] == cb2[1] &&
+			    cb1[2] == cb2[2]) {
+			    cb3[0] = cb1[0];
+			    cb3[1] = cb1[1];
+			    cb3[2] = cb1[2];
+			    cb1 += 3;
+			    cb2 += 3;
+			    cb3 += 3;
+			    todo -= 3;
+			} else {
+#ifdef HAVE_DRAND48
+			    double d;
+			    extern double drand48(void);
+			    d = drand48();
+			    if (d >= value) {
+#else
+			    int r;
+			    r = random() & 0xffff;
+ 			    if (r >= threshold) {
+#endif
+				cb3[0] = cb1[0];
+				cb3[1] = cb1[1];
+				cb3[2] = cb1[2];
+			    } else {
+#ifdef HAVE_DRAND48
+				if (d >= gvalue) {
+#else
+				if (r >= gthreshold) {
+#endif				    
+				    cb3[0] = cb2[0];
+				    cb3[1] = cb2[1];
+				    cb3[2] = cb2[2];
+				} else {
+				    cb3[0] = cb3[1] = cb3[2] = 255;
+				}
+			    }
+			    cb1 += 3;
+			    cb2 += 3;
+			    cb3 += 3;
+			    todo -= 3;
+			}
+		    }
+		}
+		fwrite( b3, 1, len, stdout );
+	}
+	exit(0);
+}
+@
+
+
+1.11
+log
+@change conf.h to a wrapped config.h
+@
+text
+@@
+
+
+1.10
+log
+@merge of ansi-6-0-branch into head
+@
+text
+@d29 5
+a33 1
+#include "conf.h"
+@
+
+
+1.9
+log
+@update copyright to include span through 2003
+@
+text
+@d62 1
+a62 1
+timeseed()
+d70 1
+a70 3
+get_args( argc, argv )
+int argc;
+register char **argv;
+d150 1
+a150 3
+main(argc, argv)
+int argc;
+char **argv;
+d231 1
+a231 1
+			    extern double drand48();
+@
+
+
+1.8
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d25 1
+a25 1
+ *	This software is Copyright (C) 1995 by the United States Army.
+@
+
+
+1.8.4.1
+log
+@sync to HEAD...
+@
+text
+@d25 1
+a25 1
+ *	This software is Copyright (C) 1995-2004 by the United States Army.
+@
+
+
+1.8.10.1
+log
+@merge from HEAD
+@
+text
+@d25 1
+a25 1
+ *	This software is Copyright (C) 1995-2004 by the United States Army.
+@
+
+
+1.8.2.1
+log
+@Initial ANSIfication
+@
+text
+@d62 1
+a62 1
+timeseed(void)
+d70 3
+a72 1
+get_args(int argc, register char **argv)
+d152 3
+a154 1
+main(int argc, char **argv)
+d235 1
+a235 1
+			    extern double drand48(void);
+@
+
+
+1.8.2.2
+log
+@sync branch with HEAD
+@
+text
+@d25 1
+a25 1
+ *	This software is Copyright (C) 1995-2004 by the United States Army.
+@
+
+
+1.7
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d62 1
+a62 1
+timeseed(void)
+d70 3
+a72 1
+get_args(int argc, register char **argv)
+d152 3
+a154 1
+main(int argc, char **argv)
+d235 1
+a235 1
+			    extern double drand48(void);
+@
+
+
+1.6
+log
+@Mac OS X warning and error fixes for non-production build
+@
+text
+@d62 1
+a62 1
+timeseed()
+d70 1
+a70 3
+get_args( argc, argv )
+int argc;
+register char **argv;
+d150 1
+a150 3
+main(argc, argv)
+int argc;
+char **argv;
+d231 1
+a231 1
+			    extern double drand48();
+@
+
+
+1.5
+log
+@Misc compiler warnings eliminated
+@
+text
+@a155 1
+        int c = 0;
+d157 2
+a158 1
+        int threshold, gthreshold;
+d160 1
+@
+
+
+1.4
+log
+@
+Lint fix
+@
+text
+@d33 5
+@
+
+
+1.3
+log
+@Added include <sys/time.h>
+@
+text
+@d146 1
+@
+
+
+1.2
+log
+@Added randomize and glitterize
+@
+text
+@d31 1
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d6 5
+a10 3
+ *  the output is determined by a blending value (0.0 < blend < 1.0)
+ *  where a linear blend between pixels is done.
+ *  
+d15 1
+a15 1
+ *  Author -
+d17 1
+d26 1
+a26 1
+ *	All rights reserved.
+d32 1
+d42 2
+a43 1
+#define CHUNK	1024
+d48 3
+a50 2
+double		blend;
+static unsigned char	pconst[32];
+d53 9
+a61 1
+Usage: pixblend [-b blend] [-w bytes_wide] source.pix destination.pix > out.pix\n";
+d63 1
+d65 1
+d70 1
+a70 1
+	while ( (c = getopt( argc, argv, "b:" )) != EOF )  {
+d72 34
+a105 3
+		case 'b':
+			blend = atof( optarg );
+			break;
+d107 1
+a107 1
+			return(0);
+d139 3
+d149 4
+a153 2
+	blend = .5;			/* Default Blend */
+
+d159 7
+a165 1
+	if( blend < 0.0 || blend > 1.0)
+d172 13
+a184 3
+	if( (b1 = malloc( CHUNK )) == (char *)0 ||
+	    (b2 = malloc( CHUNK )) == (char *)0 ||
+	    (b3 = malloc( CHUNK )) == (char *)0 ) {
+d194 1
+d207 50
+a256 3
+		while( todo--){
+		  *cb3++ = (char) ((1.0 - blend) * (*cb1++) +
+				blend * (*cb2++));
+@

@@ -1,0 +1,511 @@
+head	1.12;
+access;
+symbols
+	ansi-20040405-merged:1.11
+	postmerge-20040405-ansi:1.11
+	premerge-20040404-ansi:1.11
+	postmerge-autoconf:1.11
+	autoconf-freeze:1.11
+	premerge-autoconf:1.11
+	ansi-20040316-freeze:1.11
+	postmerge-20040315-windows:1.11
+	premerge-20040315-windows:1.11
+	windows-20040315-freeze:1.11
+	autoconf-20031203:1.11
+	autoconf-20031202:1.11
+	autoconf-branch:1.11.0.12
+	phong-branch:1.11.0.10
+	photonmap-branch:1.11.0.8
+	rel-6-1-DP:1.11
+	windows-branch:1.11.0.6
+	rel-6-0-2:1.11
+	ansi-branch:1.11.0.4
+	rel-6-0-1-branch:1.11.0.2
+	hartley-6-0-post:1.11
+	hartley-6-0-pre:1.11
+	rel-6-0-1:1.11
+	rel-6-0:1.11
+	rel-5-4:1.9
+	offsite-5-3-pre:1.10
+	rel-5-3:1.9
+	rel-5-2:1.9
+	rel-5-1-branch:1.9.0.2
+	rel-5-1:1.9
+	rel-5-0:1.9
+	rel-5-0-beta:1.9
+	rel-4-5:1.8
+	ctj-4-5-post:1.7
+	ctj-4-5-pre:1.7
+	rel-4-4:1.6
+	rel-4-0:1.5
+	rel-3-5:1.1;
+locks; strict;
+comment	@ * @;
+
+
+1.12
+date	2004.05.24.04.18.19;	author morrison;	state dead;
+branches;
+next	1.11;
+
+1.11
+date	2001.10.17.07.39.59;	author morrison;	state Exp;
+branches;
+next	1.10;
+
+1.10
+date	2000.08.24.23.12.43;	author mike;	state Exp;
+branches;
+next	1.9;
+
+1.9
+date	98.06.23.18.20.40;	author jra;	state Exp;
+branches;
+next	1.8;
+
+1.8
+date	97.12.16.03.45.56;	author mike;	state Exp;
+branches;
+next	1.7;
+
+1.7
+date	96.07.18.17.32.30;	author jra;	state Exp;
+branches;
+next	1.6;
+
+1.6
+date	92.05.05.15.10.12;	author moss;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	91.08.26.11.05.13;	author moss;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	91.01.15.13.53.16;	author moss;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	91.01.15.13.39.13;	author moss;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	89.10.31.12.19.53;	author moss;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	88.10.28.17.02.14;	author moss;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.12
+log
+@moved to src/burst/
+@
+text
+@/*
+	Author:		Gary S. Moss
+			U. S. Army Ballistic Research Laboratory
+			Aberdeen Proving Ground
+			Maryland 21005-5066
+*/
+#ifndef lint
+static const char RCSid[] = "@@(#)$Header: /n/xoff/cvs/brlcad/burst/error.c,v 1.11 2001/10/17 07:39:59 morrison Exp $ (BRL)";
+#endif
+/*
+ *			E R R O R
+ *
+ *  Ray Tracing library and Framebuffer library, error handling routines.
+ *
+ *  Functions -
+ *	rt_bomb		Called upon fatal RT library error.
+ *	brst_log		Called to log RT library events.
+ *	fb_log		Called to log FB library events.
+ *
+ *	Idea originated by Mike John Muuss
+ */
+
+#include <stdio.h>
+#include <signal.h>
+#include "./Sc.h"
+#include "./extern.h"
+
+/*
+ *  		R T _ B O M B
+ *  
+ *  Abort the RT library
+ */
+void
+rt_bomb(str)
+char *str;
+	{
+	brst_log( "%s (librt.a) : Fatal error, aborting!\n", str );
+	(void) fflush( stdout );
+	(void) abort();			  /* Should dump.		*/
+	/* exit(12); XXX - this shouldn't be needed */
+	}
+
+/*
+ *  		B R S T _  L O G
+ *  
+ *  Log an RT library event
+ */
+/* VARARGS */
+void
+#if defined(HAVE_STDARG_H)
+brst_log( char *fmt, ... )
+	{
+	va_list	ap;
+	va_start( ap, fmt );
+#else
+brst_log( va_alist )
+va_dcl
+	{
+	register char *fmt; /* picked up by va_arg() */
+	va_list	ap;
+	va_start( ap );
+	fmt  = va_arg( ap, char * );
+#endif
+	if( tty && (errfile[0] == '\0' || ! strcmp( errfile, "/dev/tty" )) )
+		{
+		TcClrTabs( HmTtyFd );
+		if( ScDL != NULL )
+			{
+			(void) ScMvCursor( 1, SCROLL_TOP );
+			(void) ScDeleteLn();
+			(void) ScMvCursor( 1, SCROLL_BTM );
+			(void) ScClrEOL();
+			(void) vprintf( fmt, ap );
+			}			
+		else
+		if( ScSetScrlReg( SCROLL_TOP, SCROLL_BTM+1 ) )
+			{	char buf[LNBUFSZ];
+				char *p;
+			(void) ScMvCursor( 1, SCROLL_BTM+1 );
+			(void) ScClrEOL();
+			/* Work around for problem with vprintf(): it doesn't
+				cause the screen to scroll, don't know why. */
+			(void) vsprintf( buf, fmt, ap );
+			/* Newline will cause double scroll. */
+			p = buf+strlen(buf)-1;
+			if( *p == '\n' )
+				*p = '\0'; /* clobber newline */
+			(void) puts( buf );
+			/*(void) vprintf( fmt, ap );*/
+			(void) ScMvCursor( 1, SCROLL_BTM+1 );
+			(void) ScClrScrlReg();
+			}
+		else
+			{
+			(void) fprintf( stderr,
+					"%s %s %s %s!\n",
+					"This terminal has no delete line",
+					"or scrolling region capability,",
+					"please dump it somewhere and get",
+					"a real terminal"
+					);
+			exit( 1 );
+			}
+		(void) fflush( stdout );
+		}
+	else
+		{
+		(void) vfprintf( stderr, fmt, ap );
+		}
+	va_end( ap );
+	}
+
+/*
+ *		F B _ L O G
+ *  
+ *  Log an FB library event
+ */
+/*VARARGS*/
+void
+#if __STDC__
+fb_log(char *fmt, ...)
+#else
+fb_log( va_alist )
+va_dcl
+#endif
+	{
+#if ! __STDC__
+	register char *fmt;
+#endif
+	va_list ap;
+#if __STDC__
+	va_start( ap, fmt );
+#else
+	va_start( ap );
+	fmt = va_arg( ap, char * );
+#endif
+	(void) brst_log( fmt, ap );
+	va_end( ap );
+	}
+@
+
+
+1.11
+log
+@Mac OS X warning and error fixes for non-production build
+@
+text
+@d8 1
+a8 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/burst/error.c,v 1.10 2000/08/24 23:12:43 mike Exp $ (BRL)";
+@
+
+
+1.10
+log
+@
+RCSid
+@
+text
+@d8 1
+a8 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/burst/error.c,v 1.9 1998/06/23 18:20:40 jra Exp $ (BRL)";
+d24 1
+@
+
+
+1.9
+log
+@convert bu_log to brst_log to avoid conflicts
+@
+text
+@d8 1
+a8 1
+static char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/burst/error.c,v 1.8 1997/12/16 03:45:56 mike Exp $ (BRL)";
+@
+
+
+1.8
+log
+@UPgraded using h/sed4
+@
+text
+@d8 1
+a8 1
+static char RCSid[] = "@@(#)$Header: /m/cad/burst/RCS/error.c,v 1.7 1996/07/18 17:32:30 jra Exp mike $ (BRL)";
+d17 1
+a17 1
+ *	bu_log		Called to log RT library events.
+d36 1
+a36 1
+	bu_log( "%s (librt.a) : Fatal error, aborting!\n", str );
+d43 1
+a43 1
+ *  		R T _  L O G
+d50 1
+a50 1
+bu_log( char *fmt, ... )
+d55 1
+a55 1
+bu_log( va_alist )
+d136 1
+a136 1
+	(void) bu_log( fmt, ap );
+@
+
+
+1.7
+log
+@Minor Mods for IRIX 6.2
+@
+text
+@d8 1
+a8 1
+static char RCSid[] = "@@(#)$Header: /vld/moss/src/burst/RCS/error.c,v 1.6 92/05/05 15:10:12 moss Exp $ (BRL)";
+d17 1
+a17 1
+ *	rt_log		Called to log RT library events.
+d36 1
+a36 1
+	rt_log( "%s (librt.a) : Fatal error, aborting!\n", str );
+d50 1
+a50 1
+rt_log( char *fmt, ... )
+d55 1
+a55 1
+rt_log( va_alist )
+d136 1
+a136 1
+	(void) rt_log( fmt, ap );
+@
+
+
+1.6
+log
+@Commented out exit() following abort(), not sure why it was there, some
+brain-damaged system I guess.
+@
+text
+@d8 1
+a8 1
+static char RCSid[] = "@@(#)$Header: /vld/moss/src/burst/RCS/error.c,v 1.5 91/08/26 11:05:13 moss Exp Locker: moss $ (BRL)";
+a23 5
+#if __STDC__
+#include <stdarg.h>
+#else
+#include <varargs.h>
+#endif
+d49 1
+a49 1
+#if __STDC__
+d51 3
+a56 1
+#endif
+a57 1
+#if ! __STDC__
+a58 1
+#endif
+a59 3
+#if __STDC__
+	va_start( ap, fmt );
+#else
+@
+
+
+1.5
+log
+@Ported to ANSI C compiler; tested on XMP under UNICOS 5.1 and on SGI under
+IRIX 3.3.1.
+This version tests correctly using BRLCAD3.7.
+@
+text
+@d8 1
+a8 1
+static char RCSid[] = "@@(#)$Header: /vld/moss/src/burst/RCS/error.c,v 1.4 91/01/15 13:53:16 moss Exp $ (BRL)";
+d44 1
+a44 1
+	exit(12);
+@
+
+
+1.4
+log
+@Removed author's phone number from top of file comment.  This will be
+shipped as version 2.1.
+@
+text
+@d8 1
+a8 1
+static char RCSid[] = "@@(#)$Header: /vld/moss/src/burst/RCS/error.c,v 1.3 91/01/15 13:39:13 moss Exp $ (BRL)";
+d24 3
+d28 1
+d54 3
+d59 9
+a67 2
+	{	register char *format; /* picked up by va_arg() */
+		va_list	ap;
+d69 2
+a70 1
+	format  = va_arg( ap, char * );
+d80 1
+a80 1
+			(void) vprintf( format, ap );
+d90 1
+a90 1
+			(void) vsprintf( buf, format, ap );
+d96 1
+a96 1
+			/*(void) vprintf( format, ap );*/
+d115 1
+a115 1
+		(void) vfprintf( stderr, format, ap );
+d125 1
+a125 1
+/* VARARGS */
+d127 3
+d132 1
+d134 12
+a145 2
+	(void) rt_log( va_alist );
+	return;
+@
+
+
+1.3
+log
+@Change #include to get Sc.h from current directory.
+@
+text
+@a5 1
+			(301)278-6651 or AV-298-6651
+d8 1
+a8 1
+static char RCSid[] = "@@(#)$Header: /vld/moss/src/burst/RCS/error.c,v 1.2 89/10/31 12:19:53 moss Exp $ (BRL)";
+@
+
+
+1.2
+log
+@This version released to Eglin and Service Engineering after BRL-CAD '89
+Symposium.
+@
+text
+@d9 1
+a9 1
+static char RCSid[] = "@@(#)$Header: /usr/vld/moss/src/burst/RCS/error.c,v 1.1 88/10/28 17:02:14 moss Exp $ (BRL)";
+d26 1
+a26 1
+#include <Sc/Sc.h>
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d9 1
+a9 1
+static char RCSid[] = "@@(#)$Header$ (BRL)";
+d51 1
+a51 2
+rt_log( fmt, va_alist )
+char	*fmt;
+d53 2
+a54 1
+	{	va_list		ap;
+d56 1
+d59 1
+a59 8
+		if( ScSetScrlReg( SCROLL_TOP, SCROLL_BTM ) )
+			{
+			(void) ScMvCursor( 1, SCROLL_BTM );
+			(void) ScClrEOL();
+			(void) _doprnt( fmt, ap, stdout );
+			(void) ScClrScrlReg();
+			}
+		else
+d66 19
+a84 1
+			(void) _doprnt( fmt, ap, stdout );
+d88 8
+a95 1
+			(void) _doprnt( fmt, ap, stdout );
+d100 3
+a102 1
+		(void) _doprnt( fmt, ap, stderr );
+a103 1
+	return;
+d113 1
+a113 2
+fb_log( fmt, va_alist )
+char	*fmt;
+d116 1
+a116 1
+	(void) rt_log( fmt, va_alist );
+@

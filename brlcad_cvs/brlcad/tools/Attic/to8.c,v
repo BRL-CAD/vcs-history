@@ -1,0 +1,564 @@
+head	11.7;
+access;
+symbols
+	ansi-20040405-merged:11.4.2.1
+	postmerge-20040405-ansi:11.5
+	premerge-20040404-ansi:11.4
+	postmerge-autoconf:11.4
+	autoconf-freeze:11.4
+	premerge-autoconf:11.4
+	postmerge-20040315-windows:11.4
+	premerge-20040315-windows:11.4
+	windows-20040315-freeze:11.4
+	autoconf-20031203:11.4
+	autoconf-20031202:11.4
+	autoconf-branch:11.4.0.10
+	phong-branch:11.4.0.8
+	photonmap-branch:11.4.0.6
+	rel-6-1-DP:11.4
+	windows-branch:11.4.0.4
+	rel-6-0-2:11.2
+	ansi-branch:11.4.0.2
+	rel-6-0-1-branch:11.2.0.2
+	hartley-6-0-post:11.3
+	hartley-6-0-pre:11.2
+	rel-6-0-1:11.2
+	rel-6-0:11.2
+	rel-5-4:11.1
+	offsite-5-3-pre:11.2
+	rel-5-3:11.1
+	rel-5-2:11.1
+	rel-5-1-branch:11.1.0.2
+	rel-5-1:11.1
+	rel-5-0:11.1
+	rel-5-0-beta:11.1
+	rel-4-5:11.1
+	ctj-4-5-post:11.1
+	ctj-4-5-pre:11.1
+	rel-4-4:11.1
+	rel-4-0:10.1;
+locks; strict;
+comment	@ * @;
+
+
+11.7
+date	2004.05.21.16.39.01;	author morrison;	state dead;
+branches;
+next	11.6;
+
+11.6
+date	2004.05.10.15.30.50;	author erikg;	state Exp;
+branches;
+next	11.5;
+
+11.5
+date	2004.04.05.05.46.01;	author morrison;	state Exp;
+branches;
+next	11.4;
+
+11.4
+date	2002.08.20.17.08.51;	author jra;	state Exp;
+branches
+	11.4.2.1;
+next	11.3;
+
+11.3
+date	2002.08.15.20.56.03;	author hartley;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	2000.08.24.22.46.24;	author mike;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	95.01.04.10.21.35;	author mike;	state Rel4_4;
+branches;
+next	10.2;
+
+10.2
+date	94.08.11.20.09.25;	author gdurf;	state Exp;
+branches;
+next	10.1;
+
+10.1
+date	91.10.12.06.53.08;	author mike;	state Rel4_0;
+branches;
+next	1.2;
+
+1.2
+date	91.07.22.22.29.13;	author mike;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	91.01.03.20.45.39;	author butler;	state Exp;
+branches;
+next	;
+
+11.4.2.1
+date	2002.09.19.18.02.31;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@dist
+@
+
+
+11.7
+log
+@moved to src/tools/
+@
+text
+@/*
+ * This software is copyrighted as noted below.  It may be freely copied,
+ * modified, and redistributed, provided that the copyright notice is 
+ * preserved on all copies.
+ * 
+ * There is no warranty or other guarantee of fitness for this software,
+ * it is provided solely "as is".  Bug reports or fixes may be sent
+ * to the author, who may or may not act on them as he desires.
+ *
+ * You may not include this software in a program or other software product
+ * without supplying the source, or without informing the end-user that the 
+ * source is available for no extra charge.
+ *
+ * If you modify this software, you should include a notice giving the
+ * name of the person performing the modification, the date of modification,
+ * and the reason for such modification.
+ */
+/* 
+ * to8.c - Convert color images to 8 bit dithered.
+ * 
+ * Author:	Spencer W. Thomas
+ * 		Computer Science Dept.
+ * 		University of Utah
+ * Date:	Fri Feb 28 1986
+ * Copyright (c) 1986, University of Utah
+ * 
+ */
+#ifndef lint
+static const char rcs_ident[] = "$Header: /n/xoff/cvs/brlcad/tools/to8.c,v 11.6 2004/05/10 15:30:50 erikg Exp $";
+#endif
+
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+
+#include <stdio.h>
+#include <math.h>
+
+#include "machine.h"
+#include "externs.h"		/* For malloc and free */
+#include "rle.h"
+
+void init_color(void);
+void map_scanline(unsigned char **rgb, int n, int y, unsigned char *line);
+
+short map[3][256];			/* Output color map. */
+int colmap[216][3];
+rle_pixel ** in_cmap;		/* color map in input file */
+
+int dm16[16][16];
+
+
+int modN[256], divN[256];
+
+double disp_gam = 2.5;
+double img_gam = 1.0;
+
+/*****************************************************************
+ * TAG( main )
+ * 
+ * Usage: to8 [-{iI} gamma] [-g gamma] [-o outfile] [infile]
+ * 
+ * Inputs:
+ *	-i gamma:	Specify gamma of image. (default 1.0)
+ *	-I gamma:	Specify gamma of display image was computed for.
+ * 	to8 will also read picture comments from the input file to determine
+ *			the image gamma.  These are
+ *	image_gamma=	gamma of image (equivalent to -i)
+ *	display_gamma=	gamma of display image was computed for.
+ *			Command line arguments override values in the file.
+ *		
+ *	-g gamma:	Specify gamma of display. (default 2.5)
+ * 	infile:		Input (color) RLE file.  Stdin used if not
+ *			specified.
+ * Outputs:
+ * 	outfile:	Output dithered RLE file.  Stdout used
+ *			if not specified.
+ * Assumptions:
+ *	[None]
+ * Algorithm:
+ *	[None]
+ */
+
+int
+main(int argc, char **argv)
+{
+    char * infname = NULL, * outfname = NULL;
+    char comment[80];		/* for gamma comment */
+    FILE * outfile = stdout;
+    int oflag = 0, y, nrow, iflag = 0, gflag = 0;
+    rle_hdr out_hdr;
+    unsigned char ** scan, *outscan[2];
+    unsigned char * buffer;
+    int rle_cnt, rle_err;
+
+    if ( scanargs( argc, argv,
+		   "% Ii%-gamma!F g%-gamma!F o%-outfile!s infile%s",
+		   &iflag, &img_gam, &gflag, &disp_gam,
+		   &oflag, &outfname, &infname ) == 0 )
+	exit( 1 );
+    rle_dflt_hdr.rle_file = rle_open_f(cmd_name( argv ), infname, "r");
+
+    for ( rle_cnt = 0;
+	  (rle_err = rle_get_setup( &rle_dflt_hdr )) == RLE_SUCCESS;
+	  rle_cnt++ )
+    {
+
+	if ( rle_dflt_hdr.ncolors == 1 )
+	{
+	    fprintf( stderr, "%s is already black & white\n",
+		     infname ? infname : "stdin" );
+	    exit( 1 );
+	}
+	if ( rle_dflt_hdr.ncolors < 3 )
+	{
+	    fprintf( stderr, "%s is not RGB",
+		     infname ? infname : "stdin" );
+	    exit( 1 );
+	}
+
+	/* If no image gamma on command line, check comments in file */
+	if ( ! iflag )
+	{
+	    char * v;
+	    if ( (v = rle_getcom( "image_gamma", &rle_dflt_hdr )) != NULL )
+	    {
+		img_gam = atof( v );
+		/* Protect against bogus information */
+		if ( img_gam == 0.0 )
+		    img_gam = 1.0;
+		else
+		    img_gam = 1.0 / img_gam;
+	    }
+	    else if ( (v = rle_getcom( "display_gamma", &rle_dflt_hdr )) != NULL )
+	    {
+		img_gam = atof( v );
+		/* Protect */
+		if ( img_gam == 0.0 )
+		    img_gam = 1.0;
+	    }
+	}
+
+	out_hdr = rle_dflt_hdr;
+	if ( rle_cnt == 0 )
+	    outfile = rle_open_f("to8", outfname, "w");
+	rle_dflt_hdr.xmax -= rle_dflt_hdr.xmin;
+	rle_dflt_hdr.xmin = 0;
+	nrow = rle_dflt_hdr.xmax;
+	buffer = (unsigned char *)malloc( nrow );
+	rle_row_alloc( &rle_dflt_hdr, &scan );
+
+	if ( rle_dflt_hdr.alpha )
+	{
+	    outscan[0] = scan[-1];
+	}
+	outscan[1] = buffer;
+
+	/* Use input color map, too */
+	in_cmap = buildmap( &rle_dflt_hdr, 3, img_gam, 1.0 );
+
+	init_color();
+	out_hdr.ncolors = 1;
+	out_hdr.ncmap = 3;
+	out_hdr.cmaplen = 8;	/* 256 entries */
+	out_hdr.cmap = (rle_map *)map;
+
+	/* Record gamma color map was computed for */
+	sprintf( comment, "display_gamma=%g", disp_gam );
+	rle_putcom( comment, &out_hdr );
+
+	/*
+	 * Give it a background color of black, since the real background
+	 * will be dithered anyway.
+	 */
+	if ( rle_dflt_hdr.background != 0 )
+	{
+	    out_hdr.bg_color = (int *)malloc( sizeof( int ) );
+	    out_hdr.bg_color[0] = 0;
+	}
+
+	out_hdr.rle_file = outfile;
+
+	rle_addhist( argv, &rle_dflt_hdr, &out_hdr );
+
+	rle_put_setup( &out_hdr );
+
+	while ( (y = rle_getrow( &rle_dflt_hdr, scan )) <=
+		rle_dflt_hdr.ymax )
+	{
+	    map_scanline( scan, nrow, y, buffer );
+	    rle_putrow( &outscan[1], nrow, &out_hdr );
+	}
+
+	rle_puteof( &out_hdr );
+
+	rle_row_free( &rle_dflt_hdr, scan );
+    }
+
+    /* Check for an error.  EOF or EMPTY is ok if at least one image
+     * has been read.  Otherwise, print an error message.
+     */
+    if ( rle_cnt == 0 || (rle_err != RLE_EOF && rle_err != RLE_EMPTY) )
+	rle_get_error( rle_err, cmd_name( argv ), infname );
+
+    exit( 0 );
+}
+
+
+/*
+ * Initialize the 8 bit color map.  Choice of
+ * "alpha-1" (perceptual flavor) or linear maps
+ */
+void
+init_color(void)
+{
+    int     i;
+
+    dithermap( 6, disp_gam, colmap, divN, modN, dm16 );
+
+    for (i = 0; i < 216; i++)
+    {
+	map[0][i] = colmap[i][0] << 8;
+	map[1][i] = colmap[i][1] << 8;
+	map[2][i] = colmap[i][2] << 8;
+    }
+
+}
+
+/*
+ * Map a scanline to 8 bits through the dither matrix.
+ */
+#define DMAP(v,x,y)	(modN[v]>dm16[x][y] ? divN[v] + 1 : divN[v])
+
+void
+map_scanline(unsigned char **rgb, int n, int y, unsigned char *line)
+{
+	register unsigned char *r, *g, *b;
+	register int i, col, row;
+	for ( row = y % 16, col = 0, i = 0, r = rgb[0], g = rgb[1], b = rgb[2];
+		  i < n; i++, r++, g++, b++, col = ((col + 1) & 15) )
+		line[i] = DMAP(in_cmap[0][*r], col, row) +
+			  DMAP(in_cmap[1][*g], col, row) * 6 +
+			  DMAP(in_cmap[2][*b], col, row) * 36;
+}
+
+@
+
+
+11.6
+log
+@change conf.h to a wrapped config.h
+@
+text
+@d29 1
+a29 1
+static const char rcs_ident[] = "$Header: /cvs/brlcad/tools/to8.c,v 11.5 2004/04/05 05:46:01 morrison Exp $";
+@
+
+
+11.5
+log
+@merge of ansi-6-0-branch into head
+@
+text
+@d29 1
+a29 1
+static const char rcs_ident[] = "$Header$";
+d32 5
+a36 1
+#include "conf.h"
+@
+
+
+11.4
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d29 1
+a29 1
+static const char rcs_ident[] = "$Header: /c/CVS/brlcad/tools/to8.c,v 11.2 2000/08/24 22:46:24 mike Exp $";
+d41 2
+a42 1
+void init_color(), map_scanline();
+d83 1
+a83 3
+main( argc, argv )
+int argc;
+char **argv;
+d212 1
+a212 1
+init_color()
+d233 1
+a233 3
+map_scanline( rgb, n, y, line )
+unsigned char *rgb[3], *line;
+int n, y;
+@
+
+
+11.4.2.1
+log
+@Initial ANSIfication
+@
+text
+@d29 1
+a29 1
+static const char rcs_ident[] = "$Header: /c/CVS/brlcad/tools/to8.c,v 11.4 2002/08/20 17:08:51 jra Exp $";
+d41 1
+a41 1
+void init_color(void), map_scanline(unsigned char **rgb, int n, int y, unsigned char *line);
+d82 3
+a84 1
+main(int argc, char **argv)
+d213 1
+a213 1
+init_color(void)
+d234 3
+a236 1
+map_scanline(unsigned char **rgb, int n, int y, unsigned char *line)
+@
+
+
+11.3
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d41 1
+a41 1
+void init_color(void), map_scanline(unsigned char **rgb, int n, int y, unsigned char *line);
+d82 3
+a84 1
+main(int argc, char **argv)
+d213 1
+a213 1
+init_color(void)
+d234 3
+a236 1
+map_scanline(unsigned char **rgb, int n, int y, unsigned char *line)
+@
+
+
+11.2
+log
+@
+lint
+@
+text
+@d29 1
+a29 1
+static const char rcs_ident[] = "$Header: /c/CVS/brlcad/tools/to8.c,v 11.1 1995/01/04 10:21:35 mike Rel4_4 $";
+d41 1
+a41 1
+void init_color(), map_scanline();
+d82 1
+a82 3
+main( argc, argv )
+int argc;
+char **argv;
+d211 1
+a211 1
+init_color()
+d232 1
+a232 3
+map_scanline( rgb, n, y, line )
+unsigned char *rgb[3], *line;
+int n, y;
+@
+
+
+11.1
+log
+@Release_4.4
+@
+text
+@d29 1
+a29 1
+static char rcs_ident[] = "$Header: /m/cad/tools/RCS/to8.c,v 10.2 94/08/11 20:09:25 gdurf Exp $";
+d81 1
+a81 1
+void
+@
+
+
+10.2
+log
+@Altered #defines and #includes to conform to BRL-CAD standards
+@
+text
+@d29 1
+a29 1
+static char rcs_ident[] = "$Header: /m/cad/tools/RCS/to8.c,v 10.1 1991/10/12 06:53:08 mike Rel4_0 gdurf $";
+@
+
+
+10.1
+log
+@Release_4.0
+@
+text
+@d29 1
+a29 1
+static char rcs_ident[] = "$Header: /m/cad/tools/RCS/to8.c,v 1.2 91/07/22 22:29:13 mike Exp $";
+d32 2
+d36 3
+a39 13
+
+#ifdef USE_STDLIB_H
+#include <stdlib.h>
+#else
+
+#ifdef VOID_STAR
+extern void *malloc();
+#else
+extern char *malloc();
+#endif
+extern void free();
+
+#endif /* USE_STDLIB_H */
+@
+
+
+1.2
+log
+@NULL != 0
+./
+@
+text
+@d29 1
+a29 1
+static char rcs_ident[] = "$Header: /m/cad/tools/RCS/to8.c,v 1.1 91/01/03 20:45:39 butler Exp $";
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d29 1
+a29 1
+static char rcs_ident[] = "$Header: /usr/users/spencer/src/urt/tools/RCS/to8.c,v 3.0 90/08/03 15:24:05 spencer Exp $";
+d182 1
+a182 1
+	if ( rle_dflt_hdr.background != NULL )
+@

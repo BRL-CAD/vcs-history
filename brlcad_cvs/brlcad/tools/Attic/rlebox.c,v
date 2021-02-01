@@ -1,0 +1,336 @@
+head	11.7;
+access;
+symbols
+	ansi-20040405-merged:11.4.2.1
+	postmerge-20040405-ansi:11.5
+	premerge-20040404-ansi:11.4
+	postmerge-autoconf:11.4
+	autoconf-freeze:11.4
+	premerge-autoconf:11.4
+	postmerge-20040315-windows:11.4
+	premerge-20040315-windows:11.4
+	windows-20040315-freeze:11.4
+	autoconf-20031203:11.4
+	autoconf-20031202:11.4
+	autoconf-branch:11.4.0.10
+	phong-branch:11.4.0.8
+	photonmap-branch:11.4.0.6
+	rel-6-1-DP:11.4
+	windows-branch:11.4.0.4
+	rel-6-0-2:11.2
+	ansi-branch:11.4.0.2
+	rel-6-0-1-branch:11.2.0.2
+	hartley-6-0-post:11.3
+	hartley-6-0-pre:11.2
+	rel-6-0-1:11.2
+	rel-6-0:11.2
+	rel-5-4:11.1
+	offsite-5-3-pre:11.2
+	rel-5-3:11.1
+	rel-5-2:11.1
+	rel-5-1-branch:11.1.0.2
+	rel-5-1:11.1
+	rel-5-0:11.1
+	rel-5-0-beta:11.1
+	rel-4-5:11.1
+	ctj-4-5-post:11.1
+	ctj-4-5-pre:11.1
+	rel-4-4:11.1
+	rel-4-0:10.1;
+locks; strict;
+comment	@ * @;
+
+
+11.7
+date	2004.05.21.16.38.51;	author morrison;	state dead;
+branches;
+next	11.6;
+
+11.6
+date	2004.05.10.15.30.50;	author erikg;	state Exp;
+branches;
+next	11.5;
+
+11.5
+date	2004.04.05.05.46.00;	author morrison;	state Exp;
+branches;
+next	11.4;
+
+11.4
+date	2002.08.20.17.08.49;	author jra;	state Exp;
+branches
+	11.4.2.1;
+next	11.3;
+
+11.3
+date	2002.08.15.20.56.01;	author hartley;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	2000.08.24.22.46.20;	author mike;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	95.01.04.10.20.51;	author mike;	state Rel4_4;
+branches;
+next	10.2;
+
+10.2
+date	94.08.11.20.08.59;	author gdurf;	state Exp;
+branches;
+next	10.1;
+
+10.1
+date	91.10.12.06.52.32;	author mike;	state Rel4_0;
+branches;
+next	1.1;
+
+1.1
+date	91.01.03.20.45.19;	author butler;	state Exp;
+branches;
+next	;
+
+11.4.2.1
+date	2002.09.19.18.02.28;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@dist
+@
+
+
+11.7
+log
+@moved to src/tools/
+@
+text
+@/* 
+ * rlebox.c - Find bounding box for an RLE image
+ * 
+ * Author:	Spencer W. Thomas
+ * 		Computer Science Dept.
+ * 		University of Utah
+ * Date:	Wed Feb 11 1987
+ * Copyright (c) 1987, University of Utah
+ */
+
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+
+#include <stdio.h>
+
+#include "machine.h"
+#include "externs.h"
+#include "rle.h"
+#include "rle_code.h"
+#include "rle_raw.h"
+
+/*****************************************************************
+ * TAG( main )
+ * 
+ * Find a bounding box for an RLE image.
+ *
+ * Usage:
+ *	rlebox [-v] [-c] [infile]
+ * Inputs:
+ *	-v:		Verbose mode - identifies numbers with text.
+ *			Otherwise, just prints numbers.
+ * 	-c:		Outputs corners of box in an order useful for use
+ *			as arguments to the crop program:
+ *			crop `rlebox -c foo.rle` foo.rle
+ *	infile:		The input file.
+ * Outputs:
+ * 	Prints the bounding box for the rle file.  That is, it finds the
+ *	minimum and maximum values of x and y for which there is some
+ *	non-background data.
+ * Assumptions:
+ * 	
+ * Algorithm:
+ * 	Read the image file and find the smallest and largest X and Y
+ *	coordinates of real image data.  Use raw interface for speed.
+ */
+int
+main(int argc, char **argv)
+{
+    extern void rle_box(rle_hdr *the_hdr, int *xminp, int *xmaxp, int *yminp, int *ymaxp);
+    char * rlefname = NULL;
+    int vflag = 0, cflag = 0, margin = 0;
+    int xmin, xmax, ymin, ymax;
+    int rle_cnt, rle_err;
+
+    if ( scanargs( argc, argv, "% v%- c%- m%-margin!d infile%s",
+		   &vflag, &cflag, &margin, &margin,
+		   &rlefname ) == 0 )
+	exit( 1 );
+
+    rle_dflt_hdr.rle_file = rle_open_f("rlebox", rlefname, "r");
+
+    for ( rle_cnt = 0;
+	  (rle_err = rle_get_setup( &rle_dflt_hdr )) == RLE_SUCCESS;
+	  rle_cnt++ )
+    {
+
+	rle_box( &rle_dflt_hdr, &xmin, &xmax, &ymin, &ymax );
+
+	/* If margin, enlarge bounds.  Don't let them go negative */
+	if ( margin )
+	{
+	    xmax += margin;
+	    ymax += margin;
+	    xmin -= margin;
+	    if ( xmin < 0 )
+		xmin = 0;
+	    ymin -= margin;
+	    if ( ymin < 0 )
+		ymin = 0;
+	}
+
+	if ( cflag )
+	    printf( vflag ? "xmin=%d ymin=%d xmax=%d ymax=%d\n" :
+		    "%d %d %d %d\n",
+		    xmin, ymin, xmax, ymax );
+	else
+	    printf( vflag ? "xmin=%d xmax=%d ymin=%d ymax=%d\n" :
+		    "%d %d %d %d\n",
+		    xmin, xmax, ymin, ymax );
+    }
+
+    /* Check for an error.  EOF or EMPTY is ok if at least one image
+     * has been read.  Otherwise, print an error message.
+     */
+    if ( rle_cnt == 0 || (rle_err != RLE_EOF && rle_err != RLE_EMPTY) )
+	rle_get_error( rle_err, cmd_name( argv ), rlefname );
+
+    exit( 0 );
+}
+@
+
+
+11.6
+log
+@change conf.h to a wrapped config.h
+@
+text
+@@
+
+
+11.5
+log
+@merge of ansi-6-0-branch into head
+@
+text
+@d11 5
+a15 1
+#include "conf.h"
+@
+
+
+11.4
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d46 1
+a46 3
+main( argc, argv )
+int argc;
+char **argv;
+d48 1
+a48 1
+    extern void rle_box();
+@
+
+
+11.4.2.1
+log
+@Initial ANSIfication
+@
+text
+@d46 3
+a48 1
+main(int argc, char **argv)
+d50 1
+a50 1
+    extern void rle_box(rle_hdr *the_hdr, int *xminp, int *xmaxp, int *yminp, int *ymaxp);
+@
+
+
+11.3
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d46 3
+a48 1
+main(int argc, char **argv)
+d50 1
+a50 1
+    extern void rle_box(rle_hdr *the_hdr, int *xminp, int *xmaxp, int *yminp, int *ymaxp);
+@
+
+
+11.2
+log
+@
+lint
+@
+text
+@d46 1
+a46 3
+main( argc, argv )
+int argc;
+char **argv;
+d48 1
+a48 1
+    extern void rle_box();
+@
+
+
+11.1
+log
+@Release_4.4
+@
+text
+@d45 1
+a45 1
+void
+@
+
+
+10.2
+log
+@Altered #defines and #includes to conform to BRL-CAD standards
+@
+text
+@@
+
+
+10.1
+log
+@Release_4.0
+@
+text
+@d11 2
+d14 6
+a19 5
+#include <rle.h>
+#include <rle_raw.h>
+#ifdef USE_STDLIB_H
+#include <stdlib.h>
+#endif
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@@

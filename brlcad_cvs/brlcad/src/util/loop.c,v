@@ -1,0 +1,616 @@
+head	14.11;
+access;
+symbols
+	rel-7-10-4:14.9
+	STABLE:14.9.0.2
+	rel-7-10-2:14.9
+	rel-7-10-0:14.9
+	rel-7-8-4:14.6
+	rel-7-8-2:14.6
+	rel-7-8-0:14.6
+	trimnurbs-branch:14.6.0.2
+	help:14.6
+	temp_tag:14.4
+	bobWinPort-20051223-freeze:14.3
+	postmerge-20051223-bobWinPort:14.4
+	premerge-20051223-bobWinPort:14.4
+	rel-7-6-6:14.4
+	rel-7-6-4:14.4
+	rel-7-6-2:14.3
+	rel-7-6-branch:14.3.0.6
+	rel-7-6-0:14.3
+	rel-7-4-2:14.3
+	rel-7-4-branch:14.3.0.4
+	bobWinPort:14.3.0.2
+	rel-7-4-0:14.3
+	rel-7-2-6:14.3
+	rel-7-2-4:14.3
+	rel-7-2-2:14.3
+	rel-7-2-0:14.3
+	rel-7-0-4:14.2
+	rel-7-0-2:14.2
+	rel-7-0-1:14.2
+	opensource-post:14.2
+	opensource-pre:1.4
+	rel-7-0-branch:1.4.0.2
+	rel-7-0:1.4;
+locks; strict;
+comment	@ * @;
+
+
+14.11
+date	2007.12.22.19.40.13;	author brlcad;	state Exp;
+branches;
+next	14.10;
+
+14.10
+date	2007.09.15.16.23.23;	author brlcad;	state Exp;
+branches;
+next	14.9;
+
+14.9
+date	2007.01.27.01.41.53;	author brlcad;	state Exp;
+branches;
+next	14.8;
+
+14.8
+date	2007.01.23.01.13.55;	author brlcad;	state Exp;
+branches;
+next	14.7;
+
+14.7
+date	2007.01.20.14.37.06;	author brlcad;	state Exp;
+branches;
+next	14.6;
+
+14.6
+date	2006.01.28.00.36.30;	author brlcad;	state Exp;
+branches;
+next	14.5;
+
+14.5
+date	2006.01.18.06.46.27;	author brlcad;	state Exp;
+branches;
+next	14.4;
+
+14.4
+date	2005.10.23.04.44.39;	author brlcad;	state Exp;
+branches;
+next	14.3;
+
+14.3
+date	2005.01.30.20.31.33;	author brlcad;	state Exp;
+branches
+	14.3.6.1;
+next	14.2;
+
+14.2
+date	2004.12.21.03.45.40;	author butler;	state Exp;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.32;	author morrison;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	2004.10.14.23.34.04;	author butler;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2004.08.02.23.01.53;	author morrison;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2004.06.08.22.04.44;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.15.21.45;	author morrison;	state Exp;
+branches;
+next	;
+
+14.3.6.1
+date	2005.11.13.13.46.20;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.11
+log
+@check length while printing into buffers
+@
+text
+@/*                          L O O P . C
+ * BRL-CAD
+ *
+ * Copyright (c) 2004-2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@file loop.c
+ *
+ *	Simple program to output integers or floats between
+ *	"start" and "finish", inclusive.  Default is an increment
+ *	of +1 if start < finish or -1 if start > finish.  User may
+ *	specify an alternate increment.  Also, user may left-pad
+ *	output integers with zeros.  There is no attempt to prevent
+ *	"infinite" loops.
+ *
+ *  Authors -
+ *	John Grosh, Phil Dykstra, and Michael John Muuss
+ *
+ *  Source -
+ *	The U. S. Army Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005-5068  USA
+ */
+#ifndef lint
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/loop.c,v 14.10 2007/09/15 16:23:23 brlcad Exp $ (ARL)";
+#endif
+
+#include "common.h"
+
+#include <stdlib.h> /* for atof() */
+#include <stdio.h>
+#include <string.h>
+#include <math.h>
+
+#include "machine.h"
+
+
+#define	INTEGER 0
+#define	REAL	1
+
+int
+main(int argc, char **argv)
+{
+	register int	status = INTEGER;
+
+	register int	i;
+	register int 	start,  finish, incr;
+
+	register double	d;
+	register double	dstart, dfinish,dincr;
+
+	if (argc < 3 || argc > 4) {
+		fprintf(stderr, "Usage:  loop start finish [incr]\n");
+		exit(9);
+	}
+
+	/* determine if any arguments are real */
+	for (i = 1; i < argc; i++) {
+		if (atof(argv[i]) != ((double)atoi(argv[i]))) {
+			status = REAL;
+			break;
+		}
+	}
+
+	if (status == REAL) {
+		dstart  = atof(argv[1]);
+		dfinish = atof(argv[2]);
+
+		if (argc == 4)
+			dincr = atof(argv[3]);
+		else {
+			if (dstart > dfinish)
+				dincr = -1.0;
+			else
+				dincr =  1.0;
+		}
+
+		if (dincr >= 0.0)
+			for (d = dstart; d <= dfinish; d += dincr)
+				printf("%g\n", d);
+		else
+			for (d = dstart; d >= dfinish; d += dincr)
+				printf("%g\n", d);
+	} else {
+		/* print out integer output */
+		char	*cp;
+		char	fmt_string[50];
+
+		int	field_width = 0;
+
+		int	zeros      = 0;  /* leading zeros for output */
+		int	zeros_arg1 = 0;  /* leading zeros in arg[1]  */
+		int	zeros_arg2 = 0;  /* leading zeros in arg[2]  */
+		int	zeros_arg3 = 0;  /* leading zeros in arg[3]  */
+
+		/* count leading leading zeros in argv[1] */
+		for (cp = argv[1]; *cp == '0'; cp++)
+			zeros_arg1++;
+		if (*cp == '\0')
+			zeros_arg1--;
+
+		/* count leading leading zeros in argv[2] */
+		for (cp = argv[2]; *cp == '0'; cp++)
+			zeros_arg2++;
+		if (*cp == '\0')
+			zeros_arg2--;
+
+		/* if argv[3] exists, count leading leading zeros */
+		if (argc == 4 ) {
+			for (cp = argv[3]; *cp == '0'; cp++)
+				zeros_arg3++;
+			if (*cp == '\0')
+				zeros_arg3--;
+		}
+
+		/* determine field width and leading zeros*/
+		if (zeros_arg1 >= zeros_arg2 && zeros_arg1 >= zeros_arg3) {
+			field_width = strlen(argv[1]);
+			zeros       = zeros_arg1;
+		} else if (zeros_arg2 >= zeros_arg1 && zeros_arg2 >= zeros_arg3) {
+			field_width = strlen(argv[2]);
+			zeros       = zeros_arg2;
+		} else {
+			field_width = strlen(argv[3]);
+			zeros       = zeros_arg3;
+		}
+
+		/* printf format string fmt_string */
+		if (zeros > 0)
+			snprintf(fmt_string, 50, "%%0%dd\n",field_width);
+		else
+			strncpy(fmt_string,"%d\n", 50-1);
+		fmt_string[50-1] = '\0'; /* sanity */
+
+		start  = atoi(argv[1]);
+		finish = atoi(argv[2]);
+
+		if (argc == 4)
+			incr = atoi(argv[3]);
+		else {
+			if (start > finish)
+				incr = -1;
+			else
+				incr =  1;
+		}
+
+		if (incr >= 0)
+			for (i = start; i <= finish; i += incr)
+				printf(fmt_string, i);
+		else
+			for (i = start; i >= finish; i += incr)
+				printf(fmt_string, i);
+	}
+	exit(0);
+}
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+14.10
+log
+@more c89 embracing.  c89 provides string.h for all of the various str*() and mem*() functions, so remove the check for its presence.  there is still likely to be work required for strict c89 conformance for the various bsd strings.h functions that may be in use.
+@
+text
+@d37 1
+a37 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/loop.c,v 14.9 2007/01/27 01:41:53 brlcad Exp $ (ARL)";
+d142 1
+a142 1
+			sprintf(fmt_string,"%%0%dd\n",field_width);
+d144 2
+a145 1
+			strcpy(fmt_string,"%d\n");
+@
+
+
+14.9
+log
+@ws. lots and lots of ws.  see sh/ws.sh for details (cases 'abcdeg').
+@
+text
+@d37 1
+a37 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/loop.c,v 14.8 2007/01/23 01:13:55 brlcad Exp $ (ARL)";
+d44 1
+a44 5
+#ifdef HAVE_STRING_H
+#  include <string.h>
+#else
+#  include <strings.h>
+#endif
+@
+
+
+14.8
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@d37 1
+a37 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/loop.c,v 14.7 2007/01/20 14:37:06 brlcad Exp $ (ARL)";
+d112 1
+a112 1
+ 		/* count leading leading zeros in argv[1] */
+d118 1
+a118 1
+ 		/* count leading leading zeros in argv[2] */
+d124 1
+a124 1
+ 		/* if argv[3] exists, count leading leading zeros */
+@
+
+
+14.7
+log
+@update copyright to 2007
+@
+text
+@d8 2
+a9 3
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+d14 1
+a14 1
+ * General Public License for more details.
+d16 2
+a17 2
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+d37 1
+a37 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/loop.c,v 14.6 2006/01/28 00:36:30 brlcad Exp $ (ARL)";
+@
+
+
+14.6
+log
+@header cleanup, atof() requires stdlib.h on altix/posix, fix 64-bitness
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 2004-2006 United States Government as represented by
+d38 1
+a38 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/loop.c,v 14.5 2006/01/18 06:46:27 brlcad Exp $ (ARL)";
+@
+
+
+14.5
+log
+@update copyright to 2006
+@
+text
+@d38 1
+a38 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/loop.c,v 14.4 2005/10/23 04:44:39 brlcad Exp $ (ARL)";
+d43 1
+a44 4
+#ifdef HAVE_STDLIB_H
+#include <stdlib.h> /* for atof() */
+#endif
+
+d46 1
+a46 1
+#include <string.h>
+d48 1
+a48 1
+#include <strings.h>
+d54 1
+@
+
+
+14.4
+log
+@trailing ws
+@
+text
+@d4 1
+a4 1
+ * Copyright (C) 2004-2005 United States Government as represented by
+d38 1
+a38 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/loop.c,v 14.3 2005/01/30 20:31:33 brlcad Exp $ (ARL)";
+@
+
+
+14.3
+log
+@update copyright to 2005
+@
+text
+@d23 5
+a27 5
+ *	Simple program to output integers or floats between 
+ *	"start" and "finish", inclusive.  Default is an increment 
+ *	of +1 if start < finish or -1 if start > finish.  User may 
+ *	specify an alternate increment.  Also, user may left-pad 
+ *	output integers with zeros.  There is no attempt to prevent 
+d32 1
+a32 1
+ *  
+d38 1
+a38 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/loop.c,v 14.2 2004/12/21 03:45:40 butler Exp $ (ARL)";
+d78 1
+a78 1
+		if (atof(argv[i]) != ((double)atoi(argv[i]))) {	
+d100 1
+a100 1
+		else 
+d118 1
+a118 1
+		if (*cp == '\0') 
+d124 1
+a124 1
+		if (*cp == '\0') 
+d131 1
+a131 1
+			if (*cp == '\0') 
+d148 2
+a149 2
+		if (zeros > 0) 
+			sprintf(fmt_string,"%%0%dd\n",field_width); 
+d168 1
+a168 1
+		else 
+@
+
+
+14.3.6.1
+log
+@merge changes from HEAD aka rel-7-6-4 to the rel-7-6-branch just in case someone peeks a gander or tries to continue/build the branch
+@
+text
+@d23 5
+a27 5
+ *	Simple program to output integers or floats between
+ *	"start" and "finish", inclusive.  Default is an increment
+ *	of +1 if start < finish or -1 if start > finish.  User may
+ *	specify an alternate increment.  Also, user may left-pad
+ *	output integers with zeros.  There is no attempt to prevent
+d32 1
+a32 1
+ *
+d38 1
+a38 1
+static const char RCSid[] = "@@(#)$Header$ (ARL)";
+d78 1
+a78 1
+		if (atof(argv[i]) != ((double)atoi(argv[i]))) {
+d100 1
+a100 1
+		else
+d118 1
+a118 1
+		if (*cp == '\0')
+d124 1
+a124 1
+		if (*cp == '\0')
+d131 1
+a131 1
+			if (*cp == '\0')
+d148 2
+a149 2
+		if (zeros > 0)
+			sprintf(fmt_string,"%%0%dd\n",field_width);
+d168 1
+a168 1
+		else
+@
+
+
+14.2
+log
+@GPL license changes
+@
+text
+@d4 2
+a5 2
+ * Copyright (c) 2004 United States Government as represented by the
+ * U.S. Army Research Laboratory.
+d38 1
+a38 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/util/loop.c,v 14.1 2004/11/16 19:42:32 morrison Exp $ (ARL)";
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@d1 21
+a21 2
+/*
+ *			L O O P . C
+a35 3
+ *  
+ *  Distribution Status -
+ *	Public Domain, Distribution Unlimited.
+d38 1
+a38 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/util/loop.c,v 1.4 2004/10/14 23:34:04 butler Exp $ (ARL)";
+@
+
+
+1.4
+log
+@various utilities needed stdlib.h to get a declaration of atof() so I added it
+@
+text
+@d22 1
+a22 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/util/loop.c,v 1.3 2004/08/02 23:01:53 morrison Exp $ (ARL)";
+d158 10
+@
+
+
+1.3
+log
+@replace the wrapped config.h block with common.h
+@
+text
+@d22 1
+a22 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/util/loop.c,v 1.2 2004/06/08 22:04:44 morrison Exp $ (ARL)";
+d28 4
+@
+
+
+1.2
+log
+@obliterate externs.h
+@
+text
+@d22 1
+a22 1
+static const char RCSid[] = "@@(#)$Header$ (ARL)";
+d25 1
+a25 3
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+@
+
+
+1.1
+log
+@Vast reorganization begins.  Sources moved from top-level directories into src/.
+@
+text
+@d22 1
+a22 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/util/loop.c,v 11.10 2004/05/10 15:30:50 erikg Exp $ (ARL)";
+a28 2
+
+
+a37 1
+#include "externs.h"
+@
+

@@ -1,0 +1,346 @@
+head	11.7;
+access;
+symbols
+	ansi-20040405-merged:11.4.2.1
+	postmerge-20040405-ansi:11.5
+	premerge-20040404-ansi:11.4
+	postmerge-autoconf:11.4
+	autoconf-freeze:11.4
+	premerge-autoconf:11.4
+	postmerge-20040315-windows:11.4
+	premerge-20040315-windows:11.4
+	windows-20040315-freeze:11.4
+	autoconf-20031203:11.4
+	autoconf-20031202:11.4
+	autoconf-branch:11.4.0.10
+	phong-branch:11.4.0.8
+	photonmap-branch:11.4.0.6
+	rel-6-1-DP:11.4
+	windows-branch:11.4.0.4
+	rel-6-0-2:11.2
+	ansi-branch:11.4.0.2
+	rel-6-0-1-branch:11.2.0.2
+	hartley-6-0-post:11.3
+	hartley-6-0-pre:11.2
+	rel-6-0-1:11.2
+	rel-6-0:11.2
+	rel-5-4:11.1
+	offsite-5-3-pre:11.2
+	rel-5-3:11.1
+	rel-5-2:11.1
+	rel-5-1-branch:11.1.0.2
+	rel-5-1:11.1
+	rel-5-0:11.1
+	rel-5-0-beta:11.1
+	rel-4-5:11.1
+	ctj-4-5-post:11.1
+	ctj-4-5-pre:11.1
+	rel-4-4:11.1
+	rel-4-0:10.1;
+locks; strict;
+comment	@ * @;
+
+
+11.7
+date	2004.05.21.17.59.49;	author morrison;	state dead;
+branches;
+next	11.6;
+
+11.6
+date	2004.05.10.15.30.47;	author erikg;	state Exp;
+branches;
+next	11.5;
+
+11.5
+date	2004.04.05.07.40.44;	author morrison;	state Exp;
+branches;
+next	11.4;
+
+11.4
+date	2002.08.20.17.08.19;	author jra;	state Exp;
+branches
+	11.4.2.1;
+next	11.3;
+
+11.3
+date	2002.08.15.20.55.29;	author hartley;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	2000.11.01.21.30.20;	author mike;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	95.01.04.10.05.29;	author mike;	state Rel4_4;
+branches;
+next	10.3;
+
+10.3
+date	94.12.30.00.38.53;	author mike;	state Exp;
+branches;
+next	10.2;
+
+10.2
+date	94.08.10.23.20.31;	author gdurf;	state Exp;
+branches;
+next	10.1;
+
+10.1
+date	91.10.12.06.38.43;	author mike;	state Rel4_0;
+branches;
+next	1.2;
+
+1.2
+date	91.01.09.03.32.33;	author butler;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	91.01.03.17.31.03;	author butler;	state Exp;
+branches;
+next	;
+
+11.4.2.1
+date	2002.09.19.18.01.56;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@Dist 3.0 patchlevel 2 installation
+@
+
+
+11.7
+log
+@moved from top-level to src/other/.
+@
+text
+@/* 
+ * rle_rawrow.c - Convert RLE "raw" input to "row" input.
+ * 
+ * Author:	Spencer W. Thomas
+ * 		EECS Dept.
+ * 		University of Michigan
+ * Date:	Mon Jun 18 1990
+ * Copyright (c) 1990, University of Michigan
+ */
+
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+
+#include <stdio.h>
+
+#include "machine.h"
+#include "externs.h"
+
+#ifdef USE_STRING_H
+#include <string.h>
+#else
+#include <strings.h>
+#endif
+
+#include "rle.h"
+#include "rle_code.h"
+#include "rle_raw.h"
+
+
+/*****************************************************************
+ * TAG( rle_rawtorow )
+ * 
+ * Convert a "raw" scanline to a row format.
+ * Inputs:
+ * 	the_hdr:	RLE header describing the image.
+ * 	raw:		Pointer to pointers to vectors of "raw" data.
+ * 	nraw:		Pointer to vector of lengths of raw data vectors.
+ * Outputs:
+ * 	outrows:	Pointer to pointers to scanline data for
+ * 			this scanline.
+ * Algorithm:
+ * 	Interpret successive "op codes", filling in scanline array.
+ * 	Scanline between xmin and xmax is prefilled with background
+ * 	color, if one is given.
+ */
+void    
+rle_rawtorow(rle_hdr *the_hdr, rle_op **raw, int *nraw, rle_pixel **outrows)
+{
+    register int i, j;
+    register rle_pixel * outptr;
+    int chan;
+    
+    for (chan = -the_hdr->alpha; chan < the_hdr->ncolors; chan++)
+	if ( RLE_BIT( *the_hdr, chan ) )
+	{
+	    if ( chan >= 0 && the_hdr->background == 2 && the_hdr->bg_color &&
+		 the_hdr->bg_color[chan] != 0 )
+	    {
+		j = the_hdr->bg_color[chan];
+		for ( i = the_hdr->xmin,
+		      outptr = &outrows[chan][the_hdr->xmin];
+		      i <= the_hdr->xmax;
+		      i++, outptr++ )
+		    *outptr = j;
+	    }
+	    else
+		bzero( (char *)&outrows[chan][the_hdr->xmin],
+		       the_hdr->xmax - the_hdr->xmin + 1 );
+
+	    for( i = 0; i < nraw[chan]; i++ )
+	    {
+		outptr = &(outrows[chan][raw[chan][i].xloc]);
+		switch (raw[chan][i].opcode)
+		{
+		case RByteDataOp:
+		    bcopy( raw[chan][i].u.pixels, outptr,
+			   raw[chan][i].length );
+		    break;
+
+		case RRunDataOp:
+		    for ( j = raw[chan][i].length; j > 0; j--)
+			*(outptr++) = (rle_pixel) raw[chan][i].u.run_val;
+		    break;
+		}
+	    }
+	}
+}
+@
+
+
+11.6
+log
+@change conf.h to a wrapped config.h
+@
+text
+@@
+
+
+11.5
+log
+@merge of ansi-6-0-branch into HEAD
+@
+text
+@d11 5
+a15 1
+#include "conf.h"
+@
+
+
+11.4
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d46 1
+a46 5
+rle_rawtorow(the_hdr, raw, nraw, outrows)
+rle_hdr * the_hdr;
+rle_op ** raw;
+int * nraw;
+rle_pixel ** outrows;
+@
+
+
+11.4.2.1
+log
+@Initial ANSIfication
+@
+text
+@d46 5
+a50 1
+rle_rawtorow(rle_hdr *the_hdr, rle_op **raw, int *nraw, rle_pixel **outrows)
+@
+
+
+11.3
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d46 5
+a50 1
+rle_rawtorow(rle_hdr *the_hdr, rle_op **raw, int *nraw, rle_pixel **outrows)
+@
+
+
+11.2
+log
+@
+lint
+@
+text
+@d46 1
+a46 5
+rle_rawtorow(the_hdr, raw, nraw, outrows)
+rle_hdr * the_hdr;
+rle_op ** raw;
+int * nraw;
+rle_pixel ** outrows;
+@
+
+
+11.1
+log
+@Release_4.4
+@
+text
+@d18 6
+@
+
+
+10.3
+log
+@DEC Alpha
+@
+text
+@@
+
+
+10.2
+log
+@Altered #defines and #includes to conform to BRL-CAD standards
+@
+text
+@d64 1
+a64 1
+		bzero( &outrows[chan][the_hdr->xmin],
+@
+
+
+10.1
+log
+@Release_4.0
+@
+text
+@d11 7
+d19 1
+d21 1
+a21 3
+#ifdef USE_STDLIB_H
+#include <stdlib.h>
+#endif /* USE_STDLIB_H */
+@
+
+
+1.2
+log
+@changed include of rle*.h files to use quotes instead of <>
+@
+text
+@@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d11 2
+a12 2
+#include <rle.h>
+#include <rle_raw.h>
+@

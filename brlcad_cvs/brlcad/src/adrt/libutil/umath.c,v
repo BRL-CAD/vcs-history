@@ -1,0 +1,505 @@
+head	1.12;
+access;
+symbols
+	rel-7-10-4:1.12
+	STABLE:1.12.0.2
+	rel-7-10-2:1.11
+	rel-7-10-0:1.11
+	rel-7-8-4:1.3
+	rel-7-8-2:1.3
+	rel-7-8-0:1.3
+	trimnurbs-branch:1.3.0.2
+	help:1.3
+	temp_tag:1.2
+	bobWinPort-20051223-freeze:1.2
+	postmerge-20051223-bobWinPort:1.2
+	premerge-20051223-bobWinPort:1.2
+	rel-7-6-6:1.2
+	rel-7-6-4:1.2
+	rel-7-6-2:1.2
+	rel-7-6-branch:1.2.0.6
+	rel-7-6-0:1.2
+	rel-7-4-2:1.2
+	rel-7-4-branch:1.2.0.4
+	bobWinPort:1.2.0.2
+	rel-7-4-0:1.2;
+locks; strict;
+comment	@ * @;
+
+
+1.12
+date	2007.08.30.19.11.30;	author brlcad;	state Exp;
+branches;
+next	1.11;
+
+1.11
+date	2007.03.20.20.05.08;	author brlcad;	state Exp;
+branches;
+next	1.10;
+
+1.10
+date	2007.02.08.06.49.19;	author brlcad;	state Exp;
+branches;
+next	1.9;
+
+1.9
+date	2007.02.02.19.46.35;	author erikgreenwald;	state Exp;
+branches;
+next	1.8;
+
+1.8
+date	2007.01.27.01.41.31;	author brlcad;	state Exp;
+branches;
+next	1.7;
+
+1.7
+date	2007.01.23.01.13.22;	author brlcad;	state Exp;
+branches;
+next	1.6;
+
+1.6
+date	2007.01.21.00.51.05;	author brlcad;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	2007.01.20.14.36.42;	author brlcad;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	2007.01.18.22.17.57;	author erikgreenwald;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2006.01.18.06.46.12;	author brlcad;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2005.06.18.01.30.04;	author twingy;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2005.06.17.15.09.28;	author lbutler;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.12
+log
+@TFLOAT changed to tfloat.  also quell a few warnings/bugs related to passing the wrong TIE_3 pointer type.
+@
+text
+@/*                     U M A T H . C
+ * BRL-CAD / ADRT
+ *
+ * Copyright (c) 2002-2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This library is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@file umath.c
+ *
+ *  Utilities Library - Extended Math Support
+ *
+ *  Author -
+ *      Justin L. Shumaker
+ *
+ *  Source -
+ *      The U. S. Army Research Laboratory
+ *      Aberdeen Proving Ground, Maryland  21005-5068  USA
+ *
+ * $Id: umath.c,v 1.11 2007/03/20 20:05:08 brlcad Exp $
+ */
+
+#include "umath.h"
+#include <string.h>
+#include <stdlib.h>
+
+
+void math_math_init(void);
+void math_math_free(void);
+void math_mat_ident(tfloat *M, int S);
+void math_mat_mult(tfloat *A, int Ar, int Ac, tfloat *B, int Br, int Bc, tfloat *C);
+void MATH_SWAP_rows(tfloat m[16], int r1, int r2);
+void math_mat_invert(tfloat *D, tfloat *M, int S);
+
+
+void math_mat_ident(tfloat *M, int S) {
+  int	i,j;
+
+  for(i = 0; i < S; i++)
+    for(j = 0; j < S; j++)
+      M[i*S+j] = (i == j) ? 1 : 0;
+}
+
+
+void math_mat_mult(tfloat *A, int Ar, int Ac, tfloat *B, int Br, int Bc, tfloat *C) {
+  int		i, j, k;
+  tfloat	*M;
+
+  if(Ac == Br) {
+    M = (tfloat*)malloc(sizeof(tfloat)*Ar*Bc);
+    if (!M) {
+	perror("malloc");
+	exit(1);
+    }
+    for (i = 0; i < Bc; i++)
+      for (j = 0; j < Ar; j++) {
+	M[j*Bc+i] = 0;
+	for (k = 0; k < Br; k++)
+	  M[j*Bc+i] += A[j*Ac+k]*B[k*Bc+i];
+      }
+    memcpy(C, M, sizeof(tfloat)*Ar*Bc);
+    free(M);
+  }
+}
+
+
+void MATH_SWAP_rows(tfloat m[16], int r1, int r2) {
+  tfloat        tmp;
+  int           i;
+
+  for (i= 0; i < 4; i++) {
+    tmp= m[r1*4 + i];
+    m[r1*4 + i]= m[r2*4 + i];
+    m[r2*4 + i]= tmp;
+  }
+}
+
+
+void math_mat_invert(tfloat *D, tfloat *M, int S) {
+  int           i, j, k;
+  int           maxrow;
+  tfloat        maxval;
+  tfloat        val;
+  tfloat        T[16];
+
+  memcpy(T, M, 16*sizeof(tfloat));
+
+  math_mat_ident(D, 4);
+  maxval = M[0];
+  maxrow = 0;
+
+  for(i = 0; i < 4; i++) {
+    /* Find row with largest value at the diagonal */
+    maxval = M[i*4 + i];
+    maxrow = i;
+
+    for(j = i+1; j < 4; j++) {
+      val = M[j*4 + i];
+      if(fabs(val) > fabs(maxval)) {
+	maxval = val;
+	maxrow = j;
+      }
+    }
+
+    /* Swap the row with largest value with current row */
+    if(maxrow != i) {
+      MATH_SWAP_rows(M, i, maxrow);
+      MATH_SWAP_rows(D, i, maxrow);
+    }
+
+    /* Divide the entire current row with maxval to get a 1 on the diagonal */
+    for(k = 0; k<4; k++) {
+      M[i*4 + k] /= maxval;
+      D[i*4 + k] /= maxval;
+    }
+
+    /* Subtract current row from all other rows so their values before the diagonal go zero */
+    for(j = i+1; j < 4; j++) {
+      val = M[j*4 + i];
+      for(k = 0; k < 4; k++) {
+	M[j*4 + k] -= M[i*4 + k] * val;
+	D[j*4 + k] -= D[i*4 + k] * val;
+      }
+    }
+  }
+
+  /* Finally substract values so that the original matrix becomes identity */
+  for(i = 3; i >= 0; i--) {
+    for(j = i-1; j >= 0; j--) {
+      val = M[j*4 + i];
+      for(k = 0; k < 4; k++) {
+	M[j*4 + k] -= M[i*4 + k] * val;
+	D[j*4 + k] -= D[i*4 + k] * val;
+      }
+    }
+  }
+
+  memcpy(M, T, 16*sizeof(tfloat));
+}
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+1.11
+log
+@since adrt uses malloc, add checks on use for a null return value.  this probably would be a good reason to being associating with libbu.. (this fixes sf bug 1680679 - Check return codes everywhere; submitted by Markus Elfring (elfring))
+@
+text
+@d31 1
+a31 1
+ * $Id: umath.c,v 1.10 2007/02/08 06:49:19 brlcad Exp $
+d41 4
+a44 4
+void math_mat_ident(TFLOAT *M, int S);
+void math_mat_mult(TFLOAT *A, int Ar, int Ac, TFLOAT *B, int Br, int Bc, TFLOAT *C);
+void MATH_SWAP_rows(TFLOAT m[16], int r1, int r2);
+void math_mat_invert(TFLOAT *D, TFLOAT *M, int S);
+d47 1
+a47 1
+void math_mat_ident(TFLOAT *M, int S) {
+d56 1
+a56 1
+void math_mat_mult(TFLOAT *A, int Ar, int Ac, TFLOAT *B, int Br, int Bc, TFLOAT *C) {
+d58 1
+a58 1
+  TFLOAT	*M;
+d61 1
+a61 1
+    M = (TFLOAT*)malloc(sizeof(TFLOAT)*Ar*Bc);
+d72 1
+a72 1
+    memcpy(C, M, sizeof(TFLOAT)*Ar*Bc);
+d78 2
+a79 2
+void MATH_SWAP_rows(TFLOAT m[16], int r1, int r2) {
+  TFLOAT        tmp;
+d90 1
+a90 1
+void math_mat_invert(TFLOAT *D, TFLOAT *M, int S) {
+d93 3
+a95 3
+  TFLOAT        maxval;
+  TFLOAT        val;
+  TFLOAT        T[16];
+d97 1
+a97 1
+  memcpy(T, M, 16*sizeof(TFLOAT));
+d149 1
+a149 1
+  memcpy(M, T, 16*sizeof(TFLOAT));
+@
+
+
+1.10
+log
+@give adrt some distinctiveness in the header
+@
+text
+@d31 1
+a31 1
+ * $Id: umath.c,v 1.9 2007/02/02 19:46:35 erikgreenwald Exp $
+d62 4
+@
+
+
+1.9
+log
+@finish changing all #defined symbols to uppercase...
+@
+text
+@d2 1
+a2 1
+ * BRL-CAD
+d31 1
+a31 1
+ * $Id: umath.c,v 1.8 2007/01/27 01:41:31 brlcad Exp $
+@
+
+
+1.8
+log
+@ws. lots and lots of ws.  see sh/ws.sh for details (cases 'abcdeg').
+@
+text
+@d31 1
+a31 1
+ * $Id: umath.c,v 1.7 2007/01/23 01:13:22 brlcad Exp $
+d41 4
+a44 4
+void math_mat_ident(tfloat *M, int S);
+void math_mat_mult(tfloat *A, int Ar, int Ac, tfloat *B, int Br, int Bc, tfloat *C);
+void MATH_SWAP_rows(tfloat m[16], int r1, int r2);
+void math_mat_invert(tfloat *D, tfloat *M, int S);
+d47 1
+a47 1
+void math_mat_ident(tfloat *M, int S) {
+d56 1
+a56 1
+void math_mat_mult(tfloat *A, int Ar, int Ac, tfloat *B, int Br, int Bc, tfloat *C) {
+d58 1
+a58 1
+  tfloat	*M;
+d61 1
+a61 1
+    M = (tfloat*)malloc(sizeof(tfloat)*Ar*Bc);
+d68 1
+a68 1
+    memcpy(C, M, sizeof(tfloat)*Ar*Bc);
+d74 2
+a75 2
+void MATH_SWAP_rows(tfloat m[16], int r1, int r2) {
+  tfloat        tmp;
+d86 1
+a86 1
+void math_mat_invert(tfloat *D, tfloat *M, int S) {
+d89 3
+a91 3
+  tfloat        maxval;
+  tfloat        val;
+  tfloat        T[16];
+d93 1
+a93 1
+  memcpy(T, M, 16*sizeof(tfloat));
+d145 1
+a145 1
+  memcpy(M, T, 16*sizeof(tfloat));
+@
+
+
+1.7
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@d31 1
+a31 1
+ * $Id: umath.c,v 1.6 2007/01/21 00:51:05 brlcad Exp $
+d64 3
+a66 3
+        M[j*Bc+i] = 0;
+        for (k = 0; k < Br; k++)
+          M[j*Bc+i] += A[j*Ac+k]*B[k*Bc+i];
+d107 2
+a108 2
+        maxval = val;
+        maxrow = j;
+d128 2
+a129 2
+        M[j*4 + k] -= M[i*4 + k] * val;
+        D[j*4 + k] -= D[i*4 + k] * val;
+d139 2
+a140 2
+        M[j*4 + k] -= M[i*4 + k] * val;
+        D[j*4 + k] -= D[i*4 + k] * val;
+@
+
+
+1.6
+log
+@standard header and footer cleanup
+@
+text
+@d9 1
+a9 2
+ * as published by the Free Software Foundation; either version 2 of
+ * the License, or (at your option) any later version.
+d14 1
+a14 1
+ * Library General Public License for more details.
+d31 1
+a31 1
+ * $Id: umath.c,v 1.5 2007/01/20 14:36:42 brlcad Exp $
+@
+
+
+1.5
+log
+@update copyright to 2007
+@
+text
+@a21 1
+ *                     U M A T H . C
+d32 1
+a32 1
+ * $Id: umath.c,v 1.4 2007/01/18 22:17:57 erikgreenwald Exp $
+d148 10
+@
+
+
+1.4
+log
+@uppercase all #define symbols
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 2002-2006 United States Government as represented by
+d33 1
+a33 1
+ * $Id: umath.c,v 1.3 2006/01/18 06:46:12 brlcad Exp $
+@
+
+
+1.3
+log
+@update copyright to 2006
+@
+text
+@d33 1
+a33 1
+ * $Id: umath.c,v 1.2 2005/06/18 01:30:04 twingy Exp $
+d45 1
+a45 1
+void math_swap_rows(tfloat m[16], int r1, int r2);
+d76 1
+a76 1
+void math_swap_rows(tfloat m[16], int r1, int r2) {
+d116 2
+a117 2
+      math_swap_rows(M, i, maxrow);
+      math_swap_rows(D, i, maxrow);
+@
+
+
+1.2
+log
+@Added licensing info to libutil files.
+@
+text
+@d4 1
+a4 1
+ * Copyright (C) 2002-2005 United States Government as represented by
+d33 1
+a33 1
+ * $Id: umath.c,v 1.2 2005/06/18 01:09:31 twingy Exp $
+@
+
+
+1.1
+log
+@Welcome ADRT
+@
+text
+@d1 35
+@
+

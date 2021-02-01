@@ -1,0 +1,798 @@
+head	14.9;
+access;
+symbols
+	rel-7-10-4:14.9
+	STABLE:14.9.0.2
+	stable-branch:14.5
+	rel-7-10-2:14.9
+	rel-7-10-0:14.9
+	rel-7-8-4:14.7
+	rel-7-8-2:14.7
+	rel-7-8-0:14.7
+	trimnurbs-branch:14.7.0.2
+	help:14.7
+	temp_tag:14.6
+	bobWinPort-20051223-freeze:14.5
+	postmerge-20051223-bobWinPort:14.6
+	premerge-20051223-bobWinPort:14.6
+	rel-7-6-6:14.6
+	rel-7-6-4:14.6
+	rel-7-6-2:14.5
+	rel-7-6-branch:14.5.0.6
+	rel-7-6-0:14.5
+	rel-7-4-2:14.5
+	rel-7-4-branch:14.5.0.4
+	bobWinPort:14.5.0.2
+	rel-7-4-0:14.5
+	rel-7-2-6:14.5
+	rel-7-2-4:14.5
+	rel-7-2-2:14.5
+	rel-7-2-0:14.5
+	rel-7-0-4:14.3
+	rel-7-0-2:14.3
+	rel-7-0-1:14.3
+	opensource-post:14.3
+	opensource-pre:1.2
+	rel-7-0-branch:1.2.0.2
+	rel-7-0:1.2;
+locks; strict;
+comment	@ * @;
+
+
+14.9
+date	2007.01.23.01.13.23;	author brlcad;	state Exp;
+branches;
+next	14.8;
+
+14.8
+date	2007.01.20.14.36.42;	author brlcad;	state Exp;
+branches;
+next	14.7;
+
+14.7
+date	2006.01.18.06.46.12;	author brlcad;	state Exp;
+branches;
+next	14.6;
+
+14.6
+date	2005.10.23.04.44.28;	author brlcad;	state Exp;
+branches;
+next	14.5;
+
+14.5
+date	2005.02.14.02.29.35;	author brlcad;	state Exp;
+branches
+	14.5.6.1;
+next	14.4;
+
+14.4
+date	2005.01.30.20.30.14;	author brlcad;	state Exp;
+branches;
+next	14.3;
+
+14.3
+date	2004.12.18.06.50.49;	author morrison;	state Exp;
+branches;
+next	14.2;
+
+14.2
+date	2004.12.18.00.54.02;	author morrison;	state Exp;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.12;	author morrison;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2004.08.02.23.01.47;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.15.18.40;	author morrison;	state Exp;
+branches;
+next	;
+
+14.5.6.1
+date	2005.11.13.13.46.13;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.9
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@/*                      C A T T R A C K . C
+ * BRL-CAD
+ *
+ * Copyright (c) 2004-2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ *
+ */
+/** @@file cattrack.c
+ *  Caternary curve routines used by anim_track.c
+ *
+ */
+
+#include "common.h"
+
+
+#include <math.h>
+#include <stdio.h>
+#include "machine.h"
+#include "vmath.h"
+#include "anim.h"
+
+#define MAX_REACHED	0
+#define SOLVED		1
+
+/* the total maximum number of lowest level iterations possible is
+ *     T_MAX_ITS*MAX_OUT_ITS*2*MAX_ITS
+ */
+#define MAX_ITS		25
+#define MAX_OUT_ITS	25
+#define T_MAX_ITS	50
+
+/* these tolerances are guessed at, except that it seems to be important
+ * in elastic situations that T_TOL be significantly smaller than the others
+ */
+#define T_TOL		1.0e-14
+#define G_TOL		1.0e-12
+#define F_TOL		1.0e-12
+
+/* HYPER_GET_X - get x value of a point which is a given distance along
+ * caternary curve.
+ * x(s) = arcsinh(a*s-sinh(a*c))/a + c
+ * Left to calling routine to avoid dividing by zero.
+ */
+fastf_t hyper_get_x(fastf_t a, fastf_t c, fastf_t s, int d, int x, int cos_ang)
+     /* curve parameters */
+     /* arclength value  */
+{
+    fastf_t arg, asinh_arg;
+
+    arg = a*s - sinh(a*c);
+    asinh_arg = log(arg + sqrt(arg*arg + 1.0));
+
+    return(asinh_arg/a + c);
+}
+
+/* HYPER_GET_S - calculate the arclength parameter of a caternary
+ * curve corresponding to the given value of x.
+ * s(x) = (sinh(a(x-c))+sinh(ac))/a
+ * Left to calling routime to avoid dividing by zero.
+ */
+fastf_t hyper_get_s(fastf_t a, fastf_t c, fastf_t x)
+{
+    return((sinh(a*(x-c))+sinh(a*c))/a);
+}
+
+/* HYPER_GET_Z - calculate point on the caternary curve:
+ * z(x) = cosh(a*(x-c))/a + b
+ * Left to calling routine to avoid dividing by zero.
+ */
+fastf_t hyper_get_z(fastf_t a, fastf_t b, fastf_t c, fastf_t x)
+{
+    fastf_t z;
+
+    if (fabs(a)>VDIVIDE_TOL){
+	z = cosh(a*(x-c))/a + b;
+    } else {
+	z = b;
+    }
+    return(z);
+}
+
+/* HYPER_GET_ANG - calculate angle corresponding to the slope of
+ * caternary curve.
+ * z'(x) = sinh(a*(x-c))
+ */
+fastf_t hyper_get_ang(fastf_t a, fastf_t c, fastf_t x)
+{
+    fastf_t slope;
+
+    slope = sinh(a*(x-c));
+    return( atan2(slope, 1.0));
+}
+
+/* GET_CURVE - Find the constants a, b, and c such that the curve
+ *  z = cosh(a*(x-c))/a + b
+ * is tangent to circles of radii r0 and r1 located at
+ * (x0,z0) and (x1,z1) and such that the curve has
+ * arclength delta_s between circles. Also find the angle where
+ * the curve touches each circle. When called successively,
+ * It uses the values of a,b, and c from the last call as a start.
+ */
+int getcurve(fastf_t *pa, fastf_t *pb, fastf_t *pc, fastf_t *pth0, fastf_t *pth1, fastf_t delta_s, fastf_t *p_zero, fastf_t *p_one, fastf_t r_zero, fastf_t r_one)
+     /* curve parameters */
+     /* angle where curve contacts circle0,circle1 */
+     /* desired arclength */
+     /* radii of circle0 and circle1 */
+     /* center of circle0 and circle1 */
+{
+
+    int status, i, solved;
+    int ingetcurve(fastf_t *pa, fastf_t *pb, fastf_t *pc, fastf_t delta_s, fastf_t *p_zero, fastf_t *p_one);
+    fastf_t theta_one, theta_zero, new_theta_zero, new_theta_one;
+    fastf_t avg_theta_zero, avg_theta_one, arc_dist;
+    fastf_t tang_ang, costheta;
+    double stmp;
+    vect_t q_zero, q_one, diff;
+    static fastf_t last_a, last_c, last_theta_one, last_theta_zero;
+    static int called_before = 0;
+
+    /*first calculate angle at which tangent line would contact circles*/
+    VSUB2(diff,p_one,p_zero);
+    tang_ang = atan2(diff[Z],diff[X]);
+    costheta = (r_zero-r_one)/MAGNITUDE(diff);
+    tang_ang += acos(costheta);
+
+    if (!called_before){
+	theta_one = tang_ang;
+	theta_zero = tang_ang;
+	(*pa) = 1.0;
+	*pc = 0.5*(p_one[X]+p_zero[X]);
+	called_before = 1;
+    }
+    else {
+	theta_zero = last_theta_zero;
+	theta_one = last_theta_one;
+	*pa = last_a;
+	*pc = last_c;
+    }
+
+    status = MAX_REACHED;
+    for (i=0;i<T_MAX_ITS;i++){
+	q_zero[X] = p_zero[X] + r_zero * cos(theta_zero);
+	q_zero[Z] = p_zero[Z] + r_zero * sin(theta_zero);
+	q_one[X] = p_one[X] + r_one * cos(theta_one);
+	q_one[Z] = p_one[Z] + r_one * sin(theta_one);
+
+	/* determine distance taken by arc*/
+	arc_dist = r_zero * (tang_ang - theta_zero);
+	arc_dist += r_one * (theta_one - tang_ang);
+
+	ingetcurve(pa,pb,pc, delta_s-arc_dist, q_zero, q_one);
+
+	solved = 0;
+	/* refine theta_one */
+	stmp = sinh( (*pa)*(q_zero[X]-(*pc)) );
+	new_theta_zero = atan2(1.0,-stmp);
+	avg_theta_zero = 0.5 * (theta_zero + new_theta_zero);
+	if (fabs(theta_zero-avg_theta_zero)<T_TOL){
+	    solved++;
+	}
+	theta_zero = avg_theta_zero;
+
+	/* refine theta_two */
+	stmp = sinh( (*pa)*(q_one[X]-(*pc)) );
+	new_theta_one = atan2(1.0,-stmp);
+	avg_theta_one = 0.5 * (theta_one + new_theta_one);
+	if (fabs(theta_one-avg_theta_one)<T_TOL){
+	    solved++;
+	}
+	theta_one = avg_theta_one;
+
+	if (solved == 2){
+	    status = SOLVED;
+	    break;
+	}
+
+    }
+    last_theta_zero = theta_zero;
+    last_theta_one = theta_one;
+    last_a = *pa;
+    last_c = *pc;
+    *pth0 = theta_zero;
+    *pth1 = theta_one;
+    return(status);
+
+}
+
+/* INGETCURVE - find constants a, b, and c, such that the curve
+ *  z = cosh(a*(x-c))/a + b
+ * passes through (x0,z0) and (x1,z1) and has arclength delta_s
+ * Appropriate first guesses for a,b, and c should be given.
+ */
+int ingetcurve(fastf_t *pa, fastf_t *pb, fastf_t *pc, fastf_t delta_s, fastf_t *p_zero, fastf_t *p_one)
+{
+    int status, i, j, k;
+    fastf_t adjust;
+    fastf_t eff(fastf_t a, fastf_t c, fastf_t x0, fastf_t x1, fastf_t delta_s),gee(fastf_t a, fastf_t c, fastf_t x0, fastf_t x1, fastf_t delta_z);
+
+    status = MAX_REACHED;
+    i=0;
+    while (i++<MAX_OUT_ITS){
+	for (j=0;j<MAX_ITS;j++){
+	    adjust = eff(*pa,*pc,p_zero[X],p_one[X],delta_s);
+	    if ((*pa-adjust)<=0.0){
+		*pa *= 0.5;
+	    }
+	    else {
+		*pa -= adjust;
+	    }
+	    if (adjust<F_TOL){
+		break;
+	    }
+	}
+
+	for (k=0;k<MAX_ITS;k++){
+	    adjust = gee(*pa,*pc,p_zero[X],p_one[X],(p_one[Z]-p_zero[Z]));
+	    *pc -= adjust;
+	    if (adjust<G_TOL){
+		break;
+	    }
+	}
+
+	if ((j==0)&&(k==0)){
+	    status = SOLVED;
+	    break;
+	}
+    }
+    *pb = p_zero[Z] - cosh( (*pa)*(p_zero[X]-(*pc)) )/(*pa);
+
+    return(status);
+
+}
+
+/* find Newtonian adjustment for 'a', assuming 'c' fixed*/
+fastf_t eff(fastf_t a, fastf_t c, fastf_t x0, fastf_t x1, fastf_t delta_s)
+{
+    double f,fprime;
+    double arg0, arg1, sarg0, sarg1;
+
+    arg0 = a*(x0-c);
+    arg1 = a*(x1-c);
+
+    sarg0 = sinh(arg0);
+    sarg1 = sinh(arg1);
+
+    f = a*(sarg1-sarg0 - a*delta_s);
+    fprime = sarg0 - sarg1 - arg0*cosh(arg0) + arg1*cosh(arg1);
+
+    if (fabs(fprime) > VDIVIDE_TOL)
+	return(f/fprime);
+    else if ((a*a) > VDIVIDE_TOL)
+	return(f/(a*a));
+    else if (fabs(a) > VDIVIDE_TOL)
+	return(f/a);
+    else
+	return(f);
+}
+
+/* find Newtonian adjustment for c, assuming 'a' fixed*/
+fastf_t gee(fastf_t a, fastf_t c, fastf_t x0, fastf_t x1, fastf_t delta_z)
+{
+    double g, gprime, arg0, arg1;
+
+    arg0 = a*(x0-c);
+    arg1 = a*(x1-c);
+
+    g = cosh(arg1)-cosh(arg0) - a*delta_z;
+    gprime = a*(sinh(arg0) - sinh(arg1));
+
+    if (fabs(gprime) > VDIVIDE_TOL)
+	return(g/gprime);
+    else if (fabs(a) > VDIVIDE_TOL)
+	return(g/a);
+    else
+	return(g);
+}
+
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+14.8
+log
+@update copyright to 2007
+@
+text
+@d8 2
+a9 3
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+d14 1
+a14 1
+ * General Public License for more details.
+d16 2
+a17 2
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+@
+
+
+14.7
+log
+@update copyright to 2006
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 2004-2006 United States Government as represented by
+@
+
+
+14.6
+log
+@trailing ws
+@
+text
+@d4 1
+a4 1
+ * Copyright (C) 2004-2005 United States Government as represented by
+@
+
+
+14.5
+log
+@M-x indent-region
+@
+text
+@d53 2
+a54 2
+/* HYPER_GET_X - get x value of a point which is a given distance along 
+ * caternary curve. 
+d72 1
+a72 1
+ * s(x) = (sinh(a(x-c))+sinh(ac))/a 
+d96 1
+a96 1
+/* HYPER_GET_ANG - calculate angle corresponding to the slope of 
+d111 1
+a111 1
+ * (x0,z0) and (x1,z1) and such that the curve has 
+d130 1
+a130 1
+    vect_t q_zero, q_one, diff; 
+d190 1
+a190 1
+		
+d199 1
+a199 1
+			
+d228 1
+a228 1
+		
+d243 1
+a243 1
+	
+@
+
+
+14.5.6.1
+log
+@merge changes from HEAD aka rel-7-6-4 to the rel-7-6-branch just in case someone peeks a gander or tries to continue/build the branch
+@
+text
+@d53 2
+a54 2
+/* HYPER_GET_X - get x value of a point which is a given distance along
+ * caternary curve.
+d72 1
+a72 1
+ * s(x) = (sinh(a(x-c))+sinh(ac))/a
+d96 1
+a96 1
+/* HYPER_GET_ANG - calculate angle corresponding to the slope of
+d111 1
+a111 1
+ * (x0,z0) and (x1,z1) and such that the curve has
+d130 1
+a130 1
+    vect_t q_zero, q_one, diff;
+d190 1
+a190 1
+
+d199 1
+a199 1
+
+d228 1
+a228 1
+
+d243 1
+a243 1
+
+@
+
+
+14.4
+log
+@update copyright to 2005
+@
+text
+@d59 2
+a60 2
+              	/* curve parameters */
+          		/* arclength value  */
+d62 1
+a62 1
+	fastf_t arg, asinh_arg;
+d64 2
+a65 2
+	arg = a*s - sinh(a*c);
+	asinh_arg = log(arg + sqrt(arg*arg + 1.0));
+d67 1
+a67 1
+	return(asinh_arg/a + c);
+d77 1
+a77 1
+		return((sinh(a*(x-c))+sinh(a*c))/a);
+d86 1
+a86 1
+	fastf_t z;
+d88 6
+a93 6
+	if (fabs(a)>VDIVIDE_TOL){
+		z = cosh(a*(x-c))/a + b;
+	} else {
+		z = b;
+	}
+	return(z);
+d102 1
+a102 1
+	fastf_t slope;
+d104 2
+a105 2
+	slope = sinh(a*(x-c));
+	return( atan2(slope, 1.0));
+d117 73
+a189 73
+       	              	/* curve parameters */
+                     	/* angle where curve contacts circle0,circle1 */
+                	/* desired arclength */
+                        /* radii of circle0 and circle1 */
+                     	/* center of circle0 and circle1 */
+{
+
+	int status, i, solved;
+	int ingetcurve(fastf_t *pa, fastf_t *pb, fastf_t *pc, fastf_t delta_s, fastf_t *p_zero, fastf_t *p_one);
+	fastf_t theta_one, theta_zero, new_theta_zero, new_theta_one;
+	fastf_t avg_theta_zero, avg_theta_one, arc_dist;
+	fastf_t tang_ang, costheta;
+	double stmp;
+	vect_t q_zero, q_one, diff; 
+	static fastf_t last_a, last_c, last_theta_one, last_theta_zero;
+	static int called_before = 0;
+
+	/*first calculate angle at which tangent line would contact circles*/
+	VSUB2(diff,p_one,p_zero);
+	tang_ang = atan2(diff[Z],diff[X]);
+	costheta = (r_zero-r_one)/MAGNITUDE(diff);
+	tang_ang += acos(costheta);
+
+	if (!called_before){
+		theta_one = tang_ang;
+		theta_zero = tang_ang;
+		(*pa) = 1.0;
+		*pc = 0.5*(p_one[X]+p_zero[X]);
+		called_before = 1;
+	}
+	else {
+		theta_zero = last_theta_zero;
+		theta_one = last_theta_one;
+		*pa = last_a;
+		*pc = last_c;
+	}
+
+	status = MAX_REACHED;
+	for (i=0;i<T_MAX_ITS;i++){
+		q_zero[X] = p_zero[X] + r_zero * cos(theta_zero);
+		q_zero[Z] = p_zero[Z] + r_zero * sin(theta_zero);
+		q_one[X] = p_one[X] + r_one * cos(theta_one);
+		q_one[Z] = p_one[Z] + r_one * sin(theta_one);
+
+		/* determine distance taken by arc*/
+		arc_dist = r_zero * (tang_ang - theta_zero);
+		arc_dist += r_one * (theta_one - tang_ang);
+
+		ingetcurve(pa,pb,pc, delta_s-arc_dist, q_zero, q_one);
+
+		solved = 0;
+		/* refine theta_one */
+		stmp = sinh( (*pa)*(q_zero[X]-(*pc)) );
+		new_theta_zero = atan2(1.0,-stmp);
+		avg_theta_zero = 0.5 * (theta_zero + new_theta_zero);
+		if (fabs(theta_zero-avg_theta_zero)<T_TOL){
+			solved++;
+		}
+		theta_zero = avg_theta_zero;
+
+		/* refine theta_two */
+		stmp = sinh( (*pa)*(q_one[X]-(*pc)) );
+		new_theta_one = atan2(1.0,-stmp);
+		avg_theta_one = 0.5 * (theta_one + new_theta_one);
+		if (fabs(theta_one-avg_theta_one)<T_TOL){
+			solved++;
+		}
+		theta_one = avg_theta_one;
+
+		if (solved == 2){
+			status = SOLVED;
+			break;
+		}
+d191 8
+a198 8
+	}
+	last_theta_zero = theta_zero;
+	last_theta_one = theta_one;
+	last_a = *pa;
+	last_c = *pc;
+	*pth0 = theta_zero;
+	*pth1 = theta_one;
+	return(status);
+d209 19
+a227 19
+	int status, i, j, k;
+	fastf_t adjust;
+	fastf_t eff(fastf_t a, fastf_t c, fastf_t x0, fastf_t x1, fastf_t delta_s),gee(fastf_t a, fastf_t c, fastf_t x0, fastf_t x1, fastf_t delta_z);
+
+	status = MAX_REACHED;
+	i=0;
+	while (i++<MAX_OUT_ITS){
+		for (j=0;j<MAX_ITS;j++){
+			adjust = eff(*pa,*pc,p_zero[X],p_one[X],delta_s);
+			if ((*pa-adjust)<=0.0){
+				*pa *= 0.5;
+			}
+			else {
+				*pa -= adjust;
+			}
+			if (adjust<F_TOL){
+				break;
+			}
+		}
+d229 11
+a239 12
+		for (k=0;k<MAX_ITS;k++){
+			adjust = gee(*pa,*pc,p_zero[X],p_one[X],(p_one[Z]-p_zero[Z]));
+			*pc -= adjust;
+			if (adjust<G_TOL){
+				break;
+			}
+		}
+
+		if ((j==0)&&(k==0)){
+			status = SOLVED;
+			break;
+		}
+d241 2
+a242 1
+	*pb = p_zero[Z] - cosh( (*pa)*(p_zero[X]-(*pc)) )/(*pa);
+d244 1
+a244 1
+	return(status);
+d251 2
+a252 2
+	double f,fprime;
+	double arg0, arg1, sarg0, sarg1;
+d254 2
+a255 2
+	arg0 = a*(x0-c);
+	arg1 = a*(x1-c);
+d257 2
+a258 2
+	sarg0 = sinh(arg0);
+	sarg1 = sinh(arg1);
+d260 11
+a270 11
+	f = a*(sarg1-sarg0 - a*delta_s);
+	fprime = sarg0 - sarg1 - arg0*cosh(arg0) + arg1*cosh(arg1);
+
+	if (fabs(fprime) > VDIVIDE_TOL)
+		return(f/fprime);
+	else if ((a*a) > VDIVIDE_TOL)
+		return(f/(a*a));
+	else if (fabs(a) > VDIVIDE_TOL)
+		return(f/a);
+	else
+		return(f);
+d276 1
+a276 1
+	double g, gprime, arg0, arg1;
+d278 2
+a279 2
+	arg0 = a*(x0-c);
+	arg1 = a*(x1-c);
+d281 2
+a282 2
+	g = cosh(arg1)-cosh(arg0) - a*delta_z;
+	gprime = a*(sinh(arg0) - sinh(arg1));
+d284 6
+a289 6
+	if (fabs(gprime) > VDIVIDE_TOL)
+		return(g/gprime);
+	else if (fabs(a) > VDIVIDE_TOL)
+		return(g/a);
+	else
+		return(g);
+@
+
+
+14.3
+log
+@break up the doxygen marker to appease emacs M-x indent-region'ing
+@
+text
+@d4 2
+a5 2
+ * Copyright (c) 2004 United States Government as represented by the
+ * U.S. Army Research Laboratory.
+@
+
+
+14.2
+log
+@assign copyright and GPL license
+@
+text
+@d21 2
+a22 1
+ **//** @@file cattrack.c
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@d1 2
+a2 1
+/*			C A T T R A C K . C
+d4 18
+@
+
+
+1.2
+log
+@replace the wrapped config.h block with common.h
+@
+text
+@d272 10
+@
+
+
+1.1
+log
+@Vast reorganization begins.  Sources moved from top-level directories into src/.
+@
+text
+@d7 1
+a7 3
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+@
+

@@ -1,0 +1,673 @@
+head	14.12;
+access;
+symbols
+	rel-7-10-4:14.11
+	STABLE:14.11.0.2
+	rel-7-10-2:14.11
+	rel-7-10-0:14.10
+	rel-7-8-4:14.7
+	rel-7-8-2:14.7
+	rel-7-8-0:14.7
+	trimnurbs-branch:14.7.0.2
+	help:14.7
+	temp_tag:14.5
+	bobWinPort-20051223-freeze:14.4
+	postmerge-20051223-bobWinPort:14.5
+	premerge-20051223-bobWinPort:14.5
+	rel-7-6-6:14.5
+	rel-7-6-4:14.5
+	rel-7-6-2:14.4
+	rel-7-6-branch:14.4.0.6
+	rel-7-6-0:14.4
+	rel-7-4-2:14.4
+	rel-7-4-branch:14.4.0.4
+	bobWinPort:14.4.0.2
+	rel-7-4-0:14.4
+	rel-7-2-6:14.3
+	rel-7-2-4:14.3
+	rel-7-2-2:14.3
+	rel-7-2-0:14.3
+	rel-7-0-4:14.2
+	rel-7-0-2:14.2
+	rel-7-0-1:14.2
+	opensource-post:14.2
+	opensource-pre:1.3
+	rel-7-0-branch:1.3.0.2
+	rel-7-0:1.3;
+locks; strict;
+comment	@ * @;
+
+
+14.12
+date	2007.09.15.16.23.23;	author brlcad;	state Exp;
+branches;
+next	14.11;
+
+14.11
+date	2007.07.26.01.13.59;	author brlcad;	state Exp;
+branches;
+next	14.10;
+
+14.10
+date	2007.02.20.08.19.51;	author brlcad;	state Exp;
+branches;
+next	14.9;
+
+14.9
+date	2007.01.23.01.13.52;	author brlcad;	state Exp;
+branches;
+next	14.8;
+
+14.8
+date	2007.01.20.14.37.05;	author brlcad;	state Exp;
+branches;
+next	14.7;
+
+14.7
+date	2006.02.27.10.08.41;	author brlcad;	state Exp;
+branches;
+next	14.6;
+
+14.6
+date	2006.01.18.06.46.27;	author brlcad;	state Exp;
+branches;
+next	14.5;
+
+14.5
+date	2005.10.23.04.44.39;	author brlcad;	state Exp;
+branches;
+next	14.4;
+
+14.4
+date	2005.06.30.00.08.36;	author erikgreenwald;	state Exp;
+branches
+	14.4.6.1;
+next	14.3;
+
+14.3
+date	2005.01.30.20.31.32;	author brlcad;	state Exp;
+branches;
+next	14.2;
+
+14.2
+date	2004.12.21.03.45.40;	author butler;	state Exp;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.32;	author morrison;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2004.08.02.23.01.53;	author morrison;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2004.06.08.22.04.42;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.15.21.40;	author morrison;	state Exp;
+branches;
+next	;
+
+14.4.6.1
+date	2005.11.13.13.46.20;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.12
+log
+@more c89 embracing.  c89 provides string.h for all of the various str*() and mem*() functions, so remove the check for its presence.  there is still likely to be work required for strict c89 conformance for the various bsd strings.h functions that may be in use.
+@
+text
+@/*                        A S C - P L . C
+ * BRL-CAD
+ *
+ * Copyright (c) 1990-2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@file asc-pl.c
+ *
+ *	Produce UNIX plot commands in PLOT3(5) format
+ *	from ASCII representation.
+ *
+ *  Author -
+ *	Paul Tanenbaum
+ *
+ */
+#ifndef lint
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/asc-pl.c,v 14.11 2007/07/26 01:13:59 brlcad Exp $ (BRL)";
+#endif
+
+#include "common.h"
+
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+#include <ctype.h>
+
+#ifdef HAVE_UNISTD_H
+#  include <unistd.h>
+#endif
+
+#include "machine.h"
+#include "plot3.h"
+
+
+#define		BUF_LEN		512
+#define		FP_IN		0
+#define		FP_OUT		1
+
+static char	*usage = "asc-pl [file.in [file.pl]]\n";
+
+static void	printusage(void);
+static int	check_syntax(char cmd, int needed, int got, int line);
+
+int
+main (int argc, char **argv)
+{
+    char	*bp;
+    char	buf[BUF_LEN];
+    char	sarg[BUF_LEN];
+    static char	*fm[] = { "r", "w" };
+    double	darg[6];
+    static FILE	*fp[2];
+    int		i;
+    int		iarg[6];
+    int		line_nm;
+    int		nm_args = 0;
+
+    /* Handle command-line syntax */
+    if (argc > 3)
+    {
+	printusage();
+	return 1;
+    }
+    fp[0] = stdin;
+    fp[1] = stdout;
+    for (i = 0; (i < 2) && (--argc > 0); ++i)
+    {
+	if ((**++argv == '-') && (*(*argv + 1) == '\0'))
+	    continue;
+	if ((fp[i] = fopen(*argv, fm[i])) == NULL)
+	{
+	    (void) fprintf(stderr, "Cannot open file '%s'\n", *argv);
+	    printusage();
+	    return 1;
+	}
+    }
+    if (isatty(fileno(fp[FP_OUT])))
+    {
+	(void) fputs("asc-pl: Will not write to a TTY\n", stderr);
+	return 1;
+    }
+
+    for (line_nm = 1; bu_fgets(buf, BUF_LEN - 1, fp[FP_IN]) != NULL; ++line_nm)
+    {
+	for (bp = buf; *bp != '\0'; ++bp)
+	    ;
+	*bp = '\n';
+	*(bp + 1) = '\0';
+	for (bp = buf; (*bp == ' ') || (*bp == '\t'); ++bp)
+	    ;
+	if (*bp == '\n')
+	    continue;
+	if (strchr("aclmnpsCLMNPS", *bp))
+	    nm_args = sscanf(bp + 1, "%d%d%d%d%d%d",
+				&iarg[0], &iarg[1], &iarg[2],
+				&iarg[3], &iarg[4], &iarg[5]);
+	else if (strchr("ioqrvwxOQVWX", *bp))
+	    nm_args = sscanf(bp + 1, "%lf%lf%lf%lf%lf%lf",
+				&darg[0], &darg[1], &darg[2],
+				&darg[3], &darg[4], &darg[5]);
+	else if (strchr("ft", *bp))
+	    nm_args = sscanf(bp, "%*[^\"]\"%[^\"]\"", sarg);
+
+	switch (*bp)
+	{
+	    case '#':
+		break;
+	    case 'a':
+		if (check_syntax(*bp, 6, nm_args, line_nm))
+		    pl_arc(fp[FP_OUT], iarg[0], iarg[1], iarg[2], iarg[3],
+			iarg[4], iarg[5]);
+		break;
+	    case 'c':
+		if (check_syntax(*bp, 3, nm_args, line_nm))
+		    pl_circle(fp[FP_OUT], iarg[0], iarg[1], iarg[2]);
+		break;
+	    case 'l':
+		if (check_syntax(*bp, 4, nm_args, line_nm))
+		    pl_line(fp[FP_OUT], iarg[0], iarg[1], iarg[2], iarg[3]);
+		break;
+	    case 'm':
+		if (check_syntax(*bp, 2, nm_args, line_nm))
+		    pl_move(fp[FP_OUT], iarg[0], iarg[1]);
+		break;
+	    case 'n':
+		if (check_syntax(*bp, 2, nm_args, line_nm))
+		    pl_cont(fp[FP_OUT], iarg[0], iarg[1]);
+		break;
+	    case 'p':
+		if (check_syntax(*bp, 2, nm_args, line_nm))
+		    pl_point(fp[FP_OUT], iarg[0], iarg[1]);
+		break;
+	    case 's':
+		if (check_syntax(*bp, 4, nm_args, line_nm))
+		    pl_space(fp[FP_OUT], iarg[0], iarg[1], iarg[2], iarg[3]);
+		break;
+	    case 'C':
+		if (check_syntax(*bp, 3, nm_args, line_nm))
+		    pl_color(fp[FP_OUT], iarg[0], iarg[1], iarg[2]);
+		break;
+	    case 'L':
+		if (check_syntax(*bp, 6, nm_args, line_nm))
+		    pl_3line(fp[FP_OUT], iarg[0], iarg[1], iarg[2], iarg[3],
+			iarg[4], iarg[5]);
+		break;
+	    case 'M':
+		if (check_syntax(*bp, 3, nm_args, line_nm))
+		    pl_3move(fp[FP_OUT], iarg[0], iarg[1], iarg[2]);
+		break;
+	    case 'N':
+		if (check_syntax(*bp, 3, nm_args, line_nm))
+		    pl_3cont(fp[FP_OUT], iarg[0], iarg[1], iarg[2]);
+		break;
+	    case 'P':
+		if (check_syntax(*bp, 3, nm_args, line_nm))
+		    pl_3point(fp[FP_OUT], iarg[0], iarg[1], iarg[2]);
+		break;
+	    case 'S':
+		if (check_syntax(*bp, 6, nm_args, line_nm))
+		    pl_3space(fp[FP_OUT], iarg[0], iarg[1], iarg[2], iarg[3],
+			iarg[4], iarg[5]);
+	    case 'i':
+		if (check_syntax(*bp, 3, nm_args, line_nm))
+		    pd_circle(fp[FP_OUT], darg[0], darg[1], darg[2]);
+		break;
+	    case 'o':
+		if (check_syntax(*bp, 2, nm_args, line_nm))
+		    pd_move(fp[FP_OUT], darg[0], darg[1]);
+		break;
+	    case 'q':
+		if (check_syntax(*bp, 2, nm_args, line_nm))
+		    pd_cont(fp[FP_OUT], darg[0], darg[1]);
+		break;
+	    case 'r':
+		if (check_syntax(*bp, 6, nm_args, line_nm))
+		    pd_arc(fp[FP_OUT], darg[0], darg[1], darg[2], darg[3],
+			darg[4], darg[5]);
+		break;
+	    case 'v':
+		if (check_syntax(*bp, 4, nm_args, line_nm))
+		    pd_line(fp[FP_OUT], darg[0], darg[1], darg[2], darg[3]);
+		break;
+	    case 'w':
+		if (check_syntax(*bp, 4, nm_args, line_nm))
+		    pd_space(fp[FP_OUT], darg[0], darg[1], darg[2], darg[3]);
+		break;
+	    case 'x':
+		if (check_syntax(*bp, 2, nm_args, line_nm))
+		    pd_point(fp[FP_OUT], darg[0], darg[1]);
+		break;
+	    case 'O':
+		if (check_syntax(*bp, 3, nm_args, line_nm))
+		    pd_3move(fp[FP_OUT], darg[0], darg[1], darg[2]);
+		break;
+	    case 'Q':
+		if (check_syntax(*bp, 3, nm_args, line_nm))
+		    pd_3cont(fp[FP_OUT], darg[0], darg[1], darg[2]);
+		break;
+	    case 'V':
+		if (check_syntax(*bp, 6, nm_args, line_nm))
+		    pd_3line(fp[FP_OUT], darg[0], darg[1], darg[2], darg[3],
+			darg[4], darg[5]);
+		break;
+	    case 'W':
+		if (check_syntax(*bp, 6, nm_args, line_nm))
+		    pd_3space(fp[FP_OUT], darg[0], darg[1], darg[2], darg[3],
+			darg[4], darg[5]);
+	    case 'X':
+		if (check_syntax(*bp, 3, nm_args, line_nm))
+		    pd_3point(fp[FP_OUT], darg[0], darg[1], darg[2]);
+		break;
+	    case 'F':
+		pl_flush(fp[FP_OUT]);
+		break;
+	    case 'e':
+		pl_erase(fp[FP_OUT]);
+		break;
+	    case 'f':
+		if (check_syntax(*bp, 1, nm_args, line_nm))
+		    pl_linmod(fp[FP_OUT], sarg);
+		break;
+	    case 't':
+		if (check_syntax(*bp, 1, nm_args, line_nm))
+		    pl_label(fp[FP_OUT], sarg);
+		break;
+	    default:
+		(void) fprintf(stderr,
+		    "Unknown PLOT3 command: '%c' (o%o) on line %d\n",
+		    *bp, *bp, line_nm);
+		return 1;
+	}
+    }
+    return 0;
+}
+
+static void printusage (void)
+{
+    (void) fputs(usage, stderr);
+}
+
+static int check_syntax (char cmd, int needed, int got, int line)
+{
+    if (got < needed)
+    {
+	(void) fprintf(stderr,
+	    "Too few arguments for '%c' command on line %d\n", cmd, line);
+	exit (1);
+    }
+    return (1);
+}
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+14.11
+log
+@remove ephemeral data like phone numbers and addresses, including the misleading 'source' statements on code that is continually evolving and receiving contributions from many many sources
+@
+text
+@d30 1
+a30 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/asc-pl.c,v 14.10 2007/02/20 08:19:51 brlcad Exp $ (BRL)";
+d37 1
+a37 5
+#ifdef HAVE_STRING_H
+#  include <string.h>
+#else
+#  include <strings.h>
+#endif
+d39 1
+@
+
+
+14.10
+log
+@update all usages of fgets() to instead use john's swanktastic bu_fgets() that behaves as one would generally want regardless of the line ending type of the compilation platform or of the input files.  bu_fgets() responds to input files that use CR (usually old mac), LF (usually unix, new mac), or CR/LF (usually windows) for the line ending so now these file do too effectivley squashing buggish/bad behavior.
+@
+text
+@a27 4
+ *  Source -
+ *	SECAD/VLD Computing Consortium, Bldg 394
+ *	The U. S. Army Ballistic Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005-5066
+d30 1
+a30 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/asc-pl.c,v 14.9 2007/01/23 01:13:52 brlcad Exp $ (BRL)";
+@
+
+
+14.9
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@d34 1
+a34 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/asc-pl.c,v 14.8 2007/01/20 14:37:05 brlcad Exp $ (BRL)";
+d103 1
+a103 1
+    for (line_nm = 1; fgets(buf, BUF_LEN - 1, fp[FP_IN]) != NULL; ++line_nm)
+@
+
+
+14.8
+log
+@update copyright to 2007
+@
+text
+@d8 2
+a9 3
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+d14 1
+a14 1
+ * General Public License for more details.
+d16 2
+a17 2
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+d34 1
+a34 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/asc-pl.c,v 14.7 2006/02/27 10:08:41 brlcad Exp $ (BRL)";
+@
+
+
+14.7
+log
+@stdlib.h and exit()
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 1990-2006 United States Government as represented by
+d35 1
+a35 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/asc-pl.c,v 14.6 2006/01/18 06:46:27 brlcad Exp $ (BRL)";
+@
+
+
+14.6
+log
+@update copyright to 2006
+@
+text
+@d35 1
+a35 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/asc-pl.c,v 14.5 2005/10/23 04:44:39 brlcad Exp $ (BRL)";
+d40 1
+d43 1
+a43 1
+#include <string.h>
+d45 1
+a45 1
+#include <strings.h>
+a47 1
+
+d49 1
+a49 1
+# include <unistd.h>
+d55 1
+d83 1
+a83 1
+	exit (1);
+d95 1
+a95 1
+	    exit (1);
+d101 1
+a101 1
+	exit (1);
+d251 1
+a251 1
+		exit (1);
+@
+
+
+14.5
+log
+@trailing ws
+@
+text
+@d4 1
+a4 1
+ * Copyright (C) 1990-2005 United States Government as represented by
+d35 1
+a35 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/asc-pl.c,v 14.4 2005/06/30 00:08:36 erikgreenwald Exp $ (BRL)";
+@
+
+
+14.4
+log
+@added missing includes
+@
+text
+@d28 1
+a28 1
+ *  
+d35 1
+a35 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/asc-pl.c,v 14.3 2005/01/30 20:31:32 brlcad Exp $ (BRL)";
+d115 1
+a115 1
+				&iarg[0], &iarg[1], &iarg[2], 
+d119 1
+a119 1
+				&darg[0], &darg[1], &darg[2], 
+@
+
+
+14.4.6.1
+log
+@merge changes from HEAD aka rel-7-6-4 to the rel-7-6-branch just in case someone peeks a gander or tries to continue/build the branch
+@
+text
+@d28 1
+a28 1
+ *
+d35 1
+a35 1
+static const char RCSid[] = "@@(#)$Header$ (BRL)";
+d115 1
+a115 1
+				&iarg[0], &iarg[1], &iarg[2],
+d119 1
+a119 1
+				&darg[0], &darg[1], &darg[2],
+@
+
+
+14.3
+log
+@update copyright to 2005
+@
+text
+@d35 1
+a35 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/asc-pl.c,v 14.2 2004/12/21 03:45:40 butler Exp $ (BRL)";
+d47 5
+@
+
+
+14.2
+log
+@GPL license changes
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 1990-2004 United States Government as represented by
+d35 1
+a35 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/util/asc-pl.c,v 14.1 2004/11/16 19:42:32 morrison Exp $ (BRL)";
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@d1 21
+a21 2
+/*
+ *			A S C - P L . C
+a32 4
+ *  
+ *  Copyright Notice -
+ *	This software is Copyright (C) 1990-2004 by the United States Army.
+ *	All rights reserved.
+d35 1
+a35 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/util/asc-pl.c,v 1.3 2004/08/02 23:01:53 morrison Exp $ (BRL)";
+@
+
+
+1.3
+log
+@replace the wrapped config.h block with common.h
+@
+text
+@d20 1
+a20 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/util/asc-pl.c,v 1.2 2004/06/08 22:04:42 morrison Exp $ (BRL)";
+d251 10
+@
+
+
+1.2
+log
+@obliterate externs.h
+@
+text
+@d20 1
+a20 1
+static const char RCSid[] = "@@(#)$Header$ (BRL)";
+d23 1
+a23 3
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+@
+
+
+1.1
+log
+@Vast reorganization begins.  Sources moved from top-level directories into src/.
+@
+text
+@d20 1
+a20 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/util/asc-pl.c,v 11.10 2004/05/10 15:30:50 erikg Exp $ (BRL)";
+a26 2
+
+
+a34 2
+#include "externs.h"
+
+@
+

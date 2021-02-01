@@ -1,0 +1,3022 @@
+head	1.16;
+access;
+symbols
+	ansi-20040405-merged:1.15
+	postmerge-20040405-ansi:1.15
+	premerge-20040404-ansi:1.15
+	postmerge-autoconf:1.15
+	autoconf-freeze:1.15
+	premerge-autoconf:1.15
+	ansi-20040316-freeze:1.15
+	postmerge-20040315-windows:1.15
+	premerge-20040315-windows:1.15
+	windows-20040315-freeze:1.15
+	autoconf-20031203:1.15
+	autoconf-20031202:1.15
+	autoconf-branch:1.15.0.12
+	phong-branch:1.15.0.10
+	photonmap-branch:1.15.0.8
+	rel-6-1-DP:1.15
+	windows-branch:1.15.0.6
+	rel-6-0-2:1.15
+	ansi-branch:1.15.0.4
+	rel-6-0-1-branch:1.15.0.2
+	hartley-6-0-post:1.15
+	hartley-6-0-pre:1.15
+	rel-6-0-1:1.15
+	rel-6-0:1.15
+	rel-5-4:1.14
+	offsite-5-3-pre:1.15
+	rel-5-3:1.14
+	rel-5-2:1.14
+	rel-5-1-branch:1.14.0.2
+	rel-5-1:1.14
+	rel-5-0:1.13
+	rel-5-0-beta:1.13
+	rel-4-5:1.12
+	ctj-4-5-post:1.11
+	ctj-4-5-pre:1.11
+	rel-4-4:1.11
+	rel-4-0:1.10
+	rel-3-5:1.3;
+locks; strict;
+comment	@ * @;
+
+
+1.16
+date	2004.05.24.04.18.19;	author morrison;	state dead;
+branches;
+next	1.15;
+
+1.15
+date	2000.08.24.23.12.45;	author mike;	state Exp;
+branches;
+next	1.14;
+
+1.14
+date	2000.01.31.16.32.50;	author jra;	state Exp;
+branches;
+next	1.13;
+
+1.13
+date	98.06.23.18.20.41;	author jra;	state Exp;
+branches;
+next	1.12;
+
+1.12
+date	97.12.16.03.45.56;	author mike;	state Exp;
+branches;
+next	1.11;
+
+1.11
+date	93.12.15.11.45.16;	author moss;	state Exp;
+branches;
+next	1.10;
+
+1.10
+date	91.09.11.11.11.46;	author moss;	state Exp;
+branches;
+next	1.9;
+
+1.9
+date	91.01.15.13.41.14;	author moss;	state Exp;
+branches;
+next	1.8;
+
+1.8
+date	90.08.28.12.24.23;	author moss;	state Exp;
+branches;
+next	1.7;
+
+1.7
+date	90.08.22.09.40.15;	author moss;	state Exp;
+branches;
+next	1.6;
+
+1.6
+date	89.10.31.12.20.15;	author moss;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	89.07.14.12.59.53;	author moss;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	89.07.07.16.33.36;	author moss;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	89.01.20.15.21.36;	author moss;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	88.11.07.17.02.16;	author moss;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	88.10.28.17.02.25;	author moss;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.16
+log
+@moved to src/burst/
+@
+text
+@/*
+	Author:		Gary S. Moss
+			U. S. Army Ballistic Research Laboratory
+			Aberdeen Proving Ground
+			Maryland 21005-5066
+ */
+#ifndef lint
+static const char RCSid[] = "@@(#)$Header: /n/xoff/cvs/brlcad/burst/ui.c,v 1.15 2000/08/24 23:12:45 mike Exp $ (BRL)";
+#endif
+
+#ifndef DEBUG
+#define NDEBUG
+#define STATIC static
+#else
+#define STATIC
+#endif
+
+#include <assert.h>
+
+#include <stdio.h>
+#include <signal.h>
+#include <fcntl.h>
+
+#include <machine.h>
+#include <vmath.h>
+#include <raytrace.h>
+
+#include "./Sc.h"
+#include "./Mm.h"
+#include "./burst.h"
+#include "./trie.h"
+#include "./ascii.h"
+#include "./extern.h"
+
+#define DEBUG_UI	0
+
+static char promptbuf[LNBUFSZ];
+static char *bannerp = "BURST (%s)";
+static char *pgmverp = "2.2";
+
+#define AddCmd( nm, f )\
+	{	Trie	*p;\
+	if( (p = addTrie( nm, &cmdtrie )) == TRIE_NULL )\
+		prntScr( "BUG: addTrie(%s) returned NULL.", nm );\
+	else	p->l.t_func = f;\
+	}
+
+#define GetBool( var, ptr ) \
+	if( getInput( ptr ) ) \
+		{ \
+		if( ptr->buffer[0] == 'y' ) \
+			var = true; \
+		else \
+		if( ptr->buffer[0] == 'n' ) \
+			var = false; \
+		else \
+			{ \
+			(void) sprintf( scrbuf, \
+					"Illegal input \"%s\".", \
+					ptr->buffer ); \
+			warning( scrbuf ); \
+			return; \
+			} \
+		(ptr)++; \
+		}
+
+#define GetVar( var, ptr, conv )\
+	{\
+	if( ! batchmode )\
+		{\
+		(void) sprintf( (ptr)->buffer, (ptr)->fmt, var*conv );\
+		(void) getInput( ptr );\
+		if( (sscanf( (ptr)->buffer, (ptr)->fmt, &(var) )) != 1 )\
+			{\
+			(void) strcpy( (ptr)->buffer, "" );\
+			return;\
+			}\
+		(ptr)++;\
+		}\
+	else\
+		{	char *tokptr = strtok( cmdptr, WHITESPACE );\
+		if(	tokptr == NULL\
+		    ||	sscanf( tokptr, (ptr)->fmt, &(var) ) != 1 )\
+			{\
+			brst_log( "ERROR -- command syntax:\n" );\
+			brst_log( "\t%s\n", cmdbuf );\
+			brst_log( "\tcommand (%s): argument (%s) is of wrong type, %s expected.\n",\
+				cmdptr, tokptr == NULL ? "(null)" : tokptr,\
+				(ptr)->fmt );\
+			}\
+		cmdptr = NULL;\
+		}\
+	}
+
+typedef struct
+	{
+	char *prompt;
+	char buffer[LNBUFSZ];
+	char *fmt;
+	char *range;
+	}
+Input;
+
+/* local menu functions, names all start with M */
+STATIC void MattackDir();
+STATIC void MautoBurst();
+STATIC void MburstArmor();
+STATIC void MburstAir();
+STATIC void MburstDist();
+STATIC void MburstFile();
+STATIC void McellSize();
+STATIC void McolorFile();
+STATIC void Mcomment();
+STATIC void MconeHalfAngle();
+STATIC void McritComp();
+STATIC void MdeflectSpallCone();
+STATIC void Mdither();
+STATIC void MenclosePortion();
+STATIC void MencloseTarget();
+STATIC void MerrorFile();
+STATIC void Mexecute();
+STATIC void MfbFile();
+STATIC void MgedFile();
+STATIC void MgridFile();
+STATIC void MgroundPlane();
+STATIC void MhistFile();
+STATIC void Minput2dShot();
+STATIC void Minput3dShot();
+STATIC void MinputBurst();
+STATIC void MmaxBarriers();
+STATIC void MmaxSpallRays();
+STATIC void Mnop();
+STATIC void Mobjects();
+STATIC void Moverlaps();
+STATIC void MplotFile();
+STATIC void Mread2dShotFile();
+STATIC void Mread3dShotFile();
+STATIC void MreadBurstFile();
+STATIC void MreadCmdFile();
+STATIC void MshotlineFile();
+STATIC void Munits();
+STATIC void MwriteCmdFile();
+
+/* local utility functions */
+STATIC HmMenu *addMenu();
+STATIC int getInput();
+STATIC int unitStrToInt();
+STATIC void addItem();
+STATIC void banner();
+
+typedef struct ftable Ftable;
+struct ftable
+	{
+	char *name;
+	char *help;
+	Ftable *next;
+	Func *func;
+	};
+
+Ftable	shot2dmenu[] =
+	{
+	{ "read-2d-shot-file",
+		"input shotline coordinates from file",
+		0, Mread2dShotFile },
+	{ "input-2d-shot",
+		"type in shotline coordinates",
+		0, Minput2dShot },
+	{ "execute", "begin ray tracing", 0, Mexecute },
+	{ 0 },
+	};
+
+Ftable	shot3dmenu[] =
+	{
+	{ "read-3d-shot-file",
+		"input shotline coordinates from file",
+		0, Mread3dShotFile },
+	{ "input-3d-shot",
+		"type in shotline coordinates",
+		0, Minput3dShot },
+	{ "execute", "begin ray tracing", 0, Mexecute },
+	{ 0 },
+	};
+
+Ftable	shotcoordmenu[] =
+	{
+	{ "target coordinate system",
+		"specify shotline location in model coordinates (3-d)",
+		shot3dmenu, 0 },
+	{ "shotline coordinate system",
+		"specify shotline location in attack coordinates (2-d)",
+		shot2dmenu, 0 },
+	{ 0 }
+	};
+
+Ftable	gridmenu[] =
+	{
+	{ "enclose-target",
+		"generate a grid which covers the entire target",
+		0, MencloseTarget },
+	{ "enclose-portion",
+		"generate a grid which covers a portion of the target",
+		0, MenclosePortion },
+	{ "execute", "begin ray tracing", 0, Mexecute },
+	{ 0 }
+	};
+
+Ftable	locoptmenu[] =
+	{
+	{ "envelope",
+		"generate a grid of shotlines", gridmenu, 0 },
+	{ "discrete shots",
+		"specify each shotline by coordinates", shotcoordmenu, 0 },
+	{ 0 }
+	};
+
+Ftable	burstcoordmenu[] =
+	{
+	{ "read-burst-file",
+		"input burst coordinates from file",
+		0, MreadBurstFile },
+	{ "burst-coordinates",
+		"specify each burst point in target coordinates (3-d)",
+		0, MinputBurst },
+	{ "execute", "begin ray tracing", 0, Mexecute },
+	{ 0 },
+	};
+
+Ftable	burstoptmenu[] =
+	{
+	{ "burst-distance",
+		"fuzing distance to burst point from impact",
+		0, MburstDist },
+	{ "cone-half-angle",
+		"degrees from spall cone axis to limit burst rays",
+		0, MconeHalfAngle },
+	{ "deflect-spall-cone",
+		"spall cone axis perturbed halfway to normal direction",
+		0, MdeflectSpallCone },
+	{ "max-spall-rays",
+		"maximum rays generated per burst point (ray density)",
+		0, MmaxSpallRays },
+	{ "max-barriers",
+		"maximum number of shielding components along spall ray",
+		0, MmaxBarriers },
+	{ 0 }
+	};
+
+Ftable	burstlocmenu[] =
+	{
+	{ "burst point coordinates",
+		"input explicit burst points in 3-d target coordinates",
+		burstcoordmenu, 0 },
+	{ "ground-plane",
+		"burst on impact with ground plane",
+		0, MgroundPlane },
+	{ "shotline-burst",
+		"burst along shotline on impact with critical components",
+		0, MautoBurst },
+	{ 0 }
+	};
+
+Ftable	burstmenu[] =
+	{
+	{ "bursting method",
+		"choose method of creating burst points",
+		burstlocmenu, 0 },
+	{ "bursting parameters",
+		"configure spall cone generation options",
+		burstoptmenu, 0 },
+	{ 0 }
+	};
+
+Ftable	shotlnmenu[] =
+	{
+	{ "attack-direction",
+		"shotline orientation WRT target", 0, MattackDir },
+	{ "cell-size",
+		"shotline separation or coverage (1-D)", 0, McellSize },
+	{ "dither-cells",
+		"randomize location of shotline within grid cell",
+		0, Mdither },
+	{ "shotline location",
+		"positioning of shotlines", locoptmenu, 0 },
+	{ 0 }
+	};
+
+Ftable	targetmenu[] =
+	{
+	{ "target-file",
+		"MGED data base file name", 0, MgedFile },
+	{ "target-objects",
+		"objects to read from MGED file", 0, Mobjects },
+	{ "burst-air-file",
+		"file containing space codes for triggering burst points",
+		0, MburstAir },
+	{ "burst-armor-file",
+		"file containing armor codes for triggering burst points",
+		0, MburstArmor },
+	{ "critical-comp-file", "file containing critical component codes",
+		0, McritComp },
+	{ "color-file", "file containing component ident to color mappings",
+		0, McolorFile },
+	{ 0 }
+	};
+
+Ftable	prefmenu[] =
+	{
+	{ "report-overlaps",
+		"enable or disable the reporting of overlaps",
+		0, Moverlaps },
+	{ 0 }
+	};
+
+Ftable	filemenu[] =
+	{
+	{ "read-input-file",
+		"read commands from a file", 0, MreadCmdFile },
+	{ "shotline-file",
+		"name shotline output file", 0, MshotlineFile },
+	{ "burst-file",
+		"name burst point output file", 0, MburstFile },
+	{ "error-file",
+		"redirect error diagnostics to file", 0, MerrorFile },
+	{ "histogram-file",
+		"name file for graphing hits on critical components",
+		0, MhistFile },
+	{ "grid-file",
+		"name file for storing grid points",
+		0, MgridFile },
+	{ "image-file",
+		"name frame buffer device", 0, MfbFile },
+	{ "plot-file",
+		"name UNIX plot output file", 0, MplotFile },
+	{ "write-input-file",
+		"save input up to this point in a session file",
+		0, MwriteCmdFile },
+	{ 0 }
+	};
+
+Ftable	mainmenu[] =
+	{
+	{ "units",
+		"units for input and output interpretation", 0, Munits },
+	{ "project files",
+		"set up input/output files for this analysis",
+		filemenu, 0 },
+	{ "target files",
+		"identify target-specific input files", targetmenu, 0 },
+	{ "shotlines",
+		"shotline generation (grid specification)", shotlnmenu, 0 },
+	{ "burst points",
+		"burst point generation", burstmenu, 0 },
+	{ CMD_COMMENT, "add a comment to the session file", 0, Mcomment },
+	{ "execute", "begin ray tracing", 0, Mexecute },
+	{ "preferences",
+		"options for tailoring behavior of user interface",
+		prefmenu, 0 },
+	{ 0 }
+	};
+
+STATIC void
+addItem( tp, itemp )
+Ftable *tp;
+HmItem *itemp;
+	{
+	itemp->text = tp->name;
+	itemp->help = tp->help;
+	itemp->next = addMenu( tp->next );
+	itemp->dfn = 0;
+	itemp->bfn = 0;
+	itemp->hfn = tp->func;
+	return;
+	}
+
+STATIC HmMenu *
+addMenu( tp )
+Ftable *tp;
+	{	register HmMenu	*menup;
+		register HmItem *itemp;
+		register Ftable	*ftp = tp;
+		register int cnt;
+		register bool done = false;
+	if( ftp == NULL )
+		return	NULL;
+	for( cnt = 0; ftp->name != NULL; ftp++ )
+		cnt++;
+	cnt++; /* Must include space for NULL entry. */
+	menup = MmAllo( HmMenu );
+	menup->item = MmVAllo( cnt, HmItem );
+	menup->generator = 0;
+	menup->prevtop = 0;
+	menup->prevhit = 0;
+	menup->sticky = true;
+	/* menup->item should now be as long as tp. */
+	for(	ftp = tp, itemp = menup->item;
+		! done;
+		ftp++, itemp++
+		)
+		{
+		addItem( ftp, itemp );
+		if( ftp->name == NULL ) /* Must include NULL entry. */
+			done = true;
+		}
+	return	menup;
+	}
+
+/*
+        void banner( void )
+
+        Display program name and version on one line with BORDER_CHRs
+	to border the top of the scrolling region.
+ */
+STATIC void
+banner()
+        {
+        (void) sprintf(	scrbuf,	bannerp, pgmverp );
+	HmBanner( scrbuf, BORDER_CHR );
+        return;
+        }
+
+void
+closeUi()
+	{
+	ScMvCursor( 1, ScLI );
+	return;
+	}
+
+STATIC int
+getInput( ip )
+Input *ip;
+	{
+	if( ! batchmode )
+		{	register int c;
+			register char *p;
+			char *defaultp = ip->buffer;
+		if( *defaultp == NUL )
+			defaultp = "no default";
+		if( ip->range != NULL )
+			(void) sprintf( promptbuf, "%s ? (%s)[%s] ",
+					ip->prompt, ip->range, defaultp );
+		else
+			(void) sprintf( promptbuf, "%s ? [%s] ",
+					ip->prompt, defaultp );
+		prompt( promptbuf );
+		for( p = ip->buffer; (c = HmGetchar()) != '\n'; )
+			if( p - ip->buffer < LNBUFSZ-1 )
+				*p++ = c;
+		/* In case user hit CR only, do not disturb buffer. */
+		if( p != ip->buffer )
+			*p = '\0';
+		prompt( (char *) NULL );
+		}
+	else
+		{	char *str = strtok( cmdptr, WHITESPACE );
+		if( str == NULL )
+			return	false;
+		(void) strcpy( ip->buffer, str );
+		cmdptr = NULL;
+		}
+	return  true;
+	}
+
+/*
+	void initCmds( void )
+
+	Initialize the keyword commands.
+ */
+STATIC void
+initCmds( tp )
+register Ftable *tp;
+	{
+	for( ; tp->name != NULL; tp++ )
+		{
+		if( tp->next != NULL )
+			initCmds( tp->next );
+		else
+			AddCmd( tp->name, tp->func );
+		}
+	return;
+	}
+
+/*
+	void initMenus( void )
+
+	Initialize the hierarchical menus.
+ */
+STATIC void
+initMenus( tp )
+register Ftable	*tp;
+	{
+	mainhmenu = addMenu( tp );
+	return;
+	}
+
+bool
+initUi()
+	{
+	if( tty )
+		{
+		if( ! ScInit( stdout ) )
+			return	false;
+ 		if( ScSetScrlReg( SCROLL_TOP, SCROLL_BTM ) )
+			(void) ScClrScrlReg();
+		else
+		if( ScDL == NULL )
+			{
+			prntScr(
+		 "This terminal has no scroll region or delete line capability."
+				);
+			return  false;
+			}
+		(void) ScClrText();	/* wipe screen */
+		HmInit( MENU_LFT, MENU_TOP, MENU_MAXVISITEMS );
+		banner();
+		}
+	initMenus( mainmenu );
+	initCmds( mainmenu );
+	return	true;
+	}
+
+STATIC int
+unitStrToInt( str )
+char *str;
+	{
+	if( strcmp( str, UNITS_INCHES ) == 0 )
+		return	U_INCHES;
+	if( strcmp( str, UNITS_FEET ) == 0 )
+		return	U_FEET;
+	if( strcmp( str, UNITS_MILLIMETERS ) == 0 )
+		return	U_MILLIMETERS;
+	if( strcmp( str, UNITS_CENTIMETERS ) == 0 )
+		return	U_CENTIMETERS;
+	if( strcmp( str, UNITS_METERS ) == 0 )
+		return	U_METERS;
+	return	U_BAD;
+	}
+
+/*ARGSUSED*/
+STATIC void
+MattackDir( itemp )
+HmItem *itemp;
+	{	static Input input[] =
+			{
+			{ "Attack azimuth", "", "%lf", "degrees" },
+			{ "Attack elevation", "", "%lf", "degrees" },
+			};
+		register Input *ip = input;
+	GetVar( viewazim, ip, DEGRAD );
+	GetVar( viewelev, ip, DEGRAD );
+	(void) sprintf( scrbuf, "%s\t%g %g",
+			itemp != NULL ? itemp->text : cmdname,
+			viewazim, viewelev );
+	logCmd( scrbuf );
+	viewazim /= DEGRAD;
+	viewelev /= DEGRAD;
+	return;
+	}
+
+/*ARGSUSED*/
+STATIC void
+MautoBurst( itemp )
+HmItem *itemp;
+	{	static Input input[] =
+			{
+			{ "Burst along shotline", "n", "%d", "y or n" },
+			{ "Require burst air", "y", "%d", "y or n" }
+			};
+		register Input *ip = input;
+	GetBool( shotburst, ip );
+	if( shotburst )
+		{
+		GetBool( reqburstair, ip );
+		(void) sprintf( scrbuf, "%s\t\t%s %s",
+				itemp != NULL ? itemp->text : cmdname,
+				shotburst ? "yes" : "no",
+				reqburstair ? "yes" : "no" );
+		}
+	else
+		(void) sprintf( scrbuf, "%s\t\t%s",
+				itemp != NULL ? itemp->text : cmdname,
+				shotburst ? "yes" : "no" );
+	logCmd( scrbuf );
+	
+	if( shotburst )
+		firemode &= ~FM_BURST; /* disable discrete burst points */
+	return;
+	}
+
+/*ARGSUSED*/
+STATIC void
+MburstAir( itemp )
+HmItem *itemp;
+	{	static Input input[] =
+			{
+			{ "Name of burst air file", "", "%s", 0 },
+			};
+		register Input *ip = input;
+		FILE *airfp;
+	if( getInput( ip ) )
+		(void) strcpy( airfile, ip->buffer );
+	else
+		airfile[0] = NUL;
+	if( (airfp = fopen( airfile, "r" )) == NULL )
+		{
+		(void) sprintf( scrbuf,
+				"Read access denied for \"%s\"",
+				airfile );
+		warning( scrbuf );
+		return;
+		}
+	(void) sprintf( scrbuf, "%s\t\t%s",
+			itemp != NULL ? itemp->text : cmdname,
+			airfile );
+	logCmd( scrbuf );
+	notify( "Reading burst air idents", NOTIFY_APPEND );
+	readIdents( &airids, airfp );
+	(void) fclose( airfp );
+	notify( NULL, NOTIFY_DELETE );
+	return;
+	}
+
+/*ARGSUSED*/
+STATIC void
+MburstArmor( itemp )
+HmItem *itemp;
+	{	static Input input[] =
+			{
+			{ "Name of burst armor file", "", "%s", 0 },
+			};
+		register Input *ip = input;
+		FILE *armorfp;
+	if( getInput( ip ) )
+		(void) strcpy( armorfile, ip->buffer );
+	else
+		armorfile[0] = NUL;
+	if( (armorfp = fopen( armorfile, "r" )) == NULL )
+		{
+		(void) sprintf( scrbuf,
+				"Read access denied for \"%s\"",
+				armorfile );
+		warning( scrbuf );
+		return;
+		}
+	(void) sprintf( scrbuf, "%s\t%s",
+			itemp != NULL ? itemp->text : cmdname,
+			armorfile );
+	logCmd( scrbuf );
+	notify( "Reading burst armor idents", NOTIFY_APPEND );
+	readIdents( &armorids, armorfp );
+	(void) fclose( armorfp );
+	notify( NULL, NOTIFY_DELETE );
+	return;
+	}
+
+/*ARGSUSED*/
+STATIC void
+MburstDist( itemp )
+HmItem *itemp;
+	{	static Input input[] =
+			{
+			{ "Burst distance", "", "%lf", 0 },
+			};
+		register Input *ip = input;
+	GetVar( bdist, ip, unitconv );
+	(void) sprintf( scrbuf, "%s\t\t%g",
+			itemp != NULL ? itemp->text : cmdname,
+			bdist );
+	logCmd( scrbuf );
+	bdist /= unitconv; /* convert to millimeters */
+	return;
+	}
+
+/*ARGSUSED*/
+STATIC void
+MburstFile( itemp )
+HmItem *itemp;
+	{	static Input input[] =
+			{
+			{ "Name of burst output file", "", "%s", 0 },
+			};
+		register Input *ip = input;
+	if( getInput( ip ) )
+		(void) strcpy( outfile, ip->buffer );
+	else
+		outfile[0] = NUL;
+	if( (outfp = fopen( outfile, "w" )) == NULL )
+		{
+		(void) sprintf( scrbuf,
+				"Write access denied for \"%s\"",
+				outfile );
+		warning( scrbuf );
+		return;
+		}
+	(void) sprintf( scrbuf, "%s\t\t%s",
+			itemp != NULL ? itemp->text : cmdname,
+			outfile );
+	logCmd( scrbuf );
+	return;
+	}
+
+/*ARGSUSED*/
+STATIC void
+McellSize( itemp )
+HmItem *itemp;
+	{	static Input input[] =
+			{
+			{ "Cell size", "", "%lf", 0 }
+			};
+		register Input *ip = input;
+	GetVar( cellsz, ip, unitconv );
+	(void) sprintf( scrbuf, "%s\t\t%g",
+			itemp != NULL ? itemp->text : cmdname,
+			cellsz );
+	logCmd( scrbuf );
+	cellsz /= unitconv; /* convert to millimeters */
+	return;
+	}
+
+/*ARGSUSED*/
+STATIC void
+McolorFile( itemp )
+HmItem *itemp;
+	{	static Input input[] =
+			{
+			{ "Name of ident-to-color mapping file",
+				"", "%s", 0 },
+			};
+		register Input *ip = input;
+		FILE *colorfp;
+	if( getInput( ip ) )
+		(void) strcpy( colorfile, ip->buffer );
+	else
+		colorfile[0] = NUL;
+	if( (colorfp = fopen( colorfile, "r" )) == NULL )
+		{
+		(void) sprintf( scrbuf,
+				"Read access denied for \"%s\"",
+				colorfile );
+		warning( scrbuf );
+		return;
+		}
+	(void) sprintf( scrbuf, "%s\t\t%s",
+			itemp != NULL ? itemp->text : cmdname,
+			colorfile );
+	logCmd( scrbuf );
+	notify( "Reading ident-to-color mappings", NOTIFY_APPEND );
+	readColors( &colorids, colorfp );
+	notify( NULL, NOTIFY_DELETE );
+	return;
+	}
+
+/*ARGSUSED*/
+STATIC void
+Mcomment( itemp )
+HmItem *itemp;
+	{	static Input input[] =
+			{
+			{ "Comment", " ", "%s", 0 },
+			};
+		register Input *ip = input;
+	if( ! batchmode )
+		{
+		if( getInput( ip ) )
+			{
+			(void) sprintf( scrbuf, "%c%s",
+					CHAR_COMMENT, ip->buffer );
+			logCmd( scrbuf );
+			(void) strcpy( ip->buffer, " " ); /* restore default */
+			}
+		}
+	else
+		logCmd( cmdptr );
+	return;
+	}
+
+/*ARGSUSED*/
+STATIC void
+MconeHalfAngle( itemp )
+HmItem *itemp;
+	{	static Input input[] =
+			{
+			{ "Cone angle", "", "%lf", "degrees" },
+			};
+		register Input *ip = input;
+	GetVar( conehfangle, ip, DEGRAD );
+	(void) sprintf( scrbuf, "%s\t\t%g",
+			itemp != NULL ? itemp->text : cmdname,
+			conehfangle );
+	logCmd( scrbuf );
+	conehfangle /= DEGRAD;
+	return;
+	}
+
+/*ARGSUSED*/
+STATIC void
+McritComp( itemp )
+HmItem *itemp;
+	{	static Input input[] =
+			{
+			{ "Name of critical component file", "", "%s", 0 },
+			};
+		register Input *ip = input;
+		FILE *critfp;
+	if( getInput( ip ) )
+		(void) strcpy( critfile, ip->buffer );
+	else
+		critfile[0] = NUL;
+	if( (critfp = fopen( critfile, "r" )) == NULL )
+		{
+		(void) sprintf( scrbuf,
+				"Read access denied for \"%s\"",
+				critfile );
+		warning( scrbuf );
+		return;
+		}
+	(void) sprintf( scrbuf, "%s\t%s",
+			itemp != NULL ? itemp->text : cmdname,
+			critfile );
+	logCmd( scrbuf );
+	notify( "Reading critical component idents", NOTIFY_APPEND );
+	readIdents( &critids, critfp );
+	(void) fclose( critfp );
+	notify( NULL, NOTIFY_DELETE );
+	return;
+	}
+
+
+/*ARGSUSED*/
+STATIC void
+MdeflectSpallCone( itemp )
+HmItem *itemp;
+	{	static Input input[] =
+			{
+			{ "Deflect cone", "n", "%d", "y or n" },
+			};
+		register Input *ip = input;
+	GetBool( deflectcone, ip );
+	(void) sprintf( scrbuf, "%s\t%s",
+			itemp != NULL ? itemp->text : cmdname,
+			deflectcone ? "yes" : "no" );
+	logCmd( scrbuf );
+	return;
+	}
+
+/*ARGSUSED*/
+STATIC void
+Mdither( itemp )
+HmItem *itemp;
+	{	static Input input[] =
+			{
+			{ "Dither cells", "n", "%d", "y or n" },
+			};
+		register Input *ip = input;
+	GetBool( dithercells, ip );
+	(void) sprintf( scrbuf, "%s\t\t%s",
+			itemp != NULL ? itemp->text : cmdname,
+			dithercells ? "yes" : "no" );
+	logCmd( scrbuf );
+	return;
+	}
+
+/*ARGSUSED*/
+STATIC void
+MenclosePortion( itemp )
+HmItem *itemp;
+	{	static Input input[] =
+			{
+			{ "Left border of grid", "", "%lf", 0 },
+			{ "Right border of grid", "", "%lf", 0 },
+			{ "Bottom border of grid", "", "%lf", 0 },
+			{ "Top border of grid", "", "%lf", 0 },
+			};
+		register Input *ip = input;
+	GetVar( gridlf, ip, unitconv );
+	GetVar( gridrt, ip, unitconv );
+	GetVar( griddn, ip, unitconv );
+	GetVar( gridup, ip, unitconv );
+	(void) sprintf( scrbuf,
+			"%s\t\t%g %g %g %g",
+			itemp != NULL ? itemp->text : cmdname,
+			gridlf, gridrt, griddn, gridup );
+	logCmd( scrbuf );
+	gridlf /= unitconv; /* convert to millimeters */
+	gridrt /= unitconv;
+	griddn /= unitconv;
+	gridup /= unitconv;
+	firemode = FM_PART;
+	return;
+	}
+
+/*ARGSUSED*/
+STATIC void
+MencloseTarget( itemp )
+HmItem *itemp;
+	{
+	(void) sprintf( scrbuf,
+			"%s",
+			itemp != NULL ? itemp->text : cmdname );
+	logCmd( scrbuf );
+	firemode = FM_GRID;
+	return;
+	}
+
+STATIC void
+MerrorFile( itemp )
+HmItem *itemp;
+	{	static Input input[] =
+			{
+			{ "Name of error output file", "", "%s", 0 },
+			};
+		register Input *ip = input;
+		static int errfd = -1;
+	if( getInput( ip ) )
+		(void) strcpy( errfile, ip->buffer );
+	else
+		(void) strncpy( errfile, "/dev/tty", LNBUFSZ );
+        /* insure that error log is truncated */
+        if(     (errfd =
+#ifdef BSD      
+                creat( errfile, 0644 )) == -1
+#else    
+                open( errfile, O_TRUNC|O_CREAT|O_WRONLY, 0644 )) == -1
+#endif 
+                )
+                {
+                locPerror( errfile );
+                return;
+                }
+        (void) close( 2 );
+        if( fcntl( errfd, F_DUPFD, 2 ) == -1 )
+                {
+                locPerror( "fcntl" );
+                return;
+                }
+  	(void) sprintf( scrbuf, "%s\t\t%s",
+			itemp != NULL ? itemp->text : cmdname,
+			errfile );
+	logCmd( scrbuf );
+	return;
+	}
+
+/*ARGSUSED*/
+STATIC void
+Mexecute( itemp )
+HmItem *itemp;
+	{	static bool	gottree = false;
+		bool		loaderror = false;
+	(void) sprintf( scrbuf,
+			"%s",
+			itemp != NULL ? itemp->text : cmdname );
+	logCmd( scrbuf );
+	if( gedfile[0] == NUL )
+		{
+		warning( "No target file has been specified." );
+		return;
+		}
+	notify( "Reading target data base", NOTIFY_APPEND );
+	rt_prep_timer();
+	if(	rtip == RTI_NULL
+	    && (rtip = rt_dirbuild( gedfile, title, TITLE_LEN ))
+		     == RTI_NULL )
+		{
+		warning( "Ray tracer failed to read the target file." );
+		return;
+		}
+	prntTimer( "dir" );
+	notify( NULL, NOTIFY_DELETE );
+	/* Add air into boolean trees, must be set after rt_dirbuild() and
+                before rt_gettree().
+	 */
+	rtip->useair = true;
+	if( ! gottree )
+		{	char *ptr, *obj;
+		rt_prep_timer();
+		for(	ptr = objects;
+			(obj = strtok( ptr, WHITESPACE )) != NULL;
+			ptr = NULL
+			)
+			{
+			(void) sprintf( scrbuf, "Loading \"%s\"", obj );
+			notify( scrbuf, NOTIFY_APPEND );
+			if( rt_gettree( rtip, obj ) != 0 )
+				{
+				(void) sprintf( scrbuf,
+						"Bad object \"%s\".",
+						obj );
+				warning( scrbuf );
+				loaderror = true;
+				}
+			notify( NULL, NOTIFY_DELETE );
+			}
+		gottree = true;
+		prntTimer( "load" );
+		}
+	if( loaderror )
+		return;
+	if( rtip->needprep )
+		{
+		notify( "Prepping solids", NOTIFY_APPEND );
+		rt_prep_timer();
+		rt_prep( rtip );
+		prntTimer( "prep" );
+		notify( NULL, NOTIFY_DELETE );
+		}
+	gridInit();
+	if( nriplevels > 0 )
+		spallInit();
+	(void) signal( SIGINT, abort_sig );
+	gridModel();
+	(void) signal( SIGINT, norml_sig );
+	return;
+	}
+
+/*ARGSUSED*/
+STATIC void
+MfbFile( itemp )
+HmItem *itemp;
+	{	static Input input[] =
+			{
+			{ "Name of frame buffer device", "", "%s", 0 },
+			};
+		register Input *ip = input;
+	if( getInput( ip ) )
+		(void) strcpy( fbfile, ip->buffer );
+	else
+		fbfile[0] = NUL;
+	(void) sprintf( scrbuf, "%s\t\t%s",
+			itemp != NULL ? itemp->text : cmdname,
+			fbfile );
+	logCmd( scrbuf );
+	return;
+	}
+
+/*ARGSUSED*/
+STATIC void
+MgedFile( itemp )
+HmItem *itemp;
+	{	static Input input[] =
+			{
+			{ "Name of target (MGED) file", "", "%s", 0 },
+			};
+		register Input *ip = input;
+	if( getInput( ip ) )
+		(void) strcpy( gedfile, ip->buffer );
+	if( access( gedfile, 04 ) == -1 )
+		{
+		(void) sprintf( scrbuf,
+				"Read access denied for \"%s\"",
+				gedfile );
+		warning( scrbuf );
+		return;
+		}
+	(void) sprintf( scrbuf, "%s\t\t%s",
+			itemp != NULL ? itemp->text : cmdname,
+			gedfile );
+	logCmd( scrbuf );
+	return;
+	}
+
+/*ARGSUSED*/
+STATIC void
+MgridFile( itemp )
+HmItem *itemp;
+	{	static Input input[] =
+			{
+			{ "Name of grid file", "", "%s", 0 },
+			};
+		register Input *ip = input;
+	if( getInput( ip ) )
+		(void) strcpy( gridfile, ip->buffer );
+	else
+		histfile[0] = NUL;
+	if( (gridfp = fopen( gridfile, "w" )) == NULL )
+		{
+		(void) sprintf( scrbuf,
+				"Write access denied for \"%s\"",
+				gridfile );
+		warning( scrbuf );
+		return;
+		}
+	(void) sprintf( scrbuf, "%s\t\t%s",
+			itemp != NULL ? itemp->text : cmdname,
+			gridfile );
+	logCmd( scrbuf );
+	return;
+	}
+
+/*ARGSUSED*/
+STATIC void
+MgroundPlane( itemp )
+HmItem *itemp;
+	{	static Input input[] =
+			{
+			{ "Activate ground plane bursting",
+				"n", "%d", "y or n" },
+			{ "Distance of target origin above ground plane",
+				"", "%lf", 0 },
+			{ "Distance out positive X-axis of target to edge",
+				"", "%lf", 0 },
+			{ "Distance out negative X-axis of target to edge",
+				"", "%lf", 0 },
+			{ "Distance out positive Y-axis of target to edge",
+				"", "%lf", 0 },
+			{ "Distance out negative Y-axis of target to edge",
+				"", "%lf", 0 },
+			};
+		register Input *ip = input;
+	GetBool( groundburst, ip );
+	if( groundburst )
+		{
+		GetVar( grndht, ip, unitconv );
+		GetVar( grndfr, ip, unitconv );
+		GetVar( grndbk, ip, unitconv );
+		GetVar( grndlf, ip, unitconv );
+		GetVar( grndrt, ip, unitconv );
+		(void) sprintf( scrbuf, "%s\t\tyes %g %g %g %g %g",
+				itemp != NULL ? itemp->text : cmdname,
+				grndht, grndfr, grndbk, grndlf, grndrt );
+		grndht /= unitconv; /* convert to millimeters */
+		grndfr /= unitconv;
+		grndbk /= unitconv;
+		grndlf /= unitconv;
+		grndrt /= unitconv;
+		}
+	else
+		(void) sprintf( scrbuf, "%s\t\tno",
+				itemp != NULL ? itemp->text : cmdname
+				);
+	logCmd( scrbuf );
+	return;
+	}
+
+/*ARGSUSED*/
+STATIC void
+MhistFile( itemp )
+HmItem *itemp;
+	{	static Input input[] =
+			{
+			{ "Name of histogram file", "", "%s", 0 },
+			};
+		register Input *ip = input;
+	if( getInput( ip ) )
+		(void) strcpy( histfile, ip->buffer );
+	else
+		histfile[0] = NUL;
+	if( (histfp = fopen( histfile, "w" )) == NULL )
+		{
+		(void) sprintf( scrbuf,
+				"Write access denied for \"%s\"",
+				histfile );
+		warning( scrbuf );
+		return;
+		}
+	(void) sprintf( scrbuf, "%s\t\t%s",
+			itemp != NULL ? itemp->text : cmdname,
+			histfile );
+	logCmd( scrbuf );
+	return;
+	}
+
+STATIC void
+MinputBurst( itemp )
+HmItem *itemp;
+	{	static Input input[] =
+			{
+			{ "X-coordinate of burst point", "", "%lf", 0 },
+			{ "Y-coordinate of burst point", "", "%lf", 0 },
+			{ "Z-coordinate of burst point", "", "%lf", 0 },
+			};
+		register Input *ip = input;
+	GetVar( burstpoint[X], ip, unitconv );
+	GetVar( burstpoint[Y], ip, unitconv );
+	GetVar( burstpoint[Z], ip, unitconv );
+	(void) sprintf( scrbuf, "%s\t%g %g %g",
+			itemp != NULL ? itemp->text : cmdname,
+			burstpoint[X], burstpoint[Y], burstpoint[Z] );
+	logCmd( scrbuf );
+	burstpoint[X] /= unitconv; /* convert to millimeters */
+	burstpoint[Y] /= unitconv;
+	burstpoint[Z] /= unitconv;
+	firemode = FM_BURST | FM_3DIM;
+	return;
+	}
+
+/*ARGSUSED*/
+STATIC void
+Minput2dShot( itemp )
+HmItem *itemp;
+	{	static Input input[] =
+			{
+			{ "Y'-coordinate of shotline", "", "%lf", 0 },
+			{ "Z'-coordinate of shotline", "", "%lf", 0 },
+			};
+		register Input *ip = input;
+	GetVar( fire[X], ip, unitconv );
+	GetVar( fire[Y], ip, unitconv );
+	(void) sprintf( scrbuf, "%s\t\t%g %g",
+			itemp != NULL ? itemp->text : cmdname,
+			fire[X], fire[Y] );
+	logCmd( scrbuf );
+	fire[X] /= unitconv; /* convert to millimeters */
+	fire[Y] /= unitconv;
+	firemode = FM_SHOT;
+	return;
+	}
+
+/*ARGSUSED*/
+STATIC void
+Minput3dShot( itemp )
+HmItem *itemp;
+	{	static Input input[] =
+			{
+			{ "X-coordinate of shotline", "", "%lf", 0 },
+			{ "Y-coordinate of shotline", "", "%lf", 0 },
+			{ "Z-coordinate of shotline", "", "%lf", 0 },
+			};
+		register Input *ip = input;
+	GetVar( fire[X], ip, unitconv );
+	GetVar( fire[Y], ip, unitconv );
+	GetVar( fire[Z], ip, unitconv );
+	(void) sprintf( scrbuf, "%s\t\t%g %g %g",
+			itemp != NULL ? itemp->text : cmdname,
+			fire[X], fire[Y], fire[Z] );
+	logCmd( scrbuf );
+	fire[X] /= unitconv; /* convert to millimeters */
+	fire[Y] /= unitconv;
+	fire[Z] /= unitconv;
+	firemode = FM_SHOT | FM_3DIM;
+	return;
+	}
+
+/*ARGSUSED*/
+STATIC void
+Mnop( itemp )
+HmItem *itemp;
+	{
+	return;
+	}
+
+/*ARGSUSED*/
+STATIC void
+Mobjects( itemp )
+HmItem *itemp;
+	{	static Input input[] =
+			{
+			{ "List of objects from target file", "", "%s", 0 },
+			};
+		register Input *ip = input;
+	if( getInput( ip ) )
+		(void) strcpy( objects, ip->buffer );
+	(void) sprintf( scrbuf, "%s\t\t%s",
+			itemp != NULL ? itemp->text : cmdname,
+			objects );
+	logCmd( scrbuf );
+	return;
+	}
+
+/*ARGSUSED*/
+STATIC void
+Moverlaps( itemp )
+HmItem *itemp;
+	{	static Input input[] =
+			{
+			{ "Report overlaps", "y", "%d", "y or n" },
+			};
+		register Input *ip = input;
+	GetBool( reportoverlaps, ip );
+	(void) sprintf( scrbuf, "%s\t\t%s",
+			itemp != NULL ? itemp->text : cmdname,
+			reportoverlaps ? "yes" : "no" );
+	logCmd( scrbuf );
+	return;
+	}
+
+/*ARGSUSED*/
+STATIC void
+MmaxBarriers( itemp )
+HmItem *itemp;
+	{	static Input input[] =
+			{
+			{ "Maximum spall barriers per ray", "", "%d", 0 },
+			};
+		register Input *ip = input;
+	GetVar( nbarriers, ip, 1 );
+	(void) sprintf( scrbuf, "%s\t\t%d",
+			itemp != NULL ? itemp->text : cmdname,
+			nbarriers );
+	logCmd( scrbuf );
+	return;
+	}
+
+/*ARGSUSED*/
+STATIC void
+MmaxSpallRays( itemp )
+HmItem *itemp;
+	{	static Input input[] =
+			{
+			{ "Maximum rays per burst", "", "%d", 0 },
+			};
+		register Input *ip = input;
+	GetVar( nspallrays, ip, 1 );
+	(void) sprintf( scrbuf, "%s\t\t%d",
+			itemp != NULL ? itemp->text : cmdname,
+			nspallrays );
+	logCmd( scrbuf );
+	return;
+	}
+
+/*ARGSUSED*/
+STATIC void
+MplotFile( itemp )
+HmItem *itemp;
+	{	static Input input[] =
+			{
+			{ "Name of UNIX plot file", "", "%s", 0 },
+			};
+		register Input *ip = input;
+	if( getInput( ip ) )
+		(void) strcpy( plotfile, ip->buffer );
+	else
+		plotfile[0] = NUL;
+	if( (plotfp = fopen( plotfile, "w" )) == NULL )
+		{
+		(void) sprintf( scrbuf,
+				"Write access denied for \"%s\"",
+				plotfile );
+		warning( scrbuf );
+		return;
+		}
+	(void) sprintf( scrbuf, "%s\t\t%s",
+			itemp != NULL ? itemp->text : cmdname,
+			plotfile );
+	logCmd( scrbuf );
+	return;
+	}
+
+/*ARGSUSED*/
+STATIC void
+Mread2dShotFile( itemp )
+HmItem *itemp;
+	{	static Input input[] =
+			{
+			{ "Name of 2-D shot input file", "", "%s", 0 },
+			};
+		register Input *ip = input;
+	if( getInput( ip ) )
+		(void) strcpy( shotfile, ip->buffer );
+	if( (shotfp = fopen( shotfile, "r" )) == NULL )
+		{
+		(void) sprintf( scrbuf,
+				"Read access denied for \"%s\"",
+				shotfile );
+		warning( scrbuf );
+		return;
+		}
+	(void) sprintf( scrbuf, "%s\t%s",
+			itemp != NULL ? itemp->text : cmdname,
+			shotfile );
+	logCmd( scrbuf );
+	firemode = FM_SHOT | FM_FILE ;
+	return;
+	}
+
+/*ARGSUSED*/
+STATIC void
+Mread3dShotFile( itemp )
+HmItem *itemp;
+	{	static Input input[] =
+			{
+			{ "Name of 3-D shot input file", "", "%s", 0 },
+			};
+		register Input *ip = input;
+	if( getInput( ip ) )
+		(void) strcpy( shotfile, ip->buffer );
+	if( (shotfp = fopen( shotfile, "r" )) == NULL )
+		{
+		(void) sprintf( scrbuf,
+				"Read access denied for \"%s\"",
+				shotfile );
+		warning( scrbuf );
+		return;
+		}
+	(void) sprintf( scrbuf, "%s\t%s",
+			itemp != NULL ? itemp->text : cmdname,
+			shotfile );
+	logCmd( scrbuf );
+	firemode = FM_SHOT | FM_FILE | FM_3DIM;
+	return;
+	}
+
+/*ARGSUSED*/
+STATIC void
+MreadBurstFile( itemp )
+HmItem *itemp;
+	{	static Input input[] =
+			{
+			{ "Name of 3-D burst input file", "", "%s", 0 },
+			};
+		register Input *ip = input;
+	if( getInput( ip ) )
+		(void) strcpy( burstfile, ip->buffer );
+	if( (burstfp = fopen( burstfile, "r" )) == NULL )
+		{
+		(void) sprintf( scrbuf,
+				"Read access denied for \"%s\"",
+				burstfile );
+		warning( scrbuf );
+		return;
+		}
+	(void) sprintf( scrbuf, "%s\t\t%s",
+			itemp != NULL ? itemp->text : cmdname,
+			burstfile );
+	logCmd( scrbuf );
+	firemode = FM_BURST | FM_3DIM | FM_FILE ;
+	return;
+	}
+
+/*ARGSUSED*/
+STATIC void
+MreadCmdFile( itemp )
+HmItem *itemp;
+	{	static Input input[] =
+			{
+			{ "Name of command file", "", "%s", 0 },
+			};
+		register Input *ip = input;
+		char cmdfile[LNBUFSZ];
+		FILE *cmdfp;
+	if( getInput( ip ) )
+		(void) strcpy( cmdfile, ip->buffer );
+	if( (cmdfp = fopen( cmdfile, "r" )) == NULL )
+		{
+		(void) sprintf( scrbuf,
+				"Read access denied for \"%s\"",
+				cmdfile );
+		warning( scrbuf );
+		return;
+		}
+	readBatchInput( cmdfp );
+	(void) fclose( cmdfp );
+	return;
+	}
+
+/*ARGSUSED*/
+STATIC void
+MshotlineFile( itemp )
+HmItem *itemp;
+	{	static Input input[] =
+			{
+			{ "Name of shotline output file", "", "%s", 0 },
+			};
+		register Input *ip = input;
+	if( getInput( ip ) )
+		(void) strcpy( shotlnfile, ip->buffer );
+	else
+		shotlnfile[0] = NUL;
+	if( (shotlnfp = fopen( shotlnfile, "w" )) == NULL )
+		{
+		(void) sprintf( scrbuf,
+				"Write access denied for \"%s\"",
+				shotlnfile );
+		warning( scrbuf );
+		return;
+		}
+	(void) sprintf( scrbuf, "%s\t\t%s",
+			itemp != NULL ? itemp->text : cmdname,
+			shotlnfile );
+	logCmd( scrbuf );
+	return;
+	}
+
+HmItem units_items[] =
+	{
+	{ UNITS_MILLIMETERS,
+		"interpret inputs and convert outputs to millimeters",
+		0, 0, 0, Mnop },
+	{ UNITS_CENTIMETERS,
+		"interpret inputs and convert outputs to centimeters",
+		0, 0, 0, Mnop },
+	{ UNITS_METERS,
+		"interpret inputs and convert outputs to meters",
+		0, 0, 0, Mnop },
+	{ UNITS_INCHES,
+		"interpret inputs and convert outputs to inches",
+		0, 0, 0, Mnop },
+	{ UNITS_FEET,
+		"interpret inputs and convert outputs to feet",
+		0, 0, 0, Mnop },
+	{ 0 }
+	};
+HmMenu	units_hmenu = { units_items, 0, 0, 0, false };
+
+/*ARGSUSED*/
+STATIC void
+Munits( itemp )
+HmItem *itemp;
+	{	char *unitstr;
+		HmItem *itemptr;
+	if( itemp != NULL )
+		{
+		if( (itemptr = HmHit( &units_hmenu )) == (HmItem *) NULL )
+			return;
+		unitstr = itemptr->text;
+		}
+	else
+		unitstr = strtok( cmdptr, WHITESPACE );
+	units = unitStrToInt( unitstr );
+	if( units == U_BAD )
+		{
+		(void) sprintf( scrbuf, "Illegal units \"%s\"", unitstr );
+		warning( scrbuf );
+		return;
+		}
+	switch( units )
+		{
+	case U_INCHES :
+		unitconv = 3.937008e-02;
+		break;   
+	case U_FEET : 
+		unitconv = 3.280840e-03;
+		break;   
+	case U_MILLIMETERS :
+		unitconv = 1.0;
+		break;   
+	case U_CENTIMETERS :
+		unitconv = 1.0e-01;
+		break;
+	case U_METERS :
+		unitconv = 1.0e-03;
+		break;
+		}     
+	(void) sprintf( scrbuf, "%s\t\t\t%s",
+			itemp != NULL ? itemp->text : cmdname,
+			unitstr );
+	logCmd( scrbuf );
+	return;
+	}
+
+/*ARGSUSED*/
+STATIC void
+MwriteCmdFile( itemp )
+HmItem *itemp;
+	{	static Input input[] =
+			{
+			{ "Name of command file", "", "%s", 0 },
+			};
+		register Input *ip = input;
+		char cmdfile[LNBUFSZ];
+		FILE *cmdfp;
+		FILE *inpfp;
+	if( getInput( ip ) )
+		(void) strcpy( cmdfile, ip->buffer );
+	if( (cmdfp = fopen( cmdfile, "w" )) == NULL )
+		{
+		(void) sprintf( scrbuf,
+				"Write access denied for \"%s\"",
+				cmdfile );
+		warning( scrbuf );
+		return;
+		}
+	if( (inpfp = fopen( tmpfname, "r" )) == NULL )
+		{
+		(void) sprintf( scrbuf,
+				"Read access denied for \"%s\"",
+				tmpfname );
+		warning( scrbuf );
+		(void) fclose( cmdfp );
+		return;
+		}
+	while( fgets( scrbuf, LNBUFSZ, inpfp ) != NULL )
+		fputs( scrbuf, cmdfp );
+	(void) fclose( cmdfp );
+	(void) fclose( inpfp );
+	return;
+	}
+
+#if STD_SIGNAL_DECLS
+/*ARGSUSED*/
+void
+#else
+int
+#endif
+intr_sig( sig )
+int sig;
+	{	static Input input[] =
+			{
+			{ "Really quit ? ", "n", "%d", "y or n" },
+			};
+		register Input *ip = input;
+	(void) signal( SIGINT, intr_sig );
+	if( getInput( ip ) )
+		{
+		if( ip->buffer[0] == 'y' )
+			exitCleanly( SIGINT );
+		else
+		if( ip->buffer[0] != 'n' )
+			{
+			(void) sprintf( scrbuf,
+					"Illegal input \"%s\".",
+					ip->buffer );
+			warning( scrbuf );
+			return;
+			}
+		}
+#if STD_SIGNAL_DECLS
+	return;
+#else
+	return	sig;
+#endif
+	}
+
+void
+logCmd( cmd )
+char *cmd;
+	{
+	prntScr( "%s", cmd ); /* avoid possible problems with '%' in string */
+	if( fprintf( tmpfp, "%s\n", cmd ) < 0 )
+		{
+		locPerror( "fprintf" );
+		exitCleanly( 1 );
+		}
+	else
+		(void) fflush( tmpfp );
+	return;
+	}
+@
+
+
+1.15
+log
+@
+RCSid
+@
+text
+@d8 1
+a8 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/burst/ui.c,v 1.14 2000/01/31 16:32:50 jra Exp $ (BRL)";
+@
+
+
+1.14
+log
+@Eliminated some unused variables
+@
+text
+@d8 1
+a8 1
+static char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/burst/ui.c,v 1.13 1998/06/23 18:20:41 jra Exp $ (BRL)";
+@
+
+
+1.13
+log
+@convert bu_log to brst_log to avoid conflicts
+@
+text
+@d8 1
+a8 1
+static char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/burst/ui.c,v 1.12 1997/12/16 03:45:56 mike Exp $ (BRL)";
+d70 1
+a70 1
+		{ int items;\
+d73 1
+a73 1
+		if( (items = sscanf( (ptr)->buffer, (ptr)->fmt, &(var) )) != 1 )\
+@
+
+
+1.12
+log
+@UPgraded using h/sed4
+@
+text
+@d8 1
+a8 1
+static char RCSid[] = "@@(#)$Header: /m/cad/burst/RCS/ui.c,v 1.11 1993/12/15 11:45:16 moss Exp mike $ (BRL)";
+d85 3
+a87 3
+			bu_log( "ERROR -- command syntax:\n" );\
+			bu_log( "\t%s\n", cmdbuf );\
+			bu_log( "\tcommand (%s): argument (%s) is of wrong type, %s expected.\n",\
+@
+
+
+1.11
+log
+@Added output of '2' and '3' records when inputing burst points or bursting
+on the ground.
+@
+text
+@d8 1
+a8 1
+static char RCSid[] = "@@(#)$Header: /vld/moss/src/burst/RCS/ui.c,v 1.10 91/09/11 11:11:46 moss Exp Locker: moss $ (BRL)";
+d85 3
+a87 3
+			rt_log( "ERROR -- command syntax:\n" );\
+			rt_log( "\t%s\n", cmdbuf );\
+			rt_log( "\tcommand (%s): argument (%s) is of wrong type, %s expected.\n",\
+@
+
+
+1.10
+log
+@Bumped version number to 2.2; getting ready to release some bug fixes
+relating to flipped normal handling.
+@
+text
+@d8 1
+a8 1
+static char RCSid[] = "@@(#)$Header: /vld/moss/src/burst/RCS/ui.c,v 1.9 91/01/15 13:41:14 moss Exp $ (BRL)";
+d1410 1
+a1410 1
+	(void) sprintf( scrbuf, "%s\t%s",
+@
+
+
+1.9
+log
+@Change version from 2.0 to 2.1.
+@
+text
+@d8 1
+a8 1
+static char RCSid[] = "@@(#)$Header: /vld/moss/src/burst/RCS/ui.c,v 1.8 90/08/28 12:24:23 moss Exp $ (BRL)";
+d39 1
+a39 1
+static char *pgmverp = "2.1";
+@
+
+
+1.8
+log
+@This is the official release of version 2.0 which includes mods in the
+output format to both correct a misinterpretation of the ICD, facilitate
+easier postprocessing, increase precision, etc.  Also an option to not
+require burst air was added.  Finally, a bug fix involving adjacent inside
+airs of the same type at the beginning of a shotline was implemented.
+@
+text
+@a5 1
+			(301)278-6651 or AV-298-6651
+d8 1
+a8 1
+static char RCSid[] = "@@(#)$Header: /vld/moss/src/burst/RCS/ui.c,v 1.7 90/08/22 09:40:15 moss Exp $ (BRL)";
+a23 2
+#include <Sc/Sc.h>
+
+d28 1
+d39 1
+a39 1
+static char *pgmverp = "2.0";
+@
+
+
+1.7
+log
+@About to make some sweeping revisions.
+@
+text
+@d9 1
+a9 1
+static char RCSid[] = "@@(#)$Header: /usr/vld/moss/src/burst/RCS/ui.c,v 1.6 89/10/31 12:20:15 moss Exp $ (BRL)";
+d568 1
+d572 12
+a583 3
+	(void) sprintf( scrbuf, "%s\t\t%s",
+			itemp != NULL ? itemp->text : cmdname,
+			shotburst == 1 ? "yes" : "no" );
+@
+
+
+1.6
+log
+@This version released to Eglin and Service Engineering after BRL-CAD '89
+Symposium.
+@
+text
+@d9 1
+a9 1
+static char RCSid[] = "@@(#)$Header: /usr/vld/moss/src/burst/RCS/ui.c,v 1.5 89/07/14 12:59:53 moss Exp $ (BRL)";
+d41 1
+a41 1
+static char *pgmverp = "$Revision: 1.5 $";
+d418 1
+a418 3
+        (void) sprintf(	scrbuf,
+			bannerp,
+			pgmverp[0] == '%' ? "EXP" : pgmverp );
+d570 1
+a570 1
+	GetBool( nriplevels, ip );
+d573 1
+a573 1
+			nriplevels == 1 ? "yes" : "no" );
+d575 3
+a577 1
+	firemode &= ~FM_BURST; /* disable discrete burst point option */
+a1172 1
+	nriplevels = 1;
+d1379 1
+a1379 1
+	firemode = FM_SHOT | FM_FILE  | FM_3DIM;
+a1405 1
+	nriplevels = 1;
+@
+
+
+1.5
+log
+@This is the pre-release copy that Bud took with him.
+@
+text
+@d9 1
+a9 1
+static char RCSid[] = "@@(#)$Header: /usr/vld/moss/src/burst/RCS/ui.c,v 1.4 89/07/07 16:33:36 moss Exp $ (BRL)";
+d37 1
+a37 1
+#define DEBUG_UI	1
+d41 1
+a41 1
+static char *pgmverp = "$Revision: 1.4 $";
+d595 1
+a595 1
+	if( (airfp = fopen( airfile, "r" )) == (FILE  *) NULL )
+d609 1
+d628 1
+a628 1
+	if( (armorfp = fopen( armorfile, "r" )) == (FILE  *) NULL )
+d642 1
+d678 1
+a678 1
+	if( (outfp = fopen( outfile, "w" )) == (FILE  *) NULL )
+d726 1
+a726 1
+	if( (colorfp = fopen( colorfile, "r" )) == (FILE  *) NULL )
+d800 1
+a800 1
+	if( (critfp = fopen( critfile, "r" )) == (FILE  *) NULL )
+d814 1
+d1065 1
+a1065 1
+	if( (gridfp = fopen( gridfile, "w" )) == (FILE  *) NULL )
+d1138 1
+a1138 1
+	if( (histfp = fopen( histfile, "w" )) == (FILE  *) NULL )
+d1315 1
+a1315 1
+	if( (plotfp = fopen( plotfile, "w" )) == (FILE  *) NULL )
+d1573 1
+a1573 1
+STATIC void
+d1575 1
+a1575 1
+STATIC int
+d1610 1
+a1610 1
+	prntScr( "%s", cmd );
+@
+
+
+1.4
+log
+@Ready for Bud's visit.
+@
+text
+@d9 1
+a9 1
+static char RCSid[] = "@@(#)$Header: /usr/vld/moss/src/burst/RCS/ui.c,v 1.3 89/01/20 15:21:36 moss Exp $ (BRL)";
+d41 1
+a41 1
+static char *pgmverp = "$Revision: 1.3 $";
+d115 1
+d337 2
+a338 1
+		"save input up to this point in a file", 0, MwriteCmdFile },
+d355 1
+d744 24
+d1155 3
+a1157 3
+			{ "Burst point (X)", "", "%lf", 0 },
+			{ "Burst point (Y)", "", "%lf", 0 },
+			{ "Burst point (Z)", "", "%lf", 0 },
+d1181 2
+a1182 2
+			{ "Firing coordinate (X)", "", "%lf", 0 },
+			{ "Firing coordinate (Y)", "", "%lf", 0 },
+d1203 3
+a1205 3
+			{ "Firing coordinate (X)", "", "%lf", 0 },
+			{ "Firing coordinate (Y)", "", "%lf", 0 },
+			{ "Firing coordinate (Z)", "", "%lf", 0 },
+@
+
+
+1.3
+log
+@Just saving this version for backup purposes, recently added support for
+explicitly inputing burst points.
+@
+text
+@d9 1
+a9 1
+static char RCSid[] = "@@(#)$Header: /usr/vld/moss/src/burst/RCS/ui.c,v 1.2 88/11/07 17:02:16 moss Exp $ (BRL)";
+d11 10
+d24 1
+d26 1
+d30 1
+a35 4
+#define DEBUG_UI	true
+static char	promptbuf[LNBUFSZ];
+static char	*bannerp = "BURST (%s)";
+static char	*pgmverp = "$Revision: 1.2 $";
+d37 6
+d72 1
+a72 1
+		{ int	items;\
+d83 1
+a83 1
+		{	char	*tokptr = strtok( cmdptr, WHITESPACE );\
+d99 4
+a102 4
+	char	*prompt;
+	char	buffer[LNBUFSZ];
+	char	*fmt;
+	char	*range;
+d107 37
+a143 36
+_LOCAL_ void	MattackDir();
+_LOCAL_ void	MautoBurst();
+_LOCAL_ void	MburstArmor();
+_LOCAL_ void	MburstAir();
+_LOCAL_ void	MburstDist();
+_LOCAL_ void	MburstFile();
+_LOCAL_ void	McellSize();
+_LOCAL_ void	McolorFile();
+_LOCAL_ void	MconeHalfAngle();
+_LOCAL_ void	McritComp();
+_LOCAL_ void	MdeflectSpallCone();
+_LOCAL_ void	Mdither();
+_LOCAL_ void	MenclosePortion();
+_LOCAL_ void	MencloseTarget();
+_LOCAL_ void	MerrorFile();
+_LOCAL_ void	Mexecute();
+_LOCAL_ void	MfbFile();
+_LOCAL_ void	MgedFile();
+_LOCAL_	void	MgridFile();
+_LOCAL_ void	MgroundPlane();
+_LOCAL_ void	MhistFile();
+_LOCAL_ void	Minput2dShot();
+_LOCAL_ void	Minput3dShot();
+_LOCAL_ void	MinputBurst();
+_LOCAL_ void	Mnop();
+_LOCAL_ void	Mobjects();
+_LOCAL_ void	Moverlaps();
+_LOCAL_ void	MplotFile();
+_LOCAL_ void	Mread2dShotFile();
+_LOCAL_ void	Mread3dShotFile();
+_LOCAL_ void	MreadBurstFile();
+_LOCAL_ void	MreadCmdFile();
+_LOCAL_ void	MmaxBarriers();
+_LOCAL_ void	MmaxSpallRays();
+_LOCAL_ void	Munits();
+_LOCAL_ void	MwriteCmdFile();
+d146 5
+a150 5
+_LOCAL_ HmMenu	*addMenu();
+_LOCAL_ int	getInput();
+_LOCAL_ int	unitStrToInt();
+_LOCAL_ void	addItem();
+_LOCAL_ void	banner();
+d152 1
+a152 1
+typedef struct ftable	Ftable;
+d155 4
+a158 4
+	char	*name;
+	char	*help;
+	Ftable	*next;
+	Func	*func;
+d319 2
+d360 1
+a360 1
+_LOCAL_ void
+d363 1
+a363 1
+HmItem	*itemp;
+d374 1
+a374 1
+_LOCAL_ HmMenu *
+d376 1
+a376 1
+Ftable	*tp;
+d378 1
+a378 1
+		register HmItem	*itemp;
+d380 2
+a381 2
+		register int	cnt;
+		register bool	done = false;
+d407 1
+a407 1
+        void    banner( void )
+d410 1
+a410 1
+		to border the top of the scrolling region.
+d412 1
+a412 1
+_LOCAL_ void
+d414 1
+a414 3
+        {       register int    co;
+                register char   *p;
+        (void) ScMvCursor( MENU_LFT, BORDER_Y );
+d418 1
+a418 6
+        for( co = 1; co <= 3; co++ )
+                (void) putc( BORDER_CHR, stdout );
+        for( p = scrbuf; co <= ScCO && *p != '\0'; co++, p++ )
+                (void) putc( (int)(*p), stdout );
+        for( ; co <= ScCO; co++ )
+                (void) putc( BORDER_CHR, stdout );
+d429 1
+a429 1
+_LOCAL_ int
+d434 3
+a436 3
+		{	register int    c;
+			register char   *p;
+			char		*defaultp = ip->buffer;
+d449 1
+a449 1
+		/* In case user hit CR only, do not disturb buffer.    */
+d469 1
+a469 1
+_LOCAL_ void
+d488 1
+a488 1
+_LOCAL_ void
+d508 3
+a510 1
+			prntScr( "This terminal has no scroll region or delete line capability." );
+d513 1
+a513 1
+		(void) ScClrText(); /* Wipe screen. */
+d522 1
+a522 1
+_LOCAL_ int
+d524 1
+a524 1
+char	*str;
+d540 1
+a540 1
+_LOCAL_ void
+d542 2
+a543 2
+HmItem	*itemp;
+	{	static Input	input[] =
+d548 1
+a548 1
+		register Input	*ip = input;
+d552 1
+a552 1
+			itemp != (HmItem *) 0 ? itemp->text : cmdname,
+d561 1
+a561 1
+_LOCAL_ void
+d563 2
+a564 2
+HmItem	*itemp;
+	{	static Input	input[] =
+d568 1
+a568 1
+		register Input	*ip = input;
+d571 1
+a571 1
+			itemp != (HmItem *) 0 ? itemp->text : cmdname,
+d579 1
+a579 1
+_LOCAL_ void
+d581 2
+a582 2
+HmItem	*itemp;
+	{	static Input	input[] =
+d586 2
+a587 2
+		register Input	*ip = input;
+		FILE		*airfp;
+d592 1
+a592 1
+	if( (airfp = fopen( airfile, "r" )) == (FILE *) NULL )
+d601 1
+a601 1
+			itemp != (HmItem *) 0 ? itemp->text : cmdname,
+d611 1
+a611 1
+_LOCAL_ void
+d613 2
+a614 2
+HmItem	*itemp;
+	{	static Input	input[] =
+d618 2
+a619 2
+		register Input	*ip = input;
+		FILE		*armorfp;
+d624 1
+a624 1
+	if( (armorfp = fopen( armorfile, "r" )) == (FILE *) NULL )
+d633 1
+a633 1
+			itemp != (HmItem *) 0 ? itemp->text : cmdname,
+d643 1
+a643 1
+_LOCAL_ void
+d645 2
+a646 2
+HmItem	*itemp;
+	{	static Input	input[] =
+d650 1
+a650 1
+		register Input	*ip = input;
+d653 1
+a653 1
+			itemp != (HmItem *) 0 ? itemp->text : cmdname,
+d661 1
+a661 1
+_LOCAL_ void
+d663 2
+a664 2
+HmItem	*itemp;
+	{	static Input	input[] =
+d668 1
+a668 1
+		register Input	*ip = input;
+d673 1
+a673 1
+	if( (outfp = fopen( outfile, "w" )) == (FILE *) NULL )
+d682 1
+a682 1
+			itemp != (HmItem *) 0 ? itemp->text : cmdname,
+d689 1
+a689 1
+_LOCAL_ void
+d691 2
+a692 2
+HmItem	*itemp;
+	{	static Input	input[] =
+d696 1
+a696 1
+		register Input	*ip = input;
+d699 1
+a699 1
+			itemp != (HmItem *) 0 ? itemp->text : cmdname,
+d707 1
+a707 1
+_LOCAL_ void
+d709 2
+a710 2
+HmItem	*itemp;
+	{	static Input	input[] =
+d715 2
+a716 2
+		register Input	*ip = input;
+		FILE		*colorfp;
+d721 1
+a721 1
+	if( (colorfp = fopen( colorfile, "r" )) == (FILE *) NULL )
+d730 1
+a730 1
+			itemp != (HmItem *) 0 ? itemp->text : cmdname,
+d740 1
+a740 1
+_LOCAL_ void
+d742 2
+a743 2
+HmItem	*itemp;
+	{	static Input	input[] =
+d747 1
+a747 1
+		register Input	*ip = input;
+d750 1
+a750 1
+			itemp != (HmItem *) 0 ? itemp->text : cmdname,
+d758 1
+a758 1
+_LOCAL_ void
+d760 2
+a761 2
+HmItem	*itemp;
+	{	static Input	input[] =
+d765 2
+a766 2
+		register Input	*ip = input;
+		FILE		*critfp;
+d771 1
+a771 1
+	if( (critfp = fopen( critfile, "r" )) == (FILE *) NULL )
+d780 1
+a780 1
+			itemp != (HmItem *) 0 ? itemp->text : cmdname,
+d791 1
+a791 1
+_LOCAL_ void
+d793 2
+a794 2
+HmItem	*itemp;
+	{	static Input	input[] =
+d798 1
+a798 1
+		register Input	*ip = input;
+d801 1
+a801 1
+			itemp != (HmItem *) 0 ? itemp->text : cmdname,
+d808 1
+a808 1
+_LOCAL_ void
+d810 2
+a811 2
+HmItem	*itemp;
+	{	static Input	input[] =
+d815 1
+a815 1
+		register Input	*ip = input;
+d818 1
+a818 1
+			itemp != (HmItem *) 0 ? itemp->text : cmdname,
+d825 1
+a825 1
+_LOCAL_ void
+d827 2
+a828 2
+HmItem	*itemp;
+	{	static Input	input[] =
+d835 1
+a835 1
+		register Input	*ip = input;
+d842 1
+a842 1
+			itemp != (HmItem *) 0 ? itemp->text : cmdname,
+d854 1
+a854 1
+_LOCAL_ void
+d856 1
+a856 1
+HmItem	*itemp;
+d860 1
+a860 1
+			itemp != (HmItem *) 0 ? itemp->text : cmdname );
+d866 1
+a866 1
+_LOCAL_ void
+d868 2
+a869 2
+HmItem	*itemp;
+	{	static Input	input[] =
+d873 2
+a874 2
+		register Input	*ip = input;
+		static int	errfd = -1;
+d898 1
+a898 1
+			itemp != (HmItem *) 0 ? itemp->text : cmdname,
+d905 1
+a905 1
+_LOCAL_ void
+d907 1
+a907 1
+HmItem	*itemp;
+d912 1
+a912 1
+			itemp != (HmItem *) 0 ? itemp->text : cmdname );
+d935 1
+a935 1
+		{	char	*ptr, *obj;
+d977 1
+a977 1
+_LOCAL_ void
+d979 2
+a980 2
+HmItem	*itemp;
+	{	static Input	input[] =
+d984 1
+a984 1
+		register Input	*ip = input;
+d990 1
+a990 1
+			itemp != (HmItem *) 0 ? itemp->text : cmdname,
+d997 1
+a997 1
+_LOCAL_ void
+d999 2
+a1000 2
+HmItem	*itemp;
+	{	static Input	input[] =
+d1004 1
+a1004 1
+		register Input	*ip = input;
+d1016 1
+a1016 1
+			itemp != (HmItem *) 0 ? itemp->text : cmdname,
+d1023 1
+a1023 1
+_LOCAL_ void
+d1025 2
+a1026 2
+HmItem	*itemp;
+	{	static Input	input[] =
+d1030 1
+a1030 1
+		register Input	*ip = input;
+d1035 1
+a1035 1
+	if( (gridfp = fopen( gridfile, "w" )) == (FILE *) NULL )
+d1044 1
+a1044 1
+			itemp != (HmItem *) 0 ? itemp->text : cmdname,
+d1051 1
+a1051 1
+_LOCAL_ void
+d1053 2
+a1054 2
+HmItem	*itemp;
+	{	static Input	input[] =
+d1069 1
+a1069 1
+		register Input	*ip = input;
+d1079 1
+a1079 1
+				itemp != (HmItem *) 0 ? itemp->text : cmdname,
+d1089 1
+a1089 1
+				itemp != (HmItem *) 0 ? itemp->text : cmdname
+d1096 1
+a1096 1
+_LOCAL_ void
+d1098 2
+a1099 2
+HmItem	*itemp;
+	{	static Input	input[] =
+d1103 1
+a1103 1
+		register Input	*ip = input;
+d1108 1
+a1108 1
+	if( (histfp = fopen( histfile, "w" )) == (FILE *) NULL )
+d1117 1
+a1117 1
+			itemp != (HmItem *) 0 ? itemp->text : cmdname,
+d1123 1
+a1123 1
+_LOCAL_ void
+d1125 2
+a1126 2
+HmItem	*itemp;
+	{	static Input	input[] =
+d1132 1
+a1132 1
+		register Input	*ip = input;
+d1137 1
+a1137 1
+			itemp != (HmItem *) 0 ? itemp->text : cmdname,
+d1149 1
+a1149 1
+_LOCAL_ void
+d1151 2
+a1152 2
+HmItem	*itemp;
+	{	static Input	input[] =
+d1157 1
+a1157 1
+		register Input	*ip = input;
+d1161 1
+a1161 1
+			itemp != (HmItem *) 0 ? itemp->text : cmdname,
+d1171 1
+a1171 1
+_LOCAL_ void
+d1173 2
+a1174 2
+HmItem	*itemp;
+	{	static Input	input[] =
+d1180 1
+a1180 1
+		register Input	*ip = input;
+d1185 1
+a1185 1
+			itemp != (HmItem *) 0 ? itemp->text : cmdname,
+d1196 1
+a1196 1
+_LOCAL_ void
+d1198 1
+a1198 1
+HmItem	*itemp;
+d1204 1
+a1204 1
+_LOCAL_ void
+d1206 2
+a1207 2
+HmItem	*itemp;
+	{	static Input	input[] =
+d1211 1
+a1211 1
+		register Input	*ip = input;
+d1215 1
+a1215 1
+			itemp != (HmItem *) 0 ? itemp->text : cmdname,
+d1222 1
+a1222 1
+_LOCAL_ void
+d1224 2
+a1225 2
+HmItem	*itemp;
+	{	static Input	input[] =
+d1229 1
+a1229 1
+		register Input	*ip = input;
+d1232 1
+a1232 1
+			itemp != (HmItem *) 0 ? itemp->text : cmdname,
+d1239 1
+a1239 1
+_LOCAL_ void
+d1241 2
+a1242 2
+HmItem	*itemp;
+	{	static Input	input[] =
+d1246 1
+a1246 1
+		register Input	*ip = input;
+d1249 1
+a1249 1
+			itemp != (HmItem *) 0 ? itemp->text : cmdname,
+d1256 1
+a1256 1
+_LOCAL_ void
+d1258 2
+a1259 2
+HmItem	*itemp;
+	{	static Input	input[] =
+d1263 1
+a1263 1
+		register Input	*ip = input;
+d1266 1
+a1266 1
+			itemp != (HmItem *) 0 ? itemp->text : cmdname,
+d1273 1
+a1273 1
+_LOCAL_ void
+d1275 2
+a1276 2
+HmItem	*itemp;
+	{	static Input	input[] =
+d1280 1
+a1280 1
+		register Input	*ip = input;
+d1285 1
+a1285 1
+	if( (plotfp = fopen( plotfile, "w" )) == (FILE *) NULL )
+d1294 1
+a1294 1
+			itemp != (HmItem *) 0 ? itemp->text : cmdname,
+d1301 1
+a1301 1
+_LOCAL_ void
+d1303 2
+a1304 2
+HmItem	*itemp;
+	{	static Input	input[] =
+d1308 1
+a1308 1
+		register Input	*ip = input;
+d1320 1
+a1320 1
+			itemp != (HmItem *) 0 ? itemp->text : cmdname,
+d1323 1
+a1323 1
+	firemode = FM_SHOT | FM_FILE;
+d1328 1
+a1328 1
+_LOCAL_ void
+d1330 2
+a1331 2
+HmItem	*itemp;
+	{	static Input	input[] =
+d1335 1
+a1335 1
+		register Input	*ip = input;
+d1347 1
+a1347 1
+			itemp != (HmItem *) 0 ? itemp->text : cmdname,
+d1350 1
+a1350 1
+	firemode = FM_SHOT | FM_FILE | FM_3DIM;
+d1355 1
+a1355 1
+_LOCAL_ void
+d1357 2
+a1358 2
+HmItem	*itemp;
+	{	static Input	input[] =
+d1362 1
+a1362 1
+		register Input	*ip = input;
+d1374 1
+a1374 1
+			itemp != (HmItem *) 0 ? itemp->text : cmdname,
+d1378 1
+a1378 1
+	firemode = FM_BURST | FM_3DIM | FM_FILE;
+d1383 1
+a1383 1
+_LOCAL_ void
+d1385 2
+a1386 2
+HmItem	*itemp;
+	{	static Input	input[] =
+d1390 3
+a1392 3
+		register Input	*ip = input;
+		char		cmdfile[LNBUFSZ];
+		FILE		*cmdfp;
+d1408 29
+a1436 1
+HmItem	units_items[] =
+d1458 1
+a1458 1
+_LOCAL_ void
+d1460 4
+a1463 4
+HmItem	*itemp;
+	{	char	*unitstr;
+		HmItem	*itemptr;
+	if( itemp != (HmItem *) 0 )
+d1497 1
+a1497 1
+			itemp != (HmItem *) 0 ? itemp->text : cmdname,
+d1504 1
+a1504 1
+_LOCAL_ void
+d1506 2
+a1507 2
+HmItem	*itemp;
+	{	static Input	input[] =
+d1511 4
+a1514 4
+		register Input	*ip = input;
+		char		cmdfile[LNBUFSZ];
+		FILE		*cmdfp;
+		FILE		*inpfp;
+d1541 1
+a1541 1
+#if defined( SYSV )
+d1543 1
+a1543 1
+_LOCAL_ void
+d1545 1
+a1545 1
+_LOCAL_ int
+d1548 2
+a1549 2
+int	sig;
+	{	static Input	input[] =
+d1553 1
+a1553 1
+		register Input	*ip = input;
+d1569 1
+a1569 1
+#if defined( SYSV )
+d1578 1
+a1578 1
+char	*cmd;
+@
+
+
+1.2
+log
+@Just saving this version for fallback.
+@
+text
+@d9 1
+a9 1
+static char RCSid[] = "@@(#)$Header: /usr/vld/moss/src/burst/RCS/ui.c,v 1.1 88/10/28 17:02:25 moss Exp $ (BRL)";
+d26 1
+a26 1
+static char	*pgmverp = "$Revision: 1.1 $";
+d35 19
+d74 3
+a76 2
+			rt_log( "\targument (%s) is of wrong type\n",\
+				tokptr == NULL ? "(null)" : tokptr );\
+d111 1
+d115 1
+a115 1
+_LOCAL_ void	Minput3dBurst();
+d122 1
+d124 1
+d153 1
+a153 2
+	{ "execute",
+		"begin ray tracing", 0, Mexecute },
+d165 1
+d188 1
+a188 2
+	{ "execute",
+		"begin ray tracing", 0, Mexecute },
+d201 12
+d227 3
+d235 4
+a238 4
+	{ "burst-coordinates",
+		"specify each burst point in target coordinates (3-d)",
+		0, Minput3dBurst },
+	{ "ground plane",
+d240 1
+a240 1
+		0, Mnop },
+d335 1
+a335 2
+	{ "execute",
+		"begin ray tracing", 0, Mexecute },
+d444 2
+a445 1
+		if( sscanf( cmdptr, "%s", ip->buffer ) != 1 )
+d447 3
+d556 1
+a556 16
+	if( getInput( ip ) )
+		{
+		if( ip->buffer[0] == 'y' )
+			nriplevels = 1;
+		else
+		if( ip->buffer[0] == 'n' )
+			nriplevels = 0;
+		else
+			{
+			(void) sprintf( scrbuf,
+					"Illegal input \"%s\".",
+					ip->buffer );
+			warning( scrbuf );
+			return;
+			}
+		}
+d561 1
+d591 1
+a591 1
+	notify( "Reading burst air idents...", NOTIFY_APPEND );
+d623 1
+a623 1
+	notify( "Reading burst armor idents...", NOTIFY_APPEND );
+d638 1
+a638 1
+	GetVar( bdist, ip, 1.0 );
+d643 1
+d689 1
+a689 1
+	cellsz /= unitconv;
+d720 1
+a720 1
+	notify( "Reading ident-to-color mappings...", NOTIFY_APPEND );
+d770 1
+a770 1
+	notify( "Reading critical component idents...", NOTIFY_APPEND );
+d786 2
+a787 17
+	if( getInput( ip ) )
+		{
+		if( ip->buffer[0] == 'y' )
+			deflectcone = true;
+		else
+		if( ip->buffer[0] == 'n' )
+			deflectcone = false;
+		else
+			{
+			(void) sprintf( scrbuf,
+					"Illegal input \"%s\".",
+					ip->buffer );
+			warning( scrbuf );
+			return;
+			}
+		}
+	(void) sprintf( scrbuf, "%s\t\t%s",
+d803 1
+a803 16
+	if( getInput( ip ) )
+		{
+		if( ip->buffer[0] == 'y' )
+			dithercells = true;
+		else
+		if( ip->buffer[0] == 'n' )
+			dithercells = false;
+		else
+			{
+			(void) sprintf( scrbuf,
+					"Illegal input \"%s\".",
+					ip->buffer );
+			warning( scrbuf );
+			return;
+			}
+		}
+a826 2
+
+	firemode = FM_PART;
+d832 1
+a832 1
+	gridlf /= unitconv;
+d836 1
+a844 1
+	firemode = FM_GRID;
+d849 1
+d906 1
+a906 1
+	notify( "Reading target data base...", NOTIFY_APPEND );
+d929 1
+a929 1
+			(void) sprintf( scrbuf, "Loading \"%s\"...", obj );
+d948 1
+a948 1
+		notify( "Prepping solids...", NOTIFY_APPEND );
+d1039 45
+d1111 1
+a1111 1
+Minput3dBurst( itemp )
+d1130 2
+a1167 1
+		fastf_t		burstpoint[3];
+d1217 1
+a1217 16
+	if( getInput( ip ) )
+		{
+		if( ip->buffer[0] == 'y' )
+			reportoverlaps = true;
+		else
+		if( ip->buffer[0] == 'n' )
+			reportoverlaps = false;
+		else
+			{
+			(void) sprintf( scrbuf,
+					"Illegal input \"%s\".",
+					ip->buffer );
+			warning( scrbuf );
+			return;
+			}
+		}
+d1227 17
+a1305 1
+	firemode = FM_SHOT | FM_FILE;
+d1310 1
+a1332 1
+	firemode = FM_SHOT | FM_FILE | FM_3DIM;
+d1337 29
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d9 1
+a9 1
+static char RCSid[] = "@@(#)$Header$ (BRL)";
+d26 1
+a26 1
+static char	*pgmverp = "$Revision$";
+d90 2
+a111 3
+_LOCAL_ void	prompt();
+_LOCAL_ void	notify();
+_LOCAL_ void	warning();
+d130 2
+d165 2
+d267 1
+a267 1
+		"enable or rename burst point output file", 0, MburstFile },
+d270 6
+d277 1
+a277 1
+		"enable or rename frame buffer device", 0, MfbFile },
+d279 1
+a279 1
+		"enable or rename UNIX plot output file", 0, MplotFile },
+a468 49
+_LOCAL_ void
+prompt( str )
+char    *str;
+	{
+	(void) ScMvCursor( PROMPT_X, PROMPT_Y );
+	if( str == (char *) NULL )
+		(void) ScClrEOL();
+	else
+		{
+		(void) ScSetStandout();
+		(void) fputs( str, stdout );
+		(void) ScClrStandout();
+		}
+	(void) fflush( stdout );
+	return;
+	}
+
+_LOCAL_ void
+notify( str )
+char    *str;
+	{       register int    i;
+		static int      lastlen = -1;
+		register int    len = strlen( str );
+	if( ! tty )
+		return;
+	(void) ScMvCursor( PROMPT_X, PROMPT_Y );
+	(void) ScSetStandout();
+	(void) fputs( str, stdout );
+	(void) ScClrStandout();
+	/* Blank out remainder of previous command. */
+	for( i = len; i < lastlen; i++ )
+		(void) putchar( ' ' );
+	(void) ScMvCursor( PROMPT_X, PROMPT_Y );
+	(void) fflush( stdout );
+	lastlen = len;
+	return;
+	}
+
+_LOCAL_ void
+warning( str )
+char	*str;
+	{
+	if( tty )
+		HmError( str );
+	else
+		prntScr( str );
+	return;
+	}
+
+d511 24
+a534 4
+	{
+	nriplevels = 1;
+	(void) sprintf( scrbuf, "%s",
+			itemp != (HmItem *) 0 ? itemp->text : cmdname );
+d565 1
+a565 1
+	notify( "Reading burst air idents..." );
+d567 1
+d597 1
+a597 1
+	notify( "Reading burst armor idents..." );
+d599 1
+d693 1
+a693 1
+	notify( "Reading ident-to-color mappings..." );
+d695 1
+a696 1
+	
+d743 1
+a743 1
+	notify( "Reading critical component idents..." );
+d745 1
+d818 14
+a831 1
+	{
+d833 3
+a835 2
+			"%s",
+			itemp != (HmItem *) 0 ? itemp->text : cmdname );
+d837 4
+d910 1
+a911 1
+	notify( "Reading target data base..." );
+d920 5
+a924 1
+	rt_prep_timer();
+d927 1
+d934 1
+d943 1
+d952 1
+a952 1
+		notify( "Prepping solids..." );
+d956 1
+d982 1
+a982 1
+			plotfile );
+d1013 1
+d1015 55
+d1247 20
+a1266 1
+	{
+d1274 20
+a1293 1
+	{
+@

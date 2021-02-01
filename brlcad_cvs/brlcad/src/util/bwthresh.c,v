@@ -1,0 +1,421 @@
+head	14.10;
+access;
+symbols
+	rel-7-10-4:14.9
+	STABLE:14.9.0.2
+	rel-7-10-2:14.9
+	rel-7-10-0:14.8
+	rel-7-8-4:14.5
+	rel-7-8-2:14.5
+	rel-7-8-0:14.5
+	trimnurbs-branch:14.5.0.2
+	help:14.5
+	temp_tag:14.4
+	bobWinPort-20051223-freeze:14.3
+	postmerge-20051223-bobWinPort:14.4
+	premerge-20051223-bobWinPort:14.4
+	rel-7-6-6:14.4
+	rel-7-6-4:14.4
+	rel-7-6-2:14.3
+	rel-7-6-branch:14.3.0.6
+	rel-7-6-0:14.3
+	rel-7-4-2:14.3
+	rel-7-4-branch:14.3.0.4
+	bobWinPort:14.3.0.2
+	rel-7-4-0:14.3
+	rel-7-2-6:14.3
+	rel-7-2-4:14.3
+	rel-7-2-2:14.3
+	rel-7-2-0:14.3
+	rel-7-0-4:14.2
+	rel-7-0-2:14.2
+	rel-7-0-1:14.2
+	opensource-post:14.2
+	opensource-pre:1.2
+	rel-7-0-branch:1.2.0.2
+	rel-7-0:1.2;
+locks; strict;
+comment	@ * @;
+
+
+14.10
+date	2007.09.15.16.23.23;	author brlcad;	state Exp;
+branches;
+next	14.9;
+
+14.9
+date	2007.07.26.01.13.59;	author brlcad;	state Exp;
+branches;
+next	14.8;
+
+14.8
+date	2007.01.27.01.41.53;	author brlcad;	state Exp;
+branches;
+next	14.7;
+
+14.7
+date	2007.01.23.01.13.55;	author brlcad;	state Exp;
+branches;
+next	14.6;
+
+14.6
+date	2007.01.20.14.37.05;	author brlcad;	state Exp;
+branches;
+next	14.5;
+
+14.5
+date	2006.01.18.06.46.27;	author brlcad;	state Exp;
+branches;
+next	14.4;
+
+14.4
+date	2005.10.23.04.44.39;	author brlcad;	state Exp;
+branches;
+next	14.3;
+
+14.3
+date	2005.01.30.20.31.32;	author brlcad;	state Exp;
+branches
+	14.3.6.1;
+next	14.2;
+
+14.2
+date	2004.12.21.03.45.40;	author butler;	state Exp;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.32;	author morrison;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2004.08.02.23.01.53;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.15.21.44;	author morrison;	state Exp;
+branches;
+next	;
+
+14.3.6.1
+date	2005.11.13.13.46.20;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.10
+log
+@more c89 embracing.  c89 provides string.h for all of the various str*() and mem*() functions, so remove the check for its presence.  there is still likely to be work required for strict c89 conformance for the various bsd strings.h functions that may be in use.
+@
+text
+@/*                      B W T H R E S H . C
+ * BRL-CAD
+ *
+ * Copyright (c) 1990-2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@file bwthresh.c
+ *
+ *			Threshold data in BW(5) format.
+ *
+ *	Accepts n arguments, the threshold values.  The grey scale 0..255
+ *	is divided evenly into n+1 bins.  Each pixel of input is binned
+ *	according to the threshold values, and the appropriate bin color
+ *	is output.
+ *
+ *  Author -
+ *	Paul Tanenbaum
+ *
+ */
+#ifndef lint
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/bwthresh.c,v 14.9 2007/07/26 01:13:59 brlcad Exp $ (BRL)";
+#endif
+
+#include "common.h"
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#define		USAGE		"Usage: 'bwthresh val ...'\n"
+
+int
+main (int argc, char **argv)
+{
+    int			Ch;		/* The current input character */
+    int			*thresh_val;	/* The threshold value */
+    int			nm_threshs;	/* How many thresholds? */
+    int			i;
+    unsigned char	*bin_color = (unsigned char *)0;/* resultant pixel values */
+
+    if ((nm_threshs = argc - 1) < 1)
+    {
+	(void) fputs(USAGE, stderr);
+	exit (1);
+    }
+    if (nm_threshs > 255)
+    {
+	(void) fputs("Too many thresholds!\n", stderr);
+	exit (1);
+    }
+    if (((thresh_val = (int *)
+	    malloc((unsigned) (nm_threshs * sizeof(int)))) == NULL) ||
+	((bin_color = (unsigned char *)
+	    malloc((unsigned) ((nm_threshs + 1) * sizeof(int)))) == NULL))
+    {
+	(void) fputs("bwthresh: Ran out of memory\n", stderr);
+	exit (1);
+    }
+    for (i = 0; i < nm_threshs; ++i)
+    {
+	if (sscanf(*++argv, "%d", thresh_val + i) != 1)
+	{
+	    (void) fprintf(stderr, "Illegal threshold value: '%s'\n", *argv);
+	    (void) fputs(USAGE, stderr);
+	    exit (1);
+	}
+	if ((unsigned char) thresh_val[i] != thresh_val[i])
+	{
+	    (void) fprintf(stderr,
+		"Threshold[%d] value %d out of range.  Need 0 <= v <= 255\n",
+		i, thresh_val[i]);
+	    exit (1);
+	}
+	if ((i > 0) && (thresh_val[i] <= thresh_val[i - 1]))
+	{
+	    (void) fputs("Threshold values not strictly increasing\n", stderr);
+	    exit (1);
+	}
+	bin_color[i] = 256 * i / nm_threshs;
+    }
+    bin_color[i] = 255;
+
+    while ((Ch = getchar()) != EOF)
+    {
+	for (i = 0; i < nm_threshs; ++i)
+	    if (Ch < thresh_val[i])
+		break;
+	(void) putchar(bin_color[i]);
+    }
+    return 0;
+}
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+14.9
+log
+@remove ephemeral data like phone numbers and addresses, including the misleading 'source' statements on code that is continually evolving and receiving contributions from many many sources
+@
+text
+@d34 1
+a34 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/bwthresh.c,v 14.8 2007/01/27 01:41:53 brlcad Exp $ (BRL)";
+a38 1
+
+a40 1
+#ifdef HAVE_STRING_H
+a41 3
+#else
+#include <strings.h>
+#endif
+@
+
+
+14.8
+log
+@ws. lots and lots of ws.  see sh/ws.sh for details (cases 'abcdeg').
+@
+text
+@a31 4
+ *  Source -
+ *	SECAD/VLD Computing Consortium, Bldg 394
+ *	The U. S. Army Ballistic Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005-5066
+d34 1
+a34 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/bwthresh.c,v 14.7 2007/01/23 01:13:55 brlcad Exp $ (BRL)";
+@
+
+
+14.7
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@d38 1
+a38 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/bwthresh.c,v 14.6 2007/01/20 14:37:05 brlcad Exp $ (BRL)";
+a43 1
+
+@
+
+
+14.6
+log
+@update copyright to 2007
+@
+text
+@d8 2
+a9 3
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+d14 1
+a14 1
+ * General Public License for more details.
+d16 2
+a17 2
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+d38 1
+a38 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/bwthresh.c,v 14.5 2006/01/18 06:46:27 brlcad Exp $ (BRL)";
+@
+
+
+14.5
+log
+@update copyright to 2006
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 1990-2006 United States Government as represented by
+d39 1
+a39 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/bwthresh.c,v 14.4 2005/10/23 04:44:39 brlcad Exp $ (BRL)";
+@
+
+
+14.4
+log
+@trailing ws
+@
+text
+@d4 1
+a4 1
+ * Copyright (C) 1990-2005 United States Government as represented by
+d39 1
+a39 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/bwthresh.c,v 14.3 2005/01/30 20:31:32 brlcad Exp $ (BRL)";
+@
+
+
+14.3
+log
+@update copyright to 2005
+@
+text
+@d32 1
+a32 1
+ *  
+d39 1
+a39 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/bwthresh.c,v 14.2 2004/12/21 03:45:40 butler Exp $ (BRL)";
+@
+
+
+14.3.6.1
+log
+@merge changes from HEAD aka rel-7-6-4 to the rel-7-6-branch just in case someone peeks a gander or tries to continue/build the branch
+@
+text
+@d32 1
+a32 1
+ *
+d39 1
+a39 1
+static const char RCSid[] = "@@(#)$Header$ (BRL)";
+@
+
+
+14.2
+log
+@GPL license changes
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 1990-2004 United States Government as represented by
+d39 1
+a39 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/util/bwthresh.c,v 14.1 2004/11/16 19:42:32 morrison Exp $ (BRL)";
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@d1 21
+a21 2
+/*
+ *				B W T H R E S H . C
+a36 4
+ *  
+ *  Copyright Notice -
+ *	This software is Copyright (C) 1990-2004 by the United States Army.
+ *	All rights reserved.
+d39 1
+a39 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/util/bwthresh.c,v 1.2 2004/08/02 23:01:53 morrison Exp $ (BRL)";
+@
+
+
+1.2
+log
+@replace the wrapped config.h block with common.h
+@
+text
+@d24 1
+a24 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/util/bwthresh.c,v 1.1 2004/05/20 15:21:44 morrison Exp $ (BRL)";
+d101 10
+@
+
+
+1.1
+log
+@Vast reorganization begins.  Sources moved from top-level directories into src/.
+@
+text
+@d24 1
+a24 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/util/bwthresh.c,v 11.10 2004/05/10 15:30:50 erikg Exp $ (BRL)";
+d27 1
+a27 3
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+@
+

@@ -1,0 +1,325 @@
+head	14.3;
+access;
+symbols
+	rel-7-10-4:14.2
+	STABLE:14.2.0.10
+	stable-branch:14.2
+	rel-7-10-2:14.2
+	rel-7-10-0:14.2
+	rel-7-8-4:14.2
+	rel-7-8-2:14.2
+	rel-7-8-0:14.2
+	trimnurbs-branch:14.2.0.8
+	help:14.2
+	temp_tag:14.2
+	bobWinPort-20051223-freeze:14.2
+	postmerge-20051223-bobWinPort:14.2
+	premerge-20051223-bobWinPort:14.2
+	rel-7-6-6:14.2
+	rel-7-6-4:14.2
+	rel-7-6-2:14.2
+	rel-7-6-branch:14.2.0.6
+	rel-7-6-0:14.2
+	rel-7-4-2:14.2
+	rel-7-4-branch:14.2.0.4
+	bobWinPort:14.2.0.2
+	rel-7-4-0:14.2
+	rel-7-2-6:14.2
+	rel-7-2-4:14.2
+	rel-7-2-2:14.2
+	rel-7-2-0:14.1
+	rel-7-0-4:14.1
+	rel-7-0-2:14.1
+	rel-7-0-1:14.1
+	opensource-post:14.1
+	opensource-pre:1.1
+	rel-7-0-branch:1.1.0.10
+	rel-7-0:1.1
+	postmerge-20040405-ansi:1.1
+	premerge-20040404-ansi:1.1
+	postmerge-autoconf:1.1
+	autoconf-freeze:1.1
+	premerge-autoconf:1.1
+	postmerge-20040315-windows:1.1
+	premerge-20040315-windows:1.1
+	windows-20040315-freeze:1.1.8.1
+	autoconf-20031203:1.1
+	autoconf-20031202:1.1
+	autoconf-branch:1.1.0.6
+	phong-branch:1.1.0.4
+	photonmap-branch:1.1.0.2
+	windows-branch:1.1.0.8;
+locks; strict;
+comment	@ * @;
+
+
+14.3
+date	2007.12.16.15.59.41;	author brlcad;	state Exp;
+branches;
+next	14.2;
+
+14.2
+date	2005.03.09.06.14.34;	author brlcad;	state Exp;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.10;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2003.08.08.20.05.15;	author morrison;	state Exp;
+branches
+	1.1.2.1
+	1.1.8.1;
+next	;
+
+1.1.2.1
+date	2003.08.26.14.03.50;	author justin;	state Exp;
+branches;
+next	;
+
+1.1.8.1
+date	2004.03.12.10.01.20;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.3
+log
+@convert all bzero calls to memset
+@
+text
+@/*
+ * Copyright (c) 2001 Apple Computer, Inc. All rights reserved.
+ *
+ * @@APPLE_LICENSE_HEADER_START@@
+ *
+ * The contents of this file constitute Original Code as defined in and
+ * are subject to the Apple Public Source License Version 1.1 (the
+ * "License"). You may not use this file except in compliance with the
+ * License. Please obtain a copy of the License at
+ * http://www.apple.com/publicsource and read it before using this file.
+ *
+ * This Original Code and all software distributed under the License are
+ * distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY KIND, EITHER
+ * EXPRESS OR IMPLIED, AND APPLE HEREBY DISCLAIMS ALL SUCH WARRANTIES,
+ * INCLUDING WITHOUT LIMITATION, ANY WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE OR NON-INFRINGEMENT. Please see the
+ * License for the specific language governing rights and limitations
+ * under the License.
+ *
+ * @@APPLE_LICENSE_HEADER_END@@
+ */
+/*
+ * Shantonu Sen
+ * openUp.c - program to set the "first-open-window" field of a volume
+ *
+ * Get the directory ID for the first argument, and set it as word 2
+ * of the Finder Info fields for the volume it lives on
+ *
+ * cc -o openUp openUp.c
+ * Usage: openUp /Volumes/Foo/OpenMe/
+ *
+ * This program is used to cause a window to open up when a volume is
+ * mounted.  This is particularly useful for disk images made with
+ * DiskCopy, such as those often used for application installation.
+ */
+
+#include <stdio.h>
+#include <unistd.h>
+#include <sys/attr.h>
+#include <sys/stat.h>
+#include <sys/mount.h>
+
+struct directoryinfo {
+    unsigned long length;
+    u_int32_t dirid;
+};
+
+struct volumeinfo {
+    unsigned long length;
+    u_int32_t finderinfo[8];
+};
+
+
+int main(int argc, char *argv[]) {
+
+    char *path = NULL;
+    struct attrlist alist;
+    struct directoryinfo dirinfo;
+    struct volumeinfo volinfo;
+    struct statfs sfs;
+
+    if (argc > 1) {
+	path = argv[1];
+    } else {
+	printf("Usage: %s /Volumes/Foo/OpenMe/\n", argv[0]);
+	exit(1);
+    }
+
+    memset(&alist, 0, sizeof(alist));
+    alist.bitmapcount = 5;
+    alist.commonattr = ATTR_CMN_OBJID;
+
+    getattrlist(path, &alist, &dirinfo, sizeof(dirinfo), 0);
+
+    printf("directory id: %lu\n", dirinfo.dirid);
+
+    statfs(path, &sfs);
+
+    printf("mountpoint: %s\n", sfs.f_mntonname);
+
+    alist.commonattr = ATTR_CMN_FNDRINFO;
+    alist.volattr = ATTR_VOL_INFO;
+
+    getattrlist(sfs.f_mntonname, &alist, &volinfo, sizeof(volinfo), 0);
+    volinfo.finderinfo[2] = dirinfo.dirid;
+    setattrlist(sfs.f_mntonname, &alist, volinfo.finderinfo, sizeof(volinfo.finderinfo), 0);
+
+    return 0;
+}
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+14.2
+log
+@M-x indent-region, quell return warning, add an argument usage check
+@
+text
+@d69 1
+a69 1
+    bzero(&alist, sizeof(alist));
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@d2 20
+a21 20
+* Copyright (c) 2001 Apple Computer, Inc. All rights reserved.
+*
+* @@APPLE_LICENSE_HEADER_START@@
+*
+* The contents of this file constitute Original Code as defined in and
+* are subject to the Apple Public Source License Version 1.1 (the
+* "License"). You may not use this file except in compliance with the
+* License. Please obtain a copy of the License at
+* http://www.apple.com/publicsource and read it before using this file.
+*
+* This Original Code and all software distributed under the License are
+* distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY KIND, EITHER
+* EXPRESS OR IMPLIED, AND APPLE HEREBY DISCLAIMS ALL SUCH WARRANTIES,
+* INCLUDING WITHOUT LIMITATION, ANY WARRANTIES OF MERCHANTABILITY,
+* FITNESS FOR A PARTICULAR PURPOSE OR NON-INFRINGEMENT. Please see the
+* License for the specific language governing rights and limitations
+* under the License.
+*
+* @@APPLE_LICENSE_HEADER_END@@
+*/
+d23 13
+a35 13
+* Shantonu Sen
+* openUp.c - program to set the "first-open-window" field of a volume
+*
+* Get the directory ID for the first argument, and set it as word 2
+* of the Finder Info fields for the volume it lives on
+*
+* cc -o openUp openUp.c
+* Usage: openUp /Volumes/Foo/OpenMe/
+*
+* This program is used to cause a window to open up when a volume is
+* mounted.  This is particularly useful for disk images made with
+* DiskCopy, such as those often used for application installation.
+*/
+d44 2
+a45 2
+ unsigned long length;
+ u_int32_t dirid;
+d49 2
+a50 2
+ unsigned long length;
+ u_int32_t finderinfo[8];
+d56 5
+a60 5
+ char *path = NULL;
+ struct attrlist alist;
+ struct directoryinfo dirinfo;
+ struct volumeinfo volinfo;
+ struct statfs sfs;
+d62 6
+a67 1
+ path = argv[1];
+d69 3
+a71 3
+ bzero(&alist, sizeof(alist));
+ alist.bitmapcount = 5;
+ alist.commonattr = ATTR_CMN_OBJID;
+d73 1
+a73 1
+ getattrlist(path, &alist, &dirinfo, sizeof(dirinfo), 0);
+d75 1
+a75 1
+ printf("directory id: %lu\n", dirinfo.dirid);
+d77 1
+a77 1
+ statfs(path, &sfs);
+d79 1
+a79 1
+ printf("mountpoint: %s\n", sfs.f_mntonname);
+d81 2
+a82 2
+ alist.commonattr = ATTR_CMN_FNDRINFO;
+ alist.volattr = ATTR_VOL_INFO;
+d84 3
+a86 4
+ getattrlist(sfs.f_mntonname, &alist, &volinfo, sizeof(volinfo), 0);
+ volinfo.finderinfo[2] = dirinfo.dirid;
+ setattrlist(sfs.f_mntonname, &alist, volinfo.finderinfo,
+									 sizeof(volinfo.finderinfo), 0);
+d88 1
+@
+
+
+1.1
+log
+@* This program is used to cause a window to open up when a volume is mounted.  This is particularly useful for disk images made with DiskCopy, such as those often used for application installation.
+@
+text
+@d85 10
+@
+
+
+1.1.8.1
+log
+@merge from HEAD
+@
+text
+@@
+
+
+1.1.2.1
+log
+@updated for merging
+@
+text
+@@
+

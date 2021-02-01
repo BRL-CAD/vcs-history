@@ -1,0 +1,409 @@
+head	1.3;
+access;
+symbols
+	rel-5-2:1.2
+	rel-5-1-patches:1.2.0.2
+	rel-5-1:1.2
+	rel-5-0:1.1
+	rel-5-0beta:1.1;
+locks; strict;
+comment	@# @;
+
+
+1.3
+date	2000.12.06.21.21.34;	author bparker;	state dead;
+branches;
+next	1.2;
+
+1.2
+date	99.10.19.20.02.38;	author jra;	state Exp;
+branches
+	1.2.2.1;
+next	1.1;
+
+1.1
+date	98.06.02.19.49.00;	author jra;	state Exp;
+branches;
+next	;
+
+1.2.2.1
+date	2000.12.06.21.26.45;	author bparker;	state dead;
+branches;
+next	;
+
+
+desc
+@Original
+@
+
+
+1.3
+log
+@Upgrading to newer version
+@
+text
+@# scale.tcl --
+#
+# This file defines the default bindings for Tk scale widgets and provides
+# procedures that help in implementing the bindings.
+#
+# RCS: @@(#) $Id: scale.tcl,v 1.2 1999/10/19 20:02:38 jra Exp $
+#
+# Copyright (c) 1994 The Regents of the University of California.
+# Copyright (c) 1994-1995 Sun Microsystems, Inc.
+#
+# See the file "license.terms" for information on usage and redistribution
+# of this file, and for a DISCLAIMER OF ALL WARRANTIES.
+#
+
+#-------------------------------------------------------------------------
+# The code below creates the default class bindings for entries.
+#-------------------------------------------------------------------------
+
+# Standard Motif bindings:
+
+bind Scale <Enter> {
+    if {$tk_strictMotif} {
+	set tkPriv(activeBg) [%W cget -activebackground]
+	%W config -activebackground [%W cget -background]
+    }
+    tkScaleActivate %W %x %y
+}
+bind Scale <Motion> {
+    tkScaleActivate %W %x %y
+}
+bind Scale <Leave> {
+    if {$tk_strictMotif} {
+	%W config -activebackground $tkPriv(activeBg)
+    }
+    if {![string compare [%W cget -state] "active"]} {
+	%W configure -state normal
+    }
+}
+bind Scale <1> {
+    tkScaleButtonDown %W %x %y
+}
+bind Scale <B1-Motion> {
+    tkScaleDrag %W %x %y
+}
+bind Scale <B1-Leave> { }
+bind Scale <B1-Enter> { }
+bind Scale <ButtonRelease-1> {
+    tkCancelRepeat
+    tkScaleEndDrag %W
+    tkScaleActivate %W %x %y
+}
+bind Scale <2> {
+    tkScaleButton2Down %W %x %y
+}
+bind Scale <B2-Motion> {
+    tkScaleDrag %W %x %y
+}
+bind Scale <B2-Leave> { }
+bind Scale <B2-Enter> { }
+bind Scale <ButtonRelease-2> {
+    tkCancelRepeat
+    tkScaleEndDrag %W
+    tkScaleActivate %W %x %y
+}
+bind Scale <Control-1> {
+    tkScaleControlPress %W %x %y
+}
+bind Scale <Up> {
+    tkScaleIncrement %W up little noRepeat
+}
+bind Scale <Down> {
+    tkScaleIncrement %W down little noRepeat
+}
+bind Scale <Left> {
+    tkScaleIncrement %W up little noRepeat
+}
+bind Scale <Right> {
+    tkScaleIncrement %W down little noRepeat
+}
+bind Scale <Control-Up> {
+    tkScaleIncrement %W up big noRepeat
+}
+bind Scale <Control-Down> {
+    tkScaleIncrement %W down big noRepeat
+}
+bind Scale <Control-Left> {
+    tkScaleIncrement %W up big noRepeat
+}
+bind Scale <Control-Right> {
+    tkScaleIncrement %W down big noRepeat
+}
+bind Scale <Home> {
+    %W set [%W cget -from]
+}
+bind Scale <End> {
+    %W set [%W cget -to]
+}
+
+# tkScaleActivate --
+# This procedure is invoked to check a given x-y position in the
+# scale and activate the slider if the x-y position falls within
+# the slider.
+#
+# Arguments:
+# w -		The scale widget.
+# x, y -	Mouse coordinates.
+
+proc tkScaleActivate {w x y} {
+    global tkPriv
+    if {![string compare [$w cget -state] "disabled"]} {
+      return
+    }
+    if {![string compare [$w identify $x $y] "slider"]} {
+	$w configure -state active
+    } else {
+	$w configure -state normal
+    }
+}
+
+# tkScaleButtonDown --
+# This procedure is invoked when a button is pressed in a scale.  It
+# takes different actions depending on where the button was pressed.
+#
+# Arguments:
+# w -		The scale widget.
+# x, y -	Mouse coordinates of button press.
+
+proc tkScaleButtonDown {w x y} {
+    global tkPriv
+    set tkPriv(dragging) 0
+    set el [$w identify $x $y]
+    if {![string compare $el "trough1"]} {
+	tkScaleIncrement $w up little initial
+    } elseif {![string compare $el "trough2"]} {
+	tkScaleIncrement $w down little initial
+    } elseif {![string compare $el "slider"]} {
+	set tkPriv(dragging) 1
+	set tkPriv(initValue) [$w get]
+	set coords [$w coords]
+	set tkPriv(deltaX) [expr {$x - [lindex $coords 0]}]
+	set tkPriv(deltaY) [expr {$y - [lindex $coords 1]}]
+	$w configure -sliderrelief sunken
+    }
+}
+
+# tkScaleDrag --
+# This procedure is called when the mouse is dragged with
+# mouse button 1 down.  If the drag started inside the slider
+# (i.e. the scale is active) then the scale's value is adjusted
+# to reflect the mouse's position.
+#
+# Arguments:
+# w -		The scale widget.
+# x, y -	Mouse coordinates.
+
+proc tkScaleDrag {w x y} {
+    global tkPriv
+    if {!$tkPriv(dragging)} {
+	return
+    }
+    $w set [$w get [expr {$x - $tkPriv(deltaX)}] \
+	    [expr {$y - $tkPriv(deltaY)}]]
+}
+
+# tkScaleEndDrag --
+# This procedure is called to end an interactive drag of the
+# slider.  It just marks the drag as over.
+#
+# Arguments:
+# w -		The scale widget.
+
+proc tkScaleEndDrag {w} {
+    global tkPriv
+    set tkPriv(dragging) 0
+    $w configure -sliderrelief raised
+}
+
+# tkScaleIncrement --
+# This procedure is invoked to increment the value of a scale and
+# to set up auto-repeating of the action if that is desired.  The
+# way the value is incremented depends on the "dir" and "big"
+# arguments.
+#
+# Arguments:
+# w -		The scale widget.
+# dir -		"up" means move value towards -from, "down" means
+#		move towards -to.
+# big -		Size of increments: "big" or "little".
+# repeat -	Whether and how to auto-repeat the action:  "noRepeat"
+#		means don't auto-repeat, "initial" means this is the
+#		first action in an auto-repeat sequence, and "again"
+#		means this is the second repetition or later.
+
+proc tkScaleIncrement {w dir big repeat} {
+    global tkPriv
+    if {![winfo exists $w]} return
+    if {![string compare $big "big"]} {
+	set inc [$w cget -bigincrement]
+	if {$inc == 0} {
+	    set inc [expr {abs([$w cget -to] - [$w cget -from])/10.0}]
+	}
+	if {$inc < [$w cget -resolution]} {
+	    set inc [$w cget -resolution]
+	}
+    } else {
+	set inc [$w cget -resolution]
+    }
+    if {([$w cget -from] > [$w cget -to]) ^ ![string compare $dir "up"]} {
+	set inc [expr {-$inc}]
+    }
+    $w set [expr {[$w get] + $inc}]
+
+    if {![string compare $repeat "again"]} {
+	set tkPriv(afterId) [after [$w cget -repeatinterval] \
+		tkScaleIncrement $w $dir $big again]
+    } elseif {![string compare $repeat "initial"]} {
+	set delay [$w cget -repeatdelay]
+	if {$delay > 0} {
+	    set tkPriv(afterId) [after $delay \
+		    tkScaleIncrement $w $dir $big again]
+	}
+    }
+}
+
+# tkScaleControlPress --
+# This procedure handles button presses that are made with the Control
+# key down.  Depending on the mouse position, it adjusts the scale
+# value to one end of the range or the other.
+#
+# Arguments:
+# w -		The scale widget.
+# x, y -	Mouse coordinates where the button was pressed.
+
+proc tkScaleControlPress {w x y} {
+    set el [$w identify $x $y]
+    if {![string compare $el "trough1"]} {
+	$w set [$w cget -from]
+    } elseif {![string compare $el "trough2"]} {
+	$w set [$w cget -to]
+    }
+}
+
+# tkScaleButton2Down
+# This procedure is invoked when button 2 is pressed over a scale.
+# It sets the value to correspond to the mouse position and starts
+# a slider drag.
+#
+# Arguments:
+# w -		The scrollbar widget.
+# x, y -	Mouse coordinates within the widget.
+
+proc tkScaleButton2Down {w x y} {
+    global tkPriv
+
+    if {![string compare [$w cget -state] "disabled"]} {
+      return
+    }
+    $w configure -state active
+    $w set [$w get $x $y]
+    set tkPriv(dragging) 1
+    set tkPriv(initValue) [$w get]
+    set coords "$x $y"
+    set tkPriv(deltaX) 0
+    set tkPriv(deltaY) 0
+}
+@
+
+
+1.2
+log
+@tk 8.2.1 update
+@
+text
+@d6 1
+a6 1
+# RCS: @@(#) $Id: scale.tcl,v 1.4 1999/04/16 01:51:27 stanton Exp $
+@
+
+
+1.2.2.1
+log
+@Upgrading to newer version
+@
+text
+@d6 1
+a6 1
+# RCS: @@(#) $Id: scale.tcl,v 1.2 1999/10/19 20:02:38 jra Exp $
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d6 1
+a6 1
+# SCCS: @@(#) scale.tcl 1.12 96/04/16 11:42:25
+d22 1
+a22 1
+    if $tk_strictMotif {
+d32 1
+a32 1
+    if $tk_strictMotif {
+d35 1
+a35 1
+    if {[%W cget -state] == "active"} {
+d110 2
+a111 2
+    if {[$w cget -state] == "disabled"} {
+	return;
+d113 1
+a113 1
+    if {[$w identify $x $y] == "slider"} {
+d132 1
+a132 1
+    if {$el == "trough1"} {
+d134 1
+a134 1
+    } elseif {$el == "trough2"} {
+d136 1
+a136 1
+    } elseif {$el == "slider"} {
+d140 2
+a141 2
+	set tkPriv(deltaX) [expr $x - [lindex $coords 0]]
+	set tkPriv(deltaY) [expr $y - [lindex $coords 1]]
+d158 1
+a158 1
+    if !$tkPriv(dragging) {
+d161 2
+a162 2
+    $w set [$w get [expr $x - $tkPriv(deltaX)] \
+	    [expr $y - $tkPriv(deltaY)]]
+d197 1
+a197 1
+    if {$big == "big"} {
+d200 1
+a200 1
+	    set inc [expr abs([$w cget -to] - [$w cget -from])/10.0]
+d208 2
+a209 2
+    if {([$w cget -from] > [$w cget -to]) ^ ($dir == "up")} {
+	set inc [expr -$inc]
+d211 1
+a211 1
+    $w set [expr [$w get] + $inc]
+d213 1
+a213 1
+    if {$repeat == "again"} {
+d216 1
+a216 1
+    } elseif {$repeat == "initial"} {
+d236 1
+a236 1
+    if {$el == "trough1"} {
+d238 1
+a238 1
+    } elseif {$el == "trough2"} {
+d255 2
+a256 2
+    if {[$w cget -state] == "disabled"} {
+	return;
+@
+

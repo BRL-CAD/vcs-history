@@ -1,0 +1,441 @@
+head	11.13;
+access;
+symbols
+	ansi-20040405-merged:11.11.6.1
+	postmerge-20040405-ansi:11.12
+	premerge-20040404-ansi:11.12
+	postmerge-autoconf:11.12
+	autoconf-freeze:11.11.14.1
+	premerge-autoconf:11.12
+	ansi-20040316-freeze:11.11
+	postmerge-20040315-windows:11.12
+	premerge-20040315-windows:11.12
+	windows-20040315-freeze:11.11.8.1
+	autoconf-20031203:11.11
+	autoconf-20031202:11.11
+	autoconf-branch:11.11.0.14
+	phong-branch:11.11.0.12
+	photonmap-branch:11.11.0.10
+	rel-6-1-DP:11.11
+	windows-branch:11.11.0.8
+	rel-6-0-2:11.11
+	ansi-branch:11.11.0.6
+	rel-6-0-1-branch:11.11.0.4
+	hartley-6-0-post:11.11
+	hartley-6-0-pre:11.11
+	rel-6-0-1:11.11
+	rel-6-0:11.11
+	rel-5-4:11.11
+	offsite-5-3-pre:11.11
+	rel-5-3:11.11
+	rel-5-2:11.11
+	rel-5-1-branch:11.11.0.2
+	rel-5-1:11.11
+	rel-5-0:11.10
+	rel-5-0-beta:11.10
+	rel-4-5:11.10
+	ctj-4-5-post:11.10
+	ctj-4-5-pre:11.10
+	rel-4-4:11.6;
+locks; strict;
+comment	@ * @;
+
+
+11.13
+date	2004.05.24.04.01.08;	author morrison;	state dead;
+branches;
+next	11.12;
+
+11.12
+date	2004.02.02.17.39.04;	author morrison;	state Exp;
+branches;
+next	11.11;
+
+11.11
+date	2000.03.29.18.42.45;	author mike;	state Exp;
+branches
+	11.11.6.1
+	11.11.8.1
+	11.11.14.1;
+next	11.10;
+
+11.10
+date	96.10.28.18.42.35;	author jra;	state Exp;
+branches;
+next	11.9;
+
+11.9
+date	95.12.06.13.25.06;	author jra;	state Exp;
+branches;
+next	11.8;
+
+11.8
+date	95.11.30.16.18.17;	author jra;	state Exp;
+branches;
+next	11.7;
+
+11.7
+date	95.11.28.21.35.45;	author jra;	state Exp;
+branches;
+next	11.6;
+
+11.6
+date	95.01.04.10.07.45;	author mike;	state Rel4_4;
+branches;
+next	11.5;
+
+11.5
+date	94.08.26.10.40.10;	author jra;	state Exp;
+branches;
+next	11.4;
+
+11.4
+date	94.08.22.19.31.45;	author gdurf;	state Exp;
+branches;
+next	11.3;
+
+11.3
+date	94.01.07.15.15.56;	author jra;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	93.08.18.09.40.21;	author jra;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	93.06.28.10.04.12;	author jra;	state Exp;
+branches;
+next	;
+
+11.11.6.1
+date	2004.03.17.21.16.32;	author morrison;	state Exp;
+branches;
+next	;
+
+11.11.8.1
+date	2004.03.11.23.41.14;	author morrison;	state Exp;
+branches;
+next	;
+
+11.11.14.1
+date	2004.02.12.19.41.38;	author erikg;	state Exp;
+branches;
+next	;
+
+
+desc
+@Make the initial (outer) shell for an nmg region
+@
+
+
+11.13
+log
+@moved to src/iges/
+@
+text
+@/*
+ *  Authors -
+ *	John R. Anderson
+ *
+ *  Source -
+ *	SLAD/BVLD/VMB
+ *	The U. S. Army Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005
+ *  
+ *  Copyright Notice -
+ *	This software is Copyright (C) 1993-2004 by the United States Army.
+ *	All rights reserved.
+ */
+#include "./iges_struct.h"
+#include "./iges_extern.h"
+
+struct shell *
+Get_outer_shell( r , entityno , shell_orient )
+struct nmgregion *r;
+int entityno;
+int shell_orient;
+{ 
+
+	int		sol_num;		/* IGES solid type number */
+	int		no_of_faces;		/* Number of faces in shell */
+	int		face_count=0;		/* Number of faces actually made */
+	int		*face_de;		/* Directory seqence numbers for faces */
+	int		*face_orient;		/* Orientation of faces */
+	int		face;
+	struct shell	*s;			/* NMG shell */
+	struct faceuse	**fu;			/* list of faceuses */
+
+	/* Acquiring Data */
+
+	if( dir[entityno]->param <= pstart )
+	{
+		bu_log( "Illegal parameter pointer for entity D%07d (%s)\n" ,
+				dir[entityno]->direct , dir[entityno]->name );
+		return(0);
+	}
+
+	Readrec( dir[entityno]->param );
+	Readint( &sol_num , "" );
+	Readint( &no_of_faces , "" );
+
+	face_de = (int *)bu_calloc( no_of_faces , sizeof( int ) , "Get_outer_shell face DE's" );
+	face_orient = (int *)bu_calloc( no_of_faces , sizeof( int ) , "Get_outer_shell orients" );
+	fu = (struct faceuse **)bu_calloc( no_of_faces , sizeof( struct faceuse *) , "Get_outer_shell faceuses " );
+
+	for( face=0 ; face<no_of_faces ; face++ )
+	{
+		Readint( &face_de[face] , "" );
+		Readint( &face_orient[face] , "" );
+	}
+
+	s = nmg_msv( r );
+
+	for( face=0 ; face<no_of_faces ; face++ )
+	{
+		fu[face_count] = Add_face_to_shell( s , (face_de[face]-1)/2 , face_orient[face]  );
+		if( fu[face_count] != (struct faceuse *)NULL )
+			face_count++;
+	}
+
+	nmg_gluefaces( fu , face_count, &tol );
+
+	bu_free( (char *)fu , "Get_outer_shell: faceuse list" );
+	bu_free( (char *)face_de , "Get_outer_shell: face DE's" );
+	bu_free( (char *)face_orient , "Get_outer_shell: face orients" );
+	return( s );
+}
+@
+
+
+11.12
+log
+@update copyright to include span through 2003
+@
+text
+@@
+
+
+11.11
+log
+@
+Converted from Release 4 names to know about libbu and libbn
+@
+text
+@d11 1
+a11 1
+ *	This software is Copyright (C) 1993 by the United States Army.
+@
+
+
+11.11.6.1
+log
+@sync branch with HEAD
+@
+text
+@d11 1
+a11 1
+ *	This software is Copyright (C) 1993-2004 by the United States Army.
+@
+
+
+11.11.8.1
+log
+@sync to HEAD...
+@
+text
+@d11 1
+a11 1
+ *	This software is Copyright (C) 1993-2004 by the United States Army.
+@
+
+
+11.11.14.1
+log
+@merge from HEAD
+@
+text
+@d11 1
+a11 1
+ *	This software is Copyright (C) 1993-2004 by the United States Army.
+@
+
+
+11.10
+log
+@Mod to calls for nmg_gluefaces().
+@
+text
+@d37 1
+a37 1
+		rt_log( "Illegal parameter pointer for entity D%07d (%s)\n" ,
+d46 3
+a48 3
+	face_de = (int *)rt_calloc( no_of_faces , sizeof( int ) , "Get_outer_shell face DE's" );
+	face_orient = (int *)rt_calloc( no_of_faces , sizeof( int ) , "Get_outer_shell orients" );
+	fu = (struct faceuse **)rt_calloc( no_of_faces , sizeof( struct faceuse *) , "Get_outer_shell faceuses " );
+d67 3
+a69 3
+	rt_free( (char *)fu , "Get_outer_shell: faceuse list" );
+	rt_free( (char *)face_de , "Get_outer_shell: face DE's" );
+	rt_free( (char *)face_orient , "Get_outer_shell: face orients" );
+@
+
+
+11.9
+log
+@All logging done via rt_log
+@
+text
+@d65 1
+a65 1
+	nmg_gluefaces( fu , face_count );
+@
+
+
+11.8
+log
+@Mods to correctly handle the face orientation.
+@
+text
+@d37 1
+a37 1
+		printf( "Illegal parameter pointer for entity D%07d (%s)\n" ,
+@
+
+
+11.7
+log
+@Mods to handle TNURB BREP. Also added RT_EXTERNS to iges_struct.h.
+@
+text
+@d60 1
+a60 1
+		fu[face_count] = Add_face_to_shell( s , (face_de[face]-1)/2 , 1  );
+@
+
+
+11.6
+log
+@Release_4.4
+@
+text
+@a13 12
+#include "conf.h"
+
+#include <stdio.h>
+#ifdef USE_STRING_H
+#include <string.h>
+#else
+#include <strings.h>
+#endif
+#include "machine.h"
+#include "vmath.h"
+#include "raytrace.h"
+#include "wdb.h"
+a15 3
+
+RT_EXTERN( struct faceuse *Add_face_to_shell , ( struct shell *s , int entityno , int face_orient) );
+RT_EXTERN( struct shell *nmg_msv , (struct nmgregion *r) );
+@
+
+
+11.5
+log
+@Cleanup.
+@
+text
+@@
+
+
+11.4
+log
+@Factored ifdefs
+@
+text
+@d32 1
+a32 1
+int
+d41 1
+a43 1
+	int		face_use_orient;	/* Face orientation for shell */
+d58 2
+a59 2
+	Readint( &sol_num , "SHELL: " );
+	Readint( &no_of_faces , "\tNo of faces: " );
+d67 2
+a68 2
+		Readint( &face_de[face] , "\t\tFace de: " );
+		Readint( &face_orient[face] , "\t\tFace orient: " );
+d75 3
+a77 5
+		if( face_orient[face] == shell_orient )
+			face_use_orient = 1;
+		else
+			face_use_orient = 0;
+		fu[face] = Add_face_to_shell( s , (face_de[face]-1)/2 , face_use_orient  );
+d80 1
+a80 1
+	nmg_gluefaces( fu , no_of_faces );
+d85 1
+a85 1
+	return( 1 );
+@
+
+
+11.3
+log
+@Modified header files
+@
+text
+@d14 2
+d17 5
+a23 5
+#ifdef BSD
+#include <strings.h>
+#else
+#include <string.h>
+#endif
+@
+
+
+11.2
+log
+@corrected use of face orientation
+@
+text
+@d22 2
+a25 5
+#include "rtlist.h"
+#include "rtstring.h"
+#include "nmg.h"
+#include "raytrace.h"
+#include "wdb.h"
+d28 1
+d56 3
+a58 2
+	Readint( &sol_num , "" );
+	Readint( &no_of_faces , "" );
+d62 1
+d65 2
+a66 2
+		Readint( &face_de[face] , "" );
+		Readint( &face_orient[face] , "" );
+d80 3
+@
+
+
+11.1
+log
+@Major Upgrade to IGES 5.1
+@
+text
+@d30 1
+a30 1
+RT_EXTERN( struct faceuse *Add_face_to_shell , ( struct shell *s , int entityno , int loop_orient) );
+d43 1
+d72 7
+a78 1
+		 fu[face] = Add_face_to_shell( s , (face_de[face]-1)/2 , face_orient[face] );
+@

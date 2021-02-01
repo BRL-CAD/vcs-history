@@ -1,0 +1,263 @@
+head	1.2;
+access;
+symbols
+	ansi-20040316-freeze:1.1.1.1
+	rel-6-1-DP:1.1.1.1
+	rel-6-0-2:1.1.1.1
+	rel-6-0-1-branch:1.1.1.1.0.4
+	hartley-6-0-post:1.1.1.1
+	hartley-6-0-pre:1.1.1.1
+	rel-6-0-1:1.1.1.1
+	rel-6-0:1.1.1.1
+	rel-5-4:1.1.1.1
+	offsite-5-3-pre:1.1.1.1
+	rel-5-3:1.1.1.1
+	rel-5-1-branch:1.1.1.1.0.2
+	windows-6-0-branch:1.1.1.1.0.8
+	ansi-6-0-branch:1.1.1.1.0.6
+	itcl3-2:1.1.1.1
+	scriptics:1.1.1;
+locks; strict;
+comment	@# @;
+
+
+1.2
+date	2003.03.13.18.37.32;	author jra;	state dead;
+branches;
+next	1.1;
+
+1.1
+date	2000.12.06.21.35.18;	author bparker;	state Exp;
+branches
+	1.1.1.1;
+next	;
+
+1.1.1.1
+date	2000.12.06.21.35.18;	author bparker;	state Exp;
+branches
+	1.1.1.1.6.1
+	1.1.1.1.8.1;
+next	;
+
+1.1.1.1.6.1
+date	2004.03.17.07.13.59;	author morrison;	state dead;
+branches;
+next	;
+
+1.1.1.1.8.1
+date	2004.03.15.17.28.13;	author morrison;	state dead;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.2
+log
+@*** empty log message ***
+@
+text
+@# This file is a Tcl script to test out [incr Widgets] Calendar class.
+# It is organized in the standard fashion for Tcl tests with the following
+# notation for test case labels:
+#
+#   1.x - Construction/Destruction tests
+#   2.x - Configuration option tests
+#   3.x - Method tests
+#
+# Copyright (c) 1995 DSC Technologies Corporation
+#
+# See the file "license.terms" for information on usage and redistribution
+# of this file, and for a DISCLAIMER OF ALL WARRANTIES.
+#
+# @@(#) $Id: calendar.test,v 1.1 2000/12/06 21:35:18 bparker Exp $
+
+package require tcltest
+namespace import -force ::tcltest::*
+
+package require Iwidgets 3.0
+
+if {[string compare test [info procs test]] == 1} {
+    source defs
+}
+
+wm geometry . {}
+raise .
+
+set c 1
+set o 1
+set m 1
+
+#
+# Initial construction test
+#
+test Calendar-1.$c {Calendar construction} {
+    iwidgets::Calendar .cal 
+    pack .cal -padx 10 -pady 10 -fill both -expand yes
+    update 
+} {}
+
+incr c
+
+#
+# Option tests which are successful.
+#
+test Calendar-2.$o {configuration option} {
+    llength [.cal configure]
+} {21}
+
+incr o
+
+foreach test {
+    {-background #d9d9d9 #d9d9d9}
+    {-buttonforeground green green}
+    {-command {.cal configure -background red} {.cal configure -background red}}
+    {-currentdatefont -*-helvetica-bold-r-normal--*-120-* -*-helvetica-bold-r-normal--*-120-*}
+    {-cursor gumby gumby}
+    {-datefont -*-helvetica-medium-r-normal--*-120-* -*-helvetica-medium-r-normal--*-120-*}
+    {-dayfont -*-helvetica-medium-r-normal--*-120-* -*-helvetica-medium-r-normal--*-120-*}
+    {-days {M T W T F S S} {M T W T F S S}}
+    {-foreground black black}
+    {-height 300 300}
+    {-outline black black}
+    {-selectcolor blue blue}
+    {-selectthickness 2 2}
+    {-startday monday monday}
+    {-titlefont -*-helvetica-bold-r-normal--*-140-* -*-helvetica-bold-r-normal--*-140-*}
+    {-weekdaybackground mistyrose mistyrose}
+    {-weekendbackground white white}
+    {-width 350 350}} {
+	set option [lindex $test 0]
+	test Calendar-2.$o "configuration options, $option" {
+	    .cal configure $option [lindex $test 1]
+	    lindex [.cal configure $option] 4
+	} [lindex $test 2]
+	update 
+	incr o
+}
+
+#
+# Option tests which fail and produce errors.
+#
+foreach test {
+  {-backwardimage bogus {bad image name "bogus": image does not exist}}
+  {-forwardimage bogus {bad image name "bogus": image does not exist}}
+  {-startday bogus {bad startday option "bogus": should be sunday, monday, tuesday, wednesday, thursday, friday, or saturday}}} {
+	set option [lindex $test 0]
+        test Calendar-2.$o "configuration options, $option" {
+	    list [catch {.cal configure $option [lindex $test 1]} msg] $msg
+	} [list 1 [lindex $test 2]]
+	incr o
+}
+
+#
+# Method tests which are successful.
+#
+foreach test {
+    {{.cal select 03/03/1960} {}}
+    {{.cal get} {03/03/1960}}
+    {{.cal show 03/03/1960} {}}
+    {{.cal get -string} {03/03/1960}}
+    {{.cal select now} {}}
+    {{.cal show now} {}}} {
+	set method [lindex [lindex $test 0] 1]
+	test Calendar-3.$m "object methods, $method" {
+	    list [catch {eval [lindex $test 0]} msg] $msg
+	} [list 0 [lindex $test 1]]
+	update 
+	incr m
+}
+
+test Calendar-3.$m "object methods, clock clicks" {
+    set clicks [clock scan "06/08/1964"]
+    .cal show $clicks
+    .cal select $clicks
+    update 
+    .cal get 
+} {06/08/1964}
+incr m
+
+#
+# Method tests which fail and produce errors
+#
+foreach test {
+    {{.cal get bogus} {bad format option "bogus": should be -string or -clicks}}
+    {{.cal select bogus} {bad date: "bogus", must be a valid date string, clock clicks value or the keyword now}}
+    {{.cal show bogus} {bad date: "bogus", must be a valid date string, clock clicks value or the keyword now}}} {
+	set method [lindex [lindex $test 0] 1]
+	test Calendar-3.$m "object methods, $method" {
+	    list [catch {eval [lindex $test 0]} msg] $msg
+	} [list 1 [lindex $test 1]]
+	incr m
+}
+
+#
+# Conclusion of constrcution/destruction tests
+#
+test Calendar-1.$c {Calendar destruction} {
+    destroy .cal
+    update 
+} {}
+
+incr c
+
+test Calendar-1.$c {Calendar construction} {
+    iwidgets::calendar .cal 
+    pack .cal -padx 10 -pady 10
+    update 
+} {}
+
+incr c
+
+test Calendar-1.$c {Calendar destruction} {
+    destroy .cal
+    update 
+} {}
+
+::tcltest::cleanupTests
+exit
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d14 1
+a14 1
+# @@(#) $Id: calendar.test,v 1.2 2000/06/06 01:37:28 wart Exp $
+@
+
+
+1.1.1.1
+log
+@Import itcl3.2
+@
+text
+@@
+
+
+1.1.1.1.6.1
+log
+@sync branch with HEAD
+@
+text
+@d14 1
+a14 1
+# @@(#) $Id: calendar.test,v 1.1.1.1 2000/12/06 21:35:18 bparker Exp $
+@
+
+
+1.1.1.1.8.1
+log
+@sync with HEAD -- libitcl3.2 is not in libitcl (v3.3)
+@
+text
+@d14 1
+a14 1
+# @@(#) $Id: calendar.test,v 1.1.1.1 2000/12/06 21:35:18 bparker Exp $
+@
+

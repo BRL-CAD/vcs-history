@@ -1,0 +1,996 @@
+head	1.19;
+access;
+symbols
+	rel-4-5:1.17
+	ctj-4-5-post:1.15
+	ctj-4-5-pre:1.15;
+locks; strict;
+comment	@ * @;
+
+
+1.19
+date	98.09.22.01.43.10;	author mike;	state dead;
+branches;
+next	1.18;
+
+1.18
+date	98.06.30.22.54.17;	author mike;	state Exp;
+branches;
+next	1.17;
+
+1.17
+date	97.12.31.09.01.40;	author mike;	state Exp;
+branches;
+next	1.16;
+
+1.16
+date	97.12.09.04.44.44;	author butler;	state Exp;
+branches;
+next	1.15;
+
+1.15
+date	97.07.02.21.13.25;	author butler;	state Exp;
+branches;
+next	1.14;
+
+1.14
+date	97.05.21.01.29.02;	author butler;	state Exp;
+branches;
+next	1.13;
+
+1.13
+date	97.02.09.01.46.06;	author jra;	state Exp;
+branches;
+next	1.12;
+
+1.12
+date	97.01.24.19.31.32;	author pjt;	state Exp;
+branches;
+next	1.11;
+
+1.11
+date	96.08.31.08.46.01;	author butler;	state Exp;
+branches;
+next	1.10;
+
+1.10
+date	96.08.31.08.29.28;	author butler;	state Exp;
+branches;
+next	1.9;
+
+1.9
+date	96.08.30.00.08.21;	author butler;	state Exp;
+branches;
+next	1.8;
+
+1.8
+date	96.08.21.13.48.41;	author jra;	state Exp;
+branches;
+next	1.7;
+
+1.7
+date	96.07.30.20.35.55;	author butler;	state Exp;
+branches;
+next	1.6;
+
+1.6
+date	95.12.27.17.29.41;	author butler;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	95.10.20.04.43.53;	author butler;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	95.08.19.05.06.10;	author butler;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	95.06.03.00.44.53;	author butler;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	95.06.02.04.55.27;	author butler;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	95.06.02.04.29.10;	author butler;	state Exp;
+branches;
+next	;
+
+
+desc
+@Camoflage shader
+@
+
+
+1.19
+log
+@Moved sh_*.c shaders from rt/ to liboptical/ directory.
+Moved and split rt/material.h into h/shadefuncs.h and h/shadework.h
+Changed calling sequence of mlib_setup() to get shader list head explicitly.
+Initialization of shader library is now via optical_shader_init().
+
+Note that the "proper" location of shade.c, material.c, and refract.c
+(presently in the rt/ directory) are a bit muddled, as they will be
+shared with libmultispectral/ shader functions, but aren't quite
+wholesome and pure yet.  To minimize impact to Lee's ongoing shader
+developments, they haven't been changed.
+@
+text
+@/*
+ *	S H _ C A M O . C
+ *
+ *	A shader to apply a crude camoflage color pattern to an object
+ *	using a fractional Brownian motion of 3 colors
+ *
+ *	At each hit point, the shader evaluate the fbm to obtain a "Noise"
+ *	value between -1 and 1.  The color produced is:
+ *
+ *	Noise value		Color
+ *	-1 <= N < t1		 c1
+ *	t1 <= N < t2		 c2
+ *	t2 <= N <= 1		 c3
+ */
+#include "conf.h"
+
+#include <stdio.h>
+#include <math.h>
+#include "machine.h"
+#include "vmath.h"
+#include "raytrace.h"
+#include "./material.h"
+#include "./mathtab.h"
+#include "./rdebug.h"
+
+#define camo_MAGIC 0x18364	/* XXX change this number for each shader */
+struct camo_specific {
+	long	magic;
+	double	noise_lacunarity;
+	double	noise_h_val;
+	double	noise_octaves;
+	double	noise_size;
+	point_t	noise_vscale;	/* size of noise coordinate space */
+	vect_t	noise_delta;	/* a delta in noise space to be applied to pts */
+
+	double	t1;	/* noise threshold for color1 */
+	double	t2;	/* noise threshold for color2 */
+	point_t c1;	/* color 1 */
+	point_t c2;	/* color 2 */
+	point_t c3;	/* color 3 */
+	mat_t	xform;	/* model->region coord sys matrix */
+};
+#define CK_camo_SP(_p) RT_CKMAG(_p, camo_MAGIC, "camo_specific")
+
+/* This allows us to specify the "size" parameter as values like ".5m"
+ * or "27in" rather than using mm all the time.
+ */
+void
+camo_cvt_parse( sdp, name, base, value )
+register CONST struct bu_structparse	*sdp;	/* structure description */
+register CONST char			*name;	/* struct member name */
+char					*base;	/* begining of structure */
+CONST char				*value;	/* string containing value */
+{
+	double v;
+	double *p = (double *)(base+sdp->sp_offset);
+
+	/* reconvert with optional units */
+	*p = rt_mm_value(value);
+}
+
+
+static struct camo_specific camo_defaults = {
+	camo_MAGIC,
+	2.1753974,		/* noise_lacunarity */
+	1.0,			/* noise_h_val */
+	4.0,			/* noise_octaves */
+	1.0,			/* noise_size */
+	{ 1.0, 1.0, 1.0 },	/* noise_vscale */
+	{ 1000.0, 1000.0, 1000.0 },	/* delta into noise space */
+	-0.25,			/* t1 */
+	0.25,			/* t2 */
+	{ .38, .29, .16 },	/* darker color c1 (97/74/41) */
+	{ .1, .30, .04 },	/* basic color c2 (26/77/10) */
+	{ .15, .15, .15 }	/* dark black (38/38/38) */
+	};
+
+#define SHDR_NULL	((struct camo_specific *)0)
+#define SHDR_O(m)	offsetof(struct camo_specific, m)
+#define SHDR_AO(m)	offsetofarray(struct camo_specific, m)
+
+void color_fix();
+
+struct bu_structparse camo_print_tab[] = {
+	{"%f",	1, "lacunarity",	SHDR_O(noise_lacunarity),	FUNC_NULL },
+	{"%f",	1, "H", 		SHDR_O(noise_h_val),		FUNC_NULL },
+	{"%f",	1, "octaves", 		SHDR_O(noise_octaves),	FUNC_NULL },
+	{"%f",  1, "size",		SHDR_O(noise_size),		bu_mm_cvt },
+	{"%f",  3, "vscale",		SHDR_AO(noise_vscale),	FUNC_NULL },
+	{"%f",	1, "thresh1",		SHDR_O(t1),		FUNC_NULL },
+	{"%f",	1, "thresh2",		SHDR_O(t2),		FUNC_NULL },
+	{"%f",  3, "color1",		SHDR_AO(c1),		color_fix },
+	{"%f",  3, "color2",		SHDR_AO(c2),		color_fix },
+	{"%f",  3, "color3",		SHDR_AO(c3),		color_fix },
+	{"%f",  3, "delta",		SHDR_AO(noise_delta),		FUNC_NULL },
+};
+
+struct bu_structparse camo_parse[] = {
+	{"%f",	1, "lacunarity",	SHDR_O(noise_lacunarity),	FUNC_NULL },
+	{"%f",	1, "l",			SHDR_O(noise_lacunarity),	FUNC_NULL },
+	{"%f",	1, "H", 		SHDR_O(noise_h_val),		FUNC_NULL },
+	{"%f",	1, "octaves", 		SHDR_O(noise_octaves),	FUNC_NULL },
+	{"%f",	1, "o", 		SHDR_O(noise_octaves),	FUNC_NULL },
+	{"%f",	1, "t1",		SHDR_O(t1),		FUNC_NULL },
+	{"%f",	1, "t2",		SHDR_O(t2),		FUNC_NULL },
+	{"%f",  1, "size",		SHDR_O(noise_size),		bu_mm_cvt },
+	{"%f",  1, "s",			SHDR_O(noise_size),		bu_mm_cvt },
+	{"%f",  3, "vscale",		SHDR_AO(noise_vscale),	FUNC_NULL },
+	{"%f",  3, "vs",		SHDR_AO(noise_vscale),	FUNC_NULL },
+	{"%f",  3, "v",			SHDR_AO(noise_vscale),	FUNC_NULL },
+	{"%f",  3, "c1",		SHDR_AO(c1),		color_fix },
+	{"%f",  3, "c2",		SHDR_AO(c2),		color_fix },
+	{"%f",  3, "c3",		SHDR_AO(c3),		color_fix },
+	{"%f",  3, "delta",		SHDR_AO(noise_delta),		FUNC_NULL },
+	{"%f",  3, "d",			SHDR_AO(noise_delta),		FUNC_NULL },
+	{"",	0, (char *)0,		0,			FUNC_NULL }
+};
+
+HIDDEN int	camo_setup(), camo_render();
+HIDDEN void	camo_print(), camo_free();
+
+struct mfuncs camo_mfuncs[] = {
+	{MF_MAGIC,	"camo",		0,		MFI_HIT,	0,
+	camo_setup,	camo_render,	camo_print,	camo_free },
+
+	{0,		(char *)0,	0,		0,		0,
+	0,		0,		0,		0 }
+};
+
+/*  color_fix
+ *
+ *  Used as a hooked function for input of color values
+ */
+void
+color_fix( sdp, name, base, value )
+register CONST struct bu_structparse	*sdp;	/* structure description */
+register CONST char			*name;	/* struct member name */
+char					*base;	/* begining of structure */
+CONST char				*value;	/* string containing value */
+{
+	register double *p = (double *)(base+sdp->sp_offset);
+	register int i;
+	int ok;
+
+	/* if all the values are in the range [0..1] there's nothing to do */
+	for (ok=1, i=0 ; i < sdp->sp_count ; i++, p++) {
+		if (*p > 1.0) ok = 0;
+	}
+	if (ok) return;
+
+	/* user specified colors in the range [0..255] so we need to
+	 * map those into [0..1]
+	 */
+	p = (double *)(base+sdp->sp_offset);
+	for (i=0 ; i < sdp->sp_count ; i++, p++) {
+		*p /= 255.0;
+	}
+}
+
+
+
+
+/*	C A M O _ S E T U P
+ *
+ *	This routine is called (at prep time)
+ *	once for each region which uses this shader.
+ *	Any shader-specific initialization should be done here.
+ */
+HIDDEN int
+camo_setup( rp, matparm, dpp, mfp, rtip)
+register struct region	*rp;
+struct rt_vls		*matparm;
+char			**dpp;	/* pointer to reg_udata in *rp */
+struct mfuncs		*mfp;
+struct rt_i		*rtip;	/* New since 4.4 release */
+{
+	register struct camo_specific	*camo_sp;
+	mat_t	model_to_region;
+	mat_t	tmp;
+
+	RT_CHECK_RTI(rtip);
+	RT_VLS_CHECK( matparm );
+	RT_CK_REGION(rp);
+	GETSTRUCT( camo_sp, camo_specific );
+	*dpp = (char *)camo_sp;
+
+	if( rdebug&RDEBUG_SHADE) {
+		rt_log("camouflage parameters = '%s'", bu_vls_addr(matparm));
+	}
+	memcpy(camo_sp, &camo_defaults, sizeof(struct camo_specific) );
+
+	if( bu_struct_parse( matparm, camo_parse, (char *)camo_sp ) < 0 )
+		return(-1);
+
+	/* Optional:  get the matrix which maps model space into
+	 *  "region" or "shader" space
+	 */
+	db_region_mat(model_to_region, rtip->rti_dbip, rp->reg_name);
+
+	/* add the noise-space scaling */
+	mat_idn(tmp);
+	if (camo_sp->noise_size != 1.0) {
+		/* the user sets "noise_size" to the size of the biggest
+		 * noise-space blob in model coordinates
+		 */
+		tmp[0] = tmp[5] = tmp[10] = 1.0/camo_sp->noise_size;
+	} else {
+		tmp[0] = 1.0/camo_sp->noise_vscale[0];
+		tmp[5] = 1.0/camo_sp->noise_vscale[1];
+		tmp[10] = 1.0/camo_sp->noise_vscale[2];
+	}
+
+	mat_mul(camo_sp->xform, tmp, model_to_region);
+
+	/* Add any translation within shader/region space */
+	mat_idn(tmp);
+	tmp[MDX] = camo_sp->noise_delta[0];
+	tmp[MDY] = camo_sp->noise_delta[1];
+	tmp[MDZ] = camo_sp->noise_delta[2];
+	mat_mul2(tmp, camo_sp->xform);
+
+	if( rdebug&RDEBUG_SHADE) {
+		bu_struct_print( rp->reg_name, camo_print_tab, (char *)camo_sp );
+		mat_print( "xform", camo_sp->xform );
+	}
+
+	return(1);
+}
+
+/*
+ *	C A M O _ P R I N T
+ */
+HIDDEN void
+camo_print( rp, dp )
+register struct region *rp;
+char	*dp;
+{
+	bu_struct_print( rp->reg_name, camo_print_tab, (char *)dp );
+}
+
+/*
+ *	C A M O _ F R E E
+ */
+HIDDEN void
+camo_free( cp )
+char *cp;
+{
+	rt_free( cp, "camo_specific" );
+}
+
+/*
+ *	C A M O _ R E N D E R
+ *
+ *	This is called (from viewshade() in shade.c)
+ *	once for each hit point to be shaded.
+ */
+int
+camo_render( ap, pp, swp, dp )
+struct application	*ap;
+struct partition	*pp;
+struct shadework	*swp;
+char	*dp;
+{
+	register struct camo_specific *camo_sp =
+		(struct camo_specific *)dp;
+	point_t pt;
+	double val;
+
+	RT_AP_CHECK(ap);
+	RT_CHECK_PT(pp);
+	CK_camo_SP(camo_sp);
+
+	if( rdebug&RDEBUG_SHADE)
+		bu_struct_print( "foo", camo_parse, (char *)camo_sp );
+
+	/* Optional: transform hit point into "shader-space coordinates" */
+	MAT4X3PNT(pt, camo_sp->xform, swp->sw_hit.hit_point);
+
+
+	/* noise_fbm returns a value in the approximate range of
+	 *	-1.0 ~<= noise_fbm() ~<= 1.0
+	 */
+	val = noise_fbm(pt, camo_sp->noise_h_val,
+		camo_sp->noise_lacunarity, camo_sp->noise_octaves );
+
+	if (val < camo_sp->t1) {
+		VMOVE(swp->sw_color, camo_sp->c1);
+	} else if (val < camo_sp->t2 ) {
+		VMOVE(swp->sw_color, camo_sp->c2);
+	} else {
+		VMOVE(swp->sw_color, camo_sp->c3);
+	}
+
+	return(1);
+}
+@
+
+
+1.18
+log
+@Can't make "struct mfuncs" a CONST, because the forward link needs
+to be filled in at runtime, and some compilers put CONST data into
+read-only pages (like FreeBSD).
+@
+text
+@@
+
+
+1.17
+log
+@Required magic number to be first in mfunc table,
+consistent with all other BRL-CAD magic numbers.
+Required magic number to be initialized at compile time.
+Added code to check the magic numbers.
+Made the xxx_mfunc arrays CONST, so they can't get trashed by
+runtime runaway pointer problems.
+@
+text
+@d122 1
+a122 1
+CONST struct mfuncs camo_mfuncs[] = {
+@
+
+
+1.16
+log
+@hacked to allow color specification in the 0..1 or 0..255 ranges
+@
+text
+@d122 2
+a123 2
+struct mfuncs camo_mfuncs[] = {
+	{"camo",	0,		0,		MFI_HIT,	0,
+d126 1
+a126 1
+	{(char *)0,	0,		0,		0,		0,
+@
+
+
+1.15
+log
+@checkpoint
+@
+text
+@d36 2
+a37 2
+	double	t1;	/* color threshold 1 */
+	double	t2;	/* color threshold 2 */
+d82 2
+d92 3
+a94 3
+	{"%f",  3, "color1",		SHDR_AO(c1),		FUNC_NULL },
+	{"%f",  3, "color2",		SHDR_AO(c2),		FUNC_NULL },
+	{"%f",  3, "color3",		SHDR_AO(c3),		FUNC_NULL },
+d111 3
+a113 3
+	{"%f",  3, "c1",		SHDR_AO(c1),		FUNC_NULL },
+	{"%f",  3, "c2",		SHDR_AO(c2),		FUNC_NULL },
+	{"%f",  3, "c3",		SHDR_AO(c3),		FUNC_NULL },
+d129 33
+@
+
+
+1.14
+log
+@modified to use bu_mm_cvt()
+@
+text
+@d29 7
+a35 3
+	double	lacunarity;
+	double	h_val;
+	double	octaves;
+a37 2
+	double	size;
+	point_t	vscale;	/* size of noise coordinate space */
+a40 1
+	vect_t	delta;	/* a delta in noise space to be applied to pts */
+d65 8
+a72 7
+	2.1753974,	/* lacunarity */
+	1.0,		/* h_val */
+	4.0,		/* octaves */
+	-0.25,		/* t1 */
+	0.25,		/* t2 */
+	1.0,		/* size */
+	{ 1.0, 1.0, 1.0 },	/* vscale */
+d75 1
+a75 3
+/*	{ .815, .635, .35 },	brighter color c3 */
+	{ .15, .15, .15 },	/* dark black (38/38/38) */
+	{ 1000.0, 1000.0, 1000.0 }	/* delta into noise space */
+d83 5
+a87 5
+	{"%f",	1, "lacunarity",	SHDR_O(lacunarity),	FUNC_NULL },
+	{"%f",	1, "H", 		SHDR_O(h_val),		FUNC_NULL },
+	{"%f",	1, "octaves", 		SHDR_O(octaves),	FUNC_NULL },
+	{"%f",  1, "size",		SHDR_O(size),		bu_mm_cvt },
+	{"%f",  3, "vscale",		SHDR_AO(vscale),	FUNC_NULL },
+d93 1
+a93 1
+	{"%f",  3, "delta",		SHDR_AO(delta),		FUNC_NULL },
+d97 5
+a101 5
+	{"%f",	1, "lacunarity",	SHDR_O(lacunarity),	FUNC_NULL },
+	{"%f",	1, "l",			SHDR_O(lacunarity),	FUNC_NULL },
+	{"%f",	1, "H", 		SHDR_O(h_val),		FUNC_NULL },
+	{"%f",	1, "octaves", 		SHDR_O(octaves),	FUNC_NULL },
+	{"%f",	1, "o", 		SHDR_O(octaves),	FUNC_NULL },
+d104 5
+a108 5
+	{"%f",  1, "size",		SHDR_O(size),		bu_mm_cvt },
+	{"%f",  1, "s",			SHDR_O(size),		bu_mm_cvt },
+	{"%f",  3, "vscale",		SHDR_AO(vscale),	FUNC_NULL },
+	{"%f",  3, "vs",		SHDR_AO(vscale),	FUNC_NULL },
+	{"%f",  3, "v",			SHDR_AO(vscale),	FUNC_NULL },
+d112 2
+a113 2
+	{"%f",  3, "delta",		SHDR_AO(delta),		FUNC_NULL },
+	{"%f",  3, "d",			SHDR_AO(delta),		FUNC_NULL },
+d167 2
+a168 2
+	if (camo_sp->size != 1.0) {
+		/* the user sets "size" to the size of the biggest
+d171 1
+a171 1
+		tmp[0] = tmp[5] = tmp[10] = 1.0/camo_sp->size;
+d173 3
+a175 3
+		tmp[0] = 1.0/camo_sp->vscale[0];
+		tmp[5] = 1.0/camo_sp->vscale[1];
+		tmp[10] = 1.0/camo_sp->vscale[2];
+d182 3
+a184 3
+	tmp[MDX] = camo_sp->delta[0];
+	tmp[MDY] = camo_sp->delta[1];
+	tmp[MDZ] = camo_sp->delta[2];
+d248 2
+a249 2
+	val = noise_fbm(pt, camo_sp->h_val,
+		camo_sp->lacunarity, camo_sp->octaves );
+@
+
+
+1.13
+log
+@Lee added camo_print_tab.
+@
+text
+@d86 1
+a86 1
+	{"%f",  1, "size",		SHDR_O(size),		camo_cvt_parse },
+d104 2
+a105 2
+	{"%f",  1, "size",		SHDR_O(size),		camo_cvt_parse },
+	{"%f",  1, "s",			SHDR_O(size),		camo_cvt_parse },
+@
+
+
+1.12
+log
+@Added one diagnostic statement and commented the default colors
+@
+text
+@d82 14
+d188 1
+a188 1
+		bu_struct_print( rp->reg_name, camo_parse, (char *)camo_sp );
+d203 1
+a203 1
+	bu_struct_print( rp->reg_name, camo_parse, (char *)dp );
+@
+
+
+1.11
+log
+@bu_struct_print
+@
+text
+@d71 2
+a72 2
+	{ .38, .29, .16 },	/* darker color c1 */
+	{ .1, .30, .04 },	/* basic color c2 */
+d74 1
+a74 1
+	{ .15, .15, .15 },	/* dark black */
+d138 3
+@
+
+
+1.10
+log
+@bu_struct_parse
+@
+text
+@d171 1
+a171 1
+		bu_structprint( rp->reg_name, camo_parse, (char *)camo_sp );
+d186 1
+a186 1
+	bu_structprint( rp->reg_name, camo_parse, (char *)dp );
+d222 1
+a222 1
+		bu_structprint( "foo", camo_parse, (char *)camo_sp );
+@
+
+
+1.9
+log
+@structparse moved to libbu
+@
+text
+@d140 1
+a140 1
+	if( bu_structparse( matparm, camo_parse, (char *)camo_sp ) < 0 )
+@
+
+
+1.8
+log
+@Minor mods for IRIX 6.2.
+@
+text
+@d49 1
+a49 1
+register CONST struct structparse	*sdp;	/* structure description */
+d82 1
+a82 1
+struct structparse camo_parse[] = {
+d140 1
+a140 1
+	if( rt_structparse( matparm, camo_parse, (char *)camo_sp ) < 0 )
+d171 1
+a171 1
+		rt_structprint( rp->reg_name, camo_parse, (char *)camo_sp );
+d186 1
+a186 1
+	rt_structprint( rp->reg_name, camo_parse, (char *)dp );
+d222 1
+a222 1
+		rt_structprint( "foo", camo_parse, (char *)camo_sp );
+@
+
+
+1.7
+log
+@revamped shader inputs
+@
+text
+@d73 1
+a73 1
+/*	{ .815, .635, .35 },	/* brighter color c3 */
+@
+
+
+1.6
+log
+@added comments to variables
+@
+text
+@d6 8
+d34 2
+a35 1
+	point_t	scale;	/* scale of noise coordinate space */
+d44 18
+d67 4
+a70 3
+	-0.5,		/* t1 */
+	0.5,		/* t2 */
+	{ 1.0, 1.0, 1.0 },	/* scale */
+d72 3
+a74 2
+	{ .125, .35, .04 },	/* basic color c2 */
+	{ .815, .635, .35 },	/* brighter color c3 */
+d90 5
+a94 2
+	{"%f",  3, "scale",		SHDR_AO(scale),		FUNC_NULL },
+	{"%f",  3, "s",			SHDR_AO(scale),		FUNC_NULL },
+a113 1
+
+d150 10
+a159 3
+	tmp[0] = camo_sp->scale[0];
+	tmp[5] = camo_sp->scale[1];
+	tmp[10] = camo_sp->scale[2];
+@
+
+
+1.5
+log
+@edited mfuncs table to account for new "mf_flags" element in struct mfuncs.
+@
+text
+@d24 8
+a31 8
+	double	t1;
+	double	t2;
+	point_t	scale;	/* scale coordinate space */
+	point_t c1;
+	point_t c2;
+	point_t c3;
+	vect_t	delta;
+	mat_t	xform;
+@
+
+
+1.4
+log
+@rewrite from sh_xxx.c
+@
+text
+@d75 1
+a75 1
+	{"camo",	0,	0,		MFI_HIT,
+d78 1
+a78 1
+	{(char *)0,	0,		0,		0,
+@
+
+
+1.3
+log
+@changed so that model_to_region matrix is computed only at setup time.
+@
+text
+@d4 2
+a5 1
+ *	A camoflage shader
+a16 1
+#define M_PI            3.14159265358979323846
+d18 1
+a18 4
+#define CLAMP(_x,_a,_b)	(_x < _a ? _a : (_x > _b ? _b : _x))
+#define FLOOR(x)	(  (int)(x) - (  (x) < 0 && (x) != (int)(x)  )  )
+#define CEIL(x)		(  (int)(x) + (  (x) > 0 && (x) != (int)(x)  )  )
+
+d20 1
+d33 1
+d36 1
+d49 3
+a51 3
+#define CAMO_NULL	((struct camo_specific *)0)
+#define CAMO_O(m)	offsetof(struct camo_specific, m)
+#define CAMO_AO(m)	offsetofarray(struct camo_specific, m)
+d54 14
+a67 15
+	{"%f",	1, "lacunarity",	CAMO_O(lacunarity),	FUNC_NULL },
+	{"%f",	1, "H", 		CAMO_O(h_val),		FUNC_NULL },
+	{"%f",	1, "octaves", 		CAMO_O(octaves),		FUNC_NULL },
+	{"%f",	1, "t1",		CAMO_O(t1),		FUNC_NULL },
+	{"%f",	1, "t2",		CAMO_O(t2),		FUNC_NULL },
+	{"%f",  3, "scale",		CAMO_AO(scale),		FUNC_NULL },
+	{"%f",  3, "c1",		CAMO_AO(c1),		FUNC_NULL },
+	{"%f",  3, "c2",		CAMO_AO(c2),		FUNC_NULL },
+	{"%f",  3, "c3",		CAMO_AO(c3),		FUNC_NULL },
+	{"%f",  3, "delta",		CAMO_AO(delta),		FUNC_NULL },
+	{"%f",	1, "l",			CAMO_O(lacunarity),	FUNC_NULL },
+	{"%d",	1, "o", 		CAMO_O(octaves),		FUNC_NULL },
+	{"%f",  3, "s",			CAMO_AO(scale),		FUNC_NULL },
+	{"%f",  3, "d",			CAMO_AO(delta),		FUNC_NULL },
+
+d75 1
+a75 1
+	{"camo",	0,		0,		MFI_NORMAL|MFI_HIT|MFI_UV,
+d83 5
+a87 3
+
+/*
+ *	C A M O _ S E T U P
+d95 1
+a95 1
+struct rt_i		*rtip;
+d97 1
+a97 3
+	register struct camo_specific *camo;
+	struct db_full_path full_path;
+	mat_t	region_to_model;
+d104 2
+a105 2
+	GETSTRUCT( camo, camo_specific );
+	*dpp = (char *)camo;
+d107 1
+a107 3
+	memcpy(camo, &camo_defaults, sizeof(struct camo_specific) );
+	if( rdebug&RDEBUG_SHADE)
+		rt_log("camo_setup\n");
+d109 1
+a109 1
+	if( rt_structparse( matparm, camo_parse, (char *)camo ) < 0 )
+d112 2
+a113 15
+	if( rdebug&RDEBUG_SHADE)
+		rt_structprint( rp->reg_name, camo_parse, (char *)camo );
+
+	/* get transformation between world and "region" coordinates */
+	if (db_string_to_path( &full_path, rtip->rti_dbip, rp->reg_name) ) {
+		/* bad thing */
+		rt_bomb("db_string_to_path() error");
+	}
+	if(! db_path_to_mat(rtip->rti_dbip, &full_path, region_to_model, 0)) {
+		/* bad thing */
+		rt_bomb("db_path_to_mat() error");
+	}
+
+	/* get matrix to map points from model (world) space
+	 * to "region" space
+d115 1
+a115 2
+	mat_inv(model_to_region, region_to_model);
+
+d119 3
+a121 3
+	tmp[0] = camo->scale[0];
+	tmp[5] = camo->scale[1];
+	tmp[10] = camo->scale[2];
+d123 1
+a123 1
+	mat_mul(camo->xform, tmp2, model_to_region);
+d125 1
+a125 1
+	/* add the translation within noise space */
+d127 9
+a135 4
+	tmp[MDX] = camo->delta[0];
+	tmp[MDY] = camo->delta[1];
+	tmp[MDZ] = camo->delta[2];
+	mat_mul2(tmp, camo->xform);
+d161 1
+a161 1
+/*
+d163 3
+a175 1
+	vect_t v_noise;
+d177 1
+a177 4
+	double  val;
+
+/*	pp->pt_inseg->seg_stp	/* struct soltab */
+/*	pp->pt_regionp		/* region */
+d179 3
+a181 4
+/*
+ *	region rpp in ray-trace coordinates (changes as solid moves)
+ *  rt_bound_tree(pp->pt_regionp->reg_treetop, reg_rpp_min, reg_rpp_max)
+ */
+d186 1
+a186 1
+	/* transform point into "noise-space coordinates" */
+a188 1
+	val = noise_fbm(pt, camo_sp->h_val, camo_sp->lacunarity, camo_sp->octaves );
+d190 5
+a194 4
+	if( rdebug&RDEBUG_SHADE)
+		rt_log("camo_render: point (%g %g %g) %g\n\tRGB(%g %g %g) -> ",
+			V3ARGS(swp->sw_hit.hit_point), val,
+			V3ARGS(swp->sw_color));
+a202 6
+
+/*	swp->sw_color[1] += val * camo_sp->distortion;
+	swp->sw_basecolor[1] += val * camo_sp->distortion; */
+
+	if( rdebug&RDEBUG_SHADE)
+		rt_log("RGB(%g %g %g)\n", V3ARGS(swp->sw_color));
+@
+
+
+1.2
+log
+@added delta option to position object in shader space
+@
+text
+@d33 1
+d89 6
+a94 4
+camo_setup( rp, matparm, dpp )
+register struct region *rp;
+struct rt_vls	*matparm;
+char	**dpp;	/* pointer to reg_udata in *rp */
+d97 4
+d102 1
+d104 1
+d118 15
+d134 15
+a188 5
+	struct db_full_path full_path;
+	mat_t	region_to_model;
+	mat_t	model_to_region;
+
+
+a198 29
+#if 1
+
+	/* get transformation between world and "region" coordinates */
+	if (db_string_to_path( &full_path, ap->a_rt_i->rti_dbip, pp->pt_regionp->reg_name) ) {
+		/* bad thing */
+		rt_bomb("db_string_to_path() error");
+	}
+	if(! db_path_to_mat(ap->a_rt_i->rti_dbip, &full_path, region_to_model, 0) ) {
+		/* bad thing */
+		rt_bomb("db_path_to_mat() error");
+	}
+
+	/* map point from model (world) space to "region" space */
+	mat_inv(model_to_region, region_to_model);
+
+	/* transform point into "region coordinates" */
+	MAT4X3PNT(pt, model_to_region, swp->sw_hit.hit_point);
+
+	VADD2(pt, pt, camo_sp->delta);
+
+	/* apply noise-field scaling */
+	VELMUL(pt, pt, camo_sp->scale);
+
+#else
+
+	/* apply noise-field scaling */
+	VELMUL(pt, swp->sw_hit.hit_point, camo_sp->scale);
+#endif
+
+d200 2
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@a25 3
+	double	offset;
+	double	gain;
+	double	distortion;
+d32 1
+a32 1
+	mat_t	model_to_region;
+d39 2
+a40 5
+	0.0,		/* offset */
+	0.0,		/* gain */
+	1.0,		/* distortion */
+	-0.5,
+	0.5,
+d44 2
+a45 1
+	{ .815, .635, .35 }	/* brighter color c3 */
+d56 2
+a57 2
+	{"%f",	1, "gain",		CAMO_O(gain),		FUNC_NULL },
+	{"%f",	1, "distortion",	CAMO_O(distortion),	FUNC_NULL },
+a58 5
+	{"%f",  3, "s",			CAMO_AO(scale),		FUNC_NULL },
+	{"%f",	1, "l",			CAMO_O(lacunarity),	FUNC_NULL },
+	{"%d",	1, "o", 		CAMO_O(octaves),		FUNC_NULL },
+	{"%f",	1, "g",			CAMO_O(gain),		FUNC_NULL },
+	{"%f",	1, "d",			CAMO_O(distortion),	FUNC_NULL },
+d62 6
+a67 2
+	{"%f",	1, "t1",		CAMO_O(t1),		FUNC_NULL },
+	{"%f",	1, "t2",		CAMO_O(t2),		FUNC_NULL },
+d166 2
+a167 4
+	/* get transformation between world coordinates and 
+	 * un-transformed region coordinates 
+	 */
+	/* map point from model (world) space to "region" space */
+a171 1
+
+d177 1
+d183 2
+d193 3
+@

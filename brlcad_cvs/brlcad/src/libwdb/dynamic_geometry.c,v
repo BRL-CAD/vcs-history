@@ -1,0 +1,690 @@
+head	14.12;
+access;
+symbols
+	rel-7-10-4:14.11
+	STABLE:14.11.0.2
+	stable-branch:14.7
+	rel-7-10-2:14.11
+	rel-7-10-0:14.11
+	rel-7-8-4:14.8
+	rel-7-8-2:14.8
+	rel-7-8-0:14.8
+	trimnurbs-branch:14.8.0.2
+	help:14.8
+	temp_tag:14.7
+	bobWinPort-20051223-freeze:14.7
+	postmerge-20051223-bobWinPort:14.7
+	premerge-20051223-bobWinPort:14.7
+	rel-7-6-6:14.7
+	rel-7-6-4:14.7
+	rel-7-6-2:14.7
+	rel-7-6-branch:14.7.0.6
+	rel-7-6-0:14.7
+	rel-7-4-2:14.7
+	rel-7-4-branch:14.7.0.4
+	bobWinPort:14.7.0.2
+	rel-7-4-0:14.7
+	rel-7-2-6:14.7
+	rel-7-2-4:14.7
+	rel-7-2-2:14.7
+	rel-7-2-0:14.7
+	rel-7-0-4:14.6
+	rel-7-0-2:14.6
+	rel-7-0-1:14.6
+	opensource-post:14.6
+	opensource-pre:1.4
+	rel-7-0-branch:1.4.0.2
+	rel-7-0:1.4;
+locks; strict;
+comment	@ * @;
+
+
+14.12
+date	2007.09.15.16.23.16;	author brlcad;	state Exp;
+branches;
+next	14.11;
+
+14.11
+date	2007.01.27.01.41.43;	author brlcad;	state Exp;
+branches;
+next	14.10;
+
+14.10
+date	2007.01.23.01.13.40;	author brlcad;	state Exp;
+branches;
+next	14.9;
+
+14.9
+date	2007.01.20.14.36.56;	author brlcad;	state Exp;
+branches;
+next	14.8;
+
+14.8
+date	2006.01.18.06.46.18;	author brlcad;	state Exp;
+branches;
+next	14.7;
+
+14.7
+date	2005.01.30.20.31.05;	author brlcad;	state Exp;
+branches;
+next	14.6;
+
+14.6
+date	2004.12.21.06.58.43;	author morrison;	state Exp;
+branches;
+next	14.5;
+
+14.5
+date	2004.12.21.06.44.33;	author morrison;	state Exp;
+branches;
+next	14.4;
+
+14.4
+date	2004.12.21.06.18.48;	author morrison;	state Exp;
+branches;
+next	14.3;
+
+14.3
+date	2004.12.21.05.45.26;	author morrison;	state Exp;
+branches;
+next	14.2;
+
+14.2
+date	2004.12.21.02.34.59;	author morrison;	state Exp;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.17;	author morrison;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	2004.09.03.23.30.58;	author morrison;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2004.08.02.23.01.51;	author morrison;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2004.06.08.22.04.25;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.15.20.17;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.12
+log
+@more c89 embracing.  c89 provides string.h for all of the various str*() and mem*() functions, so remove the check for its presence.  there is still likely to be work required for strict c89 conformance for the various bsd strings.h functions that may be in use.
+@
+text
+@/*              D Y N A M I C _ G E O M E T R Y . C
+ * BRL-CAD
+ *
+ * Copyright (c) 2003-2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This library is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@file dynamic_geometry.c
+ *
+ *  Library for dynamically changing BRL-CAD geometry (i.e., changing already prepped geometry )
+ *
+ *
+ *  Author -
+ *	John R. Anderson
+ *
+ *  Source -
+ *      The U. S. Army Research Laboratory
+ *      Aberdeen Proving Ground, Maryland  21005-5068
+ *
+ *
+ *
+ *  NOTES:
+ *	The typical use of dynamic geometry involves these steps:
+ *	1. Normal use of " db_dirbuild", "gettrees", and "prep".
+ *	2. Call "wdb_dbopen" to get a "struct rt_wdb" pointer for the database (typically
+ *	   using the RT_WDB_TYPE_DB_INMEM flag )
+ *	3. Create and fill an "rt_reprep_obj_list" structure.
+ *	4. Call "rt_unprep" and pass it the "rt_reprep_obj_list" structure.
+ *	5. Modify geometry (note, you may only modify geometry that you listed in the
+ *	   "rt_reprep_obj_list" as "unprepped"). You may add, remove, modify, translate, rotate, scale
+ *	   objects under the "unprepped" combinations. (Use the "make_hole" routine here).
+ *	6. Call "rt_reprep" with same parameters as you called "rt_unprep".
+ *	7. If you are using liboptical, call "view_re_setup" to setup shaders for regions involved.
+ *	8. Do raytracing.
+ *
+ *	If you only need to make holes, a simpler and quicker approach is to use
+ *	the "make_hole_in_prepped_regions" routine:
+ *	steps 1 and 2 same as above.
+ *	3. Call "make_hole".
+ *	4. Do raytracing.
+ */
+
+#ifndef lint
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/libwdb/dynamic_geometry.c,v 14.11 2007/01/27 01:41:43 brlcad Exp $ (BRL)";
+#endif
+
+#include "common.h"
+
+
+#include <stdio.h>
+#include <math.h>
+#include <string.h>
+
+#include "machine.h"
+#include "bu.h"
+#include "vmath.h"
+#include "bn.h"
+#include "raytrace.h"
+#include "wdb.h"
+
+
+/*		M A K E _ H O L E
+ *
+ *	This routine is intended to be used to make a hole in some geometry.
+ *	The hole is described using the same parameters as an RCC, and the
+ *	hole is represented as an RCC. The objects to be "holed" are passed in
+ *	as a list of "struct directory" pointers. The objects pointed at by this
+ *	list must be combinations. The "struct rt_wdb" pointer passed in indicates
+ *	what model this hole should appear in.
+ *
+ *	The end state after this routine runs is a modified model with a new RCC primitive having
+ *	a name of the form "make_hole_X" (where X is some integer). The combinations specified in the
+ *	list will be modified as follows:
+ *
+ *	      before					      after
+ *		|						-
+ *		|					       / \
+ *		|					      /   \
+ *	original combination tree			     /     \
+ *				      original combination tree   make_hole_X
+ *
+ *      The modified combination is written to the struct rt_wdb. Note that to do dynamic geometry
+ *	a "wdb_dbopen" would normally be called on an already existing (and possibly prepped) model.
+ *	Using the RT_WDB_TYPE_DB_INMEM parameter in this call will result in geometry changes that
+ *	only exist in memory and will not be permanently stored in the original database.
+ *
+ *	This routine should be preceeded by a call to "rt_unprep" and followed by a call to "rt_reprep".
+ */
+
+int
+make_hole( struct rt_wdb *wdbp,		/* datbase to be modified */
+	   point_t hole_start,		/* center of start of hole */
+	   vect_t hole_depth,		/* depth and directio of hole */
+	   fastf_t hole_radius,		/* radius of hole */
+	   int num_objs,		/* number of objects that this hole affects */
+	   struct directory **dp )	/* array of directory pointers [num_objs] of
+					 * objects to get this hole applied
+					 */
+{
+	struct bu_vls tmp_name;
+	int i, base_len, count=0;
+	struct directory *dp_tmp;
+
+	RT_CHECK_WDB( wdbp );
+
+	/* make sure we are only making holes in combinations, they do not have to be regions */
+	for( i=0 ; i<num_objs ; i++ ) {
+		RT_CK_DIR( dp[i] );
+		if( !(dp[i]->d_flags & DIR_COMB) ) {
+			bu_log( "make_hole(): can only make holes in combinations\n" );
+			bu_log( "\t%s is not a combination\n", dp[i]->d_namep );
+			return 4;
+		}
+	}
+
+	/* make a unique name for the RCC we will use (of the form "make_hole_%d") */
+	bu_vls_init( &tmp_name );
+	bu_vls_strcat( &tmp_name, "make_hole_" );
+	base_len = bu_vls_strlen( &tmp_name );
+	bu_vls_strcat( &tmp_name, "0" );
+	while( (dp_tmp=db_lookup( wdbp->dbip, bu_vls_addr( &tmp_name ), LOOKUP_QUIET ) ) != DIR_NULL ) {
+		count++;
+		bu_vls_trunc( &tmp_name, base_len );
+		bu_vls_printf( &tmp_name, "%d", count );
+	}
+
+	/* build the RCC based on parameters passed in */
+	if( mk_rcc( wdbp, bu_vls_addr( &tmp_name ), hole_start, hole_depth, hole_radius ) ) {
+		bu_log( "Failed to create hole cylinder!!!\n" );
+		bu_vls_free( &tmp_name );
+		return 2;
+	}
+
+	/* subtract this RCC from each combination in the list passed in */
+	for( i=0 ; i<num_objs ; i++ ) {
+		struct rt_db_internal intern;
+		struct rt_comb_internal *comb;
+		union tree *tree;
+
+		/* get the internal form of the combination */
+		if( rt_db_get_internal( &intern, dp[i], wdbp->dbip, NULL, wdbp->wdb_resp ) < 0 ) {
+			bu_log( "Failed to get %s\n", dp[i]->d_namep );
+			bu_vls_free( &tmp_name );
+			return 3;
+		}
+		comb = (struct rt_comb_internal *)intern.idb_ptr;
+
+		/* Build a new "subtract" node (will be the root of the new tree) */
+		BU_GETUNION( tree, tree );
+		tree->tr_b.magic = RT_TREE_MAGIC;
+		tree->tr_b.tb_op = OP_SUBTRACT;
+		tree->tr_b.tb_left = comb->tree;	/* subtract from the original tree */
+		comb->tree = tree;
+
+		/* Build a node for the RCC to be subtracted */
+		BU_GETUNION( tree, tree );
+		tree->tr_l.magic = RT_TREE_MAGIC;
+		tree->tr_l.tl_op = OP_DB_LEAF;
+		tree->tr_l.tl_mat = NULL;
+		tree->tr_l.tl_name = bu_strdup( bu_vls_addr( &tmp_name ) ); /* copy name of RCC */
+
+		/* Put the RCC node to the right of the root */
+		comb->tree->tr_b.tb_right = tree;
+
+		/* Save the modified combination.
+		 * This will overwrite the original combination if wdbp was opened
+		 * with the RT_WDB_TYPE_DB_DISK flag. If wdbp was opened with the RT_WDB_TYPE_DB_INMEM
+		 * flag, then the combination will be temporarily over-written in memory only and
+		 * the disk file will not be modified.
+		 */
+		wdb_put_internal( wdbp, dp[i]->d_namep, &intern, 1.0 );
+	}
+	return 0;
+}
+
+
+/*			M A K E _ H O L E _ I N _ P R E P P E D _ R E G I O N S
+ *
+ *	This routine provides a quick approach to simply adding a hole to existing prepped geometry.
+ *	The geometry must already be prepped prior to caling this routine. After calling this routine,
+ *	the geometry is ready for raytracing (no other routine need to be called).
+ *
+ *	A new RCC primitive is created and written to the database (wdbp). Note that this will be temporary
+ *	if the wdbp pointer was created by a call to wdb_dbopen with the RT_WDB_TYPE_DB_INMEM flag.
+ *
+ *	The "regions" parameter is a list of "struct region" pointers (prepped regions) to get holed.
+ *	The regions structures are modified, but the on disk region records are never modified, so the
+ *	actual holes will never be permanent regardless of how "wdbp" was opened.
+ *
+ *	There is no need to call "rt_unprep" nor "rt_reprep" with this routine.
+ */
+int
+make_hole_in_prepped_regions( struct rt_wdb *wdbp,	/* database to be modified */
+			      struct rt_i *rtip,	/* rt_i pointer for the same database */
+			      point_t hole_start,	/* center of start of hole */
+			      vect_t hole_depth,	/* depth and direction of hole */
+			      fastf_t radius,		/* radius of hole */
+			      struct bu_ptbl *regions )	/* list of region structures to which this hole
+							 * is to be applied
+							 */
+{
+	struct bu_vls tmp_name;
+	int i, base_len, count=0;
+	struct directory *dp;
+	struct rt_db_internal intern;
+	struct soltab *stp;
+
+	RT_CHECK_WDB( wdbp );
+
+	/* make a unique name for the RCC we will use (of the form "make_hole_%d") */
+	bu_vls_init( &tmp_name );
+	bu_vls_strcat( &tmp_name, "make_hole_" );
+	base_len = bu_vls_strlen( &tmp_name );
+	bu_vls_strcat( &tmp_name, "0" );
+	while( (dp=db_lookup( wdbp->dbip, bu_vls_addr( &tmp_name ), LOOKUP_QUIET ) ) != DIR_NULL ) {
+		count++;
+		bu_vls_trunc( &tmp_name, base_len );
+		bu_vls_printf( &tmp_name, "%d", count );
+	}
+
+	/* build the RCC based on parameters passed in */
+	if( mk_rcc( wdbp, bu_vls_addr( &tmp_name ), hole_start, hole_depth, radius ) ) {
+		bu_log( "Failed to create hole cylinder!!!\n" );
+		bu_vls_free( &tmp_name );
+		return 2;
+	}
+
+	/* lookup the newly created RCC */
+	if( (dp=db_lookup( wdbp->dbip, bu_vls_addr( &tmp_name ), LOOKUP_QUIET ) ) == DIR_NULL ) {
+		bu_log( "Failed to lookup RCC (%s) just made by make_hole_in_prepped_regions()!!!\n",
+			bu_vls_addr( &tmp_name ) );
+		bu_bomb( "Failed to lookup RCC just made by make_hole_in_prepped_regions()!!!\n" );
+	}
+
+	/* get the internal form of the new RCC */
+	if( rt_db_get_internal( &intern, dp, wdbp->dbip, NULL, wdbp->wdb_resp ) < 0 ) {
+		bu_log( "Failed to get internal form of RCC (%s) just made by make_hole_in_prepped_regions()!!!\n",
+			bu_vls_addr( &tmp_name ) );
+		bu_bomb( "Failed to get internal form of RCC just made by make_hole_in_prepped_regions()!!!\n" );
+	}
+
+	/* Build a soltab structure for the new RCC */
+	BU_GETSTRUCT( stp, soltab );
+	stp->l.magic = RT_SOLTAB_MAGIC;
+	stp->l2.magic = RT_SOLTAB2_MAGIC;
+	stp->st_uses = 1;
+	stp->st_dp = dp;
+	stp->st_bit = rtip->nsolids++;
+
+	/* Add the new soltab structure to the rt_i structure */
+	rtip->rti_Solids = (struct soltab **)bu_realloc( rtip->rti_Solids,
+							 rtip->nsolids * sizeof( struct soltab *),
+							 "new rti_Solids" );
+	rtip->rti_Solids[stp->st_bit] = stp;
+
+	/* actually prep the new RCC */
+	if( intern.idb_meth->ft_prep( stp, &intern, rtip ) ) {
+		bu_log( "Failed to prep RCC (%s) just made by make_hole_in_prepped_regions()!!!\n",
+			bu_vls_addr( &tmp_name ) );
+		bu_bomb( "Failed to prep RCC just made by make_hole_in_prepped_regions()!!!\n" );
+	}
+
+	/* initialize the soltabs list of containing regions */
+	bu_ptbl_init( &stp->st_regions, BU_PTBL_LEN( regions ), "stp->st_regions" );
+
+	/* Subtract the new RCC from each region structure in the list provided */
+	for( i=0 ; i<BU_PTBL_LEN( regions ) ; i++ ) {
+		struct region *rp;
+		union tree *treep;
+
+		/* get the next region structure */
+		rp = (struct region *)BU_PTBL_GET( regions, i );
+
+		RT_CK_REGION( rp );
+
+		/* create a tree node for the subtraction operation, this will be the new tree root */
+		BU_GETUNION( treep, tree );
+		treep->magic = RT_TREE_MAGIC;
+		treep->tr_b.tb_op = OP_SUBTRACT;
+		treep->tr_b.tb_left = rp->reg_treetop;	/* subtract from the old treetop */
+		treep->tr_b.tb_regionp = rp;
+
+		/* make the new node the new treetop */
+		rp->reg_treetop = treep;
+
+		/* create a tree node for the new RCC */
+		BU_GETUNION( treep, tree );
+		treep->magic = RT_TREE_MAGIC;
+		treep->tr_a.tu_op = OP_SOLID;
+		treep->tr_a.tu_stp = stp;
+		treep->tr_a.tu_regionp = rp;
+
+		/* the new RCC gets hung on the right of the subtract node */
+		rp->reg_treetop->tr_b.tb_right = treep;
+
+		/* make sure the "all unions" flag is not set on this region */
+		rp->reg_all_unions = 0;
+
+		/* Add this region to the list of containing regions for the new RCC */
+		bu_ptbl_ins( &stp->st_regions, (long *)rp );
+	}
+
+	/* insert the new RCC soltab structure into the already existing space partitioning tree */
+	insert_in_bsp( stp, &rtip->rti_CutHead );
+
+	return 0;
+}
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+14.11
+log
+@ws. lots and lots of ws.  see sh/ws.sh for details (cases 'abcdeg').
+@
+text
+@d56 1
+a56 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/libwdb/dynamic_geometry.c,v 14.10 2007/01/23 01:13:40 brlcad Exp $ (BRL)";
+a63 1
+#ifdef HAVE_STRING_H
+d65 1
+a65 3
+#else
+#include <strings.h>
+#endif
+@
+
+
+14.10
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@d56 1
+a56 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/libwdb/dynamic_geometry.c,v 14.9 2007/01/20 14:36:56 brlcad Exp $ (BRL)";
+a61 1
+
+a76 1
+
+a191 1
+
+d209 1
+a209 1
+                              struct rt_i *rtip,	/* rt_i pointer for the same database */
+@
+
+
+14.9
+log
+@update copyright to 2007
+@
+text
+@d9 1
+a9 2
+ * as published by the Free Software Foundation; either version 2 of
+ * the License, or (at your option) any later version.
+d14 1
+a14 1
+ * Library General Public License for more details.
+d56 1
+a56 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/libwdb/dynamic_geometry.c,v 14.8 2006/01/18 06:46:18 brlcad Exp $ (BRL)";
+@
+
+
+14.8
+log
+@update copyright to 2006
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 2003-2006 United States Government as represented by
+d57 1
+a57 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/libwdb/dynamic_geometry.c,v 14.7 2005/01/30 20:31:05 brlcad Exp $ (BRL)";
+@
+
+
+14.7
+log
+@update copyright to 2005
+@
+text
+@d4 1
+a4 1
+ * Copyright (C) 2003-2005 United States Government as represented by
+d57 1
+a57 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/libwdb/dynamic_geometry.c,v 14.6 2004/12/21 06:58:43 morrison Exp $ (BRL)";
+@
+
+
+14.6
+log
+@remove the old copyright notice section as it's been supplanted (and copyright is now claimable in the us via assignmgent)
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 2003-2004 United States Government as represented by
+d57 1
+a57 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/libwdb/dynamic_geometry.c,v 14.5 2004/12/21 06:44:33 morrison Exp $ (BRL)";
+@
+
+
+14.5
+log
+@remove the old distribution notice section
+@
+text
+@a33 3
+ *  Copyright Notice -
+ *      This software is Copyright (C) 2003-2004 by the United States Army
+ *      in all countries except the USA.  All rights reserved.
+d57 1
+a57 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/libwdb/dynamic_geometry.c,v 14.4 2004/12/21 06:18:48 morrison Exp $ (BRL)";
+@
+
+
+14.4
+log
+@they should have received a copy of the LGPL with LGPL'd files
+@
+text
+@a32 4
+ *  Distribution Notice -
+ *      Re-distribution of this software is restricted, as described in
+ *      your "Statement of Terms and Conditions for the Release of
+ *      The BRL-CAD Package" agreement.
+d60 1
+a60 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/libwdb/dynamic_geometry.c,v 14.3 2004/12/21 05:45:26 morrison Exp $ (BRL)";
+@
+
+
+14.3
+log
+@s/GNU Library General/GNU Lesser General/g
+@
+text
+@d17 2
+a18 2
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+d64 1
+a64 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/libwdb/dynamic_geometry.c,v 14.2 2004/12/21 02:34:59 morrison Exp $ (BRL)";
+@
+
+
+14.2
+log
+@assign copyright and LGPL
+@
+text
+@d8 1
+a8 1
+ * modify it under the terms of the GNU Library General Public License
+d64 1
+a64 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/libwdb/dynamic_geometry.c,v 14.1 2004/11/16 19:42:17 morrison Exp $ (BRL)";
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@d1 21
+a21 2
+/*
+ *			D Y N A M I C _ G E O M E T R Y
+d64 1
+a64 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/libwdb/dynamic_geometry.c,v 1.4 2004/09/03 23:30:58 morrison Exp $ (BRL)";
+@
+
+
+1.4
+log
+@USE_STRING_H is no more.. it's HAVE_STRING_H
+@
+text
+@d45 1
+a45 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/libwdb/dynamic_geometry.c,v 1.3 2004/08/02 23:01:51 morrison Exp $ (BRL)";
+d315 10
+@
+
+
+1.3
+log
+@replace the wrapped config.h block with common.h
+@
+text
+@d45 1
+a45 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/libwdb/dynamic_geometry.c,v 1.2 2004/06/08 22:04:25 morrison Exp $ (BRL)";
+d54 1
+a54 1
+#ifdef USE_STRING_H
+@
+
+
+1.2
+log
+@obliterate externs.h
+@
+text
+@d45 1
+a45 1
+static const char RCSid[] = "@@(#)$Header$ (BRL)";
+d48 1
+a48 3
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+@
+
+
+1.1
+log
+@Vast reorganization begins.  Sources moved from top-level directories into src/.
+@
+text
+@d45 1
+a45 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/libwdb/dynamic_geometry.c,v 11.3 2004/05/10 15:30:47 erikg Exp $ (BRL)";
+a61 1
+#include "externs.h"
+@
+

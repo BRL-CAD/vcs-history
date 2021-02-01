@@ -1,0 +1,358 @@
+head	1.3;
+access;
+symbols
+	rel-5-2:1.2
+	rel-5-1-patches:1.2.0.2
+	rel-5-1:1.2
+	rel-5-0:1.1
+	rel-5-0beta:1.1;
+locks; strict;
+comment	@# @;
+
+
+1.3
+date	2000.12.06.21.22.00;	author bparker;	state dead;
+branches;
+next	1.2;
+
+1.2
+date	99.10.19.20.02.56;	author jra;	state Exp;
+branches
+	1.2.2.1;
+next	1.1;
+
+1.1
+date	98.06.02.19.52.04;	author jra;	state Exp;
+branches;
+next	;
+
+1.2.2.1
+date	2000.12.06.21.27.04;	author bparker;	state dead;
+branches;
+next	;
+
+
+desc
+@Original
+@
+
+
+1.3
+log
+@Upgrading to newer version
+@
+text
+@# This file tests  is a Tcl script to test the procedures in the file
+# tkWinWm.c.  It is organized in the standard fashion for Tcl tests.
+#
+# This file contains a collection of tests for one or more of the Tcl
+# built-in commands.  Sourcing this file into Tcl runs the tests and
+# generates output for errors.  No output means no errors were found.
+#
+# Copyright (c) 1996 by Sun Microsystems, Inc.
+# Copyright (c) 1998-1999 by Scriptics Corporation.
+# All rights reserved.
+#
+# RCS: @@(#) $Id: winWm.test,v 1.2 1999/10/19 20:02:56 jra Exp $
+
+if {[lsearch [namespace children] ::tcltest] == -1} {
+    source [file join [pwd] [file dirname [info script]] defs.tcl]
+}
+
+foreach i [winfo children .] {
+    catch {destroy $i}
+}
+
+# Measure the height of a single menu line
+
+toplevel .t
+frame .t.f -width 100 -height 50
+pack .t.f
+menu .t.m
+.t.m add command -label "thisisreallylong"
+.t conf -menu .t.m
+wm geom .t -0-0
+update
+set menuheight [winfo y .t]
+.t.m add command -label "thisisreallylong"
+wm geom .t -0-0
+update
+set menuheight [expr $menuheight - [winfo y .t]]
+destroy .t
+
+test winWm-1.1 {TkWmMapWindow} {pcOnly} {
+    toplevel .t
+    wm override .t 1
+    wm geometry .t +0+0
+    update
+    set result [list [winfo rootx .t] [winfo rooty .t]]
+    destroy .t
+    set result
+} {0 0}
+test winWm-1.2 {TkWmMapWindow} {pcOnly} {
+    toplevel .t
+    wm transient .t .
+    update
+    wm iconify .
+    update
+    wm deiconify .
+    update
+    catch {wm iconify .t} msg
+    destroy .t
+    set msg
+} {can't iconify ".t": it is a transient}
+test winWm-1.3 {TkWmMapWindow} {pcOnly} {
+    toplevel .t
+    update
+    toplevel .t2
+    update
+    set result [expr [winfo x .t] != [winfo x .t2]]
+    destroy .t .t2
+    set result
+} 1
+test winWm-1.4 {TkWmMapWindow} {pcOnly} {
+    toplevel .t
+    wm geometry .t +10+10
+    update
+    toplevel .t2
+    wm geometry .t2 +40+10
+    update
+    set result [list [winfo x .t] [winfo x .t2]]
+    destroy .t .t2
+    set result
+} {10 40}
+test winWm-1.5 {TkWmMapWindow} {pcOnly} {
+    toplevel .t
+    wm iconify .t
+    update
+    set result [wm state .t]
+    destroy .t
+    set result
+} iconic
+
+test winWm-2.1 {TkpWmSetState} {pcOnly} {
+    toplevel .t
+    wm geometry .t 150x50+10+10
+    update
+    set result [wm state .t]
+    wm iconify .t
+    update
+    lappend result [wm state .t]
+    wm deiconify .t
+    update
+    lappend result [wm state .t]
+    destroy .t
+    set result
+} {normal iconic normal}
+test winWm-2.2 {TkpWmSetState} {pcOnly} {
+    toplevel .t
+    wm geometry .t 150x50+10+10
+    update
+    set result [wm state .t]
+    wm withdraw .t
+    update
+    lappend result [wm state .t]
+    wm iconify .t
+    update
+    lappend result [wm state .t]
+    wm deiconify .t
+    update 
+    lappend result [wm state .t]
+    destroy .t
+    set result
+} {normal withdrawn iconic normal}
+test winWm-2.3 {TkpWmSetState} {pcOnly} {
+    set result {}
+    toplevel .t
+    wm geometry .t 150x50+10+10
+    update
+    lappend result [list [wm state .t] [wm geometry .t]]
+    wm iconify .t
+    update
+    lappend result [list [wm state .t] [wm geometry .t]]
+    wm geometry .t 200x50+10+10
+    update
+    lappend result [list [wm state .t] [wm geometry .t]]
+    wm deiconify .t
+    update
+    lappend result [list [wm state .t] [wm geometry .t]]
+    destroy .t
+    set result
+} {{normal 150x50+10+10} {iconic 150x50+10+10} {iconic 150x50+10+10} {normal 200x50+10+10}}
+
+
+test winWm-3.1 {ConfigureTopLevel: window geometry propagation} {pcOnly} {
+    toplevel .t
+    wm geometry .t +0+0
+    button .t.b
+    pack .t.b
+    update
+    set x [winfo x .t.b]
+    destroy .t
+    toplevel .t
+    wm geometry .t +0+0
+    button .t.b
+    update
+    pack .t.b
+    update
+    set x [expr $x == [winfo x .t.b]]
+    destroy .t
+    set x
+} 1
+
+test winWm-4.1 {ConfigureTopLevel: menu resizing} {pcOnly} {
+    set result {}
+    toplevel .t
+    frame .t.f -width 150 -height 50 -bg red
+    pack .t.f
+    wm geometry .t -0-0
+    update
+    set y [winfo y .t]
+    menu .t.m
+    .t.m add command -label foo
+    .t conf -menu .t.m
+    update
+    set result [expr $y - [winfo y .t]]
+    destroy .t
+    set result
+} [expr $menuheight + 1]
+
+test winWm-5.1 {UpdateGeometryInfo: menu resizing} {pcOnly} {
+    set result {}
+    toplevel .t
+    frame .t.f -width 150 -height 50 -bg red
+    pack .t.f
+    update
+    set result [winfo height .t]
+    menu .t.m
+    .t.m add command -label foo
+    .t conf -menu .t.m
+    update
+    lappend result [winfo height .t]
+    .t.m add command -label "thisisreallylong"
+    .t.m add command -label "thisisreallylong"
+    update
+    lappend result [winfo height .t]
+    destroy .t
+    set result
+} {50 50 50}
+test winWm-5.2 {UpdateGeometryInfo: menu resizing} {pcOnly} {
+    set result {}
+    toplevel .t
+    frame .t.f -width 150 -height 50 -bg red
+    pack .t.f
+    wm geom .t -0-0
+    update
+    set y [winfo rooty .t]
+    lappend result [winfo height .t]
+    menu .t.m
+    .t conf -menu .t.m
+    .t.m add command -label foo
+    .t.m add command -label "thisisreallylong"
+    .t.m add command -label "thisisreallylong"
+    update
+    lappend result [winfo height .t]
+    lappend result [expr $y - [winfo rooty .t]]
+    destroy .t
+    set result
+} {50 50 0}
+
+# cleanup
+::tcltest::cleanupTests
+return
+
+
+
+
+
+
+
+
+
+
+
+
+@
+
+
+1.2
+log
+@tk 8.2.1 update
+@
+text
+@d12 1
+a12 1
+# RCS: @@(#) $Id: winWm.test,v 1.3 1999/04/16 01:51:44 stanton Exp $
+@
+
+
+1.2.2.1
+log
+@Upgrading to newer version
+@
+text
+@d12 1
+a12 1
+# RCS: @@(#) $Id: winWm.test,v 1.2 1999/10/19 20:02:56 jra Exp $
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d9 2
+d12 1
+a12 8
+# See the file "license.terms" for information on usage and redistribution
+# of this file, and for a DISCLAIMER OF ALL WARRANTIES.
+#
+# SCCS: @@(#) winWm.test 1.5 97/08/13 15:42:46
+
+if {$tcl_platform(platform) != "windows"} {
+    return
+}
+d14 2
+a15 2
+if {[info procs test] != "test"} {
+    source defs
+d39 1
+a39 1
+test winWm-1.1 {TkWmMapWindow} {
+d48 1
+a48 1
+test winWm-1.2 {TkWmMapWindow} {
+d60 1
+a60 1
+test winWm-1.3 {TkWmMapWindow} {
+d69 1
+a69 1
+test winWm-1.4 {TkWmMapWindow} {
+d80 1
+a80 1
+test winWm-1.5 {TkWmMapWindow} {
+d89 1
+a89 1
+test winWm-2.1 {TkpWmSetState} {
+d103 1
+a103 1
+test winWm-2.2 {TkpWmSetState} {
+d120 1
+a120 1
+test winWm-2.3 {TkpWmSetState} {
+d140 1
+a140 1
+test winWm-3.1 {ConfigureTopLevel: window geometry propagation} {
+d159 1
+a159 1
+test winWm-4.1 {ConfigureTopLevel: menu resizing} {
+d176 1
+a176 1
+test winWm-5.1 {UpdateGeometryInfo: menu resizing} {
+d195 1
+a195 1
+test winWm-5.2 {UpdateGeometryInfo: menu resizing} {
+d215 16
+@
+

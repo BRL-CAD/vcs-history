@@ -1,0 +1,297 @@
+head	1.3;
+access;
+symbols
+	rel-5-2:1.2
+	rel-5-1-patches:1.2.0.2
+	rel-5-1:1.2
+	rel-5-0:1.1
+	rel-5-0beta:1.1;
+locks; strict;
+comment	@# @;
+
+
+1.3
+date	2000.12.06.21.21.57;	author bparker;	state dead;
+branches;
+next	1.2;
+
+1.2
+date	99.10.19.20.02.54;	author jra;	state Exp;
+branches
+	1.2.2.1;
+next	1.1;
+
+1.1
+date	98.06.02.19.52.04;	author jra;	state Exp;
+branches;
+next	;
+
+1.2.2.1
+date	2000.12.06.21.27.02;	author bparker;	state dead;
+branches;
+next	;
+
+
+desc
+@Original
+@
+
+
+1.3
+log
+@Upgrading to newer version
+@
+text
+@# This file is a Tcl script to test the Safe Tk facility. It is organized
+# in the standard fashion for Tk tests.
+#
+# Copyright (c) 1994 The Regents of the University of California.
+# Copyright (c) 1994-1995 Sun Microsystems, Inc.
+# Copyright (c) 1998-1999 by Scriptics Corporation.
+# All rights reserved.
+#
+# RCS: @@(#) $Id: safe.test,v 1.2 1999/10/19 20:02:54 jra Exp $
+
+if {[lsearch [namespace children] ::tcltest] == -1} {
+    source [file join [pwd] [file dirname [info script]] defs.tcl]
+}
+
+foreach i [winfo children .] {
+    destroy $i
+}
+
+# The set of hidden commands is platform dependent:
+
+if {"$tcl_platform(platform)" == "macintosh"} {
+    set hidden_cmds {beep bell cd clipboard echo encoding exit fconfigure file glob grab load ls menu open pwd selection send socket source tk tk_chooseColor tk_chooseDirectory tk_getOpenFile tk_getSaveFile toplevel wm}
+} elseif {"$tcl_platform(platform)" == "windows"} {
+    set hidden_cmds {bell cd clipboard encoding exec exit fconfigure file glob grab load menu open pwd selection socket source tk tk_chooseColor tk_getOpenFile tk_getSaveFile tk_messageBox toplevel wm}
+} else {
+    set hidden_cmds {bell cd clipboard encoding exec exit fconfigure file glob grab load menu open pwd selection send socket source tk toplevel wm}
+}
+
+test safe-1.1 {Safe Tk loading into an interpreter} {
+    catch {safe::interpDelete a}
+    safe::loadTk [safe::interpCreate a]
+    safe::interpDelete a
+    set x {}
+    set x
+} ""
+test safe-1.2 {Safe Tk loading into an interpreter} {
+    catch {safe::interpDelete a}
+    safe::interpCreate a
+    safe::loadTk a
+    set l [lsort [interp hidden a]]
+    safe::interpDelete a
+    set l
+} $hidden_cmds
+test safe-1.3 {Safe Tk loading into an interpreter} {
+    catch {safe::interpDelete a}
+    safe::interpCreate a
+    safe::loadTk a
+    set l [lsort [interp aliases a]]
+    safe::interpDelete a
+    set l
+} {encoding exit file load source}
+
+test safe-2.1 {Unsafe commands not available} {
+    catch {safe::interpDelete a}
+    safe::interpCreate a
+    safe::loadTk a
+    set status broken
+    if {[catch {interp eval a {toplevel .t}} msg]} {
+	set status ok
+    }
+    safe::interpDelete a
+    set status
+} ok
+test safe-2.2 {Unsafe commands not available} {
+    catch {safe::interpDelete a}
+    safe::interpCreate a
+    safe::loadTk a
+    set status broken
+    if {[catch {interp eval a {menu .m}} msg]} {
+	set status ok
+    }
+    safe::interpDelete a
+    set status
+} ok
+
+test safe-3.1 {Unsafe commands are available hidden} {
+    catch {safe::interpDelete a}
+    safe::interpCreate a
+    safe::loadTk a
+    set status ok
+    if {[catch {interp invokehidden a toplevel .t} msg]} {
+	set status broken
+    }
+    safe::interpDelete a
+    set status
+} ok
+test safe-3.2 {Unsafe commands are available hidden} {
+    catch {safe::interpDelete a}
+    safe::interpCreate a
+    safe::loadTk a
+    set status ok
+    if {[catch {interp invokehidden a menu .m} msg]} {
+	set status broken
+    }
+    safe::interpDelete a
+    set status
+} ok
+
+test safe-4.1 {testing loadTk} {
+    # no error shall occur, the user will
+    # eventually see a new toplevel
+    set i [safe::loadTk [safe::interpCreate]]
+    interp eval $i {button .b -text "hello world!"; pack .b}
+    # lets don't update because it might imply that the user has
+    # to position the window (if the wm does not do it automatically)
+    # and thus make the test suite not runable non interactively
+    safe::interpDelete $i
+} {}
+
+test safe-4.2 {testing loadTk -use} {
+    set w .safeTkFrame
+    catch {destroy $w}
+    frame $w -container 1;
+    pack .safeTkFrame
+    set i [safe::loadTk [safe::interpCreate] -use [winfo id $w]]
+    interp eval $i {button .b -text "hello world!"; pack .b}
+    safe::interpDelete $i
+    destroy $w
+} {}
+
+test safe-5.1 {loading Tk in safe interps without master's clearance} {
+    set i [safe::interpCreate]
+    catch {interp eval $i {load {} Tk}} msg
+    safe::interpDelete $i
+    set msg
+} {not allowed to start Tk by master's safe::TkInit}
+
+test safe-5.2 {multi-level Tk loading with clearance} {
+    # No error shall occur in that test and no window
+    # shall remain at the end.
+    set i [safe::interpCreate]
+    set j [list $i x]
+    set j [safe::interpCreate $j]
+    safe::loadTk $j
+    interp eval $j {
+	button .b -text Ok -command {destroy .}
+	pack .b
+#	tkwait window . ; # for interactive testing/debugging
+    }
+    safe::interpDelete $j
+    safe::interpDelete $i
+} {}
+
+test safe-6.1 {loadTk -use windowPath} {
+    set w .safeTkFrame
+    catch {destroy $w}
+    frame $w -container 1;
+    pack .safeTkFrame
+    set i [safe::loadTk [safe::interpCreate] -use $w]
+    interp eval $i {button .b -text "hello world!"; pack .b}
+    safe::interpDelete $i
+    destroy $w
+} {}
+
+test safe-6.2 {loadTk -use windowPath, conflicting -display} {
+    set w .safeTkFrame
+    catch {destroy $w}
+    frame $w -container 1;
+    pack .safeTkFrame
+    set i     [safe::interpCreate]
+    catch {safe::loadTk $i -use $w -display :23.56} msg
+    safe::interpDelete $i
+    destroy $w
+    string range $msg 0 36
+} {conflicting -display :23.56 and -use }
+
+
+test safe-7.1 {canvas printing} {
+    set i [safe::loadTk [safe::interpCreate]]
+    set r [catch {interp eval $i {canvas .c; .c postscript}}]
+    safe::interpDelete $i
+    set r
+} 0
+
+# cleanup
+unset hidden_cmds
+::tcltest::cleanupTests
+return
+
+
+
+
+
+
+
+
+
+
+
+
+
+@
+
+
+1.2
+log
+@tk 8.2.1 update
+@
+text
+@d9 1
+a9 1
+# RCS: @@(#) $Id: safe.test,v 1.5 1999/04/16 01:51:40 stanton Exp $
+@
+
+
+1.2.2.1
+log
+@Upgrading to newer version
+@
+text
+@d9 1
+a9 1
+# RCS: @@(#) $Id: safe.test,v 1.2 1999/10/19 20:02:54 jra Exp $
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d6 2
+d9 1
+a9 4
+# See the file "license.terms" for information on usage and redistribution
+# of this file, and for a DISCLAIMER OF ALL WARRANTIES.
+#
+# SCCS: @@(#) safe.test 1.15 97/08/13 16:05:17
+d11 2
+a12 2
+if {[info procs test] != "test"} {
+    source defs
+d22 1
+a22 1
+    set hidden_cmds {beep bell cd clipboard echo exit fconfigure file glob grab load ls menu open pwd selection socket source tk tk_chooseColor tk_getOpenFile tk_getSaveFile tk_messageBox toplevel wm}
+d24 1
+a24 1
+    set hidden_cmds {bell cd clipboard exec exit fconfigure file glob grab load menu open pwd selection socket source tk tk_chooseColor tk_getOpenFile tk_getSaveFile tk_messageBox toplevel wm}
+d26 1
+a26 1
+    set hidden_cmds {bell cd clipboard exec exit fconfigure file glob grab load menu open pwd selection send socket source tk tk_chooseColor tk_getOpenFile tk_getSaveFile tk_messageBox toplevel wm}
+d51 1
+a51 1
+} {exit file load source}
+d104 3
+a106 3
+# lets don't update because it might impy that the user has
+# to position the window (if the wm does not do it automatically)
+# and thus make the test suite not runable non interactively
+d121 55
+d177 15
+@
+

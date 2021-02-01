@@ -1,0 +1,2064 @@
+head	1.23;
+access;
+symbols
+	rel-7-10-2:1.22
+	rel-7-10-0:1.21
+	rel-7-8-4:1.11
+	rel-7-8-2:1.11
+	rel-7-8-0:1.11
+	trimnurbs-branch:1.11.0.2
+	help:1.11
+	temp_tag:1.10
+	postmerge-20051223-bobWinPort:1.10
+	premerge-20051223-bobWinPort:1.10
+	rel-7-6-6:1.10
+	rel-7-6-4:1.10
+	rel-7-6-2:1.8
+	rel-7-6-branch:1.8.0.2
+	rel-7-6-0:1.8;
+locks; strict;
+comment	@ * @;
+
+
+1.23
+date	2007.08.30.19.04.57;	author brlcad;	state dead;
+branches;
+next	1.22;
+
+1.22
+date	2007.05.31.20.16.08;	author erikgreenwald;	state Exp;
+branches;
+next	1.21;
+
+1.21
+date	2007.03.28.18.54.55;	author erikgreenwald;	state Exp;
+branches;
+next	1.20;
+
+1.20
+date	2007.03.20.20.05.07;	author brlcad;	state Exp;
+branches;
+next	1.19;
+
+1.19
+date	2007.02.08.06.49.18;	author brlcad;	state Exp;
+branches;
+next	1.18;
+
+1.18
+date	2007.02.02.19.46.34;	author erikgreenwald;	state Exp;
+branches;
+next	1.17;
+
+1.17
+date	2007.01.27.01.41.30;	author brlcad;	state Exp;
+branches;
+next	1.16;
+
+1.16
+date	2007.01.23.01.13.22;	author brlcad;	state Exp;
+branches;
+next	1.15;
+
+1.15
+date	2007.01.21.04.45.40;	author brlcad;	state Exp;
+branches;
+next	1.14;
+
+1.14
+date	2007.01.21.00.50.10;	author brlcad;	state Exp;
+branches;
+next	1.13;
+
+1.13
+date	2007.01.20.14.36.41;	author brlcad;	state Exp;
+branches;
+next	1.12;
+
+1.12
+date	2007.01.18.22.17.57;	author erikgreenwald;	state Exp;
+branches;
+next	1.11;
+
+1.11
+date	2006.01.18.06.46.11;	author brlcad;	state Exp;
+branches;
+next	1.10;
+
+1.10
+date	2005.10.30.21.58.56;	author brlcad;	state Exp;
+branches;
+next	1.9;
+
+1.9
+date	2005.10.23.04.44.28;	author brlcad;	state Exp;
+branches;
+next	1.8;
+
+1.8
+date	2005.09.08.05.11.20;	author twingy;	state Exp;
+branches
+	1.8.2.1;
+next	1.7;
+
+1.7
+date	2005.09.06.01.03.23;	author twingy;	state Exp;
+branches;
+next	1.6;
+
+1.6
+date	2005.08.30.20.08.23;	author twingy;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	2005.08.29.19.25.55;	author twingy;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	2005.08.29.06.37.16;	author twingy;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2005.08.27.21.22.09;	author twingy;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2005.08.27.21.18.39;	author twingy;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2005.08.27.21.16.37;	author twingy;	state Exp;
+branches;
+next	;
+
+1.8.2.1
+date	2005.11.13.13.46.12;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.23
+log
+@libtie update from Justin.  these changes are the updates after integration of libtie with MUVES-S2.  it includes a few minor api changes as well as a variety of bug fixes and other cleanup.
+@
+text
+@/*                     K D T R E E . C
+ * BRL-CAD / ADRT
+ *
+ * Copyright (c) 2002-2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This library is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@addtogroup libtie */
+/** @@{ */
+/** @@file tie.c
+ *
+ *  @@brief support routines for shooting at triangles
+ *  Comments -
+ *      KD-Tree Routines
+ *
+ *  Author -
+ *      Justin L. Shumaker
+ *
+ *  Source -
+ *      The U. S. Army Research Laboratory
+ *      Aberdeen Proving Ground, Maryland  21005-5068  USA
+ *
+ * $Id: kdtree.c,v 1.22 2007/05/31 20:16:08 erikgreenwald Exp $
+ */
+
+#include "kdtree.h"
+#include <math.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+
+TFLOAT TIE_PREC;
+
+/*************************************************************
+ **************** PRIVATE FUNCTIONS **************************
+ *************************************************************/
+
+
+static void tie_kdtree_free_node(tie_kdtree_t *node) {
+  tie_kdtree_t *node_aligned = (tie_kdtree_t *)((intptr_t)node & ~0x7L);
+
+  if(((intptr_t)(node_aligned->data)) & 0x4) {
+    /* Node Data is KDTREE Children, Recurse */
+    tie_kdtree_free_node(&((tie_kdtree_t *)(((intptr_t)(node_aligned->data)) & ~0x7L))[0]);
+    tie_kdtree_free_node(&((tie_kdtree_t *)(((intptr_t)(node_aligned->data)) & ~0x7L))[1]);
+    free((void*)((intptr_t)(node_aligned->data) & ~0x7L));
+  } else {
+    /* This node points to a geometry node, free it */
+    free(((tie_geom_t *)((intptr_t)(node_aligned->data) & ~0x7L))->tri_list);
+    free((void *)((intptr_t)(node_aligned->data) & ~0x7L));
+  }
+}
+
+
+static void tie_kdtree_cache_free_node(tie_t *tie, tie_kdtree_t *node, void **cache) {
+  tie_kdtree_t *node_aligned = (tie_kdtree_t *)((intptr_t)node & ~0x7L);
+  unsigned int size, mem, tri_num, i, tri_ind;
+  unsigned char type, split;
+
+  memcpy(&size, *cache, sizeof(unsigned int));
+  memcpy(&mem, &((char *)*cache)[sizeof(unsigned int)], sizeof(unsigned int));
+  /*
+  * If the available size for this cache is under 1MB, then grow it 4MB larger.
+  * This reduces the number of realloc's required.  Makes things much much faster
+  * on systems like FreeBSD that do a full copy for each realloc.
+  */
+  if(mem - size < 1<<20) {
+    mem += 1<<23;
+    memcpy(&((char *)*cache)[sizeof(unsigned int)], &mem, sizeof(unsigned int));
+    *cache = realloc(*cache, mem);
+  }
+
+  if(((intptr_t)(node_aligned->data)) & 0x4) {
+    /* Create a KD-Tree Node in the cache */
+    type = 0;
+    memcpy(&((char *)*cache)[size], &type, 1);
+    size += 1;
+    memcpy(&((char *)*cache)[size], &(node_aligned->axis), sizeof(TFLOAT));
+    size += sizeof(TFLOAT);
+    split = ((intptr_t)(node_aligned->data)) & 0x3;
+    memcpy(&((char *)*cache)[size], &split, 1);
+    size += 1;
+
+    /* Update size of cache */
+    memcpy(*cache, &size, sizeof(unsigned int));
+
+    /* Node Data is KDTREE Children, Recurse */
+    tie_kdtree_cache_free_node(tie, &((tie_kdtree_t *)(((intptr_t)(node_aligned->data)) & ~0x7L))[0], cache);
+    tie_kdtree_cache_free_node(tie, &((tie_kdtree_t *)(((intptr_t)(node_aligned->data)) & ~0x7L))[1], cache);
+    free((void *)((intptr_t)(node_aligned->data) & ~0x7L));
+  } else {
+    tri_num = ((tie_geom_t *)((intptr_t)(node_aligned->data) & ~0x7L))->tri_num;
+    type = 1;
+    memcpy(&((char *)*cache)[size], &type, 1);
+    size += 1;
+    memcpy(&((char *)*cache)[size], &tri_num, sizeof(unsigned int));
+
+    size += sizeof(unsigned int);
+
+    for(i = 0; i < tri_num; i++) {
+      /*
+      * Pointer subtraction gives us the index of the triangle since the block of memory
+      * that the triangle exists in is contiguous memory.
+      */
+      tri_ind = ((tie_geom_t *)((intptr_t)(node_aligned->data) & ~0x7L))->tri_list[i] - &tie->tri_list[0];
+      memcpy(&((char *)*cache)[size], &tri_ind, sizeof(unsigned int));
+      size += sizeof(unsigned int);
+    }
+
+    /* Update size of cache */
+    memcpy(*cache, &size, sizeof(unsigned int));
+
+    /* This node points to a geometry node, free it */
+    free(((tie_geom_t *)((intptr_t)(node_aligned->data) & ~0x7L))->tri_list);
+    free((void *)((intptr_t)(node_aligned->data) & ~0x7L));
+  }
+}
+
+
+static void tie_kdtree_prep_head(tie_t *tie, tie_tri_t *tri_list, int tri_num) {
+  tie_geom_t *g;
+  TIE_3 min, max;
+  int i;
+
+
+  if(!tri_num)
+    return;
+
+  /* Insert all triangles into the Head Node */
+  if(!tie->kdtree) {
+    tie->kdtree = (tie_kdtree_t *)malloc(sizeof(tie_kdtree_t));
+    if (!tie->kdtree) {
+	perror("tie->kdtree");
+	exit(1);
+    }
+    tie->kdtree->data = (void *)malloc(sizeof(tie_geom_t));
+    g = ((tie_geom_t *)(tie->kdtree->data));
+    g->tri_num = 0;
+
+    MATH_BBOX(tie->min, tie->max, tri_list[0].data[0], tri_list[0].data[1], tri_list[0].data[2]);
+
+    g->tri_list = (tie_tri_t **)malloc(sizeof(tie_tri_t *) * tri_num);
+    if (!g->tri_list) {
+	perror("g->tri_list");
+	exit(1);
+    }
+
+    /* form bounding box of scene */
+    for(i = 0; i < tri_num; i++) {
+      g->tri_list[i] = &tri_list[i];
+
+      /* Get Bounding Box of Triangle */
+      MATH_BBOX(min, max, tri_list[i].data[0], tri_list[i].data[1], tri_list[i].data[2]);
+
+      /* Check to see if defines a new Max or Min point */
+      MATH_VEC_MIN(tie->min, min);
+      MATH_VEC_MAX(tie->max, max);
+      /* printf("Box: [%.3f, %.3f, %.3f] [%.3f, %.3f, %.3f]\n", tie->min.v[0], tie->min.v[1], tie->min.v[2], tie->max.v[0], tie->max.v[1], tie->max.v[2]); */
+    }
+
+    ((tie_geom_t *)(tie->kdtree->data))->tri_num = tri_num;
+  }
+}
+
+
+static int tie_kdtree_tri_box_overlap(TIE_3 *center, TIE_3 *half_size, TIE_3 triverts[3]) {
+  /*
+   * use separating axis theorem to test overlap between triangle and box
+   * need to test for overlap in these directions:
+   * 1) the {x,y,z}-directions (actually, since we use the AABB of the triangle
+   *    we do not even need to test these)
+   * 2) normal of the triangle
+   * 3) crossproduct(edge from tri, {x,y,z}-directin)
+   *    this gives 3x3=9 more tests
+   */
+  TIE_3 v0, v1, v2, normal, e0, e1, e2, fe, p;
+  TFLOAT min, max, d, t, rad;
+
+  /* move everything so that the boxcenter is in (0,0,0) */
+  MATH_VEC_SUB(v0, triverts[0], (*center));
+  MATH_VEC_SUB(v1, triverts[1], (*center));
+  MATH_VEC_SUB(v2, triverts[2], (*center));
+
+  /*
+  * First test overlap in the {x,y,z}-directions
+  * find min, max of the triangle each direction, and test for overlap in
+  * that direction -- this is equivalent to testing a minimal AABB around
+  * the triangle against the AABB
+  */
+
+  /* test in X-direction */
+  MATH_MIN3(min, v0.v[0], v1.v[0], v2.v[0]);
+  MATH_MAX3(max, v0.v[0], v1.v[0], v2.v[0]);
+  if(min > half_size->v[0] || max < -half_size->v[0])
+    return 0;
+
+  /* test in Y-direction */
+  MATH_MIN3(min, v0.v[1], v1.v[1], v2.v[1]);
+  MATH_MAX3(max, v0.v[1], v1.v[1], v2.v[1]);
+  if(min > half_size->v[1] || max < -half_size->v[1])
+    return 0;
+
+  /* test in Z-direction */
+  MATH_MIN3(min, v0.v[2], v1.v[2], v2.v[2]);
+  MATH_MAX3(max, v0.v[2], v1.v[2], v2.v[2]);
+  if(min > half_size->v[2] || max < -half_size->v[2])
+    return 0;
+
+  /* compute triangle edges */
+  MATH_VEC_SUB(e0, v1, v0); /* tri edge 0 */
+  MATH_VEC_SUB(e1, v2, v1); /* tri edge 1 */
+  MATH_VEC_SUB(e2, v0, v2); /* tri edge 2 */
+
+  /* Perform the 9 tests */
+  fe.v[0] = fabs(e0.v[0]);
+  fe.v[1] = fabs(e0.v[1]);
+  fe.v[2] = fabs(e0.v[2]);
+
+  AXISTEST_X01(e0.v[2], e0.v[1], fe.v[2], fe.v[1]);
+  AXISTEST_Y02(e0.v[2], e0.v[0], fe.v[2], fe.v[0]);
+  AXISTEST_Z12(e0.v[1], e0.v[0], fe.v[1], fe.v[0]);
+
+  fe.v[0] = fabs(e1.v[0]);
+  fe.v[1] = fabs(e1.v[1]);
+  fe.v[2] = fabs(e1.v[2]);
+
+  AXISTEST_X01(e1.v[2], e1.v[1], fe.v[2], fe.v[1]);
+  AXISTEST_Y02(e1.v[2], e1.v[0], fe.v[2], fe.v[0]);
+  AXISTEST_Z0(e1.v[1], e1.v[0], fe.v[1], fe.v[0]);
+
+  fe.v[0] = fabs(e2.v[0]);
+  fe.v[1] = fabs(e2.v[1]);
+  fe.v[2] = fabs(e2.v[2]);
+
+  AXISTEST_X2(e2.v[2], e2.v[1], fe.v[2], fe.v[1]);
+  AXISTEST_Y1(e2.v[2], e2.v[0], fe.v[2], fe.v[0]);
+  AXISTEST_Z12(e2.v[1], e2.v[0], fe.v[1], fe.v[0]);
+
+  /*
+  * Test if the box intersects the plane of the triangle
+  * compute plane equation of triangle: normal*x+d=0
+  */
+  MATH_VEC_CROSS(normal, e0, e1);
+  MATH_VEC_DOT(d, normal, v0);  /* plane eq: normal . x + d = 0 */
+
+  p.v[0] = normal.v[0] > 0 ? half_size->v[0] : -half_size->v[0];
+  p.v[1] = normal.v[1] > 0 ? half_size->v[1] : -half_size->v[1];
+  p.v[2] = normal.v[2] > 0 ? half_size->v[2] : -half_size->v[2];
+
+  MATH_VEC_DOT(t, normal, p);
+  return t >= d ? 1 : 0;
+}
+
+
+static void tie_kdtree_build(tie_t *tie, tie_kdtree_t *node, int depth, TIE_3 min, TIE_3 max, int node_a, int node_b) {
+  tie_geom_t *child[2], *node_gd = (tie_geom_t *)(node->data);
+  TIE_3 cmin[2], cmax[2], center[2], half_size[2];
+  int i, j, n, split, cnt[2];
+
+#if 0
+  /*  if(depth >= 26) */
+    printf("%f %f %f %f %f %f\n", min.v[0], min.v[1], min.v[2], max.v[0], max.v[1], max.v[2]);
+#endif
+
+  /* Terminating criteria for KDTREE subdivision */
+  if(node_gd->tri_num <= TIE_KDTREE_NODE_MAX || depth > tie->max_depth) {
+    /*    tie->stat++; */
+    tie->stat += node_gd->tri_num;
+#if 0
+    if(node_gd->tri_num > tie->stat)
+      tie->stat = node_gd->tri_num;
+    if(node_gd->tri_num > tie->stat) {
+      tie->stat = node_gd->tri_num;
+      printf("depth: %d, tris: %d\n", depth, node_gd->tri_num);
+      printf("%f %f %f %f %f %f\n", min.v[0], min.v[1], min.v[2], max.v[0], max.v[1], max.v[2]);
+    }
+    exit(0);
+#endif
+    return;
+  }
+
+#if 0
+{
+  /**********************
+  * MID-SPLIT ALGORITHM *
+  ***********************/
+  TIE_3 vec;
+
+  /* Left Child */
+  cmin[0] = min;
+  cmax[0] = max;
+
+  /* Right Child */
+  cmin[1] = min;
+  cmax[1] = max;
+
+  MATH_VEC_ADD(center[0], max, min);
+  MATH_VEC_MUL_SCALAR(center[0], center[0], 0.5);
+
+  /* Split along largest Axis to keep node sizes relatively cube-like (Naive) */
+  MATH_VEC_SUB(vec, max, min);
+
+  /* Determine the largest Axis */
+  if(vec.v[0] >= vec.v[1] && vec.v[0] >= vec.v[2]) {
+    cmax[0].v[0] = center[0].v[0];
+    cmin[1].v[0] = center[0].v[0];
+    node->axis = center[0].v[0];
+    split = 0;
+  } else if(vec.v[1] >= vec.v[0] && vec.v[1] >= vec.v[2]) {
+    cmax[0].v[1] = center[0].v[1];
+    cmin[1].v[1] = center[0].v[1];
+    node->axis = center[0].v[1];
+    split = 1;
+  } else {
+    cmax[0].v[2] = center[0].v[2];
+    cmin[1].v[2] = center[0].v[2];
+    node->axis = center[0].v[2];
+    split = 2;
+  }
+}
+#else
+{
+  /****************************************
+  * Justin's Aggressive KD-Tree Algorithm *
+  *****************************************/
+  int slice[3][MAX_SLICES+MIN_SLICES], gap[3][2], active, split_slice = 0;
+  int side[3][MAX_SLICES+MIN_SLICES][2], d, s, k, smax[3], smin, slice_num;
+  TFLOAT coef[3][MAX_SLICES+MIN_SLICES], split_coef, beg, end, d_min = 0, d_max = 0;
+  tie_tri_t *tri;
+
+  /*
+  * Calculate number of slices to use as a function of triangle density.
+  * Slices as a function of relative node size does not work so well.
+  */
+  slice_num = MIN_SLICES + MAX_SLICES * ((TFLOAT)node_gd->tri_num / (TFLOAT)tie->tri_num);
+
+  for(d = 0; d < 3; d++) {
+    /*
+    * Optimization: Walk each triangle and find the min and max for the given dimension
+    * of the complete triangle list.  This will tell us what slices we needn't bother
+    * doing any computations for.
+    */
+    for(i = 0; i < node_gd->tri_num; i++) {
+      tri = node_gd->tri_list[i];
+      /* Set min anx max */
+      MATH_MIN3(tri->v[0], tri->data[0].v[d], tri->data[1].v[d], tri->data[2].v[d]);
+      MATH_MAX3(tri->v[1], tri->data[0].v[d], tri->data[1].v[d], tri->data[2].v[d]);
+
+      /* Clamp to node AABB */
+      if(tri->v[0] < min.v[d])
+	tri->v[0] = min.v[d];
+      if(tri->v[1] > max.v[d])
+	tri->v[1] = max.v[d];
+
+      if(i == 0 || tri->v[0] < d_min)
+	d_min = tri->v[0];
+
+      if(i == 0 || tri->v[1] > d_max)
+	d_max = tri->v[1];
+    }
+
+    for(k = 0; k < slice_num; k++) {
+      slice[d][k] = 0;
+      side[d][k][0] = 0;
+      side[d][k][1] = 0;
+
+      /* Left Child */
+      cmin[0] = min;
+      cmax[0] = max;
+
+      /* Right Child */
+      cmin[1] = min;
+      cmax[1] = max;
+
+      /* construct slices so as not to use the boundaries as slices */
+      coef[d][k] = ((TFLOAT)k / (TFLOAT)(slice_num-1)) * (TFLOAT)(slice_num-2) / (TFLOAT)slice_num + (TFLOAT)1 / (TFLOAT)slice_num;
+      cmax[0].v[d] = min.v[d]*(1.0-coef[d][k]) + max.v[d]*coef[d][k];
+      cmin[1].v[d] = cmax[0].v[d];
+
+      if(cmax[0].v[d] < d_min || cmax[0].v[d] > d_max)
+	continue;
+
+      for(n = 0; n < 2; n++) {
+	MATH_VEC_ADD(center[n], cmax[n], cmin[n]);
+	MATH_VEC_MUL_SCALAR(center[n], center[n], 0.5);
+	MATH_VEC_SUB(half_size[n], cmax[n], cmin[n]);
+	MATH_VEC_MUL_SCALAR(half_size[n], half_size[n], 0.5);
+      }
+
+      for(i = 0; i < node_gd->tri_num; i++) {
+	/*
+	* Optimization: If the points for the triangle of the dimension being tested
+	* do not span the cutting plane, then do not bother with the next test.
+	*/
+	if((node_gd->tri_list[i]->data[0].v[d] > cmax[0].v[d] &&
+	    node_gd->tri_list[i]->data[1].v[d] > cmax[0].v[d] &&
+	    node_gd->tri_list[i]->data[2].v[d] > cmax[0].v[d])||
+	   (node_gd->tri_list[i]->data[0].v[d] < cmax[0].v[d] &&
+	    node_gd->tri_list[i]->data[1].v[d] < cmax[0].v[d] &&
+	    node_gd->tri_list[i]->data[2].v[d] < cmax[0].v[d]))
+	  continue;
+
+	/* Check that the triangle is in both node A and B for it to span. */
+	s = 0;
+	for(n = 0; n < 2; n++) {
+	  /*
+	  * Check to see if any triangle points are inside of the node before
+	  * spending alot of cycles on the full blown triangle box overlap
+	  */
+	  for(j = 0; j < 3; j++)
+	    if(node_gd->tri_list[i]->data[j].v[0] > cmin[n].v[0] &&
+	       node_gd->tri_list[i]->data[j].v[0] < cmax[n].v[0] &&
+	       node_gd->tri_list[i]->data[j].v[1] > cmin[n].v[1] &&
+	       node_gd->tri_list[i]->data[j].v[1] < cmax[n].v[1] &&
+	       node_gd->tri_list[i]->data[j].v[2] > cmin[n].v[2] &&
+	       node_gd->tri_list[i]->data[j].v[2] < cmax[n].v[2]) {
+	       j = 4;
+	    }
+
+	  if(j == 5) {
+	    s++;
+	    side[d][k][n]++;
+	  } else {
+	    if(tie_kdtree_tri_box_overlap(&center[n], &half_size[n], node_gd->tri_list[i]->data)) {
+	      s++;
+	      side[d][k][n]++;
+	    }
+	  }
+	}
+
+	if(s == 2)
+	  slice[d][k]++;
+      }
+    }
+  }
+
+  /* Store the max value from each of the 3 Slice arrays */
+  for(d = 0; d < 3; d++) {
+    smax[d] = 0;
+    for(k = 0; k < slice_num; k++) {
+      if(slice[d][k] > smax[d])
+	smax[d] = slice[d][k];
+    }
+  }
+
+  /*
+  * To eliminate "empty" areas, build a list of spans where geometric complexity is
+  * less than MIN_SPAN of the overal nodes size and then selecting the splitting plane
+  * the corresponds to the span slice domain nearest the center to bias towards a balanced tree
+  */
+
+  for(d = 0; d < 3; d++) {
+    gap[d][0] = 0;
+    gap[d][1] = 0;
+    beg = 0;
+    end = 0;
+    active = 0;
+
+    for(k = 0; k < slice_num; k++) {
+/*      printf("slice[%d][%d]: %d < %d\n", d, k, slice[d][k], (int)(MIN_DENSITY * (TFLOAT)smax[d])); */
+      if(slice[d][k] < (int)(MIN_DENSITY * (TFLOAT)smax[d])) {
+	if(!active) {
+	  active = 1;
+	  beg = k;
+	  end = k;
+	} else {
+	  end = k;
+	}
+      } else {
+	if(active) {
+	  if(end - beg > gap[d][1] - gap[d][0]) {
+	    gap[d][0] = beg;
+	    gap[d][1] = end;
+	  }
+	}
+	active = 0;
+      }
+    }
+
+    if(active)
+      if(end - beg > gap[d][1] - gap[d][0]) {
+	gap[d][0] = beg;
+	gap[d][1] = end;
+      }
+  }
+
+#if 0
+  printf("gap_x: %d->%d = %d\n", gap[0][0], gap[0][1], gap[0][1]-gap[0][0]);
+  printf("gap_y: %d->%d = %d\n", gap[1][0], gap[1][1], gap[1][1]-gap[1][0]);
+  printf("gap_z: %d->%d = %d\n", gap[2][0], gap[2][1], gap[2][1]-gap[2][0]);
+#endif
+
+  /*
+  * If there is a gap atleast MIN_SPAN in side wrt the nodes dimension size
+  * then use the nearest edge of the gap to 0.5 as the splitting plane,
+  * Use the the gap with the largest span.
+  * If no gaps are found meeting the criteria then weight the span values to
+  * bias towards a balanced kd-tree and choose the minima of that weighted curve.
+  */
+
+  /* Largest gap */
+  d = 0;
+  if(gap[1][1] - gap[1][0] > gap[d][1] - gap[d][0])
+    d = 1;
+  if(gap[2][1] - gap[2][0] > gap[d][1] - gap[d][0])
+    d = 2;
+
+  /*
+  * Largest gap found must meet MIN_SPAN requirements
+  * There must be atleast 500 triangles or we don't bother.
+  * Lower triangle numbers means there is a higher probability that
+  * triangles lack any sort of coherent structure.
+  */
+  if((TFLOAT)(gap[d][1] - gap[d][0]) / (TFLOAT)slice_num > MIN_SPAN && node_gd->tri_num > 500) {
+/*  printf("choosing slice[%d]: %d->%d :: %d tris\n", d, gap[d][0], gap[d][1], node_gd->tri_num); */
+    split = d;
+    if(abs(gap[d][0] - slice_num/2) < abs(gap[d][1] - slice_num/2)) {
+      /* choose gap[d][0] as splitting plane */
+      split_coef = ((TFLOAT)gap[d][0] / (TFLOAT)(slice_num-1)) * (TFLOAT)(slice_num-2) / (TFLOAT)slice_num + (TFLOAT)1 / (TFLOAT)slice_num;
+      split_slice = gap[d][0];
+    } else {
+      /* choose gap[d][1] as splitting plane */
+      split_coef = ((TFLOAT)gap[d][1] / (TFLOAT)(slice_num-1)) * (TFLOAT)(slice_num-2) / (TFLOAT)slice_num + (TFLOAT)1 / (TFLOAT)slice_num;
+      split_slice = gap[d][1];
+    }
+  } else {
+    /*
+    * Weight the slices based on a heuristic driven linear scaling function to bias values
+    * towards the center as more desirable.  This solves the case of a partially linear graph
+    * to prevent marching to determine a desirable splitting point.  If this section of code
+    * is being executed it's typically because most 'empty space' has now been eliminated
+    * and/or the resulting geometry is now losing structure as the smaller cells are being
+    * created, i.e dividing a fraction of a wing-nut instead of an engine-block.
+    */
+    for(d = 0; d < 3; d++) {
+      for(k = 0; k < slice_num; k++) {
+	slice[d][k] += fabs(coef[d][k]-0.5) * SCALE_COEF * smax[d];
+/*        printf("%.3f %d\n", coef[d][k], slice[d][k]); */
+      }
+    }
+
+    /* Choose the slice with the graphs minima as the splitting plane. */
+    split = 0;
+    smin = tie->tri_num;
+    split_coef = 0.5;
+    for(d = 0; d < 3; d++) {
+      for(k = 0; k < slice_num; k++) {
+	if(slice[d][k] < smin) {
+	  split_coef = coef[d][k];
+	  split = d;
+	  split_slice = k;
+	  smin = slice[d][k];
+	}
+      }
+    }
+
+    /*
+    * If the dimension chosen to split along has a value of 0 for the maximum value
+    * then the geometry was aligned such that it fell undetectable between the slices
+    * and therefore was not picked up by the marching slices.  In the event that this
+    * happens, choose to naively split along the middle as this last ditch decision
+    * will give better results than the algorithm naively picking the first of the
+    * the slices forming these irregular, short followed by a long box, splits.
+    */
+    if(smax[split] == 0) {
+      split_coef = coef[split][slice_num / 2];
+      split_slice = slice_num / 2;
+    }
+  }
+
+  /*
+  * Lastly, after we have supposedly chosen the most ideal splitting point,
+  * check to see that the subdivision that is about to take place is worth
+  * doing.  In other words, if both children have the same number of triangles
+  * as the parent does then stop.
+  */
+  if(side[split][split_slice][0] == node_gd->tri_num && side[split][split_slice][1] == node_gd->tri_num) {
+    tie->stat += node_gd->tri_num;
+    return;
+  }
+
+#if 0
+  if(side[split][split_slice][0] == node_a && side[split][split_slice][1] == node_b) {
+    if(node_gd->tri_num < 10)
+      return;
+    /*      printf("%f %f %f %f %f %f\n", min.v[0], min.v[1], min.v[2], max.v[0], max.v[1], max.v[2]); */
+    /*      printf("moo: %d - %d\n", depth, node_gd->tri_num); */
+  }
+#endif
+
+
+#if 0
+  printf("winner: depth: %d, dim = %d, smin = %d, coef: %.3f\n", depth, split, smin, split_coef);
+  printf("winner: min: %.3f %.3f %.3f, max: %.3f %.3f %.3f, tris: %d\n", min.v[0], min.v[1], min.v[2], max.v[0], max.v[1], max.v[2], node_gd->tri_num);
+#endif
+
+  /* Based on the winner, construct the two child nodes */
+  /* Left Child */
+  cmin[0] = min;
+  cmax[0] = max;
+
+  /* Right Child */
+  cmin[1] = min;
+  cmax[1] = max;
+
+  cmax[0].v[split] = min.v[split]*(1.0-split_coef) + max.v[split]*split_coef;
+  cmin[1].v[split] = cmax[0].v[split];
+  node->axis = cmax[0].v[split];
+}
+#endif
+
+
+  /* Allocate 2 children nodes for the parent node */
+  node->data = (void *)malloc(2 * sizeof(tie_kdtree_t));
+  if (!node->data) {
+      perror("node->data");
+      exit(1);
+  }
+
+  ((tie_kdtree_t *)(node->data))[0].data = malloc(sizeof(tie_geom_t));
+  if (!((tie_kdtree_t *)(node->data))[0].data) {
+      perror("malloc");
+      exit(1);
+  }
+  ((tie_kdtree_t *)(node->data))[1].data = malloc(sizeof(tie_geom_t));
+  if (!((tie_kdtree_t *)(node->data))[1].data) {
+      perror("malloc");
+      exit(1);
+  }
+
+  /* Initialize Triangle List */
+  child[0] = ((tie_geom_t *)(((tie_kdtree_t *)(node->data))[0].data));
+  child[1] = ((tie_geom_t *)(((tie_kdtree_t *)(node->data))[1].data));
+
+  child[0]->tri_list = (tie_tri_t **)malloc(sizeof(tie_tri_t *) * node_gd->tri_num);
+  if (!child[0]->tri_list) {
+      perror("malloc");
+      exit(1);
+  }
+  child[0]->tri_num = 0;
+
+  child[1]->tri_list = (tie_tri_t **)malloc(sizeof(tie_tri_t *) * node_gd->tri_num);
+  if (!child[1]->tri_list) {
+      perror("malloc");
+      exit(1);
+  }
+  child[1]->tri_num = 0;
+
+
+  /*
+  * Determine if the triangles touch either of the two children nodes,
+  * if it does insert it into them respectively.
+  */
+  for(n = 0; n < 2; n++) {
+    cnt[n] = 0;
+
+    MATH_VEC_ADD(center[n], cmax[n], cmin[n]);
+    MATH_VEC_MUL_SCALAR(center[n], center[n], 0.5);
+    MATH_VEC_SUB(half_size[n], cmax[n], cmin[n]);
+    MATH_VEC_MUL_SCALAR(half_size[n], half_size[n], 0.5);
+
+    for(i = 0; i < node_gd->tri_num; i++) {
+      /*
+      * Check to see if any triangle points are inside of the node before
+      * spending alot of cycles on the full blown triangle box overlap
+      */
+      for(j = 0; j < 3; j++)
+	if(node_gd->tri_list[i]->data[j].v[0] > cmin[n].v[0] &&
+	   node_gd->tri_list[i]->data[j].v[0] < cmax[n].v[0] &&
+	   node_gd->tri_list[i]->data[j].v[1] > cmin[n].v[1] &&
+	   node_gd->tri_list[i]->data[j].v[1] < cmax[n].v[1] &&
+	   node_gd->tri_list[i]->data[j].v[2] > cmin[n].v[2] &&
+	   node_gd->tri_list[i]->data[j].v[2] < cmax[n].v[2]) {
+	   j = 4;
+	}
+
+      if(j == 5) {
+	child[n]->tri_list[child[n]->tri_num++] = node_gd->tri_list[i];
+	cnt[n]++;
+      } else {
+	if(tie_kdtree_tri_box_overlap(&center[n], &half_size[n], node_gd->tri_list[i]->data)) {
+	  child[n]->tri_list[child[n]->tri_num++] = node_gd->tri_list[i];
+	  cnt[n]++;
+	}
+      }
+    }
+
+    /* Resize Tri List to actual ammount of memory used */
+    child[n]->tri_list = (tie_tri_t **)realloc(child[n]->tri_list, sizeof(tie_tri_t *)*child[n]->tri_num);
+  }
+
+  /*
+  * Now that the triangles have been propogated to the appropriate child nodes,
+  * free the triangle list on this node.
+  */
+  node_gd->tri_num = 0;
+  free(node_gd->tri_list);
+  free(node_gd);
+
+  /* Push each child through the same process. */
+  tie_kdtree_build(tie, &((tie_kdtree_t *)(node->data))[0], depth+1, cmin[0], cmax[0], cnt[0], cnt[1]);
+  tie_kdtree_build(tie, &((tie_kdtree_t *)(node->data))[1], depth+1, cmin[1], cmax[1], cnt[0], cnt[1]);
+
+  /* Assign the splitting dimension to the node */
+  /* If we've come this far then YES, this node DOES have child nodes, MARK it as so. */
+  node->data = (void *)((intptr_t)(node->data) + split + 4);
+}
+
+
+/*************************************************************
+ **************** EXPORTED FUNCTIONS *************************
+ *************************************************************/
+
+/**
+ * Free up all the stuff associated with the kdtree
+ *
+ * All of the KDTREE nodes and triangles that we have allocated need to
+ * be freed in a controlled manner.  This routine does that.
+ *
+ * @@param tie pointer to a struct tie_t
+ * @@return void
+ */
+void tie_kdtree_free(tie_t *tie) {
+  /* Free KDTREE Nodes */
+  /* prevent tie from crashing when a tie_free() is called right after a tie_init() */
+  if(tie->kdtree)
+    tie_kdtree_free_node(tie->kdtree);
+  free(tie->kdtree);
+}
+
+
+/**
+ * Free up all the stuff associated with the kdtree and build a
+ * cache as the data is freed.  Building the cache while the data
+ * is freed allows the peak memory not to go any higher than it
+ * already is.  If there were seprarate cache and free functions
+ * then the cache would exist in memory while the triangles and
+ * kd-tree were in memory thus severly limiting optimal memory
+ * usage.
+ *
+ * All of the KDTREE nodes and triangles that we have allocated need to
+ * be freed in a controlled manner.  This routine does that.
+ *
+ * @@param tie pointer to a struct tie_t and void **cache to store data
+ * @@return void
+ */
+void tie_kdtree_cache_free(tie_t *tie, void **cache) {
+  unsigned int size;
+
+  /*
+  * Free KDTREE Node
+  * Prevent tie from crashing when a tie_free() is called right after a tie_init()
+  */
+  if(tie->kdtree) {
+    *cache = malloc(2 * sizeof(unsigned int));
+    if (!*cache) {
+	perror("malloc");
+	exit(1);
+    }
+    size = 2*sizeof(unsigned int);
+    memcpy(*cache, &size, sizeof(unsigned int));
+    memcpy(&((char *)*cache)[sizeof(unsigned int)], &size, sizeof(unsigned int));
+
+    /* Build the cache */
+    tie_kdtree_cache_free_node(tie, tie->kdtree, cache);
+
+    /* Resize the array back to it's real value */
+    memcpy(&size, *cache, sizeof(unsigned int));
+    *cache = realloc(*cache, size);
+  }
+  free(tie->kdtree);
+}
+
+
+void tie_kdtree_cache_load(tie_t *tie, void *cache) {
+  tie_kdtree_t *node = NULL, *temp_node, *stack[64];
+  tie_geom_t *geom;
+  TIE_3 min, max;
+  unsigned int i, size, index, tri_ind, stack_ind;
+  char type, split;
+
+
+  if(!cache)
+    return;
+
+  memcpy(&size, cache, sizeof(unsigned int));
+  /* Advance past the first (2) unsigned ints to the actualy data */
+  index = 2*sizeof(unsigned int);
+  stack_ind = 0;
+
+  while(index < size) {
+    memcpy(&type, &((char *)cache)[index], 1);
+    index += 1;
+
+    if(type) {
+      /* Geometry Node - Allocate a tie_geom_t and assign to node->data. */
+      node->data = malloc(sizeof(tie_geom_t));
+      if (!node->data) {
+	  perror("malloc");
+	  exit(1);
+      }
+      geom = (tie_geom_t *)node->data;
+
+      memcpy(&(geom->tri_num), &((char *)cache)[index], sizeof(unsigned int));
+      index += sizeof(unsigned int);
+
+      geom->tri_list = (tie_tri_t **)malloc(geom->tri_num * sizeof(tie_tri_t *));
+      if (!geom->tri_list) {
+	  perror("malloc");
+	  exit(1);
+      }
+      for(i = 0; i < geom->tri_num; i++) {
+	memcpy(&tri_ind, &((char *)cache)[index], sizeof(unsigned int));
+	index += sizeof(unsigned int);
+
+	/* Translate the numerical index to a pointer index into tie->tri_list. */
+	geom->tri_list[i] = &tie->tri_list[0] + tri_ind;
+      }
+
+      if(stack_ind) {
+	stack_ind--;
+	node = stack[stack_ind];
+      }
+    } else {
+      /* KD-Tree Node */
+      if(!tie->kdtree) {
+	tie->kdtree = (tie_kdtree_t *)malloc(sizeof(tie_kdtree_t));
+	if (!tie->kdtree) {
+	    perror("malloc");
+	    exit(1);
+	}
+	node = tie->kdtree;
+      }
+
+      /* Assign splitting axis value */
+      memcpy(&node->axis, &((char *)cache)[index], sizeof(TFLOAT));
+      index += sizeof(TFLOAT);
+
+      /* Get splitting plane */
+      memcpy(&split, &((char *)cache)[index], 1);
+      index += 1;
+
+      /* Allocate memory for 2 child nodes */
+      node->data = malloc(2 * sizeof(tie_kdtree_t));
+      if (!node->data) {
+	  perror("malloc");
+	  exit(1);
+      }
+
+      /* Push B on the stack and Process A */
+      stack[stack_ind] = &((tie_kdtree_t *)node->data)[1];
+      stack_ind++;
+
+      /* Set the new current node */
+      temp_node = node;
+      node = &((tie_kdtree_t *)node->data)[0];
+
+      /*
+      * Mask the splitting plane and mark it as a kdtree node
+      * using the lower bits of the ptr.
+      */
+      temp_node->data = (void *)((intptr_t)(temp_node->data) + split + 4);
+    }
+  }
+
+  /* form bounding box of scene */
+  MATH_BBOX(tie->min, tie->max, tie->tri_list[0].data[0], tie->tri_list[0].data[1], tie->tri_list[0].data[2]);
+  for(i = 0; i < tie->tri_num; i++) {
+    /* Get Bounding Box of Triangle */
+    MATH_BBOX(min, max, tie->tri_list[i].data[0], tie->tri_list[i].data[1], tie->tri_list[i].data[2]);
+
+    /* Check to see if defines a new Max or Min point */
+    MATH_VEC_MIN(tie->min, min);
+    MATH_VEC_MAX(tie->max, max);
+  }
+}
+
+
+/**
+ * Get ready to shoot rays at triangles
+ *
+ * Build the KDTREE tree for the triangles we have
+ *
+ * @@param tie pointer to a struct tie_t which now has all the triangles in it
+ * @@return void
+ */
+void tie_kdtree_prep(tie_t *tie) {
+  TIE_3 delta;
+  int already_built;
+
+
+  already_built = tie->kdtree ? 1 : 0;
+
+  /* Set bounding volume and make head node a geometry node */
+  if(!already_built)
+    tie_kdtree_prep_head(tie, tie->tri_list, tie->tri_num);
+
+  if(!tie->kdtree)
+    return;
+
+  /* Trim KDTREE to number of actual triangles if it's not that size already. */
+  if(!already_built)
+    ((tie_geom_t *)(tie->kdtree->data))->tri_list = (tie_tri_t **)realloc(((tie_geom_t *)(tie->kdtree->data))->tri_list, sizeof(tie_tri_t *) * ((tie_geom_t *)(tie->kdtree->data))->tri_num);
+
+  /*
+  * Compute Floating Fuzz Precision Value
+  * For now, take largest dimension as basis for TIE_PREC
+  */
+  MATH_VEC_SUB(delta, tie->max, tie->min);
+  MATH_MAX3(TIE_PREC, delta.v[0], delta.v[1], delta.v[2]);
+#if TIE_SINGLE_PREC
+  TIE_PREC *= 0.000001;
+#else
+  TIE_PREC *= 0.000000000001;
+#endif
+
+  /* Grow the head node to avoid floating point fuzz in the building process with edges */
+  MATH_VEC_MUL_SCALAR(delta, delta, 1.0); /* XXX */
+  MATH_VEC_SUB(tie->min, tie->min, delta);
+  MATH_VEC_ADD(tie->max, tie->max, delta);
+
+  /* Compute Max Depth to allow the KD-Tree to grow to */
+  tie->max_depth = (int)(TIE_KDTREE_DEPTH_K1 * (log(tie->tri_num) / log(2)) + TIE_KDTREE_DEPTH_K2);
+  printf("max_depth: %d\n", tie->max_depth);
+
+  /* Build the KDTREE */
+  if(!already_built)
+    tie_kdtree_build(tie, tie->kdtree, 0, tie->min, tie->max, 0, 0);
+
+  printf("stat: %d\n", tie->stat);
+  tie->stat = 0;
+
+/*  exit(0); */ /* uncomment to profile prep phase only */
+}
+
+/** @@} */
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+1.22
+log
+@fix various compiler warnings
+@
+text
+@d35 1
+a35 1
+ * $Id: kdtree.c,v 1.21 2007/03/28 18:54:55 erikgreenwald Exp $
+@
+
+
+1.21
+log
+@test the malloc instead of trying to dereference a void ptr to test the malloc...
+@
+text
+@d35 1
+a35 1
+ * $Id: kdtree.c,v 1.20 2007/03/20 20:05:07 brlcad Exp $
+d339 1
+a339 1
+  int slice[3][MAX_SLICES+MIN_SLICES], gap[3][2], active, split_slice;
+d341 1
+a341 1
+  TFLOAT coef[3][MAX_SLICES+MIN_SLICES], split_coef, beg, end, d_min, d_max;
+d789 1
+a789 1
+  tie_kdtree_t *node, *temp_node, *stack[64];
+@
+
+
+1.20
+log
+@since adrt uses malloc, add checks on use for a null return value.  this probably would be a good reason to being associating with libbu.. (this fixes sf bug 1680679 - Check return codes everywhere; submitted by Markus Elfring (elfring))
+@
+text
+@d35 1
+a35 1
+ * $Id: kdtree.c,v 1.19 2007/02/08 06:49:18 brlcad Exp $
+d811 1
+a811 1
+      if (!*node->data) {
+@
+
+
+1.19
+log
+@give adrt some distinctiveness in the header
+@
+text
+@d35 1
+a35 1
+ * $Id: kdtree.c,v 1.18 2007/02/02 19:46:34 erikgreenwald Exp $
+d145 4
+d156 4
+d628 4
+d634 4
+d639 4
+d649 4
+d656 4
+d769 4
+d811 4
+d821 4
+d841 4
+d858 4
+@
+
+
+1.18
+log
+@finish changing all #defined symbols to uppercase...
+@
+text
+@d2 1
+a2 1
+ * BRL-CAD
+d35 1
+a35 1
+ * $Id: kdtree.c,v 1.17 2007/01/27 01:41:30 brlcad Exp $
+@
+
+
+1.17
+log
+@ws. lots and lots of ws.  see sh/ws.sh for details (cases 'abcdeg').
+@
+text
+@d35 1
+a35 1
+ * $Id: kdtree.c,v 1.16 2007/01/23 01:13:22 brlcad Exp $
+d45 1
+a45 1
+tfloat TIE_PREC;
+d91 2
+a92 2
+    memcpy(&((char *)*cache)[size], &(node_aligned->axis), sizeof(tfloat));
+    size += sizeof(tfloat);
+d182 1
+a182 1
+  tfloat min, max, d, t, rad;
+d333 1
+a333 1
+  tfloat coef[3][MAX_SLICES+MIN_SLICES], split_coef, beg, end, d_min, d_max;
+d340 1
+a340 1
+  slice_num = MIN_SLICES + MAX_SLICES * ((tfloat)node_gd->tri_num / (tfloat)tie->tri_num);
+d381 1
+a381 1
+      coef[d][k] = ((tfloat)k / (tfloat)(slice_num-1)) * (tfloat)(slice_num-2) / (tfloat)slice_num + (tfloat)1 / (tfloat)slice_num;
+d465 2
+a466 2
+/*      printf("slice[%d][%d]: %d < %d\n", d, k, slice[d][k], (int)(MIN_DENSITY * (tfloat)smax[d])); */
+      if(slice[d][k] < (int)(MIN_DENSITY * (tfloat)smax[d])) {
+d519 1
+a519 1
+  if((tfloat)(gap[d][1] - gap[d][0]) / (tfloat)slice_num > MIN_SPAN && node_gd->tri_num > 500) {
+d524 1
+a524 1
+      split_coef = ((tfloat)gap[d][0] / (tfloat)(slice_num-1)) * (tfloat)(slice_num-2) / (tfloat)slice_num + (tfloat)1 / (tfloat)slice_num;
+d528 1
+a528 1
+      split_coef = ((tfloat)gap[d][1] / (tfloat)(slice_num-1)) * (tfloat)(slice_num-2) / (tfloat)slice_num + (tfloat)1 / (tfloat)slice_num;
+d805 2
+a806 2
+      memcpy(&node->axis, &((char *)cache)[index], sizeof(tfloat));
+      index += sizeof(tfloat);
+@
+
+
+1.16
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@d35 1
+a35 1
+ * $Id: kdtree.c,v 1.15 2007/01/21 04:45:40 brlcad Exp $
+d356 1
+a356 1
+        tri->v[0] = min.v[d];
+d358 1
+a358 1
+        tri->v[1] = max.v[d];
+d361 1
+a361 1
+        d_min = tri->v[0];
+d364 1
+a364 1
+        d_max = tri->v[1];
+d386 1
+a386 1
+        continue;
+d389 4
+a392 4
+        MATH_VEC_ADD(center[n], cmax[n], cmin[n]);
+        MATH_VEC_MUL_SCALAR(center[n], center[n], 0.5);
+        MATH_VEC_SUB(half_size[n], cmax[n], cmin[n]);
+        MATH_VEC_MUL_SCALAR(half_size[n], half_size[n], 0.5);
+d396 39
+a434 39
+        /*
+        * Optimization: If the points for the triangle of the dimension being tested
+        * do not span the cutting plane, then do not bother with the next test.
+        */
+        if((node_gd->tri_list[i]->data[0].v[d] > cmax[0].v[d] &&
+            node_gd->tri_list[i]->data[1].v[d] > cmax[0].v[d] &&
+            node_gd->tri_list[i]->data[2].v[d] > cmax[0].v[d])||
+           (node_gd->tri_list[i]->data[0].v[d] < cmax[0].v[d] &&
+            node_gd->tri_list[i]->data[1].v[d] < cmax[0].v[d] &&
+            node_gd->tri_list[i]->data[2].v[d] < cmax[0].v[d]))
+          continue;
+
+        /* Check that the triangle is in both node A and B for it to span. */
+        s = 0;
+        for(n = 0; n < 2; n++) {
+          /*
+          * Check to see if any triangle points are inside of the node before
+          * spending alot of cycles on the full blown triangle box overlap
+          */
+          for(j = 0; j < 3; j++)
+            if(node_gd->tri_list[i]->data[j].v[0] > cmin[n].v[0] &&
+               node_gd->tri_list[i]->data[j].v[0] < cmax[n].v[0] &&
+               node_gd->tri_list[i]->data[j].v[1] > cmin[n].v[1] &&
+               node_gd->tri_list[i]->data[j].v[1] < cmax[n].v[1] &&
+               node_gd->tri_list[i]->data[j].v[2] > cmin[n].v[2] &&
+               node_gd->tri_list[i]->data[j].v[2] < cmax[n].v[2]) {
+               j = 4;
+            }
+
+          if(j == 5) {
+            s++;
+            side[d][k][n]++;
+          } else {
+            if(tie_kdtree_tri_box_overlap(&center[n], &half_size[n], node_gd->tri_list[i]->data)) {
+              s++;
+              side[d][k][n]++;
+            }
+          }
+        }
+d436 2
+a437 2
+        if(s == 2)
+          slice[d][k]++;
+d447 1
+a447 1
+        smax[d] = slice[d][k];
+d467 7
+a473 7
+        if(!active) {
+          active = 1;
+          beg = k;
+          end = k;
+        } else {
+          end = k;
+        }
+d475 7
+a481 7
+        if(active) {
+          if(end - beg > gap[d][1] - gap[d][0]) {
+            gap[d][0] = beg;
+            gap[d][1] = end;
+          }
+        }
+        active = 0;
+d487 2
+a488 2
+        gap[d][0] = beg;
+        gap[d][1] = end;
+d542 1
+a542 1
+        slice[d][k] += fabs(coef[d][k]-0.5) * SCALE_COEF * smax[d];
+d553 6
+a558 6
+        if(slice[d][k] < smin) {
+          split_coef = coef[d][k];
+          split = d;
+          split_slice = k;
+          smin = slice[d][k];
+        }
+d653 8
+a660 8
+        if(node_gd->tri_list[i]->data[j].v[0] > cmin[n].v[0] &&
+           node_gd->tri_list[i]->data[j].v[0] < cmax[n].v[0] &&
+           node_gd->tri_list[i]->data[j].v[1] > cmin[n].v[1] &&
+           node_gd->tri_list[i]->data[j].v[1] < cmax[n].v[1] &&
+           node_gd->tri_list[i]->data[j].v[2] > cmin[n].v[2] &&
+           node_gd->tri_list[i]->data[j].v[2] < cmax[n].v[2]) {
+           j = 4;
+        }
+d663 2
+a664 2
+        child[n]->tri_list[child[n]->tri_num++] = node_gd->tri_list[i];
+        cnt[n]++;
+d666 4
+a669 4
+        if(tie_kdtree_tri_box_overlap(&center[n], &half_size[n], node_gd->tri_list[i]->data)) {
+          child[n]->tri_list[child[n]->tri_num++] = node_gd->tri_list[i];
+          cnt[n]++;
+        }
+d786 2
+a787 2
+        memcpy(&tri_ind, &((char *)cache)[index], sizeof(unsigned int));
+        index += sizeof(unsigned int);
+d789 2
+a790 2
+        /* Translate the numerical index to a pointer index into tie->tri_list. */
+        geom->tri_list[i] = &tie->tri_list[0] + tri_ind;
+d794 2
+a795 2
+        stack_ind--;
+        node = stack[stack_ind];
+d800 2
+a801 2
+        tie->kdtree = (tie_kdtree_t *)malloc(sizeof(tie_kdtree_t));
+        node = tie->kdtree;
+@
+
+
+1.15
+log
+@ugh, what tedium.  put some effort towards cleaning up the doxygen labels and making the headers more consistent.  also exclusively using @@ for doxygen instead of \ to try to keep things more consistent.
+@
+text
+@d9 1
+a9 2
+ * as published by the Free Software Foundation; either version 2 of
+ * the License, or (at your option) any later version.
+d14 1
+a14 1
+ * Library General Public License for more details.
+d35 1
+a35 1
+ * $Id: kdtree.c,v 1.14 2007/01/21 00:50:10 brlcad Exp $
+@
+
+
+1.14
+log
+@standard header and footer cleanup
+@
+text
+@d21 2
+d36 1
+a36 4
+ * $Id: kdtree.c,v 1.13 2007/01/20 14:36:41 brlcad Exp $
+ */
+/** @@addtogroup libtie
+ * @@{
+@
+
+
+1.13
+log
+@update copyright to 2007
+@
+text
+@a1 3
+ *
+ * @@file tie.c
+ *
+d20 2
+d34 1
+a34 1
+ * $Id: kdtree.c,v 1.12 2007/01/18 22:17:57 erikgreenwald Exp $
+d904 10
+@
+
+
+1.12
+log
+@uppercase all #define symbols
+@
+text
+@d7 1
+a7 1
+ * Copyright (c) 2002-2006 United States Government as represented by
+d35 1
+a35 1
+ * $Id: kdtree.c,v 1.11 2006/01/18 06:46:11 brlcad Exp $
+@
+
+
+1.11
+log
+@update copyright to 2006
+@
+text
+@d35 1
+a35 1
+ * $Id: kdtree.c,v 1.10 2005/10/30 21:58:56 brlcad Exp $
+d152 1
+a152 1
+    math_bbox(tie->min, tie->max, tri_list[0].data[0], tri_list[0].data[1], tri_list[0].data[2]);
+d161 1
+a161 1
+      math_bbox(min, max, tri_list[i].data[0], tri_list[i].data[1], tri_list[i].data[2]);
+d164 2
+a165 2
+      math_vec_min(tie->min, min);
+      math_vec_max(tie->max, max);
+d188 3
+a190 3
+  math_vec_sub(v0, triverts[0], (*center));
+  math_vec_sub(v1, triverts[1], (*center));
+  math_vec_sub(v2, triverts[2], (*center));
+d200 2
+a201 2
+  math_min3(min, v0.v[0], v1.v[0], v2.v[0]);
+  math_max3(max, v0.v[0], v1.v[0], v2.v[0]);
+d206 2
+a207 2
+  math_min3(min, v0.v[1], v1.v[1], v2.v[1]);
+  math_max3(max, v0.v[1], v1.v[1], v2.v[1]);
+d212 2
+a213 2
+  math_min3(min, v0.v[2], v1.v[2], v2.v[2]);
+  math_max3(max, v0.v[2], v1.v[2], v2.v[2]);
+d218 3
+a220 3
+  math_vec_sub(e0, v1, v0); /* tri edge 0 */
+  math_vec_sub(e1, v2, v1); /* tri edge 1 */
+  math_vec_sub(e2, v0, v2); /* tri edge 2 */
+d251 2
+a252 2
+  math_vec_cross(normal, e0, e1);
+  math_vec_dot(d, normal, v0);  /* plane eq: normal . x + d = 0 */
+d258 1
+a258 1
+  math_vec_dot(t, normal, p);
+d305 2
+a306 2
+  math_vec_add(center[0], max, min);
+  math_vec_mul_scalar(center[0], center[0], 0.5);
+d309 1
+a309 1
+  math_vec_sub(vec, max, min);
+d354 2
+a355 2
+      math_min3(tri->v[0], tri->data[0].v[d], tri->data[1].v[d], tri->data[2].v[d]);
+      math_max3(tri->v[1], tri->data[0].v[d], tri->data[1].v[d], tri->data[2].v[d]);
+d392 4
+a395 4
+        math_vec_add(center[n], cmax[n], cmin[n]);
+        math_vec_mul_scalar(center[n], center[n], 0.5);
+        math_vec_sub(half_size[n], cmax[n], cmin[n]);
+        math_vec_mul_scalar(half_size[n], half_size[n], 0.5);
+d645 4
+a648 4
+    math_vec_add(center[n], cmax[n], cmin[n]);
+    math_vec_mul_scalar(center[n], center[n], 0.5);
+    math_vec_sub(half_size[n], cmax[n], cmin[n]);
+    math_vec_mul_scalar(half_size[n], half_size[n], 0.5);
+d835 1
+a835 1
+  math_bbox(tie->min, tie->max, tie->tri_list[0].data[0], tie->tri_list[0].data[1], tie->tri_list[0].data[2]);
+d838 1
+a838 1
+    math_bbox(min, max, tie->tri_list[i].data[0], tie->tri_list[i].data[1], tie->tri_list[i].data[2]);
+d841 2
+a842 2
+    math_vec_min(tie->min, min);
+    math_vec_max(tie->max, max);
+d877 2
+a878 2
+  math_vec_sub(delta, tie->max, tie->min);
+  math_max3(TIE_PREC, delta.v[0], delta.v[1], delta.v[2]);
+d886 3
+a888 3
+  math_vec_mul_scalar(delta, delta, 1.0); /* XXX */
+  math_vec_sub(tie->min, tie->min, delta);
+  math_vec_add(tie->max, tie->max, delta);
+@
+
+
+1.10
+log
+@remove C++-style // comments as there's no assumption of c99 compiler compliance yet, only c89 (mostly aix compiler though other old compilers too)
+@
+text
+@d7 1
+a7 1
+ * Copyright (C) 2002-2005 United States Government as represented by
+d35 1
+a35 1
+ * $Id: kdtree.c,v 1.9 2005/10/23 04:44:28 brlcad Exp $
+@
+
+
+1.9
+log
+@trailing ws
+@
+text
+@d35 1
+a35 1
+ * $Id: kdtree.c,v 1.8 2005/09/08 05:11:20 twingy Exp $
+d269 1
+a269 1
+//  if(depth >= 26)
+d275 1
+a275 1
+//    tie->stat++;
+d594 2
+a595 2
+//      printf("%f %f %f %f %f %f\n", min.v[0], min.v[1], min.v[2], max.v[0], max.v[1], max.v[2]);
+//      printf("moo: %d - %d\n", depth, node_gd->tri_num);
+d886 1
+a886 1
+  math_vec_mul_scalar(delta, delta, 1.0); // XXX
+@
+
+
+1.8
+log
+@fixed a stack pop bug in the kd-tree cache loader.  engine is 1.1% faster.
+@
+text
+@d35 1
+a35 1
+ * $Id: kdtree.c,v 1.7 2005/09/06 01:03:23 twingy Exp $
+d399 1
+a399 1
+        /* 
+d515 1
+a515 1
+  
+d638 1
+a638 1
+  /* 
+d691 1
+a691 1
+ 
+d721 1
+a721 1
+ * Free up all the stuff associated with the kdtree and build a 
+@
+
+
+1.8.2.1
+log
+@merge changes from HEAD aka rel-7-6-4 to the rel-7-6-branch just in case someone peeks a gander or tries to continue/build the branch
+@
+text
+@d35 1
+a35 1
+ * $Id$
+d269 1
+a269 1
+  /*  if(depth >= 26) */
+d275 1
+a275 1
+    /*    tie->stat++; */
+d399 1
+a399 1
+        /*
+d515 1
+a515 1
+
+d594 2
+a595 2
+    /*      printf("%f %f %f %f %f %f\n", min.v[0], min.v[1], min.v[2], max.v[0], max.v[1], max.v[2]); */
+    /*      printf("moo: %d - %d\n", depth, node_gd->tri_num); */
+d638 1
+a638 1
+  /*
+d691 1
+a691 1
+
+d721 1
+a721 1
+ * Free up all the stuff associated with the kdtree and build a
+d886 1
+a886 1
+  math_vec_mul_scalar(delta, delta, 1.0); /* XXX */
+@
+
+
+1.7
+log
+@Aggressive prep is about 3.3x faster now.  Fixed a few Makefile.am's.
+@
+text
+@d35 1
+a35 1
+ * $Id: kdtree.c,v 1.6 2005/08/30 20:08:23 twingy Exp $
+d42 1
+d46 1
+a46 1
+#include <math.h>
+d56 1
+a56 1
+  tie_kdtree_t *node_aligned = (tie_kdtree_t *)((TIE_PTR_CAST)node & ~0x7L);
+d58 1
+a58 1
+  if(((TIE_PTR_CAST)(node_aligned->data)) & 0x4) {
+d60 3
+a62 3
+    tie_kdtree_free_node(&((tie_kdtree_t *)(((TIE_PTR_CAST)(node_aligned->data)) & ~0x7L))[0]);
+    tie_kdtree_free_node(&((tie_kdtree_t *)(((TIE_PTR_CAST)(node_aligned->data)) & ~0x7L))[1]);
+    free((void*)((TIE_PTR_CAST)(node_aligned->data) & ~0x7L));
+d65 2
+a66 2
+    free(((tie_geom_t *)((TIE_PTR_CAST)(node_aligned->data) & ~0x7L))->tri_list);
+    free((void *)((TIE_PTR_CAST)(node_aligned->data) & ~0x7L));
+d72 1
+a72 1
+  tie_kdtree_t *node_aligned = (tie_kdtree_t *)((TIE_PTR_CAST)node & ~0x7L);
+d89 1
+a89 1
+  if(((TIE_PTR_CAST)(node_aligned->data)) & 0x4) {
+d96 1
+a96 1
+    split = ((TIE_PTR_CAST)(node_aligned->data)) & 0x3;
+d104 3
+a106 3
+    tie_kdtree_cache_free_node(tie, &((tie_kdtree_t *)(((TIE_PTR_CAST)(node_aligned->data)) & ~0x7L))[0], cache);
+    tie_kdtree_cache_free_node(tie, &((tie_kdtree_t *)(((TIE_PTR_CAST)(node_aligned->data)) & ~0x7L))[1], cache);
+    free((void *)((TIE_PTR_CAST)(node_aligned->data) & ~0x7L));
+d108 1
+a108 1
+    tri_num = ((tie_geom_t *)((TIE_PTR_CAST)(node_aligned->data) & ~0x7L))->tri_num;
+d121 1
+a121 1
+      tri_ind = ((tie_geom_t *)((TIE_PTR_CAST)(node_aligned->data) & ~0x7L))->tri_list[i] - &tie->tri_list[0];
+d130 2
+a131 2
+    free(((tie_geom_t *)((TIE_PTR_CAST)(node_aligned->data) & ~0x7L))->tri_list);
+    free((void *)((TIE_PTR_CAST)(node_aligned->data) & ~0x7L));
+d305 2
+a306 2
+  math_vec_add(center, max, min);
+  math_vec_mul_scalar(center, center, 0.5);
+d313 3
+a315 3
+    cmax[0].v[0] = center.v[0];
+    cmin[1].v[0] = center.v[0];
+    node->axis = center.v[0];
+d318 3
+a320 3
+    cmax[0].v[1] = center.v[1];
+    cmin[1].v[1] = center.v[1];
+    node->axis = center.v[1];
+d323 3
+a325 3
+    cmax[0].v[2] = center.v[2];
+    cmin[1].v[2] = center.v[2];
+    node->axis = center.v[2];
+d585 2
+a586 1
+  if(side[split][split_slice][0] == node_gd->tri_num && side[split][split_slice][1] == node_gd->tri_num)
+d588 1
+d694 1
+a694 1
+  node->data = (void *)((TIE_PTR_CAST)(node->data) + split + 4);
+a787 3
+      if(tie->stat < geom->tri_num)
+        tie->stat = geom->tri_num;
+
+d796 4
+a799 2
+      stack_ind--;
+      node = stack[stack_ind];
+d830 1
+a830 1
+      temp_node->data = (void *)((TIE_PTR_CAST)(temp_node->data) + split + 4);
+@
+
+
+1.6
+log
+@about to try some stuff.
+@
+text
+@d35 1
+a35 1
+ * $Id: kdtree.c,v 1.5 2005/08/29 19:25:55 twingy Exp $
+d263 2
+a264 2
+  tie_geom_t *child[2], *node_geom_data = (tie_geom_t *)(node->data);
+  TIE_3 cmin[2], cmax[2], center, half_size;
+d267 2
+a268 2
+#if 1
+  if(depth >= 26)
+d273 3
+a275 2
+  if(node_geom_data->tri_num <= TIE_KDTREE_NODE_MAX || depth > tie->max_depth) {
+    tie->stat++;
+d277 5
+a281 5
+    if(node_geom_data->tri_num > tie->stat)
+      tie->stat = node_geom_data->tri_num;
+    if(node_geom_data->tri_num > tie->stat) {
+      tie->stat = node_geom_data->tri_num;
+      printf("depth: %d, tris: %d\n", depth, node_geom_data->tri_num);
+d335 2
+a336 1
+  tfloat coef[3][MAX_SLICES+MIN_SLICES], split_coef, beg, end;
+d342 1
+a342 1
+  slice_num = MIN_SLICES + MAX_SLICES * ((tfloat)node_geom_data->tri_num / (tfloat)tie->tri_num);
+d345 24
+d387 9
+a395 2
+      for(i = 0; i < node_geom_data->tri_num; i++) {
+        s = 0;
+d397 12
+a408 5
+        for(n = 0; n < 2; n++) { /* child A and B */
+          math_vec_add(center, cmax[n], cmin[n]);
+          math_vec_mul_scalar(center, center, 0.5);
+          math_vec_sub(half_size, cmax[n], cmin[n]);
+          math_vec_mul_scalar(half_size, half_size, 0.5);
+d410 3
+d418 6
+a423 6
+            if(node_geom_data->tri_list[i]->data[j].v[0] > cmin[n].v[0] &&
+               node_geom_data->tri_list[i]->data[j].v[0] < cmax[n].v[0] &&
+               node_geom_data->tri_list[i]->data[j].v[1] > cmin[n].v[1] &&
+               node_geom_data->tri_list[i]->data[j].v[1] < cmax[n].v[1] &&
+               node_geom_data->tri_list[i]->data[j].v[2] > cmin[n].v[2] &&
+               node_geom_data->tri_list[i]->data[j].v[2] < cmax[n].v[2]) {
+d431 1
+a431 1
+            if(tie_kdtree_tri_box_overlap(&center, &half_size, node_geom_data->tri_list[i]->data)) {
+d521 2
+a522 2
+  if((tfloat)(gap[d][1] - gap[d][0]) / (tfloat)slice_num > MIN_SPAN && node_geom_data->tri_num > 500) {
+/*  printf("choosing slice[%d]: %d->%d :: %d tris\n", d, gap[d][0], gap[d][1], node_geom_data->tri_num); */
+d584 1
+a584 1
+  if(side[split][split_slice][0] == node_geom_data->tri_num && side[split][split_slice][1] == node_geom_data->tri_num)
+d589 1
+a589 1
+    if(node_geom_data->tri_num < 10)
+d592 1
+a592 1
+//      printf("moo: %d - %d\n", depth, node_geom_data->tri_num);
+d599 1
+a599 1
+  printf("winner: min: %.3f %.3f %.3f, max: %.3f %.3f %.3f, tris: %d\n", min.v[0], min.v[1], min.v[2], max.v[0], max.v[1], max.v[2], node_geom_data->tri_num);
+d628 1
+a628 1
+  child[0]->tri_list = (tie_tri_t **)malloc(sizeof(tie_tri_t *) * node_geom_data->tri_num);
+d631 1
+a631 1
+  child[1]->tri_list = (tie_tri_t **)malloc(sizeof(tie_tri_t *) * node_geom_data->tri_num);
+d642 4
+a645 4
+    math_vec_add(center, cmax[n], cmin[n]);
+    math_vec_mul_scalar(center, center, 0.5);
+    math_vec_sub(half_size, cmax[n], cmin[n]);
+    math_vec_mul_scalar(half_size, half_size, 0.5);
+d647 1
+a647 1
+    for(i = 0; i < node_geom_data->tri_num; i++) {
+d653 6
+a658 6
+        if(node_geom_data->tri_list[i]->data[j].v[0] > cmin[n].v[0] &&
+           node_geom_data->tri_list[i]->data[j].v[0] < cmax[n].v[0] &&
+           node_geom_data->tri_list[i]->data[j].v[1] > cmin[n].v[1] &&
+           node_geom_data->tri_list[i]->data[j].v[1] < cmax[n].v[1] &&
+           node_geom_data->tri_list[i]->data[j].v[2] > cmin[n].v[2] &&
+           node_geom_data->tri_list[i]->data[j].v[2] < cmax[n].v[2]) {
+d663 1
+a663 1
+        child[n]->tri_list[child[n]->tri_num++] = node_geom_data->tri_list[i];
+d666 2
+a667 2
+        if(tie_kdtree_tri_box_overlap(&center, &half_size, node_geom_data->tri_list[i]->data)) {
+          child[n]->tri_list[child[n]->tri_num++] = node_geom_data->tri_list[i];
+d681 3
+a683 3
+  node_geom_data->tri_num = 0;
+  free(node_geom_data->tri_list);
+  free(node_geom_data);
+d884 1
+a884 1
+  math_vec_mul_scalar(delta, delta, 2.0); // XXX
+@
+
+
+1.5
+log
+@kd-tree caching is now tuned to the point where full start-up time takes less than
+1/4 the time as it did with the fast mid-split algorithm.  This number should approach
+1/8 as the various parts of the packing/unpacking and caching algorithms are tuned
+even further.
+@
+text
+@d35 1
+a35 1
+ * $Id: kdtree.c,v 1.4 2005/08/29 06:37:16 twingy Exp $
+d267 2
+a268 2
+#if 0
+  if(depth >= 24)
+d288 1
+a288 1
+#if 1
+d742 2
+d850 1
+a850 1
+  if(!already_built) {
+d852 4
+a855 2
+    printf("stat: %d\n", tie->stat);
+  }
+a856 1
+  tie->stat = 0;
+@
+
+
+1.4
+log
+@Integrated kd-tree caching.
+It's generated with adrt_bench by supplying the -c argument.
+kdtree_cache_file,kdtree.cache goes into project.env file to make it work.
+@
+text
+@d35 1
+a35 1
+ * $Id: kdtree.c,v 1.3 2005/08/27 21:22:09 twingy Exp $
+d72 1
+a72 1
+  unsigned int size, tri_num, i, tri_ind;
+d76 11
+a89 1
+    *cache = realloc(*cache, sizeof(unsigned int) + size + 2 + sizeof(tfloat));
+d91 1
+a91 1
+    memcpy(&((char *)*cache)[sizeof(unsigned int)+size], &type, 1);
+d93 1
+a93 1
+    memcpy(&((char *)*cache)[sizeof(unsigned int)+size], &(node_aligned->axis), sizeof(tfloat));
+d96 1
+a96 1
+    memcpy(&((char *)*cache)[sizeof(unsigned int) + size], &split, 1);
+d100 1
+a100 1
+    memcpy(*cache, &size, sizeof(unsigned int));    
+a107 1
+    *cache = realloc(*cache, sizeof(unsigned int) + size + 1 + sizeof(unsigned int) + sizeof(unsigned int) * tri_num);
+d109 1
+a109 1
+    memcpy(&((char *)*cache)[sizeof(unsigned int) + size], &type, 1);
+d111 2
+a112 1
+    memcpy(&((char *)*cache)[sizeof(unsigned int)+size], &tri_num, sizeof(unsigned int));
+d121 1
+a121 1
+      memcpy(&((char *)*cache)[sizeof(unsigned int)+size], &tri_ind, sizeof(unsigned int));
+d126 1
+a126 1
+    memcpy(*cache, &size, sizeof(unsigned int));    
+d288 1
+a288 1
+#if 0
+d697 2
+a698 2
+    size = 0;
+    *cache = malloc(sizeof(unsigned int));
+d700 3
+d704 4
+d725 2
+a726 1
+  index = sizeof(unsigned int);
+@
+
+
+1.3
+log
+@more cleanup
+@
+text
+@d1 1
+a1 1
+/*                     T I E . C
+d35 1
+a35 1
+ * $Id: kdtree.c,v 1.2 2005/08/27 21:18:39 twingy Exp $
+d59 2
+a60 2
+    tie_kdtree_free_node(&((tie_kdtree_t *)(node_aligned->data))[0]);
+    tie_kdtree_free_node(&((tie_kdtree_t *)(node_aligned->data))[1]);
+d70 56
+a125 1
+static void tie_kdtree_build_head(tie_t *tie, tie_tri_t *tri_list, int tri_num) {
+d319 3
+a321 3
+  /******************************
+  * Justin's Home Grown KD-Tree *
+  *******************************/
+d647 1
+a647 1
+ * Free up all the stuff associate with libtie
+d665 118
+d792 4
+d798 2
+a799 1
+  tie_kdtree_build_head(tie, tie->tri_list, tie->tri_num);
+d805 2
+a806 1
+  ((tie_geom_t *)(tie->kdtree->data))->tri_list = (tie_tri_t **)realloc(((tie_geom_t *)(tie->kdtree->data))->tri_list, sizeof(tie_tri_t *) * ((tie_geom_t *)(tie->kdtree->data))->tri_num);
+d830 4
+a833 3
+  tie_kdtree_build(tie, tie->kdtree, 0, tie->min, tie->max, 0, 0);
+
+  printf("stat: %d\n", tie->stat);
+@
+
+
+1.2
+log
+@removed extraneous stuff
+@
+text
+@d35 1
+a35 1
+ * $Id: kdtree.c,v 1.1 2005/08/27 21:16:37 twingy Exp $
+d54 1
+a54 1
+static void tie_free_node(tie_kdtree_t *node) {
+d59 2
+a60 2
+    tie_free_node(&((tie_kdtree_t *)(node_aligned->data))[0]);
+    tie_free_node(&((tie_kdtree_t *)(node_aligned->data))[1]);
+d108 1
+a108 1
+static int tie_tri_box_overlap(TIE_3 *center, TIE_3 *half_size, TIE_3 triverts[3]) {
+d323 1
+a323 1
+            if(tie_tri_box_overlap(&center, &half_size, node_geom_data->tri_list[i]->data)) {
+d558 1
+a558 1
+        if(tie_tri_box_overlap(&center, &half_size, node_geom_data->tri_list[i]->data)) {
+d604 1
+a604 1
+    tie_free_node(tie->kdtree);
+a658 1
+
+@
+
+
+1.1
+log
+@kdtree code was put into its own separate file since it's going to consume
+more than half the actual engine code.
+@
+text
+@d26 1
+a26 11
+ *      Triangle Intersection Engine
+ *
+ *      The calling sequence is as follows:
+ *        - tie_init()	initialize the data structure
+ *        - tie_push()	add triangles to the universe to be raytraced
+ *        - tie_prep()	build the KDTREE for the triangles
+ *        - tie_work()	shoot some ray
+ *        - tie_work()	shoot some ray
+ *        - tie_work()	shoot some ray
+ *        - tie_work()	shoot some ray
+ *        - tie_free()	Free up all the memory
+d35 1
+a35 1
+ * $Id: tie.c,v 1.26 2005/08/27 06:17:50 twingy Exp $
+a37 11
+ *
+ * The calling sequence is as follows:
+ *	@@li tie_init()	initialize the data structure
+ *	@@li tie_push()	add triangles to the universe to be raytraced
+ *	@@li tie_prep()	build the KDTREE for the triangles
+ *	@@li tie_work()	shoot some ray
+ *	@@li tie_work()	shoot some ray
+ *	@@li tie_work()	shoot some ray
+ *	@@li tie_work()	shoot some ray
+ *	@@li tie_work()	shoot some ray
+ *	@@li tie_free()	Free up all the memory
+a46 8
+#ifndef HUGE
+# ifdef HUGE_VAL
+#  define HUGE HUGE_VAL
+# else
+#  define HUGE 3e23
+# endif
+#endif
+
+@
+

@@ -1,0 +1,700 @@
+head	11.10;
+access;
+symbols
+	ansi-20040405-merged:11.7.2.1
+	postmerge-20040405-ansi:11.8
+	premerge-20040404-ansi:11.7
+	postmerge-autoconf:11.7
+	autoconf-freeze:11.7
+	premerge-autoconf:11.7
+	postmerge-20040315-windows:11.7
+	premerge-20040315-windows:11.7
+	windows-20040315-freeze:11.7
+	autoconf-20031203:11.7
+	autoconf-20031202:11.7
+	autoconf-branch:11.7.0.10
+	phong-branch:11.7.0.8
+	photonmap-branch:11.7.0.6
+	rel-6-1-DP:11.7
+	windows-branch:11.7.0.4
+	rel-6-0-2:11.5
+	ansi-branch:11.7.0.2
+	rel-6-0-1-branch:11.5.0.2
+	hartley-6-0-post:11.6
+	hartley-6-0-pre:11.5
+	rel-6-0-1:11.5
+	rel-6-0:11.5
+	rel-5-4:11.2
+	offsite-5-3-pre:11.2
+	rel-5-3:11.2
+	rel-5-2:11.2
+	rel-5-1-branch:11.2.0.2
+	rel-5-1:11.2
+	rel-5-0:11.2
+	rel-5-0-beta:11.2
+	rel-4-5:11.2
+	ctj-4-5-post:11.2
+	ctj-4-5-pre:11.2
+	rel-4-4:11.1
+	rel-4-0:10.1;
+locks; strict;
+comment	@ * @;
+
+
+11.10
+date	2004.05.21.16.45.04;	author morrison;	state dead;
+branches;
+next	11.9;
+
+11.9
+date	2004.05.10.15.30.50;	author erikg;	state Exp;
+branches;
+next	11.8;
+
+11.8
+date	2004.04.05.05.46.00;	author morrison;	state Exp;
+branches;
+next	11.7;
+
+11.7
+date	2002.08.20.17.08.43;	author jra;	state Exp;
+branches
+	11.7.2.1;
+next	11.6;
+
+11.6
+date	2002.08.15.20.55.54;	author hartley;	state Exp;
+branches;
+next	11.5;
+
+11.5
+date	2001.10.17.07.40.06;	author morrison;	state Exp;
+branches;
+next	11.4;
+
+11.4
+date	2001.08.21.18.16.31;	author jra;	state Exp;
+branches;
+next	11.3;
+
+11.3
+date	2001.08.10.21.22.45;	author morrison;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	96.07.17.14.15.11;	author jra;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	95.01.04.10.19.11;	author mike;	state Rel4_4;
+branches;
+next	10.4;
+
+10.4
+date	94.12.30.03.30.52;	author mike;	state Exp;
+branches;
+next	10.3;
+
+10.3
+date	94.08.23.18.14.55;	author gdurf;	state Exp;
+branches;
+next	10.2;
+
+10.2
+date	93.10.26.03.13.09;	author mike;	state Exp;
+branches;
+next	10.1;
+
+10.1
+date	91.10.12.06.51.06;	author mike;	state Rel4_0;
+branches;
+next	1.3;
+
+1.3
+date	91.02.09.01.00.04;	author mike;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	91.02.09.00.59.34;	author butler;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	90.10.25.20.13.43;	author butler;	state Exp;
+branches;
+next	;
+
+11.7.2.1
+date	2002.09.19.18.02.20;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@safety check in
+@
+
+
+11.10
+log
+@moved to src/sig/
+@
+text
+@/*
+ *			D W I N . C
+ *
+ *  Extract sliding windows of double values.
+ *  Apply window functions if desired.
+ */
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+
+#ifdef USE_STRING_H
+#include <string.h>
+#else
+#include <strings.h>
+#endif
+
+#include <stdio.h>
+#include <math.h>
+
+#include "machine.h"
+#include "externs.h"
+
+/*
+ * Buffering stuff
+ */
+#define	BSIZE	16*1024		/* Must be AT LEAST 2*Points in spectrum */
+double	buf[BSIZE];		/* input data buffer */
+double	temp[BSIZE];		/* windowed data buffer */
+int	input_sample = 0;	/* The *next* input sample ("file pointer") */
+
+int	buf_start = 0;		/* sample number in buf[0] */
+int	buf_num = 0;		/* number of samples currently in buffer */
+int	buf_index = 0;		/* buffer offset for current window */
+
+int	xform_start = 0;	/* current window start/end */
+int	xform_end = 0;
+
+#define	START_IN_BUFFER		(xform_start < buf_start+buf_num)
+#define	END_NOT_IN_BUFFER	(xform_end >= buf_start+buf_num)
+
+int	window = 0;
+int	hamming = 0;
+int	bias = 0;
+int	bartlett = 0;
+static int	endwin = 0;
+int	midwin = 0;
+
+void	fill_buffer(void);
+void	seek_sample(int n);
+void	biaswin(double *data, int L);
+void	bartwin(double *data, int L);
+void	hamwin(double *data, int length);
+void	coswin(double *data, int length, double percent);
+
+static char usage[] = "\
+Usage: dwin [options] [width (1024)] [step (width)] [start]\n\
+  -w  apply window (80%% split Cosine)\n\
+  -h  apply Hamming window\n\
+  -b  apply Bartlett window (triangle)\n\
+  -B  apply bias window (half triangle)\n\
+  -e  start first sample at end of buffer\n\
+  -m  start first sample at middle of buffer\n\
+";
+
+int main(int argc, char **argv)
+{
+	int	L, step;
+
+	if( isatty(fileno(stdin)) || isatty(fileno(stdout)) ) {
+		fprintf( stderr, usage );
+		exit( 1 );
+	}
+
+	while( argc > 1 ) {
+		if( strcmp(argv[1], "-w") == 0 ) {
+			window++;
+		} else if( strcmp(argv[1], "-h") == 0 ) {
+			window++;
+			hamming++;
+		} else if( strcmp(argv[1], "-B") == 0 ) {
+			window++;
+			bias++;
+		} else if( strcmp(argv[1], "-b") == 0 ) {
+			window++;
+			bartlett++;
+		} else if( strcmp(argv[1], "-e") == 0 ) {
+			endwin++;
+		} else if( strcmp(argv[1], "-m") == 0 ) {
+			midwin++;
+		} else
+			break;
+		argc--;
+		argv++;
+	}
+
+	L = (argc > 1) ? atoi(argv[1]) : 1024;
+	if( argc > 2 ) {
+		double	f;
+		f = atof(argv[2]);
+		if( f < 1.0 )
+			step = f * L;
+		else
+			step = f;
+	} else
+		step = L;
+
+	/* compute xform start/end */
+	if( endwin )
+		xform_start = -L + 1;	/* one sample at end */
+	else if( midwin )
+		xform_start = -L/2;	/* odd - center, even - just after */
+	else
+		xform_start = 0;
+	xform_end = xform_start + L-1;
+
+	/* initialize data buffer */
+	bzero( (char *)buf, BSIZE*sizeof(*buf) );
+	buf_start = -BSIZE;
+	buf_num = BSIZE;
+	buf_index = 0;
+
+	while( !feof( stdin ) ) {
+#ifdef DEBUG
+		fprintf(stderr,"\nWant to xform [%d %d]\n", xform_start, xform_end );
+		fprintf(stderr,"Buffer contains %d samples, from [%d (%d)]\n", buf_num, buf_start, buf_start+buf_num-1 );
+#endif /* DEBUG */
+		if( START_IN_BUFFER ) {
+			buf_index = xform_start - buf_start;
+			if( END_NOT_IN_BUFFER ) {
+#ifdef DEBUG
+				fprintf(stderr,"\tend isn't in buffer.\n");
+#endif /* DEBUG */
+				/* Move start to origin */
+				bcopy( &buf[buf_index], &buf[0], (buf_num-buf_index)*sizeof(*buf) );
+				buf_start = xform_start;
+				buf_num -= buf_index;
+				buf_index = 0;
+				fill_buffer();
+			}
+		} else {
+#ifdef DEBUG
+			fprintf(stderr,"\tstart isn't in buffer.\n");
+#endif /* DEBUG */
+			if( input_sample != xform_start )
+				seek_sample( xform_start );
+			buf_start = xform_start;
+			buf_num = 0;
+			buf_index = 0;
+			fill_buffer();
+			if( feof( stdin ) )
+				break;
+		}
+
+#ifdef DEBUG
+		fprintf(stderr, "Did samples %d to %d (buf_index = %d)\n", xform_start, xform_end, buf_index );
+#endif /* DEBUG */
+		if( window ) {
+			bcopy( &buf[buf_index], temp, L*sizeof(*temp) );
+			if( hamming )
+				hamwin( temp, L ); /* Hamming window */
+			else if( bartlett )
+				bartwin( temp, L ); /* Bartlett window */
+			else if( bias )
+				biaswin( temp, L ); /* Bias window */
+			else
+				coswin( temp, L, 0.80 ); /* 80% cosine window */
+			fwrite( temp, sizeof(*temp), L, stdout );
+		} else {
+			fwrite( &buf[buf_index], sizeof(*buf), L, stdout );
+		}
+
+		/* Bump out pointers */
+		xform_start += step;
+		xform_end = xform_start + L-1;
+	}
+
+	return 0;
+}
+
+/*
+ * Move input pointer to sample n.
+ * Since we may be reading from a pipe, we actually
+ * read and discard the samples.
+ * Can only seek forward.
+ */
+void
+seek_sample(int n)
+{
+	double	foo;
+
+	fprintf(stderr,"seeking sample %d\n", n );
+	while( input_sample < n ) {
+		fread( &foo, sizeof(foo), 1, stdin );
+		input_sample++;
+	}
+}
+
+/*
+ * Fill the data buffer from the current input location.
+ */
+void
+fill_buffer(void)
+{
+	int	n, num_to_read;
+
+	num_to_read = BSIZE - buf_num;
+
+#ifdef DEBUG
+fprintf(stderr, "fillbuffer: buf_start = %d, buf_num = %d, numtoread = %d, buf_index = %d\n",
+buf_start, buf_num, num_to_read, buf_index );
+#endif /* DEBUG */
+	n = fread( &buf[buf_num], sizeof(*buf), num_to_read, stdin );
+	if( n == 0 ) {
+		/*fprintf( stderr, "EOF\n" );*/
+		bzero( (char *)&buf[buf_num],
+			sizeof(*buf)*num_to_read );
+		return;
+	}
+	input_sample += n;
+	buf_num += n;
+	if( n < num_to_read ) {
+		bzero( (char *)&buf[buf_num],
+			sizeof(*buf)*(num_to_read-n) );
+		clearerr(stdin);	/* XXX HACK */
+	}
+
+#ifdef DEBUG
+	fprintf(stderr,"filled buffer now has %d samples, [%d (%d)].  Input at %d\n", buf_num, buf_start, buf_start+buf_num-1, input_sample );
+#endif /* DEBUG */
+}
+
+/* Bias window (half triangle) */
+void
+biaswin(double *data, int L)
+{
+	int	i;
+
+	for (i = 0; i < L; i++) {
+		data[i] *= (double)(L-i)/(double)L;
+	}
+}
+
+/* Bartlett window (triangle) */
+void
+bartwin(double *data, int L)
+{
+	int	i;
+
+	for (i = 0; i < L/2; i++) {
+		data[i] *= (double)i/(L/2.0);
+	}
+	for (i = L/2; i < L; i++) {
+		data[i] *= (double)(L-i)/(L/2.0);
+	}
+}
+@
+
+
+11.9
+log
+@change conf.h to a wrapped config.h
+@
+text
+@@
+
+
+11.8
+log
+@merge of ansi-6-0-branch into head
+@
+text
+@d7 5
+a11 1
+#include "conf.h"
+@
+
+
+11.7
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d46 6
+a51 6
+void	fill_buffer();
+void	seek_sample();
+void	biaswin();
+void	bartwin();
+void	hamwin();
+void	coswin();
+d63 1
+a63 3
+int main( argc, argv )
+int argc;
+char **argv;
+d185 1
+a185 1
+seek_sample( n )
+d200 1
+a200 1
+fill_buffer()
+d232 1
+a232 3
+biaswin( data, L )
+double data[];
+int L;
+d243 1
+a243 3
+bartwin( data, L )
+double data[];
+int L;
+@
+
+
+11.7.2.1
+log
+@Initial ANSIfication
+@
+text
+@d46 6
+a51 6
+void	fill_buffer(void);
+void	seek_sample(int n);
+void	biaswin(double *data, int L);
+void	bartwin(double *data, int L);
+void	hamwin(double *data, int length);
+void	coswin(double *data, int length, double percent);
+d63 3
+a65 1
+int main(int argc, char **argv)
+d187 1
+a187 1
+seek_sample(int n)
+d202 1
+a202 1
+fill_buffer(void)
+d234 3
+a236 1
+biaswin(double *data, int L)
+d247 3
+a249 1
+bartwin(double *data, int L)
+@
+
+
+11.6
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d46 6
+a51 6
+void	fill_buffer(void);
+void	seek_sample(int n);
+void	biaswin(double *data, int L);
+void	bartwin(double *data, int L);
+void	hamwin(double *data, int length);
+void	coswin(double *data, int length, double percent);
+d63 3
+a65 1
+int main(int argc, char **argv)
+d187 1
+a187 1
+seek_sample(int n)
+d202 1
+a202 1
+fill_buffer(void)
+d234 3
+a236 1
+biaswin(double *data, int L)
+d247 3
+a249 1
+bartwin(double *data, int L)
+@
+
+
+11.5
+log
+@Mac OS X warning and error fixes for non-production build
+@
+text
+@d46 6
+a51 6
+void	fill_buffer();
+void	seek_sample();
+void	biaswin();
+void	bartwin();
+void	hamwin();
+void	coswin();
+d63 1
+a63 3
+int main( argc, argv )
+int argc;
+char **argv;
+d185 1
+a185 1
+seek_sample( n )
+d200 1
+a200 1
+fill_buffer()
+d232 1
+a232 3
+biaswin( data, L )
+double data[];
+int L;
+d243 1
+a243 3
+bartwin( data, L )
+double data[];
+int L;
+@
+
+
+11.4
+log
+@Added declarations of hamwin() and coswin()
+@
+text
+@d43 1
+a43 1
+int	endwin = 0;
+@
+
+
+11.3
+log
+@added proper checking for string.h/strings.h
+added int return type to main
+added return 0 to main
+@
+text
+@d50 2
+@
+
+
+11.2
+log
+@Minor Mods for Irix 6.2
+@
+text
+@d9 6
+d61 1
+a61 1
+main( argc, argv )
+d174 2
+@
+
+
+11.1
+log
+@Release_4.4
+@
+text
+@d41 3
+d176 1
+d223 1
+d236 1
+@
+
+
+10.4
+log
+@DEC Alpha
+@
+text
+@@
+
+
+10.3
+log
+@Added include of conf.h
+@
+text
+@d106 1
+a106 1
+	bzero( buf, BSIZE*sizeof(*buf) );
+d201 1
+a201 1
+		bzero( &buf[buf_num],
+d208 1
+a208 1
+		bzero( &buf[buf_num],
+@
+
+
+10.2
+log
+@ANSI C
+@
+text
+@d7 2
+@
+
+
+10.1
+log
+@Release_4.0
+@
+text
+@d38 2
+d185 1
+@
+
+
+1.3
+log
+@lint
+@
+text
+@@
+
+
+1.2
+log
+@lint
+@
+text
+@d10 2
+a11 6
+#if defined(SYSV) && !defined(bzero)
+#	define bzero(str,n)		memset( str, '\0', n )
+#	define bcopy(from,to,count)	memcpy( to, from, count )
+#endif
+
+double	atof();
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d10 5
+d115 1
+a115 1
+#endif DEBUG
+d121 1
+a121 1
+#endif DEBUG
+d132 1
+a132 1
+#endif DEBUG
+d145 1
+a145 1
+#endif DEBUG
+d196 1
+a196 1
+#endif DEBUG
+d214 1
+a214 1
+#endif DEBUG
+@

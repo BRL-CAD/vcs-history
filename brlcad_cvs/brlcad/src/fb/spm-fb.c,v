@@ -1,0 +1,703 @@
+head	14.13;
+access;
+symbols
+	rel-7-10-4:14.11
+	STABLE:14.11.0.2
+	stable-branch:14.4
+	rel-7-10-2:14.11
+	rel-7-10-0:14.10
+	rel-7-8-4:14.8
+	rel-7-8-2:14.8
+	rel-7-8-0:14.8
+	trimnurbs-branch:14.8.0.2
+	help:14.8
+	temp_tag:14.7
+	bobWinPort-20051223-freeze:14.4
+	postmerge-20051223-bobWinPort:14.7
+	premerge-20051223-bobWinPort:14.7
+	rel-7-6-6:14.7
+	rel-7-6-4:14.7
+	rel-7-6-2:14.4
+	rel-7-6-branch:14.4.0.6
+	rel-7-6-0:14.4
+	rel-7-4-2:14.4
+	rel-7-4-branch:14.4.0.4
+	bobWinPort:14.4.0.2
+	rel-7-4-0:14.4
+	rel-7-2-6:14.4
+	rel-7-2-4:14.4
+	rel-7-2-2:14.4
+	rel-7-2-0:14.4
+	rel-7-0-4:14.3
+	rel-7-0-2:14.3
+	rel-7-0-1:14.3
+	opensource-post:14.3
+	opensource-pre:1.5
+	rel-7-0-branch:1.5.0.2
+	rel-7-0:1.5;
+locks; strict;
+comment	@ * @;
+
+
+14.13
+date	2007.11.21.20.49.08;	author erikgreenwald;	state Exp;
+branches;
+next	14.12;
+
+14.12
+date	2007.11.21.19.09.24;	author erikgreenwald;	state Exp;
+branches;
+next	14.11;
+
+14.11
+date	2007.07.26.01.13.53;	author brlcad;	state Exp;
+branches;
+next	14.10;
+
+14.10
+date	2007.01.23.01.13.32;	author brlcad;	state Exp;
+branches;
+next	14.9;
+
+14.9
+date	2007.01.20.14.36.49;	author brlcad;	state Exp;
+branches;
+next	14.8;
+
+14.8
+date	2006.01.18.06.46.15;	author brlcad;	state Exp;
+branches;
+next	14.7;
+
+14.7
+date	2005.10.23.04.44.30;	author brlcad;	state Exp;
+branches;
+next	14.6;
+
+14.6
+date	2005.09.21.19.00.27;	author brlcad;	state Exp;
+branches;
+next	14.5;
+
+14.5
+date	2005.09.21.17.17.18;	author brlcad;	state Exp;
+branches;
+next	14.4;
+
+14.4
+date	2005.01.30.20.30.21;	author brlcad;	state Exp;
+branches
+	14.4.6.1;
+next	14.3;
+
+14.3
+date	2004.12.21.06.38.19;	author morrison;	state Exp;
+branches;
+next	14.2;
+
+14.2
+date	2004.12.18.06.09.12;	author morrison;	state Exp;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.13;	author morrison;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	2004.09.08.20.31.24;	author kermit;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	2004.08.02.23.01.47;	author morrison;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2004.06.09.17.56.22;	author erikg;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2004.06.08.22.04.13;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.15.19.05;	author morrison;	state Exp;
+branches;
+next	;
+
+14.4.6.1
+date	2005.11.13.13.46.14;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.13
+log
+@pass bu_exit a NULL instead of an empty string
+@
+text
+@/*                        S P M - F B . C
+ * BRL-CAD
+ *
+ * Copyright (c) 1986-2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ *
+ */
+/** @@file spm-fb.c
+ *
+ *  Author -
+ *	Phil Dykstra
+ *
+ */
+#ifndef lint
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/fb/spm-fb.c,v 14.12 2007/11/21 19:09:24 erikgreenwald Exp $ (BRL)";
+#endif
+
+#include "common.h"
+
+#ifdef HAVE_UNISTD_H
+# include <unistd.h>
+#endif
+#include <stdlib.h>
+#include <stdio.h>
+#include <math.h>
+
+#include "machine.h"
+#include "bu.h"
+#include "fb.h"
+#include "spm.h"
+
+static FBIO	*fbp;
+
+static char	*framebuffer = NULL;
+static int	scr_width = 0;
+static int	scr_height = 0;
+
+static char	*file_name;
+static int	square = 0;
+static int	vsize;
+
+void spm_fb(spm_map_t *mapp);
+void spm_square(register spm_map_t *mapp);
+
+static char usage[] = "\
+Usage: spm-fb [-h -s] [-F framebuffer]\n\
+	[-S squarescrsize] [-W scr_width] [-N scr_height]\n\
+	vsize [filename]\n";
+
+int
+get_args(int argc, register char **argv)
+{
+	register int c;
+
+	while ( (c = bu_getopt( argc, argv, "hF:sS:W:N:" )) != EOF )  {
+		switch( c )  {
+		case 'h':
+			/* high-res */
+			scr_height = scr_width = 1024;
+			break;
+		case 'F':
+			framebuffer = bu_optarg;
+			break;
+		case 's':
+			square = 1;
+			break;
+		case 'S':
+			scr_height = scr_width = atoi(bu_optarg);
+			break;
+		case 'W':
+			scr_width = atoi(bu_optarg);
+			break;
+		case 'N':
+			scr_height = atoi(bu_optarg);
+			break;
+
+		default:		/* '?' */
+			return(0);
+		}
+	}
+
+	if( bu_optind >= argc )
+		return(0);		/* missing positional arg */
+	vsize = atoi( argv[bu_optind++] );
+
+	if( bu_optind >= argc )  {
+		if( isatty(fileno(stdin)) )
+			return(0);
+		file_name = "-";
+	} else {
+		file_name = argv[bu_optind];
+	}
+
+	if ( argc > ++bu_optind )
+		(void)fprintf( stderr, "spm-fb: excess argument(s) ignored\n" );
+
+	return(1);		/* OK */
+}
+
+/*
+ *			M A I N
+ */
+int
+main(int argc, char **argv)
+{
+	register spm_map_t	*mp;
+
+	if ( !get_args( argc, argv ) )  {
+		(void)fputs(usage, stderr);
+		bu_exit( 1, NULL );
+	}
+
+	if( (fbp = fb_open( framebuffer, scr_width, scr_height )) == FBIO_NULL )
+		bu_exit(12, NULL);
+	scr_width = fb_getwidth(fbp);
+	scr_height = fb_getheight(fbp);
+
+	mp = spm_init( vsize, sizeof(RGBpixel) );
+	if( mp == SPM_NULL || fbp == FBIO_NULL )
+		bu_exit( 1, NULL );
+
+	spm_load( mp, file_name );
+
+	if( square )
+		spm_square( mp );
+	else
+		spm_fb( mp );
+
+	spm_free( mp );
+	fb_close( fbp );
+	bu_exit(0, NULL);
+}
+
+/*
+ *			S P M _ F B
+ *
+ *  Displays a sphere map on a framebuffer.
+ */
+void
+spm_fb(spm_map_t *mapp)
+{
+	register int	j;
+
+	for( j = 0; j < mapp->ny; j++ ) {
+		fb_write( fbp, 0, j, mapp->xbin[j], mapp->nx[j] );
+#ifdef NEVER
+		for( i = 0; i < mapp->nx[j]; i++ ) {
+			rgb[RED] = mapp->xbin[j][i*3];
+			rgb[GRN] = mapp->xbin[j][i*3+1];
+			rgb[BLU] = mapp->xbin[j][i*3+2];
+			fb_write( fbp, i, j, (unsigned char *)rgb, 1 );
+		}
+#endif
+	}
+}
+
+/*
+ *			S P M _ S Q U A R E
+ *
+ *  Display a square sphere map on a framebuffer.
+ */
+void
+spm_square(register spm_map_t *mapp)
+{
+	register int	x, y;
+	register unsigned char	*scanline;
+
+	scanline = (unsigned char *)malloc( scr_width * sizeof(RGBpixel) );
+
+	for( y = 0; y < scr_height; y++ ) {
+		for( x = 0; x < scr_width; x++ ) {
+			spm_read( mapp, scanline[x],
+				(double)x/(double)scr_width,
+				(double)y/(double)scr_height );
+		}
+		if( fb_write( fbp, 0, y, scanline, scr_width ) != scr_width )  break;
+	}
+}
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+14.12
+log
+@exit->bu_exit where applicable
+@
+text
+@d28 1
+a28 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/fb/spm-fb.c,v 14.11 2007/07/26 01:13:53 brlcad Exp $ (BRL)";
+d123 1
+a123 1
+		bu_exit( 1, "" );
+d127 1
+a127 1
+		bu_exit(12, "");
+d133 1
+a133 1
+		bu_exit( 1, "" );
+d144 1
+a144 1
+	bu_exit(0, "");
+@
+
+
+14.11
+log
+@remove ephemeral data like phone numbers and addresses, including the misleading 'source' statements on code that is continually evolving and receiving contributions from many many sources
+@
+text
+@d28 1
+a28 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/fb/spm-fb.c,v 14.10 2007/01/23 01:13:32 brlcad Exp $ (BRL)";
+d123 1
+a123 1
+		exit( 1 );
+d127 1
+a127 1
+		exit(12);
+d133 1
+a133 1
+		exit( 1 );
+d144 1
+a144 1
+	exit(0);
+@
+
+
+14.10
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@a25 5
+ *  Source -
+ *	SECAD/VLD Computing Consortium, Bldg 394
+ *	The U. S. Army Ballistic Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005-5066
+ *
+d28 1
+a28 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/fb/spm-fb.c,v 14.9 2007/01/20 14:36:49 brlcad Exp $ (BRL)";
+@
+
+
+14.9
+log
+@update copyright to 2007
+@
+text
+@d8 2
+a9 3
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+d14 1
+a14 1
+ * General Public License for more details.
+d16 2
+a17 2
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+d33 1
+a33 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/fb/spm-fb.c,v 14.8 2006/01/18 06:46:15 brlcad Exp $ (BRL)";
+@
+
+
+14.8
+log
+@update copyright to 2006
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 1986-2006 United States Government as represented by
+d34 1
+a34 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/fb/spm-fb.c,v 14.7 2005/10/23 04:44:30 brlcad Exp $ (BRL)";
+@
+
+
+14.7
+log
+@trailing ws
+@
+text
+@d4 1
+a4 1
+ * Copyright (C) 1986-2005 United States Government as represented by
+d34 1
+a34 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/fb/spm-fb.c,v 14.6 2005/09/21 19:00:27 brlcad Exp $ (BRL)";
+@
+
+
+14.6
+log
+@needs bu.h for bu_getopt
+@
+text
+@d26 1
+a26 1
+ *  
+d31 1
+a31 1
+ *  
+d34 1
+a34 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/fb/spm-fb.c,v 14.5 2005/09/21 17:17:18 brlcad Exp $ (BRL)";
+d42 1
+a42 1
+#include <stdlib.h>                                                                                                                                                                            
+@
+
+
+14.5
+log
+@use bu_optarg, bu_optind and bu_getopt
+@
+text
+@d34 1
+a34 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/fb/spm-fb.c,v 14.4 2005/01/30 20:30:21 brlcad Exp $ (BRL)";
+d47 1
+@
+
+
+14.4
+log
+@update copyright to 2005
+@
+text
+@d34 1
+a34 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/fb/spm-fb.c,v 14.3 2004/12/21 06:38:19 morrison Exp $ (BRL)";
+d73 1
+a73 1
+	while ( (c = getopt( argc, argv, "hF:sS:W:N:" )) != EOF )  {
+d80 1
+a80 1
+			framebuffer = optarg;
+d86 1
+a86 1
+			scr_height = scr_width = atoi(optarg);
+d89 1
+a89 1
+			scr_width = atoi(optarg);
+d92 1
+a92 1
+			scr_height = atoi(optarg);
+d100 1
+a100 1
+	if( optind >= argc )
+d102 1
+a102 1
+	vsize = atoi( argv[optind++] );
+d104 1
+a104 1
+	if( optind >= argc )  {
+d109 1
+a109 1
+		file_name = argv[optind];
+d112 1
+a112 1
+	if ( argc > ++optind )
+@
+
+
+14.4.6.1
+log
+@merge changes from HEAD aka rel-7-6-4 to the rel-7-6-branch just in case someone peeks a gander or tries to continue/build the branch
+@
+text
+@d26 1
+a26 1
+ *
+d31 1
+a31 1
+ *
+d34 1
+a34 1
+static const char RCSid[] = "@@(#)$Header$ (BRL)";
+d42 1
+a42 1
+#include <stdlib.h>
+a46 1
+#include "bu.h"
+d73 1
+a73 1
+	while ( (c = bu_getopt( argc, argv, "hF:sS:W:N:" )) != EOF )  {
+d80 1
+a80 1
+			framebuffer = bu_optarg;
+d86 1
+a86 1
+			scr_height = scr_width = atoi(bu_optarg);
+d89 1
+a89 1
+			scr_width = atoi(bu_optarg);
+d92 1
+a92 1
+			scr_height = atoi(bu_optarg);
+d100 1
+a100 1
+	if( bu_optind >= argc )
+d102 1
+a102 1
+	vsize = atoi( argv[bu_optind++] );
+d104 1
+a104 1
+	if( bu_optind >= argc )  {
+d109 1
+a109 1
+		file_name = argv[bu_optind];
+d112 1
+a112 1
+	if ( argc > ++bu_optind )
+@
+
+
+14.3
+log
+@remove the old copyright notice section
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 1986-2004 United States Government as represented by
+d34 1
+a34 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/fb/spm-fb.c,v 14.2 2004/12/18 06:09:12 morrison Exp $ (BRL)";
+@
+
+
+14.2
+log
+@assign copyright and GPL license
+@
+text
+@a31 3
+ *  Copyright Notice -
+ *	This software is Copyright (C) 1986-2004 by the United States Army.
+ *	All rights reserved.
+d34 1
+a34 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/fb/spm-fb.c,v 14.1 2004/11/16 19:42:13 morrison Exp $ (BRL)";
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@d1 22
+a22 2
+/*
+ *			S P M - F B . C
+d37 1
+a37 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/fb/spm-fb.c,v 1.5 2004/09/08 20:31:24 kermit Exp $ (BRL)";
+@
+
+
+1.5
+log
+@Added <stdlib.h> to fix implicit cast (for IA64 architecture).
+@
+text
+@d17 1
+a17 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/fb/spm-fb.c,v 1.4 2004/08/02 23:01:47 morrison Exp $ (BRL)";
+d180 10
+@
+
+
+1.4
+log
+@replace the wrapped config.h block with common.h
+@
+text
+@d17 1
+a17 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/fb/spm-fb.c,v 1.3 2004/06/09 17:56:22 erikg Exp $ (BRL)";
+d25 1
+a25 1
+                                                                                                                                                                            
+@
+
+
+1.3
+log
+@fix missing header issues
+@
+text
+@d17 1
+a17 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/fb/spm-fb.c,v 1.2 2004/06/08 22:04:13 morrison Exp $ (BRL)";
+d20 1
+a20 3
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+@
+
+
+1.2
+log
+@obliterate externs.h
+@
+text
+@d17 1
+a17 1
+static const char RCSid[] = "@@(#)$Header$ (BRL)";
+d24 4
+a27 2
+
+
+@
+
+
+1.1
+log
+@Vast reorganization begins.  Sources moved from top-level directories into src/.
+@
+text
+@d17 1
+a17 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/fb/spm-fb.c,v 11.11 2004/05/10 15:30:42 erikg Exp $ (BRL)";
+a29 1
+#include "externs.h"
+@
+

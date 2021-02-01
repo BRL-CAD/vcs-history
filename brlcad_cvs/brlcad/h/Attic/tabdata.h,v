@@ -1,0 +1,462 @@
+head	1.12;
+access;
+symbols
+	rel-4-5:1.3
+	ctj-4-5-post:1.3
+	ctj-4-5-pre:1.3;
+locks; strict;
+comment	@ * @;
+
+
+1.12
+date	98.12.11.20.40.07;	author mike;	state dead;
+branches;
+next	1.11;
+
+1.11
+date	98.12.11.04.25.39;	author mike;	state Exp;
+branches;
+next	1.10;
+
+1.10
+date	98.12.10.03.31.09;	author mike;	state Exp;
+branches;
+next	1.9;
+
+1.9
+date	98.11.26.03.21.32;	author mike;	state Exp;
+branches;
+next	1.8;
+
+1.8
+date	98.11.19.03.25.36;	author mike;	state Exp;
+branches;
+next	1.7;
+
+1.7
+date	98.11.17.22.03.34;	author mike;	state Exp;
+branches;
+next	1.6;
+
+1.6
+date	98.10.14.19.04.28;	author mike;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	98.10.09.05.51.58;	author mike;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	98.09.30.03.53.18;	author mike;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	96.04.06.03.47.05;	author mike;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	96.04.06.02.52.40;	author mike;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	96.04.06.00.58.18;	author mike;	state Exp;
+branches;
+next	;
+
+
+desc
+@Header file for tabdata.c
+Support for tabular data.
+@
+
+
+1.12
+log
+@tabdata.c moved from librt to libbn, routine names changed accordingly.
+@
+text
+@/*
+ *			T A B D A T A . H
+ *
+ *  A header file containing data structures to assist with
+ *  recording many sets of data sampled along the same set of independent
+ *  variables.
+ *  The overall notion is that each sample should be
+ *  as compact as possible (an array of measurements),
+ *  with all the context stored in one place.
+ *
+ *  These structures and support routines apply to
+ *  any measured "curve" or "function" or "table" with one independent
+ *  variable and one or more scalar dependent variable(s).
+ *
+ *  The context is kept in an 'rt_table' structure, and
+ *  the data for one particular sample are kept in an 'rt_tabdata'
+ *  structure.
+ *
+ *  The contents of the sample in val[j] are interpreted
+ *  in the interval (wavel[j]..wavel[j+1]).
+ *  This value could be power, albedo, absorption, refractive index,
+ *  or any other wavelength-specific parameter.
+ *
+ *  For example, if the val[] array contains power values, then
+ *  val[j] contains the integral of the power from wavel[j] to wavel[j+1]
+ *
+ *  As an exmple, assume nwave=2, wavel[0]=500, wavel[1]=600, wavel[2]=700.
+ *  Then val[0] would contain data for the 500 to 600nm interval,
+ *  and val[1] would contain data for the 600 to 700nm interval.
+ *  There would be no storage allocated for val[2] -- don't use it!
+ *  There are several interpretations of this:
+ *	1)  val[j] stores the total (integral, area) value for the interval, or
+ *	2)  val[j] stores the average value across the interval.
+ *
+ *  The intervals need not be uniformly spaced; it is acceptable to
+ *  increase wavelength sampling density around "important" frequencies.
+ *
+ *  See Also -
+ *	spectrum.h, spectrum.c
+ *
+ *  Author -
+ *	Michael John Muuss
+ *  
+ *  Source -
+ *	The U. S. Army Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005-5068  USA
+ *  
+ *  Distribution Status -
+ *	Public Domain, Distribution Unlimited.
+ *
+ *  $Header: /c/CVS/brlcad/h/tabdata.h,v 1.11 1998/12/11 04:25:39 mike Exp mike $
+ */
+
+#ifndef TABDATA_H_SEEN
+#define TABDATA_H_SEEN seen
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+struct rt_table {
+	long		magic;
+	int		nx;
+	fastf_t		x[1];	/* array of nx+1 wavelengths, dynamically sized */
+};
+#define RT_TABLE_MAGIC	0x53706374
+#define RT_CK_TABLE(_p)	RT_CKMAG(_p, RT_TABLE_MAGIC, "rt_table")
+#define RT_TABLE_NULL	((struct rt_table *)NULL)
+
+/* Gets an rt_table, with x[] having size _nx+1 */
+#define RT_GET_TABLE(_table, _nx)  { \
+	if( (_nx) < 1 )  rt_bomb("RT_GET_TABLE() _nx < 1\n"); \
+	_table = (struct rt_table *)rt_calloc( 1, \
+		sizeof(struct rt_table) + sizeof(fastf_t)*(_nx), \
+		"struct rt_table" ); \
+	_table->magic = RT_TABLE_MAGIC; \
+	_table->nx = (_nx);  }
+
+
+struct rt_tabdata {
+	long		magic;
+	int		ny;
+	CONST struct rt_table *table;	/* Up pointer to definition of X axis */
+	fastf_t		y[1];		/* array of ny samples, dynamically sized */
+};
+#define RT_TABDATA_MAGIC	0x53736d70
+#define RT_CK_TABDATA(_p)	RT_CKMAG(_p, RT_TABDATA_MAGIC, "rt_tabdata")
+#define RT_TABDATA_NULL		((struct rt_tabdata *)NULL)
+
+#define RT_SIZEOF_TABDATA_Y(_tabdata)	sizeof(fastf_t)*((_tabdata)->ny)
+#define RT_SIZEOF_TABDATA(_table)	( sizeof(struct rt_tabdata) + \
+			sizeof(fastf_t)*((_table)->nx-1) )
+
+/* Gets an rt_tabdata, with y[] having size _ny */
+#define RT_GET_TABDATA(_data, _table)  { \
+	RT_CK_TABLE(_table);\
+	_data = (struct rt_tabdata *)rt_calloc( 1, \
+		RT_SIZEOF_TABDATA(_table), "struct rt_tabdata" ); \
+	_data->magic = RT_TABDATA_MAGIC; \
+	_data->ny = (_table)->nx; \
+	_data->table = (_table); }
+
+/*
+ * Routines
+ */
+
+BU_EXTERN( void			rt_table_free, (struct rt_table	*tabp));
+BU_EXTERN( void			rt_tabdata_free, (struct rt_tabdata *data));
+BU_EXTERN( void			rt_ck_table, (CONST struct rt_table *tabp));
+BU_EXTERN( struct rt_table	*rt_table_make_uniform, (int num, double first,
+					double last));
+BU_EXTERN( void			rt_tabdata_add, (struct rt_tabdata *out,
+					CONST struct rt_tabdata *in1,
+					CONST struct rt_tabdata *in2));
+BU_EXTERN( void			rt_tabdata_mul, (struct rt_tabdata *out,
+					CONST struct rt_tabdata *in1,
+					CONST struct rt_tabdata *in2));
+BU_EXTERN( void			rt_tabdata_scale, (struct rt_tabdata *out,
+					CONST struct rt_tabdata *in1,
+					double scale));
+BU_EXTERN( void			rt_table_scale, (struct rt_table *tabp,
+					double scale));
+BU_EXTERN( void			rt_tabdata_join1, (struct rt_tabdata *out,
+					CONST struct rt_tabdata *in1,
+					double scale,
+					CONST struct rt_tabdata *in2));
+BU_EXTERN( void			rt_tabdata_blend3, (struct rt_tabdata *out,
+					double scale1,
+					CONST struct rt_tabdata *in1,
+					double scale2,
+					CONST struct rt_tabdata *in2,
+					double scale3,
+					CONST struct rt_tabdata *in3));
+BU_EXTERN( double		rt_tabdata_area1, (CONST struct rt_tabdata *in));
+BU_EXTERN( double		rt_tabdata_area2, (CONST struct rt_tabdata *in));
+BU_EXTERN( double		rt_tabdata_mul_area1, (CONST struct rt_tabdata *in1,
+					CONST struct rt_tabdata	*in2));
+BU_EXTERN( double		rt_tabdata_mul_area2, (CONST struct rt_tabdata *in1,
+					CONST struct rt_tabdata	*in2));
+BU_EXTERN( fastf_t		rt_table_lin_interp, (CONST struct rt_tabdata *samp,
+					double wl));
+BU_EXTERN( struct rt_tabdata	*rt_tabdata_resample_max, (
+					CONST struct rt_table *newtable,
+					CONST struct rt_tabdata *olddata));
+BU_EXTERN( struct rt_tabdata	*rt_tabdata_resample_avg, (
+					CONST struct rt_table *newtable,
+					CONST struct rt_tabdata *olddata));
+BU_EXTERN( int			rt_table_write, (CONST char *filename,
+					CONST struct rt_table *tabp));
+BU_EXTERN( struct rt_table	*rt_table_read, (CONST char *filename));
+BU_EXTERN( int			rt_pr_table_and_tabdata, (CONST char *filename,
+					CONST struct rt_tabdata *data));
+BU_EXTERN( struct rt_tabdata	*rt_read_table_and_tabdata, (
+					CONST char *filename));
+BU_EXTERN( struct rt_tabdata	*rt_tabdata_binary_read, (CONST char *filename,
+					int num,
+					CONST struct rt_table *tabp));
+BU_EXTERN( struct rt_tabdata	*rt_tabdata_malloc_array, (
+					CONST struct rt_table *tabp,
+					int num));
+BU_EXTERN( void			rt_tabdata_copy, (struct rt_tabdata *out,
+					CONST struct rt_tabdata *in));
+BU_EXTERN(struct rt_tabdata	*rt_tabdata_dup, (CONST struct rt_tabdata *in));
+BU_EXTERN(struct rt_tabdata	*rt_tabdata_get_constval, (double val,
+					CONST struct rt_table	*tabp));
+BU_EXTERN(void			rt_tabdata_constval, (struct rt_tabdata	*data, double val));
+BU_EXTERN(struct rt_tabdata	*rt_tabdata_from_array, (CONST double *array));
+BU_EXTERN(struct rt_table	*rt_table_merge2, (CONST struct rt_table *a,
+				CONST struct rt_table *b));
+
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif /* TABDATA_H_SEEN */
+@
+
+
+1.11
+log
+@Added RT_SIZEOF_TABDATA_Y() macro
+@
+text
+@d51 1
+a51 1
+ *  $Header: /c/CVS/brlcad/h/tabdata.h,v 1.10 1998/12/10 03:31:09 mike Exp $
+@
+
+
+1.10
+log
+@Added thing_NULL definitions
+@
+text
+@d51 1
+a51 1
+ *  $Header: /c/CVS/brlcad/h/tabdata.h,v 1.9 1998/11/26 03:21:32 mike Exp $
+d90 1
+@
+
+
+1.9
+log
+@Additional function prototypes added.
+@
+text
+@d51 1
+a51 1
+ *  $Header: /c/CVS/brlcad/h/tabdata.h,v 1.8 1998/11/19 03:25:36 mike Exp $
+d68 1
+d88 1
+@
+
+
+1.8
+log
+@Use BU_EXTERN, not RT_EXTERN
+@
+text
+@d51 1
+a51 1
+ *  $Header: /c/CVS/brlcad/h/tabdata.h,v 1.7 1998/11/17 22:03:34 mike Exp $
+d104 2
+d164 4
+@
+
+
+1.7
+log
+@Added new routines
+@
+text
+@d51 1
+a51 1
+ *  $Header: /c/CVS/brlcad/h/tabdata.h,v 1.6 1998/10/14 19:04:28 mike Exp $
+d104 2
+a105 2
+RT_EXTERN( void			rt_ck_table, (CONST struct rt_table *tabp));
+RT_EXTERN( struct rt_table	*rt_table_make_uniform, (int num, double first,
+d107 1
+a107 1
+RT_EXTERN( void			rt_tabdata_add, (struct rt_tabdata *out,
+d110 1
+a110 1
+RT_EXTERN( void			rt_tabdata_mul, (struct rt_tabdata *out,
+d113 1
+a113 1
+RT_EXTERN( void			rt_tabdata_scale, (struct rt_tabdata *out,
+d116 1
+a116 1
+RT_EXTERN( void			rt_table_scale, (struct rt_table *tabp,
+d118 1
+a118 1
+RT_EXTERN( void			rt_tabdata_join1, (struct rt_tabdata *out,
+d122 1
+a122 1
+RT_EXTERN( void			rt_tabdata_blend3, (struct rt_tabdata *out,
+d129 3
+a131 3
+RT_EXTERN( double		rt_tabdata_area1, (CONST struct rt_tabdata *in));
+RT_EXTERN( double		rt_tabdata_area2, (CONST struct rt_tabdata *in));
+RT_EXTERN( double		rt_tabdata_mul_area1, (CONST struct rt_tabdata *in1,
+d133 1
+a133 1
+RT_EXTERN( double		rt_tabdata_mul_area2, (CONST struct rt_tabdata *in1,
+d135 1
+a135 1
+RT_EXTERN( fastf_t		rt_table_lin_interp, (CONST struct rt_tabdata *samp,
+d137 1
+a137 1
+RT_EXTERN( struct rt_tabdata	*rt_tabdata_resample_max, (
+d140 1
+a140 1
+RT_EXTERN( struct rt_tabdata	*rt_tabdata_resample_avg, (
+d143 1
+a143 1
+RT_EXTERN( int			rt_table_write, (CONST char *filename,
+d145 2
+a146 2
+RT_EXTERN( struct rt_table	*rt_table_read, (CONST char *filename));
+RT_EXTERN( int			rt_pr_table_and_tabdata, (CONST char *filename,
+d148 1
+a148 1
+RT_EXTERN( struct rt_tabdata	*rt_read_table_and_tabdata, (
+d150 1
+a150 1
+RT_EXTERN( struct rt_tabdata	*rt_tabdata_binary_read, (CONST char *filename,
+d153 1
+a153 1
+RT_EXTERN( struct rt_tabdata	*rt_tabdata_malloc_array, (
+d156 1
+a156 1
+RT_EXTERN( void			rt_tabdata_copy, (struct rt_tabdata *out,
+d158 2
+a159 2
+RT_EXTERN(struct rt_tabdata	*rt_tabdata_dup, (CONST struct rt_tabdata *in));
+RT_EXTERN(struct rt_tabdata	*rt_tabdata_get_constval, (double val,
+d161 1
+a161 1
+RT_EXTERN(void			rt_tabdata_constval, (struct rt_tabdata	*data, double val));
+@
+
+
+1.6
+log
+@Added double-include protection and C++ compatability.
+@
+text
+@d51 1
+a51 1
+ *  $Header: /c/CVS/brlcad/h/tabdata.h,v 1.5 1998/10/09 05:51:58 mike Exp $
+d158 1
+d161 1
+@
+
+
+1.5
+log
+@Changed rt_tabdata_resample(), which had bad aliasing, into
+rt_tabdata_resample_max() and rt_tabdata_resample_avg().
+@
+text
+@d51 1
+a51 1
+ *  $Header: /c/CVS/brlcad/h/tabdata.h,v 1.4 1998/09/30 03:53:18 mike Exp $
+d54 7
+d160 6
+@
+
+
+1.4
+log
+@Added declaration for rt_tabdata_get_constval()
+@
+text
+@d51 1
+a51 1
+ *  $Header: /c/CVS/brlcad/h/tabdata.h,v 1.3 1996/04/06 03:47:05 mike Exp $
+d130 4
+a133 1
+RT_EXTERN( struct rt_tabdata	*rt_tabdata_resample, (
+@
+
+
+1.3
+log
+@Added mul_area2
+@
+text
+@d51 1
+a51 1
+ *  $Header: /m/cad/h/RCS/tabdata.h,v 1.2 1996/04/06 02:52:40 mike Exp mike $
+d148 2
+@
+
+
+1.2
+log
+@More functions
+@
+text
+@d51 1
+a51 1
+ *  $Header: /m/cad/h/RCS/tabdata.h,v 1.1 1996/04/06 00:58:18 mike Exp mike $
+d125 2
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d51 1
+a51 1
+ *  $Header: /m/cad/h/RCS/spectrum.h,v 1.6 1996/03/16 00:56:14 mike Exp mike $
+d109 13
+d124 2
+@

@@ -1,0 +1,455 @@
+head	1.11;
+access;
+symbols
+	ansi-20040405-merged:1.10
+	postmerge-20040405-ansi:1.10
+	premerge-20040404-ansi:1.10
+	postmerge-autoconf:1.10
+	autoconf-freeze:1.10
+	premerge-autoconf:1.10
+	ansi-20040316-freeze:1.10
+	postmerge-20040315-windows:1.10
+	premerge-20040315-windows:1.10
+	windows-20040315-freeze:1.10
+	autoconf-20031203:1.10
+	autoconf-20031202:1.10
+	autoconf-branch:1.10.0.12
+	phong-branch:1.10.0.10
+	photonmap-branch:1.10.0.8
+	rel-6-1-DP:1.10
+	windows-branch:1.10.0.6
+	rel-6-0-2:1.10
+	ansi-branch:1.10.0.4
+	rel-6-0-1-branch:1.10.0.2
+	hartley-6-0-post:1.10
+	hartley-6-0-pre:1.10
+	rel-6-0-1:1.10
+	rel-6-0:1.10
+	rel-5-4:1.7
+	offsite-5-3-pre:1.8
+	rel-5-3:1.7
+	rel-5-2:1.7
+	rel-5-1-branch:1.7.0.2
+	rel-5-1:1.7
+	rel-5-0:1.7
+	rel-5-0-beta:1.7
+	rel-4-5:1.6
+	ctj-4-5-post:1.5
+	ctj-4-5-pre:1.5
+	rel-4-4:1.5
+	rel-4-0:1.5
+	rel-3-5:1.2;
+locks; strict;
+comment	@ * @;
+
+
+1.11
+date	2004.05.24.04.18.19;	author morrison;	state dead;
+branches;
+next	1.10;
+
+1.10
+date	2001.10.17.07.40.00;	author morrison;	state Exp;
+branches;
+next	1.9;
+
+1.9
+date	2001.08.09.18.47.09;	author jra;	state Exp;
+branches;
+next	1.8;
+
+1.8
+date	2000.08.24.23.12.44;	author mike;	state Exp;
+branches;
+next	1.7;
+
+1.7
+date	98.06.23.18.20.41;	author jra;	state Exp;
+branches;
+next	1.6;
+
+1.6
+date	97.12.16.03.45.56;	author mike;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	91.01.15.13.53.25;	author moss;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	89.10.31.12.20.04;	author moss;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	89.07.07.16.33.23;	author moss;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	88.11.07.17.01.44;	author moss;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	88.10.28.17.02.20;	author moss;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.11
+log
+@moved to src/burst/
+@
+text
+@/*
+	Author:		Gary S. Moss
+			U. S. Army Ballistic Research Laboratory
+			Aberdeen Proving Ground
+			Maryland 21005-5066
+*/
+#ifndef lint
+static const char RCSid[] = "@@(#)$Header: /n/xoff/cvs/brlcad/burst/idents.c,v 1.10 2001/10/17 07:40:00 morrison Exp $ (BRL)";
+#endif
+
+#ifndef DEBUG
+#define NDEBUG
+#define STATIC static
+#else
+#define STATIC
+#endif
+
+#include <assert.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <signal.h>
+#include "./burst.h"
+#include "./vecmath.h"
+#include "./extern.h"
+#define DEBUG_IDENTS	false
+
+bool
+findIdents( ident, idp )
+int		ident;
+register Ids	*idp;
+	{
+#if DEBUG_IDENTS
+	brst_log( "findIdents(%d)\n", ident );
+#endif
+	for( idp = idp->i_next ; idp != IDS_NULL; idp = idp->i_next )
+		{
+#if DEBUG_IDENTS
+		brst_log( "lower=%d, upper=%d\n", (int) idp->i_lower,
+			(int) idp->i_upper );
+#endif
+		if(	ident >= (int) idp->i_lower
+		    &&	ident <= (int) idp->i_upper
+			)
+			return	true;
+		}
+#if DEBUG_IDENTS
+	brst_log( "returned false\n" );
+#endif
+	return	false;
+	}
+
+Colors *
+findColors( ident, colp )
+int ident;
+register Colors	*colp;
+	{
+	for( colp = colp->c_next; colp != COLORS_NULL; colp = colp->c_next )
+		{
+		if(	ident >= (int) colp->c_lower
+		    &&	ident <= (int) colp->c_upper
+			)
+			return	colp;
+		}
+	return	COLORS_NULL;
+	}
+
+/*
+	void freeIdents( register Ids *idp )
+
+	Free up linked list, except for the head node.
+ */
+void
+freeIdents( idp )
+register Ids *idp;
+	{
+	if( idp->i_next == NULL )
+		return;	/* finished */
+	freeIdents( idp->i_next );
+	free( (char *) idp->i_next );
+	}
+
+bool
+readIdents( idlist, fp )
+Ids *idlist;
+FILE *fp;
+	{	char input_buf[BUFSIZ];
+		int lower, upper;
+		register Ids *idp;
+	freeIdents( idlist ); /* free old list if it exists */
+	for(	idp = idlist;
+		fgets( input_buf, BUFSIZ, fp ) != NULL;
+		)
+		{	char *token;
+		token = strtok( input_buf, ",-:; \t" );
+		if( token == NULL || sscanf( token, "%d", &lower ) < 1 )
+			continue;
+		token = strtok( NULL, " \t" );
+		if( token == NULL || sscanf( token, "%d", &upper ) < 1 )
+			upper = lower;
+		if( (idp->i_next = (Ids *) malloc( sizeof(Ids) )) == NULL )
+			{
+			Malloc_Bomb( sizeof(Ids) );
+			return	false;
+			}
+		idp = idp->i_next;
+		idp->i_lower = lower;
+		idp->i_upper = upper;
+		}
+	idp->i_next = NULL;
+	return	true;
+	}
+
+bool
+readColors( colorlist, fp )
+Colors	*colorlist;
+FILE	*fp;
+	{	char input_buf[BUFSIZ];
+		int lower, upper;
+		int rgb[3];
+		register Colors	*colp;
+	for(	colp = colorlist;
+		fgets( input_buf, BUFSIZ, fp ) != NULL;
+		)
+		{	int items;
+		if( (items =
+			sscanf(	input_buf,
+				"%d %d %d %d %d\n",
+				&lower, &upper, &rgb[0], &rgb[1], &rgb[2]
+				)) < 5
+			)
+			{
+			if( items == EOF )
+				break;
+			else
+				{
+				brst_log( "readColors(): only %d items read\n",
+					items );
+				continue;
+				}
+			}
+		if( (colp->c_next = (Colors *) malloc( sizeof(Colors) ))
+			== NULL )
+			{
+			Malloc_Bomb( sizeof(Colors) );
+			return	false;
+			}
+		colp = colp->c_next;
+		colp->c_lower = lower;
+		colp->c_upper = upper;
+		CopyVec( colp->c_rgb, rgb );
+		}
+	colp->c_next = NULL;
+	return	true;
+	}
+@
+
+
+1.10
+log
+@Mac OS X warning and error fixes for non-production build
+@
+text
+@d8 1
+a8 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/burst/idents.c,v 1.9 2001/08/09 18:47:09 jra Exp $ (BRL)";
+@
+
+
+1.9
+log
+@Lint
+@
+text
+@d8 1
+a8 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/burst/idents.c,v 1.8 2000/08/24 23:12:44 mike Exp $ (BRL)";
+d22 1
+@
+
+
+1.8
+log
+@
+RCSid
+@
+text
+@d8 1
+a8 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/burst/idents.c,v 1.7 1998/06/23 18:20:41 jra Exp $ (BRL)";
+d20 1
+d24 1
+d72 1
+a72 1
+STATIC void
+@
+
+
+1.7
+log
+@convert bu_log to brst_log to avoid conflicts
+@
+text
+@d8 1
+a8 1
+static char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/burst/idents.c,v 1.6 1997/12/16 03:45:56 mike Exp $ (BRL)";
+@
+
+
+1.6
+log
+@UPgraded using h/sed4
+@
+text
+@d8 1
+a8 1
+static char RCSid[] = "@@(#)$Header: /m/cad/burst/RCS/idents.c,v 1.5 1991/01/15 13:53:25 moss Exp mike $ (BRL)";
+d31 1
+a31 1
+	bu_log( "findIdents(%d)\n", ident );
+d36 1
+a36 1
+		bu_log( "lower=%d, upper=%d\n", (int) idp->i_lower,
+d45 1
+a45 1
+	bu_log( "returned false\n" );
+d134 1
+a134 1
+				bu_log( "readColors(): only %d items read\n",
+@
+
+
+1.5
+log
+@Removed author's phone number from top of file comment.  This will be
+shipped as version 2.1.
+@
+text
+@d8 1
+a8 1
+static char RCSid[] = "@@(#)$Header: /vld/moss/src/burst/RCS/idents.c,v 1.4 89/10/31 12:20:04 moss Exp $ (BRL)";
+d31 1
+a31 1
+	rt_log( "findIdents(%d)\n", ident );
+d36 1
+a36 1
+		rt_log( "lower=%d, upper=%d\n", (int) idp->i_lower,
+d45 1
+a45 1
+	rt_log( "returned false\n" );
+d134 1
+a134 1
+				rt_log( "readColors(): only %d items read\n",
+@
+
+
+1.4
+log
+@This version released to Eglin and Service Engineering after BRL-CAD '89
+Symposium.
+@
+text
+@a5 1
+			(301)278-6647 or AV-298-6647
+d8 1
+a8 1
+static char RCSid[] = "@@(#)$Header: /usr/vld/moss/src/burst/RCS/idents.c,v 1.3 89/07/07 16:33:23 moss Exp $ (BRL)";
+@
+
+
+1.3
+log
+@Ready for Bud's visit.
+@
+text
+@d9 1
+a9 1
+static char RCSid[] = "@@(#)$Header: /usr/vld/moss/src/burst/RCS/idents.c,v 1.2 88/11/07 17:01:44 moss Exp $ (BRL)";
+d11 9
+d53 1
+a53 1
+int		ident;
+d66 15
+d83 6
+a88 5
+Ids	*idlist;
+FILE	*fp;
+	{	char		input_buf[BUFSIZ];
+		int		lower, upper;
+		register Ids	*idp;
+d92 1
+a92 1
+		{	char	*token;
+d99 1
+a99 1
+		if( (idp->i_next = (Ids *) malloc( sizeof(Ids) )) == IDS_NULL )
+d116 3
+a118 3
+	{	char		input_buf[BUFSIZ];
+		int		lower, upper;
+		int		rgb[3];
+d123 1
+a123 1
+		{	int	items;
+d141 1
+a141 2
+			== COLORS_NULL
+			)
+@
+
+
+1.2
+log
+@Just saving this version for fallback.
+@
+text
+@d9 1
+a9 1
+static char RCSid[] = "@@(#)$Header: /usr/vld/moss/src/burst/RCS/idents.c,v 1.1 88/10/28 17:02:20 moss Exp $ (BRL)";
+d110 2
+a111 1
+				rt_log( "readColors(): only %d items read\n", items );
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d9 1
+a9 1
+static char RCSid[] = "@@(#)$Header$ (BRL)";
+d15 1
+d22 3
+a24 1
+	prntScr( "findIdents(%d)", ident );
+d27 2
+a28 1
+		prntScr( "lower=%d, upper=%d", (int) idp->i_lower,
+d30 1
+d36 3
+a38 1
+	prntScr( "returned false" );
+@

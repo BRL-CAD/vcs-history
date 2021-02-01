@@ -1,0 +1,800 @@
+head	14.15;
+access;
+symbols
+	rel-7-10-4:14.12
+	STABLE:14.12.0.2
+	rel-7-10-2:14.12
+	rel-7-10-0:14.11
+	rel-7-8-4:14.9
+	rel-7-8-2:14.9
+	rel-7-8-0:14.9
+	trimnurbs-branch:14.9.0.2
+	help:14.9
+	temp_tag:14.7
+	bobWinPort-20051223-freeze:14.4
+	postmerge-20051223-bobWinPort:14.7
+	premerge-20051223-bobWinPort:14.7
+	rel-7-6-6:14.7
+	rel-7-6-4:14.7
+	rel-7-6-2:14.5
+	rel-7-6-branch:14.5.0.2
+	rel-7-6-0:14.5
+	rel-7-4-2:14.4
+	rel-7-4-branch:14.4.0.4
+	bobWinPort:14.4.0.2
+	rel-7-4-0:14.4
+	rel-7-2-6:14.3
+	rel-7-2-4:14.3
+	rel-7-2-2:14.3
+	rel-7-2-0:14.3
+	rel-7-0-4:14.2
+	rel-7-0-2:14.2
+	rel-7-0-1:14.2
+	opensource-post:14.2
+	opensource-pre:1.3
+	rel-7-0-branch:1.3.0.2
+	rel-7-0:1.3;
+locks; strict;
+comment	@ * @;
+
+
+14.15
+date	2007.11.21.20.49.13;	author erikgreenwald;	state Exp;
+branches;
+next	14.14;
+
+14.14
+date	2007.11.21.20.38.24;	author erikgreenwald;	state Exp;
+branches;
+next	14.13;
+
+14.13
+date	2007.11.21.18.55.37;	author erikgreenwald;	state Exp;
+branches;
+next	14.12;
+
+14.12
+date	2007.05.14.23.16.38;	author brlcad;	state Exp;
+branches;
+next	14.11;
+
+14.11
+date	2007.01.23.01.13.56;	author brlcad;	state Exp;
+branches;
+next	14.10;
+
+14.10
+date	2007.01.20.14.37.06;	author brlcad;	state Exp;
+branches;
+next	14.9;
+
+14.9
+date	2006.02.27.10.08.41;	author brlcad;	state Exp;
+branches;
+next	14.8;
+
+14.8
+date	2006.01.18.06.46.27;	author brlcad;	state Exp;
+branches;
+next	14.7;
+
+14.7
+date	2005.10.23.04.44.39;	author brlcad;	state Exp;
+branches;
+next	14.6;
+
+14.6
+date	2005.09.21.19.05.37;	author brlcad;	state Exp;
+branches;
+next	14.5;
+
+14.5
+date	2005.08.21.14.29.55;	author brlcad;	state Exp;
+branches
+	14.5.2.1;
+next	14.4;
+
+14.4
+date	2005.06.30.00.08.37;	author erikgreenwald;	state Exp;
+branches;
+next	14.3;
+
+14.3
+date	2005.01.30.20.31.33;	author brlcad;	state Exp;
+branches;
+next	14.2;
+
+14.2
+date	2004.12.21.03.45.41;	author butler;	state Exp;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.32;	author morrison;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2004.08.02.23.01.53;	author morrison;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2004.06.08.22.04.45;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.15.21.51;	author morrison;	state Exp;
+branches;
+next	;
+
+14.5.2.1
+date	2005.11.13.13.46.20;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.15
+log
+@pass bu_exit a NULL instead of an empty string
+@
+text
+@/*                      P I X C O U N T . C
+ * BRL-CAD
+ *
+ * Copyright (c) 1998-2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@file pixcount.c
+ *
+ *	Sort the pixels of an input stream by color value.
+ *
+ *  Author -
+ *	Paul J. Tanenbaum
+ *
+ *  Source -
+ *	The U. S. Army Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005-5068
+ */
+#ifndef lint
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/pixcount.c,v 14.14 2007/11/21 20:38:24 erikgreenwald Exp $ (BRL)";
+#endif
+
+#include "common.h"
+
+#include <stdlib.h>
+#include <stdio.h>
+#include <math.h>
+#ifdef HAVE_UNISTD_H
+#  include <unistd.h>
+#endif
+
+#include "machine.h"
+#include "bu.h"
+
+
+struct pixel {
+    long		p_magic;
+    unsigned char	*p_color;
+    int			p_count;
+};
+#define	PIXEL_NULL	((struct pixel *) 0)
+#define	PIXEL_MAGIC	0x7078656c
+
+
+/*
+ *	Global variables
+ */
+int		pixel_size = 3;		/* Bytes/pixel */
+FILE		*outfp = NULL;		/* output file */
+
+static char usage[] = "\
+Usage: 'pixcount [-# bytes_per_pixel]\n\
+		 [infile.pix [outfile]]'\n";
+#define OPT_STRING	"#:?"
+
+static void print_usage (void)
+{
+    (void) bu_log("%s", usage);
+}
+
+/*
+ *			     M K _ P I X E L ( )
+ *
+ */
+struct pixel *mk_pixel (unsigned char *color)
+{
+    int			i;
+    struct pixel	*pp;
+
+    pp = (struct pixel *) bu_malloc(sizeof(struct pixel), "pixel");
+
+    pp -> p_magic = PIXEL_MAGIC;
+    pp -> p_color = (unsigned char *)
+		bu_malloc(pixel_size * sizeof(unsigned char),
+			"pixel color");
+    for (i = 0; i < pixel_size; ++i)
+	pp -> p_color[i] = color[i];
+    pp -> p_count = 0;
+
+    return (pp);
+}
+
+/*
+ *			   F R E E _ P I X E L ( )
+ *
+ */
+void free_pixel (struct pixel *pp)
+{
+    BU_CKMAG(pp, PIXEL_MAGIC, "pixel");
+    bu_free((genptr_t) pp, "pixel");
+}
+
+/*
+ *			  P R I N T _ P I X E L ( )
+ *
+ */
+void print_pixel (void *p, int depth)
+{
+    int			i;
+    struct pixel	*pp = (struct pixel *) p;
+
+    BU_CKMAG(pp, PIXEL_MAGIC, "pixel");
+
+    for (i = 0; i < pixel_size; ++i)
+	fprintf(outfp, "%3d ", pp -> p_color[i]);
+    fprintf(outfp, " %d\n", pp -> p_count);
+}
+
+/*
+ *		C O M P A R E _ P I X E L S ( )
+ *
+ *	    The comparison callback for the red-black tree
+ */
+int compare_pixels (void *v1, void *v2)
+{
+    struct pixel	*p1 = (struct pixel *) v1;
+    struct pixel	*p2 = (struct pixel *) v2;
+    int			i;
+
+    BU_CKMAG(p1, PIXEL_MAGIC, "pixel");
+    BU_CKMAG(p2, PIXEL_MAGIC, "pixel");
+
+    for (i = 0; i < pixel_size; ++i)
+    {
+	if (p1 -> p_color[i] < p2 -> p_color[i])
+	    return (-1);
+	else if (p1 -> p_color[i] > p2 -> p_color[i])
+	    return (1);
+    }
+    return (0);
+}
+
+/*
+ *			 L O O K U P _ P I X E L ( )
+ */
+struct pixel *lookup_pixel(bu_rb_tree *palette, unsigned char *color)
+{
+    int			rc;	/* Return code from bu_rb_insert() */
+    struct pixel	*qpp;	/* The query */
+    struct pixel	*pp;	/* Value to return */
+
+#if 0
+    bu_log("lookup_pixel( ");
+    for (i = 0; i < pixel_size; ++i)
+	bu_log("%3d ", color[i]);
+    bu_log(")...");
+#endif
+
+    /*
+     *	Prepare the palette query
+     */
+    qpp = mk_pixel(color);
+
+    /*
+     *	Perform the query by attempting an insertion...
+     *	If the query succeeds (i.e., the insertion fails!),
+     *	then we have our pixel.
+     *	Otherwise, we must create a new pixel.
+     */
+    switch (rc = bu_rb_insert(palette, (void *) qpp))
+    {
+	case -1:
+#if 0
+	    bu_log(" already existed\n");
+#endif
+	    pp = (struct pixel *) bu_rb_curr1(palette);
+	    free_pixel(qpp);
+	    break;
+	case 0:
+#if 0
+	    bu_log(" newly added\n");
+#endif
+	    pp = qpp;
+	    break;
+	default:
+	    bu_exit (1, "bu_rb_insert() returns %d:  This should not happen\n", rc);
+    }
+
+    return (pp);
+}
+
+int
+main (int argc, char **argv)
+{
+    bu_rb_tree		*palette;	/* Pixel palette */
+    char		*inf_name;	/* name of input stream */
+    char		*outf_name;	/*  "   "  output   "   */
+    unsigned char	*buf;		/* the current input pixel */
+    FILE		*infp = NULL;	/* input stream */
+    int			ch;		/* current char in command line */
+    struct pixel	*pp;
+
+    extern int	bu_optind;			/* index from bu_getopt(3C) */
+    extern char	*bu_optarg;		/* argument from bu_getopt(3C) */
+
+    /*
+     *	Process the command line
+     */
+    while ((ch = bu_getopt(argc, argv, OPT_STRING)) != EOF)
+	switch (ch)
+	{
+	    case '#':
+		if (sscanf(bu_optarg, "%d", &pixel_size) != 1)
+		{
+		    bu_log("Invalid pixel size: '%s'\n", bu_optarg);
+		    print_usage();
+		    bu_exit (1, NULL);
+		}
+		break;
+	    case '?':
+	    default:
+		print_usage();
+		exit (ch != '?');
+	}
+    switch (argc - bu_optind)
+    {
+	case 0:
+	    inf_name = "stdin";
+	    infp = stdin;
+	    /* Break intentionally missing */
+	case 1:
+	    outf_name = "stdout";
+	    outfp = stdout;
+	    /* Break intentionally missing */
+	case 2:
+	    break;
+	default:
+	    print_usage();
+	    bu_exit (1, NULL);
+    }
+
+    /*
+     *	Open input and output files, as necessary
+     */
+    if (infp == NULL)
+    {
+	inf_name = argv[bu_optind];
+	if ((infp = fopen(inf_name, "r")) == NULL)
+	    bu_exit (1, "Cannot open input file '%s'\n", inf_name);
+	if (outfp == NULL)
+	{
+	    outf_name = argv[++bu_optind];
+	    if ((outfp = fopen(outf_name, "w")) == NULL)
+		bu_exit (1, "Cannot open output file '%s'\n", outf_name);
+	}
+    }
+
+    /*
+     *	Ensure that infp is kosher,
+     */
+    if (infp == stdin)
+    {
+	if (isatty(fileno(stdin)))
+	{
+	    bu_log("FATAL: pixcount reads only from file or pipe\n");
+	    print_usage();
+	    bu_exit (1, NULL);
+	}
+    }
+
+    palette = bu_rb_create1("Pixel palette", compare_pixels);
+    bu_rb_uniq_on1(palette);
+
+    /*
+     *	Read the input stream into the palette
+     */
+    buf = (unsigned char *)
+		bu_malloc(pixel_size * sizeof(unsigned char),
+			"pixel buffer");
+    while (fread((void *) buf, pixel_size * sizeof(unsigned char), 1, infp)
+	    == 1)
+    {
+	pp = lookup_pixel(palette, buf);
+	BU_CKMAG(pp, PIXEL_MAGIC, "pixel");
+
+	++(pp -> p_count);
+    }
+    bu_free((genptr_t) buf, "pixel buffer");
+
+    bu_rb_walk1(palette, print_pixel, INORDER);
+
+    return 0;
+}
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+14.14
+log
+@collapse bu_log();bu_exit(#,""); as much as possible
+@
+text
+@d32 1
+a32 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/pixcount.c,v 14.13 2007/11/21 18:55:37 erikgreenwald Exp $ (BRL)";
+d219 1
+a219 1
+		    bu_exit (1, "");
+d241 1
+a241 1
+	    bu_exit (1, "");
+d269 1
+a269 1
+	    bu_exit (1, "");
+@
+
+
+14.13
+log
+@exit->bu_exit where applicable
+@
+text
+@d32 1
+a32 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/pixcount.c,v 14.12 2007/05/14 23:16:38 brlcad Exp $ (BRL)";
+d188 1
+a188 2
+	    bu_log("bu_rb_insert() returns %d:  This should not happen\n", rc);
+	    bu_exit (1, "");
+d251 1
+a251 4
+	{
+	    bu_log ("Cannot open input file '%s'\n", inf_name);
+	    bu_exit (1, "");
+	}
+d256 1
+a256 4
+	    {
+		bu_log ("Cannot open output file '%s'\n", outf_name);
+		bu_exit (1, "");
+	    }
+@
+
+
+14.12
+log
+@redblack.h is no longer needed -- facilities are provided for by bu.h
+@
+text
+@d32 1
+a32 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/pixcount.c,v 14.11 2007/01/23 01:13:56 brlcad Exp $ (BRL)";
+d189 1
+a189 1
+	    exit (1);
+d220 1
+a220 1
+		    exit (1);
+d242 1
+a242 1
+	    exit (1);
+d254 1
+a254 1
+	    exit (1);
+d262 1
+a262 1
+		exit (1);
+d276 1
+a276 1
+	    exit (1);
+@
+
+
+14.11
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@d32 1
+a32 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/pixcount.c,v 14.10 2007/01/20 14:37:06 brlcad Exp $ (BRL)";
+a45 1
+#include "redblack.h"
+@
+
+
+14.10
+log
+@update copyright to 2007
+@
+text
+@d8 2
+a9 3
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+d14 1
+a14 1
+ * General Public License for more details.
+d16 2
+a17 2
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+d32 1
+a32 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/pixcount.c,v 14.9 2006/02/27 10:08:41 brlcad Exp $ (BRL)";
+@
+
+
+14.9
+log
+@stdlib.h and exit()
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 1998-2006 United States Government as represented by
+d33 1
+a33 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/pixcount.c,v 14.8 2006/01/18 06:46:27 brlcad Exp $ (BRL)";
+@
+
+
+14.8
+log
+@update copyright to 2006
+@
+text
+@d33 1
+a33 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/pixcount.c,v 14.7 2005/10/23 04:44:39 brlcad Exp $ (BRL)";
+d38 1
+@
+
+
+14.7
+log
+@trailing ws
+@
+text
+@d4 1
+a4 1
+ * Copyright (C) 1998-2005 United States Government as represented by
+d33 1
+a33 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/pixcount.c,v 14.6 2005/09/21 19:05:37 brlcad Exp $ (BRL)";
+@
+
+
+14.6
+log
+@needs bu.h for bu_getopt
+@
+text
+@d27 1
+a27 1
+ *  
+d33 1
+a33 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/pixcount.c,v 14.5 2005/08/21 14:29:55 brlcad Exp $ (BRL)";
+@
+
+
+14.5
+log
+@convert image dimensions to long ints to support larger image sizes.  quell other various const warnings too.
+@
+text
+@d33 1
+a33 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/pixcount.c,v 14.4 2005/06/30 00:08:37 erikgreenwald Exp $ (BRL)";
+d207 2
+a208 2
+    extern int	optind;			/* index from getopt(3C) */
+    extern char	*optarg;		/* argument from getopt(3C) */
+d213 1
+a213 1
+    while ((ch = getopt(argc, argv, OPT_STRING)) != EOF)
+d217 1
+a217 1
+		if (sscanf(optarg, "%d", &pixel_size) != 1)
+d219 1
+a219 1
+		    bu_log("Invalid pixel size: '%s'\n", optarg);
+d229 1
+a229 1
+    switch (argc - optind)
+d251 1
+a251 1
+	inf_name = argv[optind];
+d259 1
+a259 1
+	    outf_name = argv[++optind];
+@
+
+
+14.5.2.1
+log
+@merge changes from HEAD aka rel-7-6-4 to the rel-7-6-branch just in case someone peeks a gander or tries to continue/build the branch
+@
+text
+@d27 1
+a27 1
+ *
+d33 1
+a33 1
+static const char RCSid[] = "@@(#)$Header$ (BRL)";
+d207 2
+a208 2
+    extern int	bu_optind;			/* index from bu_getopt(3C) */
+    extern char	*bu_optarg;		/* argument from bu_getopt(3C) */
+d213 1
+a213 1
+    while ((ch = bu_getopt(argc, argv, OPT_STRING)) != EOF)
+d217 1
+a217 1
+		if (sscanf(bu_optarg, "%d", &pixel_size) != 1)
+d219 1
+a219 1
+		    bu_log("Invalid pixel size: '%s'\n", bu_optarg);
+d229 1
+a229 1
+    switch (argc - bu_optind)
+d251 1
+a251 1
+	inf_name = argv[bu_optind];
+d259 1
+a259 1
+	    outf_name = argv[++bu_optind];
+@
+
+
+14.4
+log
+@added missing includes
+@
+text
+@d33 1
+a33 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/pixcount.c,v 14.3 2005/01/30 20:31:33 brlcad Exp $ (BRL)";
+a39 1
+
+d41 1
+a41 1
+# include <unistd.h>
+d48 2
+a49 2
+struct pixel
+{
+d149 1
+a149 1
+struct pixel *lookup_pixel(bu_rb_tree *palette, char *color)
+@
+
+
+14.3
+log
+@update copyright to 2005
+@
+text
+@d33 1
+a33 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/pixcount.c,v 14.2 2004/12/21 03:45:41 butler Exp $ (BRL)";
+d40 5
+@
+
+
+14.2
+log
+@GPL license changes
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 1998-2004 United States Government as represented by
+d33 1
+a33 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/util/pixcount.c,v 14.1 2004/11/16 19:42:32 morrison Exp $ (BRL)";
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@d1 21
+a21 2
+/*
+ *			P I X C O U N T . C
+a30 4
+ *  
+ *  Copyright Notice -
+ *	This software is Copyright (C) 1998-2004 by the United States Army.
+ *	All rights reserved.
+d33 1
+a33 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/util/pixcount.c,v 1.3 2004/08/02 23:01:53 morrison Exp $ (BRL)";
+@
+
+
+1.3
+log
+@replace the wrapped config.h block with common.h
+@
+text
+@d18 1
+a18 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/util/pixcount.c,v 1.2 2004/06/08 22:04:45 morrison Exp $ (BRL)";
+d285 10
+@
+
+
+1.2
+log
+@obliterate externs.h
+@
+text
+@d18 1
+a18 1
+static const char RCSid[] = "@@(#)$Header$ (BRL)";
+d21 1
+a21 3
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+@
+
+
+1.1
+log
+@Vast reorganization begins.  Sources moved from top-level directories into src/.
+@
+text
+@d18 1
+a18 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/util/pixcount.c,v 11.12 2004/05/10 15:30:50 erikg Exp $ (BRL)";
+a24 1
+
+a27 1
+#include "externs.h"		/* For getopt(), etc. */
+@
+

@@ -1,0 +1,449 @@
+head	14.7;
+access;
+symbols
+	stable-branch:14.5
+	bobWinPort-20051223-freeze:14.5
+	rel-7-6-2:14.5
+	rel-7-6-branch:14.5.0.6
+	rel-7-6-0:14.5
+	rel-7-4-2:14.5
+	rel-7-4-branch:14.5.0.4
+	bobWinPort:14.5.0.2
+	rel-7-4-0:14.5
+	rel-7-2-6:14.5
+	rel-7-2-4:14.5
+	rel-7-2-2:14.5
+	rel-7-2-0:14.5
+	rel-7-0-4:14.4
+	rel-7-0-2:14.4
+	rel-7-0-1:14.4
+	opensource-post:14.4
+	opensource-pre:1.6
+	rel-7-0-branch:1.6.0.2
+	rel-7-0:1.6;
+locks; strict;
+comment	@ * @;
+
+
+14.7
+date	2005.10.27.03.36.04;	author brlcad;	state dead;
+branches;
+next	14.6;
+
+14.6
+date	2005.10.23.04.44.29;	author brlcad;	state Exp;
+branches;
+next	14.5;
+
+14.5
+date	2005.01.30.20.30.18;	author brlcad;	state Exp;
+branches
+	14.5.6.1;
+next	14.4;
+
+14.4
+date	2004.12.21.06.38.18;	author morrison;	state Exp;
+branches;
+next	14.3;
+
+14.3
+date	2004.12.18.06.50.50;	author morrison;	state Exp;
+branches;
+next	14.2;
+
+14.2
+date	2004.12.18.02.21.22;	author morrison;	state Exp;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.12;	author morrison;	state Exp;
+branches;
+next	1.6;
+
+1.6
+date	2004.09.03.23.30.56;	author morrison;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	2004.08.02.23.01.47;	author morrison;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	2004.08.02.03.15.35;	author morrison;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2004.06.14.18.37.32;	author erikg;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2004.06.08.22.04.08;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.15.18.48;	author morrison;	state Exp;
+branches;
+next	;
+
+14.5.6.1
+date	2005.11.13.13.46.13;	author brlcad;	state dead;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.7
+log
+@moved all the geometry converter directories from src/. to src/conv/.
+@
+text
+@/*                          R E A D . C
+ * BRL-CAD
+ *
+ * Copyright (C) 1989-2005 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+ * information.
+ *
+ */
+/** @@file read.c
+ *
+ * This module contains all of the routines necessary to read in
+ * a COMGEOM input file, and put the information into internal form.
+ *
+ *  Author -
+ *	Michael John Muuss
+ *
+ *  Original Version -
+ *	March 17, 1980
+ *
+ *  Source -
+ *	SECAD/VLD Computing Consortium, Bldg 394
+ *	The U. S. Army Ballistic Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005-5066
+ *
+ */
+#ifndef lint
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/comgeom-g/read.c,v 14.6 2005/10/23 04:44:29 brlcad Exp $ (BRL)";
+#endif
+
+#include "common.h"
+
+#include <stdio.h>
+#include <math.h>
+#ifdef HAVE_STRING_H
+#include <string.h>
+#else
+#include <strings.h>
+#endif
+
+#include "machine.h"
+#include "bu.h"
+
+extern FILE	*infp;
+
+extern char name_it[16];		/* argv[3] */
+
+void	namecvt(register int n, register char **cp, int c);
+
+/*
+ *			G E T L I N E
+ */
+int
+get_line(register char *cp, int buflen, char *title)
+{
+	register int	c;
+	register int	count = buflen;
+
+	while( (c = fgetc(infp)) == '\n' ) /* Skip blank lines.		*/
+		;
+	while( c != EOF && c != '\n' )  {
+		*cp++ = c;
+		count--;
+		if( count <= 0 )  {
+			printf("get_line(x%lx, %d) input record overflows buffer for %s\n",
+			       (unsigned long)cp, buflen, title);
+			break;
+		}
+		c = fgetc(infp);
+	}
+	if( c == EOF )
+		return	EOF;
+	while( count-- > 0 )
+		*cp++ = 0;
+	return	c;
+}
+
+/*
+ *			G E T I N T
+ */
+int
+getint(char *cp, int start, int len)
+{
+	char	buf[128];
+
+	if( len >= sizeof(buf) )  len = sizeof(buf)-1;
+
+	strncpy( buf, cp+start, len );
+	buf[len] = '\0';
+	return atoi(buf);
+}
+
+/*
+ *			G E T D O U B L E
+ */
+double
+getdouble(char *cp, int start, int len)
+{
+	char	buf[128];
+
+	if( len >= sizeof(buf) )  len = sizeof(buf)-1;
+
+	strncpy( buf, cp+start, len );
+	buf[len] = '\0';
+	return atof(buf);
+}
+
+/*		N A M E C V T	 */
+void
+namecvt(register int n, register char **cp, int c)
+{
+	char str[16];
+
+	sprintf( str, "%c%d%.13s", (char)c, n, name_it );
+	*cp = bu_strdup( str );
+}
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+14.6
+log
+@trailing ws
+@
+text
+@d40 1
+a40 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/comgeom-g/read.c,v 14.5 2005/01/30 20:30:18 brlcad Exp $ (BRL)";
+@
+
+
+14.5
+log
+@update copyright to 2005
+@
+text
+@d32 1
+a32 1
+ *  
+d37 1
+a37 1
+ *  
+d40 1
+a40 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/comgeom-g/read.c,v 14.4 2004/12/21 06:38:18 morrison Exp $ (BRL)";
+d85 1
+a85 1
+	while( count-- > 0 ) 
+d102 1
+a102 1
+	return atoi(buf);	
+d117 1
+a117 1
+	return atof(buf);	
+@
+
+
+14.5.6.1
+log
+@merge changes from HEAD aka rel-7-6-4 to the rel-7-6-branch just in case someone peeks a gander or tries to continue/build the branch
+@
+text
+@d40 1
+a40 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/comgeom-g/Attic/read.c,v 14.5 2005/01/30 20:30:18 brlcad Exp $ (BRL)";
+@
+
+
+14.4
+log
+@remove the old copyright notice section
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 1989-2004 United States Government as represented by
+d40 1
+a40 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/comgeom-g/read.c,v 14.3 2004/12/18 06:50:50 morrison Exp $ (BRL)";
+@
+
+
+14.3
+log
+@break up the doxygen marker to appease emacs M-x indent-region'ing
+@
+text
+@a37 3
+ *  Copyright Notice -
+ *	This software is Copyright (C) 1989-2004 by the United States Army.
+ *	All rights reserved.
+d40 1
+a40 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/comgeom-g/read.c,v 14.2 2004/12/18 02:21:22 morrison Exp $ (BRL)";
+@
+
+
+14.2
+log
+@acquire copyright and GPL license
+@
+text
+@d21 2
+a22 1
+ **//** @@file read.c
+d43 1
+a43 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/comgeom-g/read.c,v 14.1 2004/11/16 19:42:12 morrison Exp $ (BRL)";
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@d1 21
+a21 2
+/*
+ *			R E A D . C
+d42 1
+a42 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/comgeom-g/read.c,v 1.6 2004/09/03 23:30:56 morrison Exp $ (BRL)";
+@
+
+
+1.6
+log
+@USE_STRING_H is no more.. it's HAVE_STRING_H
+@
+text
+@d23 1
+a23 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/comgeom-g/read.c,v 1.5 2004/08/02 23:01:47 morrison Exp $ (BRL)";
+d112 10
+@
+
+
+1.5
+log
+@replace the wrapped config.h block with common.h
+@
+text
+@d23 1
+a23 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/comgeom-g/read.c,v 1.4 2004/08/02 03:15:35 morrison Exp $ (BRL)";
+a27 2
+
+
+d30 1
+a30 1
+#ifdef USE_STRING_H
+@
+
+
+1.4
+log
+@s/getline/get_line/ to avoid conflicting with the GNU extension
+@
+text
+@d23 1
+a23 1
+static const char RCSid[] = "@@(#)$Header: /n/xoff/cvs/brlcad/src/comgeom-g/read.c,v 1.3 2004/06/14 18:37:32 erikg Exp $ (BRL)";
+d26 1
+a26 3
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+@
+
+
+1.3
+log
+@try to use native functions instead of duplicating them with the same
+	name... (causes warnings)
+cast fixes
+remove all 'normal' warnings....
+@
+text
+@d23 1
+a23 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/comgeom-g/read.c,v 1.2 2004/06/08 22:04:08 morrison Exp $ (BRL)";
+d53 1
+a53 1
+getline(register char *cp, int buflen, char *title)
+d64 1
+a64 1
+			printf("getline(x%lx, %d) input record overflows buffer for %s\n",
+@
+
+
+1.2
+log
+@obliterate externs.h
+@
+text
+@d23 1
+a23 1
+static const char RCSid[] = "@@(#)$Header$ (BRL)";
+d47 1
+a47 1
+void	namecvt(register int n, register char *cp, int c);
+d109 1
+a109 1
+namecvt(register int n, register char *cp, int c)
+@
+
+
+1.1
+log
+@Vast reorganization begins.  Sources moved from top-level directories into src/.
+@
+text
+@d23 1
+a23 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/comgeom-g/read.c,v 11.11 2004/05/10 15:30:41 erikg Exp $ (BRL)";
+a40 1
+#include "externs.h"
+@
+

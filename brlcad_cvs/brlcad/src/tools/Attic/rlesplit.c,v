@@ -1,0 +1,272 @@
+head	14.2;
+access;
+symbols
+	opensource-pre:1.5
+	rel-7-0-branch:1.5.0.2
+	rel-7-0:1.5;
+locks; strict;
+comment	@ * @;
+
+
+14.2
+date	2004.12.21.03.32.06;	author morrison;	state dead;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.32;	author morrison;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	2004.09.09.04.07.36;	author kermit;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	2004.09.03.23.31.00;	author morrison;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2004.08.02.23.01.52;	author morrison;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2004.06.08.22.04.41;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.15.21.35;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.2
+log
+@moved src/tools/ to src/other/URToolkit/ as the entire Utah Raster Toolkit is not ours but, rather, University of Utah codeage.
+@
+text
+@/* 
+ * rlesplit.c - Split concatenated RLE files into separate files.
+ * 
+ * Author:	Spencer W. Thomas
+ * 		Computer Science Dept.
+ * 		University of Utah
+ * Date:	Mon May  4 1987
+ * Copyright (c) 1987, University of Utah
+ */
+
+#include "common.h"
+
+#include <stdlib.h>
+#include <stdio.h>
+#ifdef HAVE_STRING_H
+#include <string.h>
+#else
+#include <strings.h>
+#endif
+
+#include "machine.h"
+#include "rle.h"
+#include "rle_code.h"
+#include "rle_raw.h"
+
+
+/*****************************************************************
+ * TAG( main )
+ * 
+ * Usage:
+ *     rlesplit [-n number [digits]] [-p prefix] [rlefile]
+ * Inputs:
+ *	-n number:	If specified, output file numbering will start
+ *			with this value (see below).  Otherwise, numbering
+ *			starts at 1.
+ *
+ * 	digits:		The number of digits to be used in the numeric
+ * 			portion of the output file names.  Defaults to 3.
+ * 			All numbers will be leading zero filled.
+ * 
+ * 	-p prefix:	If specified, output files will be named
+ *			"prefix.#.rle".  If not specified, and
+ *			an rlefile is specified, then output files
+ *			will be "rlefileroot.#.rle", where
+ *			"rlefileroot" is rlefile with any ".rle" suffix
+ *			stripped off.  If no arguments are specified,
+ *			output files will be "#.rle".  In any case, "#"
+ *			represents a sequentially increasing number.
+ *
+ *	infile:	If specified, input will be read from here,
+ *			otherwise, input will be read from stdin.
+ * Outputs:
+ * 	Writes each rle image in the input stream to an output file
+ *	whose name is generated as above.
+ * Assumptions:
+ * 	Each RLE image in the input stream must be terminated with
+ *	an EOF opcode.
+ * Algorithm:
+ *	[None]
+ */
+
+int
+main(int argc, char **argv)
+{
+    register const char * cp, * slashp;
+    int num = 1, oflag = 0, digits = 3;
+    int rle_err, ynext, y;
+    const char * infname = NULL, * format = "%s%0*d.rle";
+    char * prefix = "";
+    char filebuf[BUFSIZ];
+    rle_hdr in_hdr, out_hdr;
+    rle_op ** scan;
+    int * nraw;
+
+    if ( scanargs( argc, argv, "% n%-number!ddigits%d o%-prefix!s infile%s",
+		   &num, &num, &digits, &oflag, &prefix, &infname ) == 0 )
+	exit( 1 );
+
+    /* Open input file */
+    in_hdr.rle_file = rle_open_f(cmd_name( argv ), infname, "r");
+
+    if ( oflag || infname )
+    {
+	format = "%s.%0*d.rle";
+	if ( !oflag )
+	{
+	    /* Strip ".rle" suffix from input file name */
+	    /* Avoid strrchr, rindex problem */
+	    for ( cp = infname; *cp; cp++ )
+		;		/* find end of name */
+	    /* Look for last slash */
+	    for ( slashp = cp - 1; *slashp != '/' && slashp > infname; )
+		slashp--;
+	    if ( *slashp == '/' )
+		slashp++;
+	    /* Look for last dot */
+	    while ( *--cp != '.' && cp > infname )
+		;		/* find last . */
+	    if ( strcmp( cp, ".rle" ) != 0 )
+		cp = infname + strlen( infname );
+	    /* Make null full string buffer */
+	    prefix = (char *)calloc( cp - slashp + 1, 1 );
+	    /* Copy everything but suffix */
+	    strncpy( prefix, infname, cp - slashp );
+	}
+    }
+
+    while ( (rle_err = rle_get_setup( &in_hdr )) == RLE_SUCCESS )
+    {
+	/* Copy input to output file */
+	sprintf( filebuf, format, prefix, digits, num++ );
+	fprintf( stderr, "%s: Creating %s\n", cmd_name( argv ), filebuf );
+	out_hdr = in_hdr;
+        out_hdr.rle_file = rle_open_f(cmd_name( argv ), filebuf, "w");
+	rle_addhist( argv, &in_hdr, &out_hdr );
+
+	rle_put_setup( &out_hdr );
+
+	rle_raw_alloc( &in_hdr, &scan, &nraw );
+
+
+	for ( y = in_hdr.ymin;
+	      (ynext = rle_getraw( &in_hdr, scan, nraw )) != 32768;
+	      y = ynext )
+	{
+	    if ( ynext - y > 1 )
+		rle_skiprow( &out_hdr, ynext - y );
+	    rle_putraw( scan, nraw, &out_hdr );
+	    rle_freeraw( &in_hdr, scan, nraw );
+	}
+	rle_puteof( &out_hdr );
+	fclose( out_hdr.rle_file );
+
+	rle_raw_free( &in_hdr, scan, nraw );
+    }
+
+    if ( rle_err != RLE_EOF && rle_err != RLE_EMPTY )
+	rle_get_error( rle_err, argv[0], infname );
+
+    exit( 0 );
+}
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@@
+
+
+1.5
+log
+@Added <stdlib.h> to fix implicit cast (for IA64 architecture).
+@
+text
+@d142 10
+@
+
+
+1.4
+log
+@USE_STRING_H is no more.. it's HAVE_STRING_H
+@
+text
+@d13 1
+d25 1
+@
+
+
+1.3
+log
+@replace the wrapped config.h block with common.h
+@
+text
+@d14 1
+a14 1
+#ifdef USE_STRING_H
+@
+
+
+1.2
+log
+@obliterate externs.h
+@
+text
+@d11 1
+a11 3
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+@
+
+
+1.1
+log
+@Vast reorganization begins.  Sources moved from top-level directories into src/.
+@
+text
+@a14 2
+
+
+a22 1
+#include "externs.h"		/* For calloc */
+@
+

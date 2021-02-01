@@ -1,0 +1,773 @@
+head	14.12;
+access;
+symbols
+	rel-7-10-4:14.11
+	STABLE:14.11.0.2
+	rel-7-10-2:14.11
+	rel-7-10-0:14.10
+	rel-7-8-4:14.8
+	rel-7-8-2:14.8
+	rel-7-8-0:14.8
+	trimnurbs-branch:14.8.0.2
+	help:14.8
+	temp_tag:14.7
+	bobWinPort-20051223-freeze:14.4
+	postmerge-20051223-bobWinPort:14.7
+	premerge-20051223-bobWinPort:14.7
+	rel-7-6-6:14.7
+	rel-7-6-4:14.7
+	rel-7-6-2:14.4
+	rel-7-6-branch:14.4.0.6
+	rel-7-6-0:14.4
+	rel-7-4-2:14.4
+	rel-7-4-branch:14.4.0.4
+	bobWinPort:14.4.0.2
+	rel-7-4-0:14.4
+	rel-7-2-6:14.3
+	rel-7-2-4:14.3
+	rel-7-2-2:14.3
+	rel-7-2-0:14.3
+	rel-7-0-4:14.2
+	rel-7-0-2:14.2
+	rel-7-0-1:14.2
+	opensource-post:14.2
+	opensource-pre:1.4
+	rel-7-0-branch:1.4.0.2
+	rel-7-0:1.4;
+locks; strict;
+comment	@ * @;
+
+
+14.12
+date	2007.12.16.15.59.40;	author brlcad;	state Exp;
+branches;
+next	14.11;
+
+14.11
+date	2007.07.26.01.13.59;	author brlcad;	state Exp;
+branches;
+next	14.10;
+
+14.10
+date	2007.01.23.01.13.52;	author brlcad;	state Exp;
+branches;
+next	14.9;
+
+14.9
+date	2007.01.20.14.37.05;	author brlcad;	state Exp;
+branches;
+next	14.8;
+
+14.8
+date	2006.01.18.06.46.27;	author brlcad;	state Exp;
+branches;
+next	14.7;
+
+14.7
+date	2005.10.23.04.44.39;	author brlcad;	state Exp;
+branches;
+next	14.6;
+
+14.6
+date	2005.09.22.00.21.51;	author brlcad;	state Exp;
+branches;
+next	14.5;
+
+14.5
+date	2005.09.21.19.05.37;	author brlcad;	state Exp;
+branches;
+next	14.4;
+
+14.4
+date	2005.06.30.00.08.37;	author erikgreenwald;	state Exp;
+branches
+	14.4.6.1;
+next	14.3;
+
+14.3
+date	2005.01.30.20.31.32;	author brlcad;	state Exp;
+branches;
+next	14.2;
+
+14.2
+date	2004.12.21.03.45.40;	author butler;	state Exp;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.32;	author morrison;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	2004.08.02.23.01.53;	author morrison;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2004.06.09.18.21.39;	author erikg;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2004.06.08.22.04.42;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.15.21.41;	author morrison;	state Exp;
+branches;
+next	;
+
+14.4.6.1
+date	2005.11.13.13.46.20;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.12
+log
+@convert all bzero calls to memset
+@
+text
+@/*                        B W - I M P . C
+ * BRL-CAD
+ *
+ * Copyright (c) 1986-2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@file bw-imp.c
+ *
+ */
+
+/*
+ *			B W - I M P . C
+ *
+ *  Authors -
+ *	Douglas A. Gwyn
+ *	Michael John Muuss
+ *
+ *  Borrows heavily from Steve Hawley's & Geoffrey Cooper's
+ *  "traceconv" program.
+ *
+ *  Notes -
+ *	The image is printed upside down to simplify the arithmetic,
+ *	due to the organization of the input file.
+ *
+ */
+#ifndef lint
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/bw-imp.c,v 14.11 2007/07/26 01:13:59 brlcad Exp $ (BRL)";
+#endif
+
+#include "common.h"
+
+#ifdef HAVE_UNISTD_H
+# include <unistd.h>
+#endif
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include "machine.h"
+#include "bu.h"
+
+typedef int bool;
+#define true 1
+#define false 0
+
+static int	halftone[8][8] =	/* halftone pattern */
+{
+	{6,   7,   8,   9,  10,  11,  12,  13},
+	{40,  42,  44,  46,  49,  51,  54,  14},
+	{37, 112, 118, 124, 130, 137,  57,  15},
+	{36, 106, 208, 219, 230, 145,  60,  16},
+	{34, 101, 197, 254, 243, 152,  63,  17},
+	{32,  96, 187, 178, 169, 160,  66,  18},
+	{30,  91,  86,  82,  78,  74,  70,  19},
+	{29,  27,  26,  25,  23,  22,  21,  20}
+};
+
+static int	dither[8][8] =		/* dither pattern */
+{
+	{6,  51,  14,  78,   8,  57,  16,  86},
+	{118,  22, 178,  34, 130,  25, 197,  37},
+	{18,  96,  10,  63,  20, 106,  12,  70},
+	{219,  42, 145,  27, 243,  46, 160,  30},
+	{9,  60,  17,  91,   7,  54,  15,  82},
+	{137,  26, 208,  40, 124,  23, 187,  36},
+	{21, 112,  13,  74,  19, 101,  11,  66},
+	{254,  49, 169,  32, 230,  44, 152,  29}
+};
+
+static int	(*pattern)[8] = dither;	/* -> dither or halftone */
+
+static FILE	*infp;			/* input file handle */
+static char	*file_name = "-";	/* name of input file, for banner */
+
+static int	height;			/* input height */
+static int	width;			/* input width */
+
+static int	thresh = -1;		/* Threshold */
+
+static int	page_xoff = 150;	/* 150=0.5", 192=0.75" */
+static int	page_yoff = 80;		/* 80=0.25", 544=1.75" */
+
+#define MAXWIDTH	2600
+long		swath[32][MAXWIDTH/32];	/* assumes long has 32 bits */
+unsigned char	line[MAXWIDTH];		/* grey-scale input buffer */
+
+static int	im_mag;			/* magnification (1, 2 or 4) */
+static int	im_width;		/* image size (in Imagen dots) */
+static int	im_wpatches;		/* # 32-bit patches width */
+static int	im_hpatches;		/* # 32-bit patches height */
+
+bool	get_args(int argc, register char **argv);
+bool	im_close(void);
+bool	im_header(void);
+void	im_write(int y);
+
+char usage[] = "\
+Usage: bw-imp [-h -D] [-s squaresize] [-w width] [-n height]\n\
+	[-X page_xoff] [-Y page_yoff] [-t thresh] [file.bw] > impress\n";
+
+bool
+get_args(int argc, register char **argv)
+{
+	register int	c;
+
+	while ( (c = bu_getopt( argc, argv, "hDs:n:w:t:X:Y:" )) != EOF )  {
+		switch( c )  {
+		case 'h':
+			/* high-res */
+			height = width = 1024;
+			break;
+		case 'D':
+			/* halftone instead of dither */
+			pattern = halftone;
+			break;
+		case 's':
+			/* square size */
+			height = width = atoi(bu_optarg);
+			break;
+		case 'n':
+			height = atoi(bu_optarg);
+			break;
+		case 'w':
+			width = atoi(bu_optarg);
+			break;
+		case 't':
+			thresh = atoi(bu_optarg);
+			break;
+		case 'X':
+			page_xoff = atoi(bu_optarg);
+			break;
+		case 'Y':
+			page_yoff = atoi(bu_optarg);
+			break;
+
+		default:		/* '?' */
+			return false;
+		}
+	}
+
+	if( bu_optind >= argc )  {
+		if( isatty(fileno(stdin)) )
+			return(false);
+		file_name = "-";
+		infp = stdin;
+	} else {
+		file_name = argv[bu_optind];
+		if( (infp = fopen(file_name, "r")) == NULL )  {
+			(void)fprintf( stderr,
+				"bw-imp: cannot open \"%s\" for reading\n",
+				file_name );
+			return false;
+		}
+	}
+
+	if ( argc > ++bu_optind )
+		(void)fprintf( stderr, "bw-imp: excess argument(s) ignored\n" );
+
+	return true;
+}
+
+int
+main(int argc, char **argv)
+{
+	register int 	y;
+
+	height = width = 512;		/* Defaults */
+
+	if ( !get_args( argc, argv ) || isatty(fileno(stdout)) )  {
+		(void)fputs(usage, stderr);
+		return 1;
+	}
+
+	if( thresh >= 0 )  {
+		/* Each pixel in gives one bit out, depending on thresh */
+		im_mag = 1;
+	} else {
+		if( width > 512 )  im_mag = 2;
+		else if( width > 256 )  im_mag = 4;
+		else if( width > 128 )  im_mag = 8;
+		else im_mag = 16;
+	}
+	im_width  = (width * im_mag) & (~31);
+	im_wpatches = (im_width+31) / 32;
+	im_hpatches = ((height * im_mag)+31) / 32;
+	if( im_wpatches*32 > 2560 )  {
+		fprintf(stderr,"bw-imp:  output %d too wide, limit is 2560\n",
+			im_wpatches*32);
+		return(1);
+	}
+
+	if ( !im_header() )
+		return 1;
+
+	for( y = 0; y < height; y += 32/im_mag )  {
+		if( feof(infp) )
+			return 1;
+		im_write(y);
+	}
+
+	if ( !im_close() )
+	    return 1;
+
+	return 0;
+}
+
+bool
+im_header(void)
+{
+
+	(void)printf( "@@document(language impress, prerasterization on, Name \"%s\")",
+	file_name
+	    );
+
+	/* The margins need to be multiples of 16 (printer word align) */
+	(void)putchar(205);		/* SET_HV_SYSTEM (whole page) */
+	(void)putchar(0x54);
+	(void)putchar(135);		/* SET_ABS_H (left margin) */
+	(void)putchar((page_xoff>>8)&0xFF);
+	(void)putchar(page_xoff&0xFF);
+	(void)putchar(137);		/* SET_ABS_V (top margin) */
+	(void)putchar((page_yoff>>8)&0xFF);
+	(void)putchar(page_yoff&0xFF);
+	(void)putchar(205);		/* SET_HV_SYSTEM (set origin) */
+	(void)putchar(0x74);
+	(void)putchar(206);		/* SET_ADV_DIRS (normal raster scan) */
+	(void)putchar(0);
+	(void)putchar(236);		/* SET_MAGNIFICATION */
+	(void)putchar(0);		/* x 1 */
+	(void)putchar(235);		/* BITMAP */
+	(void)putchar(3);		/* opaque (store) */
+	(void)putchar(im_wpatches);	/* hsize (# patches across) */
+	(void)putchar(im_hpatches);	/* vsize (# patches down) */
+
+	return true;
+}
+
+void
+im_write(int y)
+{
+	int y1;
+
+	/* Process one 32-bit high output swath */
+	for ( y1 = 0; y1 < 32; y1 += im_mag )  {
+		int x;
+
+		/* Obtain a single line of 8-bit pixels */
+		if( fread( line, 1, width, infp ) != width )  {
+			memset((void *)line, 0, width);
+		}
+
+		/* construct im_mag scans of Imagen swath */
+		for ( x = 0; x < im_width; x += 32 )  {
+			int my;
+
+			for ( my = 0; my < im_mag; ++my )  {
+				register long	b = 0L;	/* image bits */
+				int x1;
+
+				for ( x1 = 0; x1 < 32; x1 += im_mag )  {
+					register int	level =
+					    line[width-1-((x + x1) / im_mag)];
+					register int mx;
+
+					if( im_mag <= 1 )  {
+						b <<= 1;
+						if( level < thresh )
+							b |= 1L;
+						continue;
+					}
+					for ( mx = 0; mx < im_mag; ++mx )  {
+						register int pgx, pgy;	/* page position */
+						b <<= 1;
+
+						/* Compute Dither */
+						pgx = x + x1 + mx;
+						pgy = y + y1 + my;
+						/* ameliorate grid regularity */
+						if( pattern == halftone &&
+						    (pgy % 16) >= 8 )
+							pgx += 4;
+
+						if( level < pattern[pgx % 8][pgy % 8] )
+							b |= 1L;
+					}
+				}
+				swath[y1 + my][x / 32] = b;
+			}
+		}
+	}
+
+	/* output the swath */
+	{
+		register int xx, yy;
+		for ( xx = 0; xx < im_wpatches; ++xx )  {
+			for ( yy = 0; yy < 32; ++yy )  {
+				register long	b = swath[yy][xx];
+				register int c;
+
+				c = (int)(b >> 24) & 0xFF; (void)putchar( c );
+				c = (int)(b >> 16) & 0xFF; (void)putchar( c );
+				c = (int)(b >>  8) & 0xFF; (void)putchar( c );
+				c = (int)(b      ) & 0xFF; (void)putchar( c );
+			}
+		}
+	}
+}
+
+bool
+im_close(void)
+{
+/*	(void)putchar( 219 );		ENDPAGE */
+
+	(void)fflush( stdout );
+	return true;
+}
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+14.11
+log
+@remove ephemeral data like phone numbers and addresses, including the misleading 'source' statements on code that is continually evolving and receiving contributions from many many sources
+@
+text
+@d40 1
+a40 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/bw-imp.c,v 14.10 2007/01/23 01:13:52 brlcad Exp $ (BRL)";
+d262 1
+a262 1
+			bzero( (void *)line, width );
+@
+
+
+14.10
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@a37 4
+ *  Source -
+ *	SECAD/VLD Computing Consortium, Bldg 394
+ *	The U. S. Army Ballistic Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005-5066
+d40 1
+a40 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/bw-imp.c,v 14.9 2007/01/20 14:37:05 brlcad Exp $ (BRL)";
+@
+
+
+14.9
+log
+@update copyright to 2007
+@
+text
+@d8 2
+a9 3
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+d14 1
+a14 1
+ * General Public License for more details.
+d16 2
+a17 2
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+d44 1
+a44 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/bw-imp.c,v 14.8 2006/01/18 06:46:27 brlcad Exp $ (BRL)";
+@
+
+
+14.8
+log
+@update copyright to 2006
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 1986-2006 United States Government as represented by
+d45 1
+a45 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/bw-imp.c,v 14.7 2005/10/23 04:44:39 brlcad Exp $ (BRL)";
+@
+
+
+14.7
+log
+@trailing ws
+@
+text
+@d4 1
+a4 1
+ * Copyright (C) 1986-2005 United States Government as represented by
+d45 1
+a45 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/bw-imp.c,v 14.6 2005/09/22 00:21:51 brlcad Exp $ (BRL)";
+@
+
+
+14.6
+log
+@add bu.h for bu_getopt stuff
+@
+text
+@d25 1
+a25 1
+/* 
+d45 1
+a45 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/bw-imp.c,v 14.5 2005/09/21 19:05:37 brlcad Exp $ (BRL)";
+@
+
+
+14.5
+log
+@needs bu.h for bu_getopt
+@
+text
+@d45 1
+a45 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/bw-imp.c,v 14.4 2005/06/30 00:08:37 erikgreenwald Exp $ (BRL)";
+d58 1
+@
+
+
+14.4
+log
+@added missing includes
+@
+text
+@d45 1
+a45 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/bw-imp.c,v 14.3 2005/01/30 20:31:32 brlcad Exp $ (BRL)";
+d123 1
+a123 1
+	while ( (c = getopt( argc, argv, "hDs:n:w:t:X:Y:" )) != EOF )  {
+d135 1
+a135 1
+			height = width = atoi(optarg);
+d138 1
+a138 1
+			height = atoi(optarg);
+d141 1
+a141 1
+			width = atoi(optarg);
+d144 1
+a144 1
+			thresh = atoi(optarg);
+d147 1
+a147 1
+			page_xoff = atoi(optarg);
+d150 1
+a150 1
+			page_yoff = atoi(optarg);
+d158 1
+a158 1
+	if( optind >= argc )  {
+d164 1
+a164 1
+		file_name = argv[optind];
+d173 1
+a173 1
+	if ( argc > ++optind )
+@
+
+
+14.4.6.1
+log
+@merge changes from HEAD aka rel-7-6-4 to the rel-7-6-branch just in case someone peeks a gander or tries to continue/build the branch
+@
+text
+@d25 1
+a25 1
+/*
+d45 1
+a45 1
+static const char RCSid[] = "@@(#)$Header$ (BRL)";
+a57 1
+#include "bu.h"
+d123 1
+a123 1
+	while ( (c = bu_getopt( argc, argv, "hDs:n:w:t:X:Y:" )) != EOF )  {
+d135 1
+a135 1
+			height = width = atoi(bu_optarg);
+d138 1
+a138 1
+			height = atoi(bu_optarg);
+d141 1
+a141 1
+			width = atoi(bu_optarg);
+d144 1
+a144 1
+			thresh = atoi(bu_optarg);
+d147 1
+a147 1
+			page_xoff = atoi(bu_optarg);
+d150 1
+a150 1
+			page_yoff = atoi(bu_optarg);
+d158 1
+a158 1
+	if( bu_optind >= argc )  {
+d164 1
+a164 1
+		file_name = argv[bu_optind];
+d173 1
+a173 1
+	if ( argc > ++bu_optind )
+@
+
+
+14.3
+log
+@update copyright to 2005
+@
+text
+@d45 1
+a45 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/bw-imp.c,v 14.2 2004/12/21 03:45:40 butler Exp $ (BRL)";
+d53 1
+a53 1
+                                                                                                                                                                            
+d55 1
+@
+
+
+14.2
+log
+@GPL license changes
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 1986-2004 United States Government as represented by
+d45 1
+a45 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/util/bw-imp.c,v 14.1 2004/11/16 19:42:32 morrison Exp $ (BRL)";
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@d1 24
+a42 4
+ *  
+ *  Copyright Notice -
+ *	This software is Copyright (C) 1986-2004 by the United States Army.
+ *	All rights reserved.
+d45 1
+a45 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/util/bw-imp.c,v 1.4 2004/08/02 23:01:53 morrison Exp $ (BRL)";
+@
+
+
+1.4
+log
+@replace the wrapped config.h block with common.h
+@
+text
+@d25 1
+a25 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/util/bw-imp.c,v 1.3 2004/06/09 18:21:39 erikg Exp $ (BRL)";
+d313 10
+@
+
+
+1.3
+log
+@include unistd.h for getopt stuff
+@
+text
+@d25 1
+a25 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/util/bw-imp.c,v 1.2 2004/06/08 22:04:42 morrison Exp $ (BRL)";
+d28 1
+a28 3
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+@
+
+
+1.2
+log
+@obliterate externs.h
+@
+text
+@d25 1
+a25 1
+static const char RCSid[] = "@@(#)$Header$ (BRL)";
+d32 4
+@
+
+
+1.1
+log
+@Vast reorganization begins.  Sources moved from top-level directories into src/.
+@
+text
+@d25 1
+a25 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/util/bw-imp.c,v 11.11 2004/05/10 15:30:50 erikg Exp $ (BRL)";
+a31 2
+
+
+a34 1
+#include "externs.h"		/* For getopt */
+@
+

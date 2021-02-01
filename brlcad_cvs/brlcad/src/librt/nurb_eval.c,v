@@ -1,0 +1,644 @@
+head	14.15;
+access;
+symbols
+	rel-7-10-4:14.15
+	STABLE:14.15.0.2
+	stable-branch:14.6
+	rel-7-10-2:14.15
+	rel-7-10-0:14.14
+	rel-7-8-4:14.10
+	rel-7-8-2:14.9
+	rel-7-8-0:14.9
+	trimnurbs-branch:14.9.0.2
+	help:14.9
+	temp_tag:14.8
+	bobWinPort-20051223-freeze:14.7
+	postmerge-20051223-bobWinPort:14.8
+	premerge-20051223-bobWinPort:14.8
+	rel-7-6-6:14.8
+	rel-7-6-4:14.8
+	rel-7-6-2:14.7
+	rel-7-6-branch:14.7.0.4
+	rel-7-6-0:14.7
+	rel-7-4-2:14.6
+	rel-7-4-branch:14.6.0.2
+	bobWinPort:14.7.0.2
+	rel-7-4-0:14.6
+	rel-7-2-6:14.6
+	rel-7-2-4:14.6
+	rel-7-2-2:14.6
+	rel-7-2-0:14.6
+	rel-7-0-4:14.5
+	rel-7-0-2:14.5
+	rel-7-0-1:14.5
+	opensource-post:14.5
+	opensource-pre:1.2
+	rel-7-0-branch:1.2.0.2
+	rel-7-0:1.2;
+locks; strict;
+comment	@ * @;
+
+
+14.15
+date	2007.05.18.04.13.50;	author brlcad;	state Exp;
+branches;
+next	14.14;
+
+14.14
+date	2007.01.27.01.41.41;	author brlcad;	state Exp;
+branches;
+next	14.13;
+
+14.13
+date	2007.01.23.01.13.38;	author brlcad;	state Exp;
+branches;
+next	14.12;
+
+14.12
+date	2007.01.21.04.45.44;	author brlcad;	state Exp;
+branches;
+next	14.11;
+
+14.11
+date	2007.01.20.14.36.55;	author brlcad;	state Exp;
+branches;
+next	14.10;
+
+14.10
+date	2006.09.16.02.04.25;	author lbutler;	state Exp;
+branches;
+next	14.9;
+
+14.9
+date	2006.01.18.06.46.17;	author brlcad;	state Exp;
+branches;
+next	14.8;
+
+14.8
+date	2005.10.23.04.44.36;	author brlcad;	state Exp;
+branches;
+next	14.7;
+
+14.7
+date	2005.08.12.22.31.08;	author lbutler;	state Exp;
+branches
+	14.7.4.1;
+next	14.6;
+
+14.6
+date	2005.01.30.20.31.03;	author brlcad;	state Exp;
+branches;
+next	14.5;
+
+14.5
+date	2004.12.21.06.38.21;	author morrison;	state Exp;
+branches;
+next	14.4;
+
+14.4
+date	2004.12.21.06.18.47;	author morrison;	state Exp;
+branches;
+next	14.3;
+
+14.3
+date	2004.12.21.05.45.24;	author morrison;	state Exp;
+branches;
+next	14.2;
+
+14.2
+date	2004.12.21.04.18.20;	author morrison;	state Exp;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.16;	author morrison;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2004.08.02.23.01.49;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.15.20.07;	author morrison;	state Exp;
+branches;
+next	;
+
+14.7.4.1
+date	2005.11.13.13.46.17;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.15
+log
+@rt_bomb() has been deprecated since before 7.0, but even our sources weren't properly updated to reflect this change.  update all of our sources to use bu_bomb() now.
+@
+text
+@/*                     N U R B _ E V A L . C
+ * BRL-CAD
+ *
+ * Copyright (c) 1990-2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This library is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@addtogroup nurb */
+/** @@{ */
+/** @@file nurb_eval.c
+ *
+ *	Evaluate a Non Uniform Rational B-spline curve or at the
+ *	given (u,v) values.
+ *  Author -
+ *	Paul Randal Stay
+ *
+ *  Source -
+ * 	SECAD/VLD Computing Consortium, Bldg 394
+ *	The U.S. Army Ballistic Research Laboratory
+ * 	Aberdeen Proving Ground, Maryland 21005
+ *
+ */
+/** @@} */
+
+#include "common.h"
+
+
+#include <stdio.h>
+#include <math.h>
+#include "machine.h"
+#include "vmath.h"
+#include "nmg.h"
+#include "raytrace.h"
+#include "nurb.h"
+
+/* Algorithm -
+ *
+ * The algorithm uses the traditional COX-deBoor approach
+ * found in the book "Pratical Guide to Splines" Carl de Boor, pg 147
+ * to evaluate a parametric value on a curve. This is expanded to the surface.
+ */
+
+void
+rt_nurb_s_eval(const struct face_g_snurb *srf, fastf_t u, fastf_t v, fastf_t *final_value)
+{
+	fastf_t * mesh_ptr = srf->ctl_points;
+	fastf_t * curves;
+	int	i, j, k;
+	int	row_size = srf->s_size[RT_NURB_SPLIT_ROW];
+	int	col_size = srf->s_size[RT_NURB_SPLIT_COL];
+	fastf_t * c_ptr;
+	fastf_t * diff_curve, *ev_pt;
+	int	k_index;
+	int	coords = RT_NURB_EXTRACT_COORDS(srf->pt_type);
+
+	NMG_CK_SNURB(srf);
+
+	/* Because the algorithm is destructive in nature, the
+	 * rows of the control mesh are copied. The evaluation
+	 * is then done on each row curve and then evaluation
+	 * is then performed on the resulting curve.
+	 */
+
+	diff_curve = (fastf_t * )
+	bu_malloc(row_size * sizeof(fastf_t) * coords,
+	    "rt_nurb_s__eval: diff_curve");
+
+	c_ptr = diff_curve;
+
+	k_index = rt_nurb_knot_index( &srf->u, u, srf->order[RT_NURB_SPLIT_ROW] );
+	if( k_index < 0 )
+	{
+		bu_log( "rt_nurb_s_eval: u value outside parameter range\n");
+		bu_log( "\tUV = (%g %g )\n", u,v );
+		rt_nurb_s_print( "", srf );
+		bu_bomb( "rt_nurb_s_eval: u value outside parameter range\n");
+	}
+
+	curves = (fastf_t * ) bu_malloc( col_size * sizeof(fastf_t) * coords,
+	    "rt_nurb_s_eval:crv_ptr");
+
+	for ( i = 0; i < row_size; i++) {
+		fastf_t * rtr_pt;
+		fastf_t * crv_ptr;
+
+		crv_ptr = curves;
+
+		for ( j = 0; j < (col_size * coords ); j++) {
+			*crv_ptr++ = *mesh_ptr++;
+		}
+
+		rtr_pt =  (fastf_t * ) rt_nurb_eval_crv( curves, srf->order[RT_NURB_SPLIT_ROW], u,
+		    &srf->u, k_index, coords );
+
+		for (k = 0; k < coords; k++)
+			c_ptr[k] = rtr_pt[k];
+		c_ptr += coords;
+	}
+
+	bu_free( (char *)curves, "rt_nurb_s_eval: curves" );
+
+	k_index = rt_nurb_knot_index( &srf->v, v, srf->order[RT_NURB_SPLIT_COL] );
+
+	ev_pt = (fastf_t * ) rt_nurb_eval_crv( diff_curve, srf->order[RT_NURB_SPLIT_COL],
+		v, &srf->v, k_index, coords);
+
+	for ( k = 0; k < coords; k++)
+		final_value[k] = ev_pt[k];
+
+	bu_free ( (char *)diff_curve, "rt_nurb_s_eval: diff curve" );
+}
+
+
+void
+rt_nurb_c_eval(const struct edge_g_cnurb *crv, fastf_t param, fastf_t *final_value)
+{
+	fastf_t * pnts;
+	fastf_t * ev_pt;
+	int	coords;
+	int	i, k_index;
+
+	NMG_CK_CNURB(crv);
+
+	coords = RT_NURB_EXTRACT_COORDS( crv->pt_type);
+
+	k_index = rt_nurb_knot_index( &crv->k, param, crv->order);
+
+	pnts = (fastf_t * ) bu_malloc( coords * sizeof( fastf_t) *
+	    crv->c_size, "diff: rt_nurb_c_eval");
+
+	for ( i = 0; i < coords * crv->c_size; i++)
+		pnts[i] = crv->ctl_points[i];
+
+	ev_pt = (fastf_t * ) rt_nurb_eval_crv(
+	    pnts, crv->order, param, &crv->k, k_index, coords);
+
+	for ( i = 0; i < coords; i++)
+		final_value[i] = ev_pt[i];
+
+	bu_free( (char *) pnts, "rt_nurb_c_eval");
+}
+
+
+fastf_t *
+rt_nurb_eval_crv(register fastf_t *crv, int order, fastf_t param, const struct knot_vector *k_vec, int k_index, int coords)
+{
+	int	i, j;
+
+	if ( order <= 1 )
+		return
+		    (crv + ((k_index) * coords));
+
+	j = k_index;
+
+	while ( j > (k_index - order + 1)) {
+		register fastf_t  k1, k2;
+
+		k1 =  k_vec->knots[ (j + order - 1)];
+
+		k2 =  k_vec->knots[ ( j ) ];
+
+		if ((k1 - k2) != 0.0 ) {
+			for ( i= 0; i < coords; i++)
+			{
+				*((crv + ((j) * coords)) + i) =
+					((k1 - param) *
+					*((crv + ((j - 1) * coords)) + i)
+					+ (param - k2 ) * *((crv + ((j) *
+					coords)) + i)) / (k1 - k2);
+			}
+		}
+		j--;
+	}
+	return rt_nurb_eval_crv( crv, order - 1, param, k_vec,
+		k_index, coords );
+}
+
+
+void
+rt_nurb_pr_crv(fastf_t *crv, int c_size, int coords)
+{
+	int	i;
+
+	fprintf(stderr, "\n");
+	if (coords == 3)
+		for (i = 0; i < c_size; i++)
+			fprintf(stderr, "p%d   %f   %f   %f\n", i, *((crv + ((i) * coords))),
+			    *((crv + ((i) * coords)) + 1),
+			    *((crv + ((i) * coords)) + 2));
+
+	else if (coords == 4)
+		for (i = 0; i < c_size; i++)
+			fprintf(stderr, "p%d   %f   %f   %f   %f\n", i,
+			    *((crv + ((i) * coords))),
+			    *((crv + ((i) * coords)) + 1),
+			    *((crv + ((i) * coords)) + 2),
+			    *((crv + ((i) * coords)) + 3));
+}
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+14.14
+log
+@ws. lots and lots of ws.  see sh/ws.sh for details (cases 'abcdeg').
+@
+text
+@d88 1
+a88 1
+		rt_bomb( "rt_nurb_s_eval: u value outside parameter range\n");
+@
+
+
+14.13
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@a39 1
+
+d177 1
+a177 1
+ 				*((crv + ((j) * coords)) + i) =
+d182 1
+a182 1
+ 			}
+@
+
+
+14.12
+log
+@ugh, what tedium.  put some effort towards cleaning up the doxygen labels and making the headers more consistent.  also exclusively using @@ for doxygen instead of \ to try to keep things more consistent.
+@
+text
+@d9 1
+a9 2
+ * as published by the Free Software Foundation; either version 2 of
+ * the License, or (at your option) any later version.
+d14 1
+a14 1
+ * Library General Public License for more details.
+@
+
+
+14.11
+log
+@update copyright to 2007
+@
+text
+@a20 1
+
+d22 1
+a22 1
+/*@@{*/
+d24 1
+d36 1
+a36 1
+/*@@}*/
+@
+
+
+14.10
+log
+@Doxygen updates
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 1990-2006 United States Government as represented by
+@
+
+
+14.9
+log
+@update copyright to 2006
+@
+text
+@d22 1
+a22 1
+/** \addtogroup nurb */
+@
+
+
+14.8
+log
+@trailing ws
+@
+text
+@d4 1
+a4 1
+ * Copyright (C) 1990-2005 United States Government as represented by
+@
+
+
+14.7
+log
+@Doxygen changes
+@
+text
+@d25 1
+a25 1
+ *	Evaluate a Non Uniform Rational B-spline curve or at the 
+d29 1
+a29 1
+ * 
+d52 2
+a53 2
+ * The algorithm uses the traditional COX-deBoor approach 
+ * found in the book "Pratical Guide to Splines" Carl de Boor, pg 147 
+d106 1
+a106 1
+		rtr_pt =  (fastf_t * ) rt_nurb_eval_crv( curves, srf->order[RT_NURB_SPLIT_ROW], u, 
+d118 1
+a118 1
+	ev_pt = (fastf_t * ) rt_nurb_eval_crv( diff_curve, srf->order[RT_NURB_SPLIT_COL], 
+d142 1
+a142 1
+	pnts = (fastf_t * ) bu_malloc( coords * sizeof( fastf_t) * 
+d163 1
+a163 1
+	if ( order <= 1 ) 
+d176 2
+a177 2
+		if ((k1 - k2) != 0.0 ) { 		
+			for ( i= 0; i < coords; i++) 
+d181 2
+a182 2
+					*((crv + ((j - 1) * coords)) + i) 
+					+ (param - k2 ) * *((crv + ((j) * 
+d184 2
+a185 2
+ 			} 		
+		} 		
+d187 3
+a189 3
+	} 	
+	return rt_nurb_eval_crv( crv, order - 1, param, k_vec, 
+		k_index, coords ); 
+@
+
+
+14.7.4.1
+log
+@merge changes from HEAD aka rel-7-6-4 to the rel-7-6-branch just in case someone peeks a gander or tries to continue/build the branch
+@
+text
+@d25 1
+a25 1
+ *	Evaluate a Non Uniform Rational B-spline curve or at the
+d29 1
+a29 1
+ *
+d52 2
+a53 2
+ * The algorithm uses the traditional COX-deBoor approach
+ * found in the book "Pratical Guide to Splines" Carl de Boor, pg 147
+d106 1
+a106 1
+		rtr_pt =  (fastf_t * ) rt_nurb_eval_crv( curves, srf->order[RT_NURB_SPLIT_ROW], u,
+d118 1
+a118 1
+	ev_pt = (fastf_t * ) rt_nurb_eval_crv( diff_curve, srf->order[RT_NURB_SPLIT_COL],
+d142 1
+a142 1
+	pnts = (fastf_t * ) bu_malloc( coords * sizeof( fastf_t) *
+d163 1
+a163 1
+	if ( order <= 1 )
+d176 2
+a177 2
+		if ((k1 - k2) != 0.0 ) {
+			for ( i= 0; i < coords; i++)
+d181 2
+a182 2
+					*((crv + ((j - 1) * coords)) + i)
+					+ (param - k2 ) * *((crv + ((j) *
+d184 2
+a185 2
+ 			}
+		}
+d187 3
+a189 3
+	}
+	return rt_nurb_eval_crv( crv, order - 1, param, k_vec,
+		k_index, coords );
+@
+
+
+14.6
+log
+@update copyright to 2005
+@
+text
+@d21 3
+a24 6
+ *
+ */
+
+/*	N U R B  _ E V A L . C
+ *
+ *  Function -
+d36 1
+@
+
+
+14.5
+log
+@remove the old copyright notice section
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 1990-2004 United States Government as represented by
+@
+
+
+14.4
+log
+@they should have received a copy of the LGPL with LGPL'd files
+@
+text
+@a37 3
+ *  Copyright Notice -
+ *	This software is Copyright (C) 1990-2004 by the United States Army.
+ *	All rights reserved.
+@
+
+
+14.3
+log
+@s/GNU Library General/GNU Lesser General/g
+@
+text
+@d17 2
+a18 2
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+@
+
+
+14.2
+log
+@assign copyright and LGPL
+@
+text
+@d8 1
+a8 1
+ * modify it under the terms of the GNU Library General Public License
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@d1 24
+@
+
+
+1.2
+log
+@replace the wrapped config.h block with common.h
+@
+text
+@d194 10
+@
+
+
+1.1
+log
+@Vast reorganization begins.  Sources moved from top-level directories into src/.
+@
+text
+@d19 1
+a19 3
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+@
+

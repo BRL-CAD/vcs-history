@@ -1,0 +1,1182 @@
+head	11.10;
+access;
+symbols
+	rel-4-5:11.8
+	ctj-4-5-post:11.6
+	ctj-4-5-pre:11.6
+	rel-4-4:11.1
+	rel-4-0:10.1
+	rel-3-5:9.1
+	rel-3-0:8.1;
+locks; strict;
+comment	@ * @;
+
+
+11.10
+date	98.09.22.01.43.10;	author mike;	state dead;
+branches;
+next	11.9;
+
+11.9
+date	98.06.30.22.54.17;	author mike;	state Exp;
+branches;
+next	11.8;
+
+11.8
+date	97.12.31.09.01.40;	author mike;	state Exp;
+branches;
+next	11.7;
+
+11.7
+date	97.11.25.22.16.43;	author butler;	state Exp;
+branches;
+next	11.6;
+
+11.6
+date	96.08.31.08.46.01;	author butler;	state Exp;
+branches;
+next	11.5;
+
+11.5
+date	96.08.31.08.29.28;	author butler;	state Exp;
+branches;
+next	11.4;
+
+11.4
+date	96.08.30.00.08.21;	author butler;	state Exp;
+branches;
+next	11.3;
+
+11.3
+date	96.05.07.19.26.36;	author jra;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	95.10.20.04.43.53;	author butler;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	95.01.04.10.01.04;	author mike;	state Rel4_4;
+branches;
+next	10.3;
+
+10.3
+date	94.11.05.02.55.23;	author mike;	state Exp;
+branches;
+next	10.2;
+
+10.2
+date	94.08.11.02.21.11;	author gdurf;	state Exp;
+branches;
+next	10.1;
+
+10.1
+date	91.10.12.06.42.07;	author mike;	state Rel4_0;
+branches;
+next	9.6;
+
+9.6
+date	91.07.06.00.35.18;	author mike;	state Exp;
+branches;
+next	9.5;
+
+9.5
+date	91.02.17.20.15.52;	author mike;	state Exp;
+branches;
+next	9.4;
+
+9.4
+date	91.01.05.03.09.10;	author mike;	state Exp;
+branches;
+next	9.3;
+
+9.3
+date	90.12.12.16.35.03;	author butler;	state Exp;
+branches;
+next	9.2;
+
+9.2
+date	90.12.08.08.58.06;	author butler;	state Exp;
+branches;
+next	9.1;
+
+9.1
+date	89.05.19.05.59.31;	author mike;	state Rel3_5;
+branches;
+next	8.4;
+
+8.4
+date	89.04.27.22.23.17;	author phil;	state Exp;
+branches;
+next	8.3;
+
+8.3
+date	89.04.04.05.01.52;	author mike;	state Exp;
+branches;
+next	8.2;
+
+8.2
+date	88.12.27.16.34.03;	author mike;	state Exp;
+branches;
+next	8.1;
+
+8.1
+date	88.10.05.00.32.39;	author mike;	state Rel3_0;
+branches;
+next	1.4;
+
+1.4
+date	88.05.14.02.28.07;	author mike;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	88.03.19.02.32.59;	author mike;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	88.01.26.05.29.20;	author phil;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	88.01.22.21.15.16;	author phil;	state Exp;
+branches;
+next	;
+
+
+desc
+@Cook-Torrance Shader
+@
+
+
+11.10
+log
+@Moved sh_*.c shaders from rt/ to liboptical/ directory.
+Moved and split rt/material.h into h/shadefuncs.h and h/shadework.h
+Changed calling sequence of mlib_setup() to get shader list head explicitly.
+Initialization of shader library is now via optical_shader_init().
+
+Note that the "proper" location of shade.c, material.c, and refract.c
+(presently in the rt/ directory) are a bit muddled, as they will be
+shared with libmultispectral/ shader functions, but aren't quite
+wholesome and pure yet.  To minimize impact to Lee's ongoing shader
+developments, they haven't been changed.
+@
+text
+@/*
+ *			C O O K
+ *
+ *  Notes -
+ *	The normals on all surfaces point OUT of the solid.
+ *	The incomming light rays point IN.  Thus the sign change.
+ *
+ *  Authors -
+ *	Phillip Dykstra
+ *  
+ *  Source -
+ *	SECAD/VLD Computing Consortium, Bldg 394
+ *	The U. S. Army Ballistic Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005
+ *  
+ *  Copyright Notice -
+ *	This software is Copyright (C) 1985 by the United States Army.
+ *	All rights reserved.
+ */
+#ifndef lint
+static char RCScook[] = "@@(#)$Header: /c/CVS/brlcad/rt/sh_cook.c,v 11.9 1998/06/30 22:54:17 mike Exp mike $ (BRL)";
+#endif
+
+#include "conf.h"
+
+#include <stdio.h>
+#include <math.h>
+#include "machine.h"
+#include "vmath.h"
+#include "mater.h"
+#include "raytrace.h"
+#include "./rdebug.h"
+#include "./material.h"
+#include "./mathtab.h"
+#include "./light.h"
+
+/* from view.c */
+extern double AmbientIntensity;
+
+/* Local information */
+struct cook_specific {
+	double	m;		/* rms slope - should be a vector of these XXX*/
+	int	shine;		/* temporary */
+	double	wgt_specular;
+	double	wgt_diffuse;
+	double	transmit;	/* Moss "transparency" */
+	double	reflect;	/* Moss "transmission" */
+	double	refrac_index;
+	double	extinction;
+	double	m2;		/* m^2 - plus check for near zero */
+	double	n[3];		/* "effective" RGB refract index */
+	double	rd[3];		/* Diffuse reflection coefficient */
+};
+#define CK_NULL	((struct cook_specific *)0)
+#define CL_O(m)	offsetof(struct cook_specific, m)
+
+struct bu_structparse cook_parse[] = {
+	{"%f", 1, "m",		CL_O(m),		FUNC_NULL },
+	{"%f", 1, "specular",	CL_O(wgt_specular),	FUNC_NULL },
+	{"%f", 1, "sp",		CL_O(wgt_specular),	FUNC_NULL },
+	{"%f", 1, "diffuse",	CL_O(wgt_diffuse),	FUNC_NULL },
+	{"%f", 1, "di",		CL_O(wgt_diffuse),	FUNC_NULL },
+	{"%f", 1, "transmit",	CL_O(transmit),		FUNC_NULL },
+	{"%f", 1, "tr",		CL_O(transmit),		FUNC_NULL },
+	{"%f", 1, "reflect",	CL_O(reflect),		FUNC_NULL },
+	{"%f", 1, "re",		CL_O(reflect),		FUNC_NULL },
+	{"%f", 1, "ri",		CL_O(refrac_index),	FUNC_NULL },
+	{"%f", 1, "extinction",	CL_O(extinction),	FUNC_NULL },
+	{"%f", 1, "ex",		CL_O(extinction),	FUNC_NULL },
+	{"",   0, (char *)0,	0,			FUNC_NULL }
+};
+
+HIDDEN int	cook_setup(), cmirror_setup(), cglass_setup();
+HIDDEN int	cook_render();
+HIDDEN void	cook_print();
+HIDDEN void	cook_free();
+HIDDEN double	fresnel();
+HIDDEN double	beckmann();
+
+struct mfuncs cook_mfuncs[] = {
+	{MF_MAGIC,	"cook",		0,		MFI_NORMAL|MFI_LIGHT,	0,
+	cook_setup,	cook_render,	cook_print,	cook_free },
+
+	{MF_MAGIC,	"cmirror",	0,		MFI_NORMAL|MFI_LIGHT,	0,
+	cmirror_setup,	cook_render,	cook_print,	cook_free },
+
+	{MF_MAGIC,	"cglass",	0,		MFI_NORMAL|MFI_LIGHT,	0,
+	cglass_setup,	cook_render,	cook_print,	cook_free },
+
+	{0,		(char *)0,	0,		0,	0,
+	0,		0,		0,		0 }
+};
+
+#define RI_AIR		1.0    /* Refractive index of air.		*/
+
+/*
+ *			C O O K _ S E T U P
+ *
+ *  Note:  I can see two ways to set this up.  One is for a (nearly)
+ *   colorless object with a given index(s) of refraction.  Compute
+ *   the reflect/transmit etc. from that.  The other is for a colored
+ *   object where we compute an "effective" set of n's and work from
+ *   there.
+ */
+HIDDEN int
+cook_setup( rp, matparm, dpp, mfp, rtip )
+register struct region *rp;
+struct rt_vls	*matparm;
+char	**dpp;
+struct mfuncs	*mfp;
+struct rt_i	*rtip;
+{
+	register struct cook_specific *pp;
+
+	RT_VLS_CHECK( matparm );
+	GETSTRUCT( pp, cook_specific );
+	*dpp = (char *)pp;
+
+	pp->m = 0.2;
+	pp->shine = 10;
+	pp->wgt_specular = 0.7;
+	pp->wgt_diffuse = 0.3;
+	pp->transmit = 0.0;
+	pp->reflect = 0.0;
+	pp->refrac_index = RI_AIR;
+	pp->extinction = 0.0;
+
+	/* XXX - scale only if >= 1.0 !? */
+	pp->n[0] = (1.0 + sqrt(rp->reg_mater.ma_color[0]*.99))
+		   / (1.0 - sqrt(rp->reg_mater.ma_color[0]*.99));
+	pp->n[1] = (1.0 + sqrt(rp->reg_mater.ma_color[1]*.99))
+		   / (1.0 - sqrt(rp->reg_mater.ma_color[1]*.99));
+	pp->n[2] = (1.0 + sqrt(rp->reg_mater.ma_color[2]*.99))
+		   / (1.0 - sqrt(rp->reg_mater.ma_color[2]*.99));
+	pp->rd[0] = fresnel( 0.0, pp->n[0] ) / rt_pi;
+	pp->rd[1] = fresnel( 0.0, pp->n[1] ) / rt_pi;
+	pp->rd[2] = fresnel( 0.0, pp->n[2] ) / rt_pi;
+
+	if( bu_struct_parse( matparm, cook_parse, (char *)pp ) < 0 )  {
+		rt_free( (char *)pp, "cook_specific" );
+		return(-1);
+	}
+
+	pp->m2 = ( pp->m < 0.001 ) ? 0.0001 : pp->m * pp->m;
+	if( pp->transmit > 0 )
+		rp->reg_transmit = 1;
+	return(1);
+}
+
+/*
+ *			M I R R O R _ S E T U P
+ */
+HIDDEN int
+cmirror_setup( rp, matparm, dpp, mfp, rtip )
+register struct region *rp;
+struct rt_vls	*matparm;
+char	**dpp;
+struct mfuncs           *mfp;
+struct rt_i             *rtip;  /* New since 4.4 release */
+{
+	register struct cook_specific *pp;
+
+	RT_VLS_CHECK( matparm );
+	GETSTRUCT( pp, cook_specific );
+	*dpp = (char *)pp;
+
+	pp->m = 0.2;
+	pp->shine = 4;
+	pp->wgt_specular = 0.6;
+	pp->wgt_diffuse = 0.4;
+	pp->transmit = 0.0;
+	pp->reflect = 0.75;
+	pp->refrac_index = 1.65;
+	pp->extinction = 0.0;
+
+	pp->n[0] = (1.0 + sqrt(pp->reflect*.99))
+		   / (1.0 - sqrt(pp->reflect*.99));
+	pp->n[1] = pp->n[2] = pp->n[0];
+	pp->rd[0] = fresnel( 0.0, pp->n[0] ) / rt_pi;
+	pp->rd[1] = fresnel( 0.0, pp->n[1] ) / rt_pi;
+	pp->rd[2] = fresnel( 0.0, pp->n[2] ) / rt_pi;
+
+	if( bu_struct_parse( matparm, cook_parse, (char *)pp ) < 0 )
+		return(-1);
+
+	pp->m2 = ( pp->m < 0.001 ) ? 0.0001 : pp->m * pp->m;
+	if( pp->transmit > 0 )
+		rp->reg_transmit = 1;
+	return(1);
+}
+
+/*
+ *			G L A S S _ S E T U P
+ */
+HIDDEN int
+cglass_setup( rp, matparm, dpp, mfp, rtip )
+register struct region *rp;
+struct rt_vls	*matparm;
+char	**dpp;
+struct mfuncs           *mfp;
+struct rt_i             *rtip;  /* New since 4.4 release */
+{
+	register struct cook_specific *pp;
+
+	RT_VLS_CHECK( matparm );
+	GETSTRUCT( pp, cook_specific );
+	*dpp = (char *)pp;
+
+	pp->m = 0.2;
+	pp->shine = 4;
+	pp->wgt_specular = 0.7;
+	pp->wgt_diffuse = 0.3;
+	pp->transmit = 0.8;
+	pp->reflect = 0.1;
+	/* leaving 0.1 for diffuse/specular */
+	pp->refrac_index = 1.65;
+	pp->extinction = 0.0;
+
+	pp->n[0] = pp->refrac_index;
+	pp->n[1] = pp->n[2] = pp->n[0];
+	pp->rd[0] = fresnel( 0.0, pp->n[0] ) / rt_pi;
+	pp->rd[1] = fresnel( 0.0, pp->n[1] ) / rt_pi;
+	pp->rd[2] = fresnel( 0.0, pp->n[2] ) / rt_pi;
+
+	if( bu_struct_parse( matparm, cook_parse, (char *)pp ) < 0 )
+		return(-1);
+
+	pp->m2 = ( pp->m < 0.001 ) ? 0.0001 : pp->m * pp->m;
+	if( pp->transmit > 0 )
+		rp->reg_transmit = 1;
+	return(1);
+}
+
+/*
+ *			C O O K _ P R I N T
+ */
+HIDDEN void
+cook_print( rp, dp )
+register struct region *rp;
+char	*dp;
+{
+	bu_struct_print(rp->reg_name, cook_parse, (char *)dp);
+}
+
+/*
+ *			C O O K _ F R E E
+ */
+HIDDEN void
+cook_free( cp )
+char *cp;
+{
+	rt_free( cp, "cook_specific" );
+}
+
+
+/*
+ *			C O O K _ R E N D E R
+ *
+ *  El = Il (N.L) dw	Energy from a light (w is solid angle)
+ *
+ *  I = Sum (r * El)
+ *
+ *  where, r = kd * rd + ks * rs	(kd + ks = 1, r = Rbd)
+ *
+ *  rs = F/Pi * [DG/((N.L)(N.S))]
+ *  rd = normal reflectance = F(0)/Pi if rough (Lambertian)
+ *       This is "a good approx for theta < ~70 degress."
+ */
+HIDDEN int
+cook_render( ap, pp, swp, dp )
+register struct application *ap;
+struct partition	*pp;
+struct shadework	*swp;
+char	*dp;
+{
+	register struct light_specific *lp;
+	register fastf_t *intensity, *to_light;
+	register int	i;
+	register fastf_t cosine;
+	register fastf_t refl;
+	vect_t	work;
+	vect_t	cprod;			/* color product */
+	vect_t	h;
+	point_t	matcolor;		/* Material color */
+	struct cook_specific *ps =
+		(struct cook_specific *)dp;
+	fastf_t	f, a;
+	fastf_t	n_dot_e, n_dot_l, n_dot_h, e_dot_h;
+	fastf_t	rd, G, D;
+	vect_t	Fv;
+
+	/* XXX - Reflection coefficients - hack until RR_ is changed */
+	f = ps->transmit + ps->reflect;
+	if( f < 0 ) f = 0;
+	if( f > 1.0 ) f = 1.0;
+	/*swp->sw_reflect = ps->reflect;*/
+	cosine = -VDOT( swp->sw_hit.hit_normal, ap->a_ray.r_dir );
+	swp->sw_reflect = fresnel( cosine, ps->refrac_index );
+	/*swp->sw_transmit = ps->transmit;*/
+	swp->sw_transmit = f - swp->sw_reflect;
+
+	swp->sw_refrac_index = ps->refrac_index;
+	swp->sw_extinction = ps->extinction;
+	if( swp->sw_xmitonly )
+	{
+		if( swp->sw_reflect > 0 || swp->sw_transmit > 0 )
+			(void)rr_render( ap, pp, swp );
+		return(1);	/* done */
+	}
+
+	VMOVE( matcolor, swp->sw_color );
+
+	/* ambient component */
+	VSCALE( swp->sw_color, matcolor, AmbientIntensity );
+
+	n_dot_e = -VDOT( swp->sw_hit.hit_normal, ap->a_ray.r_dir );
+	if( n_dot_e < 0 ) {
+		/* Yow, we can't see this point, how did we hit it? */
+		rt_log( "cook: N.E < 0\n" );
+	}
+
+	/* Consider effects of each light source */
+	for( i=ap->a_rt_i->rti_nlights-1; i >= 0; i-- )  {
+
+		if( (lp = (struct light_specific *)swp->sw_visible[i]) == LIGHT_NULL )
+			continue;	/* shadowed */
+	
+		/* Light is not shadowed -- add this contribution */
+		intensity = swp->sw_intensity+3*i;
+		to_light = swp->sw_tolight+3*i;
+
+		n_dot_l = VDOT( swp->sw_hit.hit_normal, to_light );
+		if( n_dot_l < 0 ) {
+			/* light through back */
+			/*VSET( swp->sw_color, 0, 1, 0 );*/
+			continue;
+		}
+
+		/* Find H, the bisector of L and E */
+		VSUB2( h, to_light, ap->a_ray.r_dir );
+		VUNITIZE( h );	/* XXX - warning - L opposite of E */
+
+		n_dot_h = VDOT( swp->sw_hit.hit_normal, h );
+		a = acos( n_dot_h );		/*XXXXXX*/
+		D = beckmann( a, ps->m2 );	/*XXX Sum k[i]*beck(a,m[i]) */
+		e_dot_h = -VDOT( ap->a_ray.r_dir, h );
+#if 0
+		F = fresnel( e_dot_h, ps->n[0] );
+#endif
+		Fv[0] = fresnel( e_dot_h, ps->n[0] );
+		Fv[1] = fresnel( e_dot_h, ps->n[1] );
+		Fv[2] = fresnel( e_dot_h, ps->n[2] );
+		G = 1.0;			/*XXXXXX*/
+
+#if 0
+		rs = F * G * D / n_dot_e;
+#endif
+		rd = n_dot_l;			/*XXX ? */
+
+		/* diffuse */
+		refl = rd * ps->wgt_diffuse * lp->lt_fraction;
+		VELMUL( work, lp->lt_color, intensity );
+		VELMUL( cprod, matcolor, work );
+		VJOIN1( swp->sw_color, swp->sw_color, refl, cprod );
+
+#ifdef NOCOLORCHANGE
+		/* specular */
+		refl = rs * ps->wgt_specular * lp->lt_fraction;
+/*XXX		VELMUL( work, lp->lt_color, intensity );*/
+		VJOIN1( swp->sw_color, swp->sw_color, refl, work );
+#else
+		refl = G*D/n_dot_e * ps->wgt_specular * lp->lt_fraction;
+		VSCALE( Fv, Fv, refl );
+		VELMUL( work, work, Fv );
+		VADD2( swp->sw_color, swp->sw_color, work );
+#endif
+	}
+	if( swp->sw_reflect > 0 || swp->sw_transmit > 0 )
+		(void)rr_render( ap, pp, swp );
+
+	return(1);
+}
+
+HIDDEN double
+fresnel( c, n )
+double	c;	/* cos(theta) = V dot H */
+double	n;	/* index of refraction */
+{
+	double	g, gpc, gmc, t1, t2, f;
+
+	if( n < 1.0 ) {
+		fprintf( stderr, "fresnel: can't handle n < 1.0\n" );
+		return( 0.0 );
+	}
+	/* avoid divide by zero.  limit -> 1.0 as theta -> pi/2 */
+	if( c < 1.0e-10 )
+		return( 1.0 );
+
+	g = sqrt( n*n + c*c - 1.0 );
+	gmc = g - c;
+	gpc = g + c;
+	t1 = c * gpc - 1.0;
+	t2 = c * gmc + 1.0;
+	f = 0.5 * (gmc*gmc) / (gpc*gpc) * (1.0 + (t1*t1) / (t2*t2));
+
+	return( f );
+}
+double cos4(a)
+double a;
+{
+	double	c;
+
+	c = cos(a);
+	return( c*c*c*c );
+}
+double tan2(a)
+double a;
+{
+	double	t;
+
+	t = tan(a);
+	return( t*t );
+}
+/*
+ *  The Beckmann Distribution
+ *
+ *              1        - tan^2(a)/m^2
+ *   D = -------------- e
+ *       m^2 * cos^4(a)
+ *
+ *  where m = rms slope of microfacets
+ *        a = angle between N and H.
+ *
+ *  Here we are leaving it normalized 0 to 1 by not dividing by m^2.
+ */
+HIDDEN double
+beckmann( a, m2 )
+double	a;		/* angle between N and H */
+double	m2;		/* rms slope squared (m^2) */
+{
+	double	t1, t2;
+
+	t1 = cos4(a);		/* note: no m^2 term */
+	if( t1 < 1.0e-20 )	/* avoid divide by zero */
+		return( 0.0 );
+
+	t2 = exp( -tan2(a)/m2 );
+
+	return( t2/t1 );
+}
+@
+
+
+11.9
+log
+@Can't make "struct mfuncs" a CONST, because the forward link needs
+to be filled in at runtime, and some compilers put CONST data into
+read-only pages (like FreeBSD).
+@
+text
+@d21 1
+a21 1
+static char RCScook[] = "@@(#)$Header: /c/CVS/brlcad/rt/sh_cook.c,v 11.8 1997/12/31 09:01:40 mike Exp $ (BRL)";
+@
+
+
+11.8
+log
+@Required magic number to be first in mfunc table,
+consistent with all other BRL-CAD magic numbers.
+Required magic number to be initialized at compile time.
+Added code to check the magic numbers.
+Made the xxx_mfunc arrays CONST, so they can't get trashed by
+runtime runaway pointer problems.
+@
+text
+@d21 1
+a21 1
+static char RCScook[] = "@@(#)$Header: /m/cad/rt/RCS/sh_cook.c,v 11.7 1997/11/25 22:16:43 butler Exp mike $ (BRL)";
+d80 1
+a80 1
+CONST struct mfuncs cook_mfuncs[] = {
+@
+
+
+11.7
+log
+@updated all shaders so that _setup had mfp and rtip parameters
+@
+text
+@d21 1
+a21 1
+static char RCScook[] = "@@(#)$Header: /m/cad/rt/RCS/sh_cook.c,v 11.6 1996/08/31 08:46:01 butler Exp butler $ (BRL)";
+d80 2
+a81 2
+struct mfuncs cook_mfuncs[] = {
+	{"cook",		0,		0,		MFI_NORMAL|MFI_LIGHT,	0,
+d84 1
+a84 1
+	{"cmirror",	0,		0,		MFI_NORMAL|MFI_LIGHT,	0,
+d87 1
+a87 1
+	{"cglass",	0,		0,		MFI_NORMAL|MFI_LIGHT,	0,
+d90 1
+a90 1
+	{(char *)0,	0,		0,		0,	0,
+@
+
+
+11.6
+log
+@bu_struct_print
+@
+text
+@d21 1
+a21 1
+static char RCScook[] = "@@(#)$Header: /m/cad/rt/RCS/sh_cook.c,v 11.5 1996/08/31 08:29:28 butler Exp butler $ (BRL)";
+d106 1
+a106 1
+cook_setup( rp, matparm, dpp )
+d110 2
+d154 1
+a154 1
+cmirror_setup( rp, matparm, dpp )
+d158 2
+d196 1
+a196 1
+cglass_setup( rp, matparm, dpp )
+d200 2
+@
+
+
+11.5
+log
+@bu_struct_parse
+@
+text
+@d21 1
+a21 1
+static char RCScook[] = "@@(#)$Header: /m/cad/rt/RCS/sh_cook.c,v 11.4 1996/08/30 00:08:21 butler Exp butler $ (BRL)";
+d236 1
+a236 1
+	bu_structprint(rp->reg_name, cook_parse, (char *)dp);
+@
+
+
+11.4
+log
+@structparse moved to libbu
+@
+text
+@d21 1
+a21 1
+static char RCScook[] = "@@(#)$Header: /m/cad/rt/RCS/sh_cook.c,v 11.3 1996/05/07 19:26:36 jra Exp butler $ (BRL)";
+d137 1
+a137 1
+	if( bu_structparse( matparm, cook_parse, (char *)pp ) < 0 )  {
+d179 1
+a179 1
+	if( bu_structparse( matparm, cook_parse, (char *)pp ) < 0 )
+d219 1
+a219 1
+	if( bu_structparse( matparm, cook_parse, (char *)pp ) < 0 )
+@
+
+
+11.3
+log
+@Individual shaders now call rr_render() directly.
+@
+text
+@d21 1
+a21 1
+static char RCScook[] = "@@(#)$Header: /m/cad/rt/RCS/sh_cook.c,v 11.2 1995/10/20 04:43:53 butler Exp jra $ (BRL)";
+d57 1
+a57 1
+struct structparse cook_parse[] = {
+d137 1
+a137 1
+	if( rt_structparse( matparm, cook_parse, (char *)pp ) < 0 )  {
+d179 1
+a179 1
+	if( rt_structparse( matparm, cook_parse, (char *)pp ) < 0 )
+d219 1
+a219 1
+	if( rt_structparse( matparm, cook_parse, (char *)pp ) < 0 )
+d236 1
+a236 1
+	rt_structprint(rp->reg_name, cook_parse, (char *)dp);
+@
+
+
+11.2
+log
+@edited mfuncs table to account for new "mf_flags" element in struct mfuncs.
+@
+text
+@d21 1
+a21 1
+static char RCScook[] = "@@(#)$Header: /m/cad/rt/RCS/sh_cook.c,v 11.1 1995/01/04 10:01:04 mike Rel4_4 butler $ (BRL)";
+d298 6
+a303 1
+	if( swp->sw_xmitonly )  return(1);	/* done */
+d372 3
+@
+
+
+11.1
+log
+@Release_4.4
+@
+text
+@d21 1
+a21 1
+static char RCScook[] = "@@(#)$Header: /m/cad/rt/RCS/sh_cook.c,v 10.3 94/11/05 02:55:23 mike Exp $ (BRL)";
+d81 1
+a81 1
+	{"cook",		0,		0,		MFI_NORMAL|MFI_LIGHT,
+d84 1
+a84 1
+	{"cmirror",	0,		0,		MFI_NORMAL|MFI_LIGHT,
+d87 1
+a87 1
+	{"cglass",	0,		0,		MFI_NORMAL|MFI_LIGHT,
+d90 1
+a90 1
+	{(char *)0,	0,		0,		0,
+@
+
+
+10.3
+log
+@Irix 6
+@
+text
+@d21 1
+a21 1
+static char RCScook[] = "@@(#)$Header: /m/cad/rt/RCS/sh_cook.c,v 10.2 94/08/11 02:21:11 gdurf Exp Locker: mike $ (BRL)";
+@
+
+
+10.2
+log
+@Added include of conf.h
+@
+text
+@d21 1
+a21 1
+static char RCScook[] = "@@(#)$Header: /m/cad/rt/RCS/sh_cook.c,v 10.1 1991/10/12 06:42:07 mike Rel4_0 gdurf $ (BRL)";
+a275 1
+	vect_t	reflected;
+d283 2
+a284 2
+	fastf_t	rs, rd, F, G, D;
+vect_t	Fv;
+d336 1
+d338 4
+a341 3
+	Fv[0] = fresnel( e_dot_h, ps->n[0] );
+	Fv[1] = fresnel( e_dot_h, ps->n[1] );
+	Fv[2] = fresnel( e_dot_h, ps->n[2] );
+d344 1
+d346 1
+@
+
+
+10.1
+log
+@Release_4.0
+@
+text
+@d21 1
+a21 1
+static char RCScook[] = "@@(#)$Header: /m/cad/rt/RCS/sh_cook.c,v 9.6 91/07/06 00:35:18 mike Exp $ (BRL)";
+d23 2
+@
+
+
+9.6
+log
+@ANSI structure initialization
+@
+text
+@d21 1
+a21 1
+static char RCScook[] = "@@(#)$Header: /m/cad/rt/RCS/sh_cook.c,v 9.5 91/02/17 20:15:52 mike Exp $ (BRL)";
+@
+
+
+9.5
+log
+@Check return code from rt_structparse()
+@
+text
+@d21 1
+a21 1
+static char RCScook[] = "@@(#)$Header: /m/cad/rt/RCS/sh_cook.c,v 9.4 91/01/05 03:09:10 mike Exp $ (BRL)";
+d56 13
+a68 13
+	"%f", 1, "m",		CL_O(m),		FUNC_NULL,
+	"%f", 1, "specular",	CL_O(wgt_specular),	FUNC_NULL,
+	"%f", 1, "sp",		CL_O(wgt_specular),	FUNC_NULL,
+	"%f", 1, "diffuse",	CL_O(wgt_diffuse),	FUNC_NULL,
+	"%f", 1, "di",		CL_O(wgt_diffuse),	FUNC_NULL,
+	"%f", 1, "transmit",	CL_O(transmit),		FUNC_NULL,
+	"%f", 1, "tr",		CL_O(transmit),		FUNC_NULL,
+	"%f", 1, "reflect",	CL_O(reflect),		FUNC_NULL,
+	"%f", 1, "re",		CL_O(reflect),		FUNC_NULL,
+	"%f", 1, "ri",		CL_O(refrac_index),	FUNC_NULL,
+	"%f", 1, "extinction",	CL_O(extinction),	FUNC_NULL,
+	"%f", 1, "ex",		CL_O(extinction),	FUNC_NULL,
+	"",   0, (char *)0,	0,			FUNC_NULL
+d79 2
+a80 2
+	"cook",		0,		0,		MFI_NORMAL|MFI_LIGHT,
+	cook_setup,	cook_render,	cook_print,	cook_free,
+d82 2
+a83 2
+	"cmirror",	0,		0,		MFI_NORMAL|MFI_LIGHT,
+	cmirror_setup,	cook_render,	cook_print,	cook_free,
+d85 2
+a86 2
+	"cglass",	0,		0,		MFI_NORMAL|MFI_LIGHT,
+	cglass_setup,	cook_render,	cook_print,	cook_free,
+d88 2
+a89 2
+	(char *)0,	0,		0,		0,
+	0,		0,		0,		0
+@
+
+
+9.4
+log
+@Converted to new format for fmt entry in structparse
+@
+text
+@d21 1
+a21 1
+static char RCScook[] = "@@(#)$Header: /m/cad/rt/RCS/sh_cook.c,v 9.3 90/12/12 16:35:03 butler Exp $ (BRL)";
+d135 4
+a138 1
+	rt_structparse( matparm, cook_parse, (char *)pp );
+d177 2
+a178 1
+	rt_structparse( matparm, cook_parse, (char *)pp );
+d217 2
+a218 1
+	rt_structparse( matparm, cook_parse, (char *)pp );
+@
+
+
+9.3
+log
+@modified to reflect changes in structparse format
+@
+text
+@d21 1
+a21 1
+static char RCScook[] = "@@(#)$Header: /m/cad/rt/RCS/sh_cook.c,v 9.2 90/12/08 08:58:06 butler Exp $ (BRL)";
+d68 1
+a68 1
+	(char *)0, 0, (char *)0, 0,			FUNC_NULL
+@
+
+
+9.2
+log
+@changed material property parameter to be struct rt_vls
+@
+text
+@d21 1
+a21 1
+static char RCScook[] = "@@(#)$Header: /m/cad/rt/RCS/sh_cook.c,v 9.1 89/05/19 05:59:31 mike Rel3_5 $ (BRL)";
+d56 13
+a68 13
+	"%f", "m",		CL_O(m),		FUNC_NULL,
+	"%f", "specular",	CL_O(wgt_specular),	FUNC_NULL,
+	"%f", "sp",		CL_O(wgt_specular),	FUNC_NULL,
+	"%f", "diffuse",	CL_O(wgt_diffuse),	FUNC_NULL,
+	"%f", "di",		CL_O(wgt_diffuse),	FUNC_NULL,
+	"%f", "transmit",	CL_O(transmit),		FUNC_NULL,
+	"%f", "tr",		CL_O(transmit),		FUNC_NULL,
+	"%f", "reflect",	CL_O(reflect),		FUNC_NULL,
+	"%f", "re",		CL_O(reflect),		FUNC_NULL,
+	"%f", "ri",		CL_O(refrac_index),	FUNC_NULL,
+	"%f", "extinction",	CL_O(extinction),	FUNC_NULL,
+	"%f", "ex",		CL_O(extinction),	FUNC_NULL,
+	(char *)0,(char *)0,	0,			FUNC_NULL
+@
+
+
+9.1
+log
+@Release_3.5
+@
+text
+@d21 1
+a21 1
+static char RCScook[] = "@@(#)$Header: sh_cook.c,v 8.4 89/04/27 22:23:17 phil Exp $ (BRL)";
+d106 1
+a106 1
+char	*matparm;
+d111 1
+d149 1
+a149 1
+char	*matparm;
+d154 1
+d188 1
+a188 1
+char	*matparm;
+d193 1
+@
+
+
+8.4
+log
+@Now use rt_pi, rt_twopi, rt_halfpi from librt
+@
+text
+@d21 1
+a21 1
+static char RCScook[] = "@@(#)$Header: sh_cook.c,v 8.3 89/04/04 05:01:52 phil Locked $ (BRL)";
+@
+
+
+8.3
+log
+@Converted to new way of representing structure offsets.
+@
+text
+@d21 1
+a21 1
+static char RCScook[] = "@@(#)$Header: cook.c,v 8.2 88/12/27 16:34:03 mike Locked $ (BRL)";
+a37 3
+/* from mathtab.c */
+extern double pi;
+
+d130 3
+a132 3
+	pp->rd[0] = fresnel( 0.0, pp->n[0] ) / pi;
+	pp->rd[1] = fresnel( 0.0, pp->n[1] ) / pi;
+	pp->rd[2] = fresnel( 0.0, pp->n[2] ) / pi;
+d168 3
+a170 3
+	pp->rd[0] = fresnel( 0.0, pp->n[0] ) / pi;
+	pp->rd[1] = fresnel( 0.0, pp->n[1] ) / pi;
+	pp->rd[2] = fresnel( 0.0, pp->n[2] ) / pi;
+d206 3
+a208 3
+	pp->rd[0] = fresnel( 0.0, pp->n[0] ) / pi;
+	pp->rd[1] = fresnel( 0.0, pp->n[1] ) / pi;
+	pp->rd[2] = fresnel( 0.0, pp->n[2] ) / pi;
+@
+
+
+8.2
+log
+@Converted matparse --> structparse
+@
+text
+@d21 1
+a21 1
+static char RCScook[] = "@@(#)$Header: cook.c,v 8.1 88/10/05 00:32:39 mike Locked $ (BRL)";
+d56 1
+d59 13
+a71 13
+	"%f", "m",		(stroff_t)&(CK_NULL->m),		FUNC_NULL,
+	"%f", "specular",	(stroff_t)&(CK_NULL->wgt_specular),	FUNC_NULL,
+	"%f", "sp",		(stroff_t)&(CK_NULL->wgt_specular),	FUNC_NULL,
+	"%f", "diffuse",	(stroff_t)&(CK_NULL->wgt_diffuse),	FUNC_NULL,
+	"%f", "di",		(stroff_t)&(CK_NULL->wgt_diffuse),	FUNC_NULL,
+	"%f", "transmit",	(stroff_t)&(CK_NULL->transmit),		FUNC_NULL,
+	"%f", "tr",		(stroff_t)&(CK_NULL->transmit),		FUNC_NULL,
+	"%f", "reflect",	(stroff_t)&(CK_NULL->reflect),		FUNC_NULL,
+	"%f", "re",		(stroff_t)&(CK_NULL->reflect),		FUNC_NULL,
+	"%f", "ri",		(stroff_t)&(CK_NULL->refrac_index),	FUNC_NULL,
+	"%f", "extinction",	(stroff_t)&(CK_NULL->extinction),	FUNC_NULL,
+	"%f", "ex",		(stroff_t)&(CK_NULL->extinction),	FUNC_NULL,
+	(char *)0,(char *)0,	(stroff_t)0,				FUNC_NULL
+d137 1
+a137 1
+	rt_structparse( matparm, cook_parse, (stroff_t)pp );
+d175 1
+a175 1
+	rt_structparse( matparm, cook_parse, (stroff_t)pp );
+d213 1
+a213 1
+	rt_structparse( matparm, cook_parse, (stroff_t)pp );
+d229 1
+a229 1
+	rt_structprint(rp->reg_name, cook_parse, (stroff_t)dp);
+@
+
+
+8.1
+log
+@Release_3.0
+@
+text
+@d21 1
+a21 1
+static char RCScook[] = "@@(#)$Header: cook.c,v 1.4 88/05/14 02:28:07 mike Exp $ (BRL)";
+d57 14
+a70 14
+struct matparse cook_parse[] = {
+	"m",		(mp_off_ty)&(CK_NULL->m),		"%f",
+	"specular",	(mp_off_ty)&(CK_NULL->wgt_specular),	"%f",
+	"sp",		(mp_off_ty)&(CK_NULL->wgt_specular),	"%f",
+	"diffuse",	(mp_off_ty)&(CK_NULL->wgt_diffuse),	"%f",
+	"di",		(mp_off_ty)&(CK_NULL->wgt_diffuse),	"%f",
+	"transmit",	(mp_off_ty)&(CK_NULL->transmit),	"%f",
+	"tr",		(mp_off_ty)&(CK_NULL->transmit),	"%f",
+	"reflect",	(mp_off_ty)&(CK_NULL->reflect),		"%f",
+	"re",		(mp_off_ty)&(CK_NULL->reflect),		"%f",
+	"ri",		(mp_off_ty)&(CK_NULL->refrac_index),	"%f",
+	"extinction",	(mp_off_ty)&(CK_NULL->extinction),	"%f",
+	"ex",		(mp_off_ty)&(CK_NULL->extinction),	"%f",
+	(char *)0,	(mp_off_ty)0,				(char *)0
+d73 2
+a74 2
+HIDDEN int cook_setup(), cmirror_setup(), cglass_setup();
+HIDDEN int cook_render();
+d77 2
+a78 2
+HIDDEN double fresnel();
+HIDDEN double beckmann();
+d136 1
+a136 1
+	mlib_parse( matparm, cook_parse, (mp_off_ty)pp );
+d174 1
+a174 1
+	mlib_parse( matparm, cook_parse, (mp_off_ty)pp );
+d212 1
+a212 1
+	mlib_parse( matparm, cook_parse, (mp_off_ty)pp );
+d228 1
+a228 1
+	mlib_print(rp->reg_name, cook_parse, (mp_off_ty)dp);
+@
+
+
+1.4
+log
+@lint fixes
+@
+text
+@d21 1
+a21 1
+static char RCScook[] = "@@(#)$Header: cook.c,v 1.3 88/03/19 02:32:59 mike Locked $ (BRL)";
+@
+
+
+1.3
+log
+@removed extern for ipow(
+@
+text
+@d21 1
+a21 1
+static char RCScook[] = "@@(#)$Header: cook.c,v 1.2 88/01/26 05:29:20 mike Locked $ (BRL)";
+d75 2
+a76 2
+HIDDEN int cook_print();
+HIDDEN int cook_free();
+d223 1
+a223 1
+HIDDEN int
+d234 1
+a234 1
+HIDDEN int
+@
+
+
+1.2
+log
+@extinction coeff, tolight vectors
+@
+text
+@d21 1
+a21 1
+static char RCScook[] = "@@(#)$Header: cook.c,v 1.1 88/01/22 21:15:16 phil Exp $ (BRL)";
+a92 2
+
+extern double ipow();
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d21 1
+a21 1
+static char RCScook[] = "@@(#)$Header: plastic.c,v 7.1 87/11/02 23:54:18 mike Rel $ (BRL)";
+d50 1
+d68 2
+d125 1
+d167 1
+d206 1
+d265 1
+a265 1
+	register fastf_t *intensity;
+a270 1
+	vect_t	to_light;
+d292 1
+d314 1
+a314 4
+
+		/* XXX - perhaps to_light vectors should be given? */
+		VSUB2( to_light, lp->lt_pos, swp->sw_hit.hit_point );
+		VUNITIZE( to_light );
+@

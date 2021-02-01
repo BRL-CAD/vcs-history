@@ -1,0 +1,530 @@
+head	14.8;
+access;
+symbols
+	rel-7-10-4:14.7
+	STABLE:14.7.0.2
+	rel-7-10-2:14.7
+	rel-7-10-0:14.7
+	rel-7-8-4:14.5
+	rel-7-8-2:14.5
+	rel-7-8-0:14.5
+	trimnurbs-branch:14.5.0.2
+	help:14.5
+	temp_tag:14.4
+	bobWinPort-20051223-freeze:14.3
+	postmerge-20051223-bobWinPort:14.4
+	premerge-20051223-bobWinPort:14.4
+	rel-7-6-6:14.4
+	rel-7-6-4:14.4
+	rel-7-6-2:14.3
+	rel-7-6-branch:14.3.0.6
+	rel-7-6-0:14.3
+	rel-7-4-2:14.3
+	rel-7-4-branch:14.3.0.4
+	bobWinPort:14.3.0.2
+	rel-7-4-0:14.3
+	rel-7-2-6:14.3
+	rel-7-2-4:14.3
+	rel-7-2-2:14.3
+	rel-7-2-0:14.3
+	rel-7-0-4:14.2
+	rel-7-0-2:14.2
+	rel-7-0-1:14.2
+	opensource-post:14.2
+	opensource-pre:1.3
+	rel-7-0-branch:1.3.0.2
+	rel-7-0:1.3;
+locks; strict;
+comment	@ * @;
+
+
+14.8
+date	2007.11.21.15.28.50;	author erikgreenwald;	state Exp;
+branches;
+next	14.7;
+
+14.7
+date	2007.01.23.01.13.57;	author brlcad;	state Exp;
+branches;
+next	14.6;
+
+14.6
+date	2007.01.20.14.37.07;	author brlcad;	state Exp;
+branches;
+next	14.5;
+
+14.5
+date	2006.01.18.06.46.28;	author brlcad;	state Exp;
+branches;
+next	14.4;
+
+14.4
+date	2005.10.23.04.44.39;	author brlcad;	state Exp;
+branches;
+next	14.3;
+
+14.3
+date	2005.01.30.20.31.34;	author brlcad;	state Exp;
+branches
+	14.3.6.1;
+next	14.2;
+
+14.2
+date	2004.12.21.03.45.41;	author butler;	state Exp;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.32;	author morrison;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2004.08.02.23.01.53;	author morrison;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2004.06.08.22.04.46;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.15.21.58;	author morrison;	state Exp;
+branches;
+next	;
+
+14.3.6.1
+date	2005.11.13.13.46.21;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.8
+log
+@change bu_bomb to bu_exit when the sky isn't really falling. Include stdlib for EXIT_FAILURE.
+@
+text
+@/*                      P N G _ I N F O . C
+ * BRL-CAD
+ *
+ * Copyright (c) 1998-2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@file png_info.c
+ *	Display info about a PNG (Portable Network Graphics) format file
+ *
+ *	Author -
+ *		John R. Anderson
+ *
+ *  Source -
+ *	The U. S. Army Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005-5068  USA
+ */
+#ifndef lint
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/png_info.c,v 14.7 2007/01/23 01:13:57 brlcad Exp $ (BRL)";
+#endif
+
+#include "common.h"
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <math.h>
+#include "png.h"
+#include "machine.h"
+#include "bu.h"
+#include "vmath.h"
+#include "bn.h"
+#include "zlib.h"
+
+static char *usage="Usage:\n\t%s png__file\n";
+
+int
+main(int argc, char **argv)
+{
+	int i;
+	FILE *fp_in = NULL;
+	png_structp png_p;
+	png_infop info_p;
+	char header[8];
+	int bit_depth;
+	int color_type;
+	png_color_16p input_backgrd;
+	double gamma;
+	int file_width, file_height;
+	png_int_32 xoff, yoff;
+	png_uint_32 xres, yres;
+	int unit_type;
+	int rgb_intent;
+	double white_x, white_y, red_x, red_y, green_x, green_y, blue_x, blue_y;
+	png_timep mod_time;
+	png_textp text;
+	int num_text;
+	unsigned char *image;
+	unsigned char **rows;
+
+	if( argc != 2 )
+	{
+		bu_log( usage, argv[0] );
+		bu_exit( EXIT_FAILURE, "Incorrect numer of arguments!!\n" );
+	} else {
+		if( (fp_in = fopen(argv[1], "rb")) == NULL )  {
+			perror(argv[1]);
+			bu_log(	"png_onfo: cannot open \"%s\" for reading\n",
+				argv[1] );
+			bu_exit( EXIT_FAILURE, "Cannot open input file\n" );
+		}
+	}
+
+	if( fread( header, 8, 1, fp_in ) != 1 )
+		bu_exit( EXIT_FAILURE, "ERROR: Failed while reading file header!!!\n" );
+
+	if( !png_check_sig( (png_bytep)header, 8 ) )
+		bu_exit( EXIT_FAILURE, "This is not a PNG file!!!\n" );
+
+	png_p = png_create_read_struct( PNG_LIBPNG_VER_STRING, NULL, NULL, NULL );
+	if( !png_p )
+		bu_exit( EXIT_FAILURE, "png_create_read_struct() failed!!\n" );
+
+	info_p = png_create_info_struct( png_p );
+	if( !info_p )
+		bu_exit( EXIT_FAILURE, "png_create_info_struct() failed!!\n" );
+
+	png_init_io( png_p, fp_in );
+
+	png_set_sig_bytes( png_p, 8 );
+
+	png_read_info( png_p, info_p );
+
+	color_type = png_get_color_type( png_p, info_p );
+
+	bit_depth = png_get_bit_depth( png_p, info_p );
+
+	switch (color_type)
+	{
+		case PNG_COLOR_TYPE_GRAY:
+			bu_log( "color type: b/w (bit depth=%d)\n", bit_depth );
+			break;
+		case PNG_COLOR_TYPE_GRAY_ALPHA:
+			bu_log( "color type: b/w with alpha channel (bit depth=%d)\n", bit_depth );
+			break;
+		case PNG_COLOR_TYPE_PALETTE:
+			bu_log( "color type: color palette (bit depth=%d)\n", bit_depth );
+			break;
+		case PNG_COLOR_TYPE_RGB:
+			bu_log( "color type: RGB (bit depth=%d)\n", bit_depth );
+			break;
+		case PNG_COLOR_TYPE_RGB_ALPHA:
+			bu_log( "color type: RGB with alpha channel (bit depth=%d)\n", bit_depth );
+			break;
+		default:
+			bu_log( "Unrecognized color type (bit depth=%d)\n", bit_depth );
+			break;
+	}
+
+	file_width = png_get_image_width( png_p, info_p );
+	file_height = png_get_image_height( png_p, info_p );
+
+	bu_log( "Image size: %d X %d\n", file_width, file_height );
+
+	/* allocate memory for image */
+	image = (unsigned char *)bu_calloc( 1, file_width*file_height*3, "image" );
+
+	/* create rows array */
+	rows = (unsigned char **)bu_calloc( file_height, sizeof( unsigned char *), "rows" );
+	for( i=0 ; i<file_height ; i++ )
+		rows[file_height-1-i] = image+(i*file_width*3);
+
+	png_read_image( png_p, rows );
+
+	if( png_get_oFFs( png_p, info_p, &xoff, &yoff, &unit_type ) )
+	{
+		if( unit_type == PNG_OFFSET_PIXEL )
+			bu_log( "X Offset: %d pixels\nY Offset: %d pixels\n", xoff, yoff );
+		else if( unit_type == PNG_OFFSET_MICROMETER )
+			bu_log( "X Offset: %d um\nY Offset: %d um\n", xoff, yoff );
+	}
+
+	if( png_get_pHYs( png_p, info_p, &xres, &yres, &unit_type ) )
+	{
+		if( unit_type == PNG_RESOLUTION_UNKNOWN )
+			bu_log( "Aspect ratio: %g (width/height)\n", (double)xres/(double)yres );
+		else if( unit_type == PNG_RESOLUTION_METER )
+			bu_log( "pixel density:\n\t%d pixels/m hroizontal\n\t%d pixels/m vertical\n",
+					xres, yres );
+	}
+
+	if( png_get_interlace_type( png_p, info_p ) == PNG_INTERLACE_NONE )
+		bu_log( "not interlaced\n" );
+	else
+		bu_log( "interlaced\n" );
+
+	if( color_type == PNG_COLOR_TYPE_GRAY_ALPHA ||
+			color_type == PNG_COLOR_TYPE_RGB_ALPHA )
+		if( png_get_bKGD( png_p, info_p, &input_backgrd ) )
+			bu_log( "background color: %d %d %d\n", input_backgrd->red, input_backgrd->green, input_backgrd->blue );
+
+	if( png_get_sRGB( png_p, info_p, &rgb_intent ) )
+	{
+		bu_log( "rendering intent: " );
+		switch( rgb_intent )
+		{
+			case PNG_sRGB_INTENT_SATURATION:
+				bu_log( "saturation\n" );
+				break;
+			case PNG_sRGB_INTENT_PERCEPTUAL:
+				bu_log( "perceptual\n" );
+				break;
+			case PNG_sRGB_INTENT_ABSOLUTE:
+				bu_log( "absolute\n" );
+				break;
+			case PNG_sRGB_INTENT_RELATIVE:
+				bu_log( "relative\n" );
+				break;
+		}
+	}
+
+	if( png_get_gAMA( png_p, info_p, &gamma ) )
+		bu_log( "gamma: %g\n", gamma );
+
+#if defined(PNG_READ_cHRM_SUPPORTED)
+	if( png_get_cHRM( png_p, info_p, &white_x, &white_y, &red_x, &red_y, &green_x, &green_y, &blue_x, &blue_y ) )
+	{
+		bu_log( "Chromaticity:\n" );
+		bu_log( "\twhite point\t(%g %g )\n\tred\t(%g %g)\n\tgreen\t(%g %g)\n\tblue\t(%g %g)\n",
+			white_x, white_y, red_x, red_y, green_x, green_y, blue_x, blue_y );
+	}
+#endif
+
+	if( png_get_text( png_p, info_p, &text, &num_text ) )
+		for( i=0 ; i<num_text ; i++ )
+			bu_log( "%s: %s\n", text[i].key, text[i].text );
+
+	if( png_get_tIME( png_p, info_p, &mod_time ) )
+		bu_log( "Last modified: %d/%d/%d %d:%d:%d\n", mod_time->month, mod_time->day,
+			mod_time->year, mod_time->hour, mod_time->minute, mod_time->second );
+	return 0;
+}
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+14.7
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@d31 1
+a31 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/png_info.c,v 14.6 2007/01/20 14:37:07 brlcad Exp $ (BRL)";
+d37 1
+d75 1
+a75 1
+		bu_bomb( "Incorrect numer of arguments!!\n" );
+d81 1
+a81 1
+			bu_bomb( "Cannot open input file\n" );
+d86 1
+a86 1
+		bu_bomb( "ERROR: Failed while reading file header!!!\n" );
+d89 1
+a89 1
+		bu_bomb( "This is not a PNG file!!!\n" );
+d93 1
+a93 1
+		bu_bomb( "png_create_read_struct() failed!!\n" );
+d97 1
+a97 1
+		bu_bomb( "png_create_info_struct() failed!!\n" );
+@
+
+
+14.6
+log
+@update copyright to 2007
+@
+text
+@d8 2
+a9 3
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+d14 1
+a14 1
+ * General Public License for more details.
+d16 2
+a17 2
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+d31 1
+a31 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/png_info.c,v 14.5 2006/01/18 06:46:28 brlcad Exp $ (BRL)";
+@
+
+
+14.5
+log
+@update copyright to 2006
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 1998-2006 United States Government as represented by
+d32 1
+a32 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/png_info.c,v 14.4 2005/10/23 04:44:39 brlcad Exp $ (BRL)";
+@
+
+
+14.4
+log
+@trailing ws
+@
+text
+@d4 1
+a4 1
+ * Copyright (C) 1998-2005 United States Government as represented by
+d32 1
+a32 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/png_info.c,v 14.3 2005/01/30 20:31:34 brlcad Exp $ (BRL)";
+@
+
+
+14.3
+log
+@update copyright to 2005
+@
+text
+@d26 1
+a26 1
+ *  
+d32 1
+a32 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/png_info.c,v 14.2 2004/12/21 03:45:41 butler Exp $ (BRL)";
+@
+
+
+14.3.6.1
+log
+@merge changes from HEAD aka rel-7-6-4 to the rel-7-6-branch just in case someone peeks a gander or tries to continue/build the branch
+@
+text
+@d26 1
+a26 1
+ *
+d32 1
+a32 1
+static const char RCSid[] = "@@(#)$Header$ (BRL)";
+@
+
+
+14.2
+log
+@GPL license changes
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 1998-2004 United States Government as represented by
+d32 1
+a32 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/util/png_info.c,v 14.1 2004/11/16 19:42:32 morrison Exp $ (BRL)";
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@d1 21
+a21 1
+/*
+a29 9
+ *  
+ *  Distribution Notice -
+ *      Re-distribution of this software is restricted, as described in
+ *      your "Statement of Terms and Conditions for the Release of
+ *      The BRL-CAD Package" agreement.
+ *
+ *  Copyright Notice -
+ *      This software is Copyright (C) 1998-2004 by the United States Army
+ *      in all countries except the USA.  All rights reserved.
+d32 1
+a32 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/util/png_info.c,v 1.3 2004/08/02 23:01:53 morrison Exp $ (BRL)";
+@
+
+
+1.3
+log
+@replace the wrapped config.h block with common.h
+@
+text
+@d21 1
+a21 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/util/png_info.c,v 1.2 2004/06/08 22:04:46 morrison Exp $ (BRL)";
+d203 10
+@
+
+
+1.2
+log
+@obliterate externs.h
+@
+text
+@d21 1
+a21 1
+static const char RCSid[] = "@@(#)$Header$ (BRL)";
+d24 1
+a24 3
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+@
+
+
+1.1
+log
+@Vast reorganization begins.  Sources moved from top-level directories into src/.
+@
+text
+@a19 2
+
+
+d21 1
+a21 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/util/png_info.c,v 11.9 2004/05/10 15:30:51 erikg Exp $ (BRL)";
+a27 2
+
+
+a31 1
+#include "externs.h"
+@
+

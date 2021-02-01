@@ -1,0 +1,622 @@
+head	11.13;
+access;
+symbols
+	ansi-20040405-merged:11.11.6.1
+	postmerge-20040405-ansi:11.12
+	premerge-20040404-ansi:11.12
+	postmerge-autoconf:11.12
+	autoconf-freeze:11.11.14.1
+	premerge-autoconf:11.12
+	ansi-20040316-freeze:11.11
+	postmerge-20040315-windows:11.12
+	premerge-20040315-windows:11.12
+	windows-20040315-freeze:11.11.8.1
+	autoconf-20031203:11.11
+	autoconf-20031202:11.11
+	autoconf-branch:11.11.0.14
+	phong-branch:11.11.0.12
+	photonmap-branch:11.11.0.10
+	rel-6-1-DP:11.11
+	windows-branch:11.11.0.8
+	rel-6-0-2:11.11
+	ansi-branch:11.11.0.6
+	rel-6-0-1-branch:11.11.0.4
+	hartley-6-0-post:11.11
+	hartley-6-0-pre:11.11
+	rel-6-0-1:11.11
+	rel-6-0:11.11
+	rel-5-4:11.11
+	offsite-5-3-pre:11.11
+	rel-5-3:11.11
+	rel-5-2:11.11
+	rel-5-1-branch:11.11.0.2
+	rel-5-1:11.11
+	rel-5-0:11.10
+	rel-5-0-beta:11.10
+	rel-4-5:11.10
+	ctj-4-5-post:11.10
+	ctj-4-5-pre:11.10
+	rel-4-4:11.5
+	rel-4-0:10.1;
+locks; strict;
+comment	@ * @;
+
+
+11.13
+date	2004.05.24.04.01.09;	author morrison;	state dead;
+branches;
+next	11.12;
+
+11.12
+date	2004.02.02.17.39.05;	author morrison;	state Exp;
+branches;
+next	11.11;
+
+11.11
+date	2000.03.29.18.42.48;	author mike;	state Exp;
+branches
+	11.11.6.1
+	11.11.8.1
+	11.11.14.1;
+next	11.10;
+
+11.10
+date	96.07.15.19.19.47;	author jra;	state Exp;
+branches;
+next	11.9;
+
+11.9
+date	95.12.06.13.25.06;	author jra;	state Exp;
+branches;
+next	11.8;
+
+11.8
+date	95.12.05.22.02.45;	author jra;	state Exp;
+branches;
+next	11.7;
+
+11.7
+date	95.11.28.21.35.45;	author jra;	state Exp;
+branches;
+next	11.6;
+
+11.6
+date	95.06.28.15.23.43;	author jra;	state Exp;
+branches;
+next	11.5;
+
+11.5
+date	95.01.04.10.08.03;	author mike;	state Rel4_4;
+branches;
+next	11.4;
+
+11.4
+date	94.08.22.19.11.23;	author gdurf;	state Exp;
+branches;
+next	11.3;
+
+11.3
+date	94.01.07.15.46.17;	author jra;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	93.10.13.14.32.48;	author jra;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	93.06.28.10.10.29;	author jra;	state Exp;
+branches;
+next	10.1;
+
+10.1
+date	91.10.12.06.45.26;	author mike;	state Rel4_0;
+branches;
+next	1.3;
+
+1.3
+date	91.06.14.08.06.35;	author mike;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	91.06.12.20.27.52;	author mike;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	91.06.12.19.59.33;	author mike;	state Exp;
+branches;
+next	;
+
+11.11.6.1
+date	2004.03.17.21.16.33;	author morrison;	state Exp;
+branches;
+next	;
+
+11.11.8.1
+date	2004.03.11.23.41.15;	author morrison;	state Exp;
+branches;
+next	;
+
+11.11.14.1
+date	2004.02.12.19.41.39;	author erikg;	state Exp;
+branches;
+next	;
+
+
+desc
+@IGES converter
+@
+
+
+11.13
+log
+@moved to src/iges/
+@
+text
+@/*
+ *  Authors -
+ *	John R. Anderson
+ *	Susanne L. Muuss
+ *	Earl P. Weaver
+ *
+ *  Source -
+ *	VLD/ASB Building 1065
+ *	The U. S. Army Ballistic Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005
+ *  
+ *  Copyright Notice -
+ *	This software is Copyright (C) 1990-2004 by the United States Army.
+ *	All rights reserved.
+ */
+
+/*	Read Global Section 	*/
+
+#include "./iges_struct.h"
+#include "./iges_extern.h"
+
+/* Conversion Factors (to mm)	*/
+fastf_t cnv[]={
+/*	default,inch, mm, ? , feet,  miles  ,meters,kilometers,mils  ,microns,
+		cm ,microinches	*/
+	1.0,    25.4,1.0,1.0,304.8,1609344.0,1000.0, 1000000.0,0.0254,0.001,
+		10.0,0.0000254	};
+
+/* IGES Version */
+#define NO_OF_VERSIONS	10
+char *iges_version[NO_OF_VERSIONS]={
+	" ",
+	"1.0",
+	"ANSI Y14.26M - 1981",
+	"2.0",
+	"3.0",
+	"ANSI Y14.26M - 1987",
+	"4.0",
+	"ASME Y14.26M - 1989",
+	"5.0",
+	"5.1" };
+
+void
+Readglobal( file_count )
+int file_count;
+{
+
+	int field=2,i;
+	fastf_t a;
+	char *name;
+
+
+	/* Get End-of-field delimiter */
+	if( card[counter] != ',' )
+	{
+		counter--;
+		while( card[++counter] == ' ' );
+		if( card[counter] != '1' || card[counter+1] != 'H' )
+		{
+			bu_log( "Error in new delimiter\n" );
+			bu_log( "%s\n" , card );
+			for( i=0 ; i<counter-1 ; i++ )
+				bu_log( "%c", ' ' );
+			bu_log( "^\n" );
+			exit( 1 );
+		}
+		counter++;
+		eof = card[++counter];
+		while( card[++counter] != eof );
+	}
+	else
+		eof = ',';
+
+
+	/* Get End-of-record delimiter */
+	if( card[++counter] != eof )
+	{
+		counter--;
+		while( card[++counter] == ' ' );
+		if( card[counter] != '1' || card[counter+1] != 'H' )
+		{
+			bu_log( "Error in new record delimiter\n" );
+			exit( 1 );
+		}
+		counter++;
+		eor = card[++counter];
+		while( card[++counter] != eof );
+	}
+	else
+		eor = ';';
+
+
+	/* Read all the fields in the Global Section */
+	counter++;
+	while( field < 23 )
+	{
+	   if( card[counter-1] == eor )
+	   {
+		Readrec( ++currec );
+		break;
+	   }
+
+	   switch( ++field )
+		{
+		case 3:		Readname( &name , "Product ID: ");
+				if( !file_count )
+				{
+					if( name != NULL )
+					{
+						mk_id( fdout , name );
+						bu_free( name, "Readglobal: name" );
+					}
+					else
+						mk_id( fdout , "Un-named Product" );
+				}
+				break;
+		case 4:		Readstrg( "File Name: " );
+				break;
+		case 5:		Readstrg( "System ID: " );
+				break;
+		case 6:		Readstrg( "Version: " );
+				break;
+		case 7:		Readint( &i , "Integer Bits: ");
+				break;
+		case 8:		Readint( &i , "Max Power of ten(single precision): " );
+				break;
+		case 9:		Readint( &i , "Max significant digits (single precision): " );
+				break;
+		case 10:	Readint( &i , "Max Power of ten(double precision): " );
+				break;
+		case 11:	Readint( &i , "Max significant digits (single precision): " );
+				break;
+		case 12:	Readstrg( "Product ID: ");
+				break;
+		case 13:	Readflt( &scale , "Scale: " );
+				if( scale == 0.0 )
+					scale = 1.0;
+				inv_scale = 1.0/scale;
+				break;
+		case 14:	Readint( &units , "Units: " );
+				if( units == 0 || units == 3 || units > 11 )
+				{
+					bu_log( "Unrecognized units, assuming 'mm'\n" );
+					conv_factor = 1.0;
+				}
+				else
+					conv_factor = cnv[units];
+				/* make "conv_factor" account for both units and
+					scale factor */
+				conv_factor *= inv_scale;
+				break;
+		case 15:	Readstrg( "Units: " );
+				break;
+		case 16:	Readint( &i , "Line Weight Gradations: " );
+				break;
+		case 17:	Readflt( &a , "Line Width: " );
+				break;
+		case 18:	Readtime( "Exchange File Created On: " );
+				break;
+		case 19:	Readflt( &a , "Resolution: " );
+				break;
+		case 20:	Readflt( &a , "Maximum value: " );
+				break;
+		case 21:	Readstrg( "Author: " );
+				break;
+		case 22:	Readstrg( "Organization: " );
+				break;
+		case 23:	Readint( &i , "" );
+				if( i<1 || i>=NO_OF_VERSIONS )
+					bu_log( "Unrecognized IGES version\n" );
+				else
+					bu_log( "IGES version: %s\n" , iges_version[i] );
+				break;
+		case 24:	Readint( &i , "" );
+				break;
+		case 25:	Readtime( "Model Last Modified: " );
+				break;
+		}
+	}
+}
+
+@
+
+
+11.12
+log
+@update copyright to include span through 2003
+@
+text
+@@
+
+
+11.11
+log
+@
+Converted from Release 4 names to know about libbu and libbn
+@
+text
+@d13 1
+a13 1
+ *	This software is Copyright (C) 1990 by the United States Army.
+@
+
+
+11.11.6.1
+log
+@sync branch with HEAD
+@
+text
+@d13 1
+a13 1
+ *	This software is Copyright (C) 1990-2004 by the United States Army.
+@
+
+
+11.11.8.1
+log
+@sync to HEAD...
+@
+text
+@d13 1
+a13 1
+ *	This software is Copyright (C) 1990-2004 by the United States Army.
+@
+
+
+11.11.14.1
+log
+@merge from HEAD
+@
+text
+@d13 1
+a13 1
+ *	This software is Copyright (C) 1990-2004 by the United States Army.
+@
+
+
+11.10
+log
+@Minor Mods for IRIX 6.2
+@
+text
+@d60 2
+a61 2
+			rt_log( "Error in new delimiter\n" );
+			rt_log( "%s\n" , card );
+d63 2
+a64 2
+				rt_log( "%c", ' ' );
+			rt_log( "^\n" );
+d82 1
+a82 1
+			rt_log( "Error in new record delimiter\n" );
+d111 1
+a111 1
+						rt_free( name, "Readglobal: name" );
+d143 1
+a143 1
+					rt_log( "Unrecognized units, assuming 'mm'\n" );
+d170 1
+a170 1
+					rt_log( "Unrecognized IGES version\n" );
+d172 1
+a172 1
+					rt_log( "IGES version: %s\n" , iges_version[i] );
+@
+
+
+11.9
+log
+@All logging done via rt_log
+@
+text
+@d43 1
+@
+
+
+11.8
+log
+@Checkpoint in mods for handling assemblies (subfigures).
+@
+text
+@d59 2
+a60 2
+			fprintf( stderr , "Error in new delimiter\n" );
+			fprintf( stderr , "%s\n" , card );
+d62 2
+a63 3
+				putc( ' ' , stderr );
+			putc( '^' , stderr );
+			fprintf( stderr , "\n" );
+d81 1
+a81 1
+			fprintf( stderr , "Error in new record delimiter\n" );
+d142 1
+a142 1
+					printf( "Unrecognized units, assuming 'mm'\n" );
+d169 1
+a169 1
+					printf( "Unrecognized IGES version\n" );
+d171 1
+a171 1
+					printf( "IGES version: %s\n" , iges_version[i] );
+@
+
+
+11.7
+log
+@Mods to handle TNURB BREP. Also added RT_EXTERNS to iges_struct.h.
+@
+text
+@d43 2
+a44 1
+Readglobal()
+d106 1
+a106 1
+				if( name != NULL )
+d108 7
+a114 2
+					mk_id( fdout , name );
+					rt_free( name, "Readglobal: name" );
+a115 2
+				else
+					mk_id( fdout , "Un-named Product" );
+@
+
+
+11.6
+log
+@Converted to use rt_malloc family.
+@
+text
+@a18 5
+#include "conf.h"
+
+#include <stdio.h>
+#include "machine.h"
+#include "vmath.h"
+@
+
+
+11.5
+log
+@Release_4.4
+@
+text
+@d113 1
+a113 1
+					free( name );
+@
+
+
+11.4
+log
+@Added include of conf.h
+@
+text
+@@
+
+
+11.3
+log
+@fixed bug where mk_id might have a null string for the title arg
+@
+text
+@d19 2
+@
+
+
+11.2
+log
+@modified reading new delimiters for safety.
+@
+text
+@d108 7
+a114 2
+				mk_id( fdout , name );
+				free( name );
+@
+
+
+11.1
+log
+@Major Upgrade to IGES 5.1
+@
+text
+@d59 1
+a59 1
+		if( card[counter] != '1' || card[++counter] != 'H' )
+d69 1
+d82 1
+a82 1
+		if( card[counter] != '1' || card[++counter] != 'H' )
+d87 1
+@
+
+
+10.1
+log
+@Release_4.0
+@
+text
+@d33 2
+a34 1
+char *iges_version[]={
+d36 9
+a44 6
+	"1.0 [NBS80]",
+	"ANSI Y14.26M -1981 [ANSI81]",
+	"2.0 [NBS83]",
+	"3.0 [NBS86]",
+	"ANSI Y14.26M - 1987 [ANSI88]",
+	"4.0 [NBSIR 88-3813]" };
+d117 1
+a117 1
+		case 8:		Readint( &i , "Float Exponent Bits: " );
+d119 1
+a119 1
+		case 9:		Readint( &i , "Float Mantissa Bits: " );
+d121 1
+a121 1
+		case 10:	Readint( &i , "Double Precision Exp Bits: " );
+d123 1
+a123 1
+		case 11:	Readint( &i , "Double Precision Mantissa: " );
+d150 1
+a150 1
+		case 18:	Readtime();
+d161 1
+a161 1
+				if( i<1 || i>6 )
+d165 4
+@
+
+
+1.3
+log
+@Changed "version" variable, to avoid conflicts
+@
+text
+@@
+
+
+1.2
+log
+@Modified for Release 4.0
+@
+text
+@d33 1
+a33 1
+char *version[]={
+d160 1
+a160 1
+					printf( "IGES version: %s\n" , version[i] );
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d20 2
+@

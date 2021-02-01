@@ -1,0 +1,1147 @@
+head	11.8;
+access;
+symbols
+	ansi-20040405-merged:11.5.2.1
+	postmerge-20040405-ansi:11.6
+	premerge-20040404-ansi:11.5
+	postmerge-autoconf:11.5
+	autoconf-freeze:11.5
+	premerge-autoconf:11.5
+	postmerge-20040315-windows:11.5
+	premerge-20040315-windows:11.5
+	windows-20040315-freeze:11.5
+	autoconf-20031203:11.5
+	autoconf-20031202:11.5
+	autoconf-branch:11.5.0.10
+	phong-branch:11.5.0.8
+	photonmap-branch:11.5.0.6
+	rel-6-1-DP:11.5
+	windows-branch:11.5.0.4
+	rel-6-0-2:11.3
+	ansi-branch:11.5.0.2
+	rel-6-0-1-branch:11.3.0.2
+	hartley-6-0-post:11.4
+	hartley-6-0-pre:11.3
+	rel-6-0-1:11.3
+	rel-6-0:11.3
+	rel-5-4:11.2
+	offsite-5-3-pre:11.3
+	rel-5-3:11.2
+	rel-5-2:11.2
+	rel-5-1-branch:11.2.0.2
+	rel-5-1:11.2
+	rel-5-0:11.1
+	rel-5-0-beta:11.1
+	rel-4-5:11.1
+	ctj-4-5-post:11.1
+	ctj-4-5-pre:11.1
+	rel-4-4:11.1
+	rel-4-0:10.1;
+locks; strict;
+comment	@ * @;
+
+
+11.8
+date	2004.05.21.17.33.45;	author morrison;	state dead;
+branches;
+next	11.7;
+
+11.7
+date	2004.05.10.15.30.49;	author erikg;	state Exp;
+branches;
+next	11.6;
+
+11.6
+date	2004.04.05.05.45.58;	author morrison;	state Exp;
+branches;
+next	11.5;
+
+11.5
+date	2002.08.20.17.08.34;	author jra;	state Exp;
+branches
+	11.5.2.1;
+next	11.4;
+
+11.4
+date	2002.08.15.20.55.46;	author hartley;	state Exp;
+branches;
+next	11.3;
+
+11.3
+date	2000.07.12.21.59.07;	author mike;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	2000.03.31.03.07.31;	author mike;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	95.01.04.10.06.15;	author mike;	state Rel4_4;
+branches;
+next	10.6;
+
+10.6
+date	94.12.30.03.22.10;	author mike;	state Exp;
+branches;
+next	10.5;
+
+10.5
+date	94.11.14.22.17.19;	author mike;	state Exp;
+branches;
+next	10.4;
+
+10.4
+date	94.08.09.19.16.34;	author gdurf;	state Exp;
+branches;
+next	10.3;
+
+10.3
+date	93.12.16.03.09.22;	author mike;	state Exp;
+branches;
+next	10.2;
+
+10.2
+date	93.12.16.02.24.41;	author mike;	state Exp;
+branches;
+next	10.1;
+
+10.1
+date	91.10.12.06.44.39;	author mike;	state Rel4_0;
+branches;
+next	1.5;
+
+1.5
+date	91.08.30.03.57.46;	author mike;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	91.07.08.22.36.24;	author mike;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	91.06.19.03.51.14;	author butler;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	91.06.19.03.49.08;	author butler;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	91.06.19.02.59.30;	author butler;	state Exp;
+branches;
+next	;
+
+11.5.2.1
+date	2002.09.19.18.02.12;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@creates a complex NMG solid and writes it to both an mged database and
+a 3D plot file
+@
+
+
+11.8
+log
+@moved to src/proc-db/
+@
+text
+@/*	N M G M O D E L --- build a really hairy nmg solid in a database
+ *
+ *	Options
+ *	h	help
+ */
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+
+#include <stdio.h>
+#ifdef USE_STRING_H
+#include <string.h>
+#else
+#include <strings.h>
+#endif
+#include "machine.h"
+#include "vmath.h"
+#include "rtlist.h"
+#include "nmg.h"
+#include "raytrace.h"
+#include "wdb.h"
+
+static struct model *m;
+static struct nmgregion *r;
+static struct shell *s;
+static struct faceuse *fu;
+static struct faceuse *tc_fu;	/* top center */
+static struct faceuse *fl_fu;	/* front left */
+static struct faceuse *bl_fu;	/* back left */
+static struct faceuse *ul_fu;	/* underside, left */
+static struct faceuse *fr_fu;	/* front right */
+static struct loopuse *lu;
+static struct vertex *vertl[256];
+static struct vertex **f_vertl[256];
+
+
+/* declarations to support use of getopt() system call */
+char *options = "h3210";
+extern char *optarg;
+extern int optind, opterr, getopt(int, char *const *, const char *);
+
+char *progname = "(noname)";
+char plotfilename[1024];
+char mfilename[1024];
+
+int manifold[4] = { 1, 1, 1, 1 };
+
+/*
+ *	U S A G E --- tell user how to invoke this program, then exit
+ */
+void usage(char *s)
+{
+	if (s) (void)fputs(s, stderr);
+
+	(void) fprintf(stderr, "Usage: %s [ -0123 ] \n%s\"%s\"\n%s\"%s\"\n",
+		progname,
+		"\tCreate NMG to mged database ",
+		mfilename,
+		"\tand plot file ",
+		plotfilename);
+	exit(1);
+}
+
+/*
+ *	P A R S E _ A R G S --- Parse through command line flags
+ */
+int parse_args(int ac, char **av)
+{
+	int  c;
+
+	if (  ! (progname=strrchr(*av, '/'))  )
+		progname = *av;
+	else
+		++progname;
+
+	strcpy(plotfilename, progname);
+	strcat(plotfilename, ".pl");
+
+	strcpy(mfilename, progname);
+	strcat(mfilename, ".g");
+
+	/* Turn off getopt's error messages */
+	opterr = 0;
+
+	/* get all the option flags from the command line */
+	while ((c=getopt(ac,av,options)) != EOF)
+		switch (c) {
+		case '3'	: manifold[3] = 0; break;
+		case '2'	: manifold[2] = 0; break;
+		case '1'	: manifold[1] = 0; break;
+		case '0'	: manifold[0] = 0; break;
+		case '?'	:
+		case 'h'	:
+		default		: usage((char *)NULL); break;
+		}
+
+	return(optind);
+}
+
+void
+make_3manifold_bits(struct bn_tol *tol)
+{
+	plane_t plane;
+	struct faceuse *fu_end;
+
+	bzero((char *)vertl, sizeof(vertl));
+	bzero((char *)f_vertl, sizeof(f_vertl));
+
+	/* front right */
+	f_vertl[0] = &vertl[0];
+	f_vertl[1] = &vertl[1];
+	f_vertl[2] = &vertl[2];
+	f_vertl[3] = &vertl[3];
+	fr_fu = fu = nmg_cmface(s, f_vertl, 4);
+	nmg_vertex_g(vertl[0],  100.0, 100.0, 100.0);
+	nmg_vertex_g(vertl[1],   50.0, 100.0, 100.0);
+	nmg_vertex_g(vertl[2],   50.0,   0.0, 100.0);
+	nmg_vertex_g(vertl[3],  100.0,   0.0, 100.0);
+	(void)nmg_fu_planeeqn(fu, tol);
+
+	/* make top right */
+	f_vertl[0] = &vertl[0];
+	f_vertl[1] = &vertl[4];
+	f_vertl[2] = &vertl[5];
+	f_vertl[3] = &vertl[1];
+	fu = nmg_cmface(s, f_vertl, 4);
+	nmg_vertex_g(vertl[4],  100.0, 100.0,   0.0);
+	nmg_vertex_g(vertl[5],   50.0, 100.0,   0.0);
+	(void)nmg_fu_planeeqn(fu, tol);
+
+
+	/* back right */
+	f_vertl[0] = &vertl[5];
+	f_vertl[1] = &vertl[4];
+	f_vertl[2] = &vertl[6];
+	f_vertl[3] = &vertl[7];
+	fu = nmg_cmface(s, f_vertl, 4);
+	nmg_vertex_g(vertl[6],  100.0,   0.0,   0.0);
+	nmg_vertex_g(vertl[7],   50.0,   0.0,   0.0);
+	(void)nmg_fu_planeeqn(fu, tol);
+
+	/* bottom right */	
+	f_vertl[0] = &vertl[7];
+	f_vertl[1] = &vertl[6];
+	f_vertl[2] = &vertl[3];
+	f_vertl[3] = &vertl[2];
+	fu = nmg_cmface(s, f_vertl, 4);
+	(void)nmg_fu_planeeqn(fu, tol);
+
+	/* right end */
+	f_vertl[0] = &vertl[3];
+	f_vertl[1] = &vertl[6];
+	f_vertl[2] = &vertl[4];
+	f_vertl[3] = &vertl[0];
+	fu = nmg_cmface(s, f_vertl, 4);
+	(void)nmg_fu_planeeqn(fu, tol);
+
+
+	/* make split top */
+	f_vertl[0] = &vertl[1];
+	f_vertl[1] = &vertl[5];
+	f_vertl[2] = &vertl[8];
+	f_vertl[3] = &vertl[9];
+	tc_fu = fu = nmg_cmface(s, f_vertl, 4);
+	nmg_vertex_g(vertl[8],   25.0, 100.0,   0.0);
+	nmg_vertex_g(vertl[9],   25.0, 100.0, 100.0);
+	(void)nmg_fu_planeeqn(fu, tol);
+
+	f_vertl[0] = &vertl[9];
+	f_vertl[1] = &vertl[8];
+	f_vertl[2] = &vertl[12];
+	f_vertl[3] = &vertl[13];
+	fu = nmg_cmface(s, f_vertl, 4);
+	nmg_vertex_g(vertl[12],   0.0, 100.0,   0.0);
+	nmg_vertex_g(vertl[13],   0.0, 100.0, 100.0);
+	(void)nmg_fu_planeeqn(fu, tol);
+
+
+	/* make split & funky front side
+	 * we make the convex face first, make the second (non-convex) portion
+	 * after the face normal has been computed.
+	 */
+	f_vertl[0] = &vertl[14];
+	f_vertl[1] = &vertl[18];
+	f_vertl[2] = &vertl[15];
+	f_vertl[3] = &vertl[16];
+	fl_fu = fu = nmg_cmface(s, f_vertl, 4);
+	nmg_vertex_g(vertl[14],   0.0,  25.0, 100.0);
+	nmg_vertex_g(vertl[15],  25.0,   0.0, 100.0);
+	nmg_vertex_g(vertl[16],  25.0,  25.0, 100.0);
+	nmg_vertex_g(vertl[18],   0.0,   0.0, 100.0);
+	(void)nmg_fu_planeeqn(fu, tol);
+
+	f_vertl[0] = &vertl[1];
+	f_vertl[1] = &vertl[9];
+	f_vertl[2] = &vertl[10];
+	f_vertl[3] = &vertl[9];
+	f_vertl[4] = &vertl[13];
+	f_vertl[5] = &vertl[14];
+	f_vertl[6] = &vertl[16];
+	f_vertl[7] = &vertl[15];
+	f_vertl[8] = &vertl[2];
+	nmg_jf(fu, nmg_cmface(s, f_vertl, 9));
+	nmg_vertex_g(vertl[10],  25.0,  75.0, 100.0);
+
+
+	/* make split back side */
+	f_vertl[0] = &vertl[5];
+	f_vertl[1] = &vertl[7];
+	f_vertl[2] = &vertl[17];
+	f_vertl[3] = &vertl[12];
+	f_vertl[4] = &vertl[8];
+	f_vertl[5] = &vertl[11];
+	f_vertl[6] = &vertl[8];
+	bl_fu = fu = nmg_cmface(s, f_vertl, 7);
+	nmg_vertex_g(vertl[11],  25.0,  75.0,   0.0);	
+	nmg_vertex_g(vertl[17],   0.0,   0.0,   0.0);
+
+	/* this face isn't strictly convex, so we have to make the plane
+	 * equation the old-fashioned way.
+	 */
+	bn_mk_plane_3pts(plane, 
+			vertl[7]->vg_p->coord,
+			vertl[17]->vg_p->coord,
+			vertl[12]->vg_p->coord,
+			tol);
+	nmg_face_g(fu, plane);
+
+
+	/* make funky end */
+	f_vertl[0] = &vertl[14];
+	f_vertl[1] = &vertl[20];
+	f_vertl[2] = &vertl[19];
+	f_vertl[3] = &vertl[18];
+	fu_end = fu = nmg_cmface(s, f_vertl, 4);
+	nmg_vertex_g(vertl[19],   0.0,   0.0,  75.0);
+	nmg_vertex_g(vertl[20],   0.0,  25.0,  75.0);
+	(void)nmg_fu_planeeqn(fu, tol);
+
+	f_vertl[0] = &vertl[12];
+	f_vertl[1] = &vertl[17];
+	f_vertl[2] = &vertl[19];
+	f_vertl[3] = &vertl[20];
+	f_vertl[4] = &vertl[14];
+	f_vertl[5] = &vertl[13];
+	nmg_jf(fu, nmg_cmface(s, f_vertl, 6));
+
+
+	/* make funky bottom */
+	f_vertl[0] = &vertl[15];
+	f_vertl[1] = &vertl[18];
+	f_vertl[2] = &vertl[19];
+	f_vertl[3] = &vertl[21];
+	ul_fu = fu = nmg_cmface(s, f_vertl, 4);
+	nmg_vertex_g(vertl[21],  25.0,   0.0,  75.0);
+	(void)nmg_fu_planeeqn(fu, tol);
+
+	f_vertl[0] = &vertl[7];
+	f_vertl[1] = &vertl[2];
+	f_vertl[2] = &vertl[15];
+	f_vertl[3] = &vertl[21];
+	f_vertl[4] = &vertl[19];
+	f_vertl[5] = &vertl[17];
+	nmg_jf(fu, nmg_cmface(s, f_vertl, 6));
+
+
+	/* now create the (3manifold) hole through the object */
+
+	/* make the holes in the end face */
+	f_vertl[0] = &vertl[29];
+	f_vertl[1] = &vertl[28];
+	f_vertl[2] = &vertl[27];
+	f_vertl[3] = &vertl[26];
+	fu = nmg_cmface(s, f_vertl, 4);
+	nmg_vertex_g(vertl[26],  0.0,   60.0, 10.0);
+	nmg_vertex_g(vertl[27],  0.0,   60.0, 25.0);
+	nmg_vertex_g(vertl[28],  0.0,   40.0, 25.0);
+	nmg_vertex_g(vertl[29],  0.0,   40.0, 10.0);
+
+	/* GROSS HACK XXX
+	 * we reverse the orientation of the faceuses and loopuses
+	 * so that we can make the hole as a face, and transfer the hole
+	 * to an existing face
+	 */
+
+	lu = BU_LIST_FIRST(loopuse, &fu->lu_hd);
+	lu->orientation = OT_OPPOSITE;
+	lu->lumate_p->orientation = OT_OPPOSITE;
+
+	fu->orientation = OT_OPPOSITE;
+	fu->fumate_p->orientation = OT_SAME;
+
+	nmg_jf(fu_end, fu->fumate_p);
+
+
+	f_vertl[0] = &vertl[22];
+	f_vertl[1] = &vertl[23];
+	f_vertl[2] = &vertl[24];
+	f_vertl[3] = &vertl[25];
+	fu = nmg_cmface(s, f_vertl, 4);
+	nmg_vertex_g(vertl[22],  10.0, 60.0,  0.0);
+	nmg_vertex_g(vertl[23],  25.0,  60.0,  0.0);
+	nmg_vertex_g(vertl[24],  25.0,  40.0,  0.0);
+	nmg_vertex_g(vertl[25],  10.0, 40.0,  0.0);
+
+	/* GROSS HACK XXX
+	 * we reverse the orientation of the faceuses and loopuses
+	 * so that we can make the hole as a face, and transfer the hole
+	 * to an existing face.
+	 */
+
+	lu = BU_LIST_FIRST(loopuse, &fu->lu_hd);
+	lu->orientation = OT_OPPOSITE;
+	lu->lumate_p->orientation = OT_OPPOSITE;
+
+	fu->orientation = OT_OPPOSITE;
+	fu->fumate_p->orientation = OT_SAME;
+
+	nmg_jf(bl_fu, fu->fumate_p);
+
+
+	/* make the top of the hole */
+	f_vertl[0] = &vertl[22];
+	f_vertl[1] = &vertl[23];
+	f_vertl[2] = &vertl[27];
+	f_vertl[3] = &vertl[26];
+	fu = nmg_cmface(s, f_vertl, 4);
+	(void)nmg_fu_planeeqn(fu, tol);
+
+
+	/* make the bottom of the hole */
+	f_vertl[0] = &vertl[24];
+	f_vertl[1] = &vertl[25];
+	f_vertl[2] = &vertl[29];
+	f_vertl[3] = &vertl[28];
+	fu = nmg_cmface(s, f_vertl, 4);
+	(void)nmg_fu_planeeqn(fu, tol);
+
+
+	/* make origin-ward side of the hole */
+	f_vertl[0] = &vertl[22];
+	f_vertl[1] = &vertl[26];
+	f_vertl[2] = &vertl[29];
+	f_vertl[3] = &vertl[25];
+	fu = nmg_cmface(s, f_vertl, 4);
+	(void)nmg_fu_planeeqn(fu, tol);
+	
+	/* make last side of hole */
+	f_vertl[0] = &vertl[23];
+	f_vertl[1] = &vertl[24];
+	f_vertl[2] = &vertl[28];
+	f_vertl[3] = &vertl[27];
+	fu = nmg_cmface(s, f_vertl, 4);
+	(void)nmg_fu_planeeqn(fu, tol);
+
+
+
+	/* now make the void in the center of the solid */
+
+	/* void bottom */
+	f_vertl[0] = &vertl[41];
+	f_vertl[1] = &vertl[40];
+	f_vertl[2] = &vertl[39];
+	f_vertl[3] = &vertl[38];
+	fu = nmg_cmface(s, f_vertl, 4);
+	nmg_vertex_g(vertl[38],  85.0, 40.0, 60.0);
+	nmg_vertex_g(vertl[39],  65.0, 40.0, 60.0);
+	nmg_vertex_g(vertl[40],  65.0, 40.0, 40.0);
+	nmg_vertex_g(vertl[41],  85.0, 40.0, 40.0);
+	(void)nmg_fu_planeeqn(fu, tol);
+
+
+	/* void top */
+	f_vertl[0] = &vertl[42];
+	f_vertl[1] = &vertl[43];
+	f_vertl[2] = &vertl[44];
+	f_vertl[3] = &vertl[45];
+	fu = nmg_cmface(s, f_vertl, 4);
+	nmg_vertex_g(vertl[42],  85.0, 60.0, 40.0);
+	nmg_vertex_g(vertl[43],  85.0, 60.0, 60.0);
+	nmg_vertex_g(vertl[44],  65.0, 60.0, 60.0);
+	nmg_vertex_g(vertl[45],  65.0, 60.0, 40.0);
+	(void)nmg_fu_planeeqn(fu, tol);
+
+
+	/* void front */
+	f_vertl[0] = &vertl[44];
+	f_vertl[1] = &vertl[43];
+	f_vertl[2] = &vertl[38];
+	f_vertl[3] = &vertl[39];
+	fu = nmg_cmface(s, f_vertl, 4);
+	(void)nmg_fu_planeeqn(fu, tol);
+	
+	/* void back */
+	f_vertl[0] = &vertl[42];
+	f_vertl[1] = &vertl[45];
+	f_vertl[2] = &vertl[40];
+	f_vertl[3] = &vertl[41];
+	fu = nmg_cmface(s, f_vertl, 4);
+	(void)nmg_fu_planeeqn(fu, tol);
+
+
+	/* void left */
+	f_vertl[0] = &vertl[45];
+	f_vertl[1] = &vertl[44];
+	f_vertl[2] = &vertl[39];
+	f_vertl[3] = &vertl[40];
+	fu = nmg_cmface(s, f_vertl, 4);
+	(void)nmg_fu_planeeqn(fu, tol);
+
+	/* void right */
+	f_vertl[0] = &vertl[42];
+	f_vertl[1] = &vertl[41];
+	f_vertl[2] = &vertl[38];
+	f_vertl[3] = &vertl[43];
+	fu = nmg_cmface(s, f_vertl, 4);
+	(void)nmg_fu_planeeqn(fu, tol);
+
+
+}
+
+void
+make_2manifold_bits(struct bn_tol *tol)
+{
+	struct vertex *f2_vertl[8];
+
+	
+	/* make a non-dangling internal face */
+	f2_vertl[0] = vertl[1];
+	f2_vertl[1] = vertl[2];
+	f2_vertl[2] = vertl[7];
+	f2_vertl[3] = vertl[5];
+	fu = nmg_cface(s, f2_vertl, 4);
+	(void)nmg_fu_planeeqn(fu, tol);
+
+	/* 
+	 * we need to make the 2-manifolds share edge topology
+	 */
+	nmg_mesh_faces(tc_fu, fu, tol);
+	nmg_mesh_faces(fl_fu, fu, tol);
+	nmg_mesh_faces(bl_fu, fu, tol);
+	nmg_mesh_faces(ul_fu, fu, tol);
+
+	/* make a dangling internal face */
+	f2_vertl[0] = vertl[9];
+	f2_vertl[1] = vertl[10];
+	f2_vertl[2] = vertl[11];
+	f2_vertl[3] = vertl[8];
+	fu = nmg_cface(s, f2_vertl, 4);
+	(void)nmg_fu_planeeqn(fu, tol);
+
+	/* make faces share edge topology */
+	nmg_mesh_faces(tc_fu, fu, tol);
+	nmg_mesh_faces(fl_fu, fu, tol);
+	nmg_mesh_faces(bl_fu, fu, tol);
+
+
+	/* make an exterior, connected dangling face */
+	f2_vertl[0] = vertl[0];
+	f2_vertl[1] = vertl[3];
+	f2_vertl[2] = vertl[31];
+	f2_vertl[3] = vertl[30];
+	fu = nmg_cface(s, f2_vertl, 4);
+	vertl[30] = f2_vertl[3];
+	vertl[31] = f2_vertl[2];
+	nmg_vertex_g(vertl[30],  150.0, 100.0, 150.0);
+	nmg_vertex_g(vertl[31],  150.0,   0.0, 150.0);
+	(void)nmg_fu_planeeqn(fu, tol);
+	nmg_mesh_faces(fr_fu, fu, tol);
+	
+	
+
+}
+
+void
+make_1manifold_bits(struct bn_tol *tol)
+{
+	struct edgeuse *eu;
+
+	/* make an internal wire */
+	(void)nmg_me(vertl[11], vertl[1], s);
+
+
+	/* make an external wire */
+	eu = nmg_me((struct vertex *)NULL, vertl[4], s);
+	vertl[46] = eu->vu_p->v_p;
+	nmg_vertex_g(vertl[46],  100.0, 150.0, -50.0);
+
+}
+
+void
+make_0manifold_bits(struct bn_tol *tol)
+{
+#if 0
+	struct nmgregion *lrp;
+#endif
+	struct shell *sp;
+
+	/* make a shell of a single vertex in the same region
+	 * as all the other stuff
+	 */
+	sp = nmg_msv(r);
+	vertl[48] = sp->vu_p->v_p;
+	nmg_vertex_g(vertl[48],  -10.0, 40.0, -10.0);
+
+
+#if 0
+	/* make a region &shell of a single vertex */
+	lrp = nmg_mrsv(m);
+	sp = BU_LIST_FIRST(shell, &lrp->s_hd);
+	vertl[47] = sp->vu_p->v_p;
+	nmg_vertex_g(vertl[47],  -10.0, 50.0, -10.0);
+#endif
+}
+
+
+/*
+ *	M A I N
+ *
+ *	Call parse_args to handle command line arguments first, then
+ *	process input.
+ */
+int main(int ac, char **av)
+{
+	struct bn_tol tol;
+	FILE *fdplot;
+	struct rt_wdb *fdmodel;
+
+	if (parse_args(ac, av) < ac) usage((char *)NULL);
+	if (!manifold[0] && !manifold[1] && !manifold[2] && !manifold[3])
+		usage("No manifolds selected\n");
+
+	
+	m = nmg_mm();
+	r = nmg_mrsv(m);
+	s = BU_LIST_FIRST(shell, &r->s_hd);
+
+	tol.magic = BN_TOL_MAGIC;
+	tol.dist = 0.01;
+	tol.dist_sq = tol.dist * tol.dist;
+	tol.perp = 0.001;
+	tol.para = 0.999;
+
+	if (manifold[3]) make_3manifold_bits(&tol);
+	if (manifold[2]) make_2manifold_bits(&tol);
+	if (manifold[1]) make_1manifold_bits(&tol);
+	if (manifold[0]) make_0manifold_bits(&tol);
+
+	NMG_CK_MODEL(m);
+
+	
+	/* write the database */
+	if ((fdmodel = wdb_fopen(mfilename)) == NULL)
+		perror(mfilename);
+	else {
+		mk_id(fdmodel, "hairy NMG");
+		mk_nmg(fdmodel, "s.NMG",  m);
+
+		/* build a database region mentioning the solid */
+		mk_comb1( fdmodel, "r.NMG", "s.NMG", 1 );
+
+		wdb_close(fdmodel);
+	}
+
+
+	/* write a plot file */
+	if ((fdplot = fopen(plotfilename, "w")) == (FILE *)NULL)
+		perror(plotfilename);
+	else {
+		nmg_pl_m(fdplot, m);
+		fclose(fdplot);
+	}
+	
+
+	nmg_km(m);	/* destroy the NMG model */
+
+	return(0);
+}
+@
+
+
+11.7
+log
+@change conf.h to a wrapped config.h
+@
+text
+@@
+
+
+11.6
+log
+@merge of ansi-6-0-branch into head
+@
+text
+@d6 5
+a10 1
+#include "conf.h"
+@
+
+
+11.5
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d38 1
+a38 1
+extern int optind, opterr, getopt();
+d49 1
+a49 2
+void usage(s)
+char *s;
+d65 1
+a65 3
+int parse_args(ac, av)
+int ac;
+char *av[];
+d99 1
+a99 2
+make_3manifold_bits(tol)
+struct bn_tol *tol;
+d421 1
+a421 2
+make_2manifold_bits(tol)
+struct bn_tol *tol;
+d474 1
+a474 2
+make_1manifold_bits(tol)
+struct bn_tol *tol;
+d490 1
+a490 2
+make_0manifold_bits(tol)
+struct bn_tol *tol;
+d521 1
+a521 3
+int main(ac,av)
+int ac;
+char *av[];
+@
+
+
+11.5.2.1
+log
+@Initial ANSIfication
+@
+text
+@d38 1
+a38 1
+extern int optind, opterr, getopt(int, char *const *, const char *);
+d49 2
+a50 1
+void usage(char *s)
+d66 3
+a68 1
+int parse_args(int ac, char **av)
+d102 2
+a103 1
+make_3manifold_bits(struct bn_tol *tol)
+d425 2
+a426 1
+make_2manifold_bits(struct bn_tol *tol)
+d479 2
+a480 1
+make_1manifold_bits(struct bn_tol *tol)
+d496 2
+a497 1
+make_0manifold_bits(struct bn_tol *tol)
+d528 3
+a530 1
+int main(int ac, char **av)
+@
+
+
+11.4
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d38 1
+a38 1
+extern int optind, opterr, getopt(int, char *const *, const char *);
+d49 2
+a50 1
+void usage(char *s)
+d66 3
+a68 1
+int parse_args(int ac, char **av)
+d102 2
+a103 1
+make_3manifold_bits(struct bn_tol *tol)
+d425 2
+a426 1
+make_2manifold_bits(struct bn_tol *tol)
+d479 2
+a480 1
+make_1manifold_bits(struct bn_tol *tol)
+d496 2
+a497 1
+make_0manifold_bits(struct bn_tol *tol)
+d528 3
+a530 1
+int main(int ac, char **av)
+@
+
+
+11.3
+log
+@
+Converted to use new version of LIBWDB.
+@
+text
+@d38 1
+a38 1
+extern int optind, opterr, getopt();
+d49 1
+a49 2
+void usage(s)
+char *s;
+d65 1
+a65 3
+int parse_args(ac, av)
+int ac;
+char *av[];
+d99 1
+a99 2
+make_3manifold_bits(tol)
+struct bn_tol *tol;
+d421 1
+a421 2
+make_2manifold_bits(tol)
+struct bn_tol *tol;
+d474 1
+a474 2
+make_1manifold_bits(tol)
+struct bn_tol *tol;
+d490 1
+a490 2
+make_0manifold_bits(tol)
+struct bn_tol *tol;
+d521 1
+a521 3
+int main(ac,av)
+int ac;
+char *av[];
+@
+
+
+11.2
+log
+@
+Changed RT_ to BU_ / BN_
+@
+text
+@d533 2
+a534 1
+	FILE *fdplot, *fdmodel;
+d560 1
+a560 1
+	if ((fdmodel = fopen(mfilename, "w")) == (FILE *)NULL)
+d569 1
+a569 1
+		fclose(fdmodel);
+@
+
+
+11.1
+log
+@Release_4.4
+@
+text
+@d103 1
+a103 1
+struct rt_tol *tol;
+d224 1
+a224 1
+	rt_mk_plane_3pts(plane, 
+d288 1
+a288 1
+	lu = RT_LIST_FIRST(loopuse, &fu->lu_hd);
+d314 1
+a314 1
+	lu = RT_LIST_FIRST(loopuse, &fu->lu_hd);
+d426 1
+a426 1
+struct rt_tol *tol;
+d480 1
+a480 1
+struct rt_tol *tol;
+d497 1
+a497 1
+struct rt_tol *tol;
+d515 1
+a515 1
+	sp = RT_LIST_FIRST(shell, &lrp->s_hd);
+d532 1
+a532 1
+	struct rt_tol tol;
+d542 1
+a542 1
+	s = RT_LIST_FIRST(shell, &r->s_hd);
+d544 1
+a544 1
+	tol.magic = RT_TOL_MAGIC;
+@
+
+
+10.6
+log
+@DEC Alpha
+@
+text
+@@
+
+
+10.5
+log
+@Irix 6
+@
+text
+@d108 2
+a109 2
+	bzero(vertl, sizeof(vertl));
+	bzero(f_vertl, sizeof(f_vertl));
+@
+
+
+10.4
+log
+@Factored ifdefs
+@
+text
+@a30 2
+static struct edgeuse *eu;
+static struct vertexuse *vu;
+d499 1
+d501 1
+@
+
+
+10.3
+log
+@Routine names have changed.
+@
+text
+@d6 2
+d9 3
+a11 1
+#ifdef BSD
+a12 2
+#else
+#include <string.h>
+@
+
+
+10.2
+log
+@Lee made this change.
+@
+text
+@d205 1
+a205 1
+	nmg_merge_2faces(fu, nmg_cmface(s, f_vertl, 9));
+d248 1
+a248 1
+	nmg_merge_2faces(fu, nmg_cmface(s, f_vertl, 6));
+d266 1
+a266 1
+	nmg_merge_2faces(fu, nmg_cmface(s, f_vertl, 6));
+d295 1
+a295 1
+	nmg_merge_2faces(fu_end, fu->fumate_p);
+d321 1
+a321 1
+	nmg_merge_2faces(bl_fu, fu->fumate_p);
+d442 4
+a445 4
+	nmg_mesh_faces(tc_fu, fu);
+	nmg_mesh_faces(fl_fu, fu);
+	nmg_mesh_faces(bl_fu, fu);
+	nmg_mesh_faces(ul_fu, fu);
+d456 3
+a458 3
+	nmg_mesh_faces(tc_fu, fu);
+	nmg_mesh_faces(fl_fu, fu);
+	nmg_mesh_faces(bl_fu, fu);
+d472 1
+a472 1
+	nmg_mesh_faces(fr_fu, fu);
+@
+
+
+10.1
+log
+@Release_4.0
+@
+text
+@d510 1
+d516 1
+a516 1
+
+@
+
+
+1.5
+log
+@Added include for strings.h, eliminated sometimes incorrect
+explicit declaration of strrchr().
+@
+text
+@@
+
+
+1.4
+log
+@Lint, plus switch to mk_comb1().
+@
+text
+@d7 5
+a70 1
+	char *strrchr();
+@
+
+
+1.3
+log
+@removed unnecesary call to unlink()
+@
+text
+@d545 2
+a546 2
+	if (manifold[1]) make_1manifold_bits(tol);
+	if (manifold[0]) make_0manifold_bits(tol);
+d558 2
+a559 5
+
+		/* build a database region of the solid */
+		mk_comb(fdmodel, "r.NMG", 1, 1, (char *)NULL /*matname*/,
+			(char *)NULL /* matparm */, (char *)NULL /*rgb */, 1);
+		mk_memb(fdmodel, "s.NMG", rt_identity, WMOP_UNION);
+@
+
+
+1.2
+log
+@added command line option to select which manifolds should be created.
+fixed usage message.
+@
+text
+@a551 1
+	unlink(mfilename);
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d31 1
+a31 1
+char *options = "h";
+d38 3
+d49 1
+a49 1
+	(void) fprintf(stderr, "Usage: %s\n%s%s\n",
+d51 3
+a53 1
+		"\tCreates model on stdout, plot file in ",
+d85 4
+d299 1
+a299 1
+	nmg_vertex_g(vertl[22],  10.0,  60.0,  0.0);
+d302 1
+a302 1
+	nmg_vertex_g(vertl[25],  10.0,  40.0,  0.0);
+d307 1
+a307 1
+	 * to an existing face
+d529 3
+d543 4
+a546 4
+	make_3manifold_bits(&tol);
+	make_2manifold_bits(&tol);
+	make_1manifold_bits(tol);
+	make_0manifold_bits(tol);
+d552 1
+d559 1
+d564 1
+@

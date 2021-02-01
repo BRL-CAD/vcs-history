@@ -1,0 +1,361 @@
+head	14.9;
+access;
+symbols
+	rel-7-10-4:14.8
+	STABLE:14.8.0.2
+	rel-7-10-2:14.8
+	rel-7-10-0:14.8
+	rel-7-8-4:14.5
+	rel-7-8-2:14.5
+	rel-7-8-0:14.5
+	trimnurbs-branch:14.5.0.2
+	help:14.5
+	temp_tag:14.4
+	bobWinPort-20051223-freeze:14.3
+	postmerge-20051223-bobWinPort:14.4
+	premerge-20051223-bobWinPort:14.4
+	rel-7-6-6:14.4
+	rel-7-6-4:14.4
+	rel-7-6-2:14.3
+	rel-7-6-branch:14.3.0.6
+	rel-7-6-0:14.3
+	rel-7-4-2:14.3
+	rel-7-4-branch:14.3.0.4
+	bobWinPort:14.3.0.2
+	rel-7-4-0:14.3
+	rel-7-2-6:14.3
+	rel-7-2-4:14.3
+	rel-7-2-2:14.3
+	rel-7-2-0:14.3
+	rel-7-0-4:14.2
+	rel-7-0-2:14.2
+	rel-7-0-1:14.2
+	opensource-post:14.2
+	opensource-pre:1.3
+	rel-7-0-branch:1.3.0.2
+	rel-7-0:1.3;
+locks; strict;
+comment	@ * @;
+
+
+14.9
+date	2007.09.15.16.23.23;	author brlcad;	state Exp;
+branches;
+next	14.8;
+
+14.8
+date	2007.01.27.01.41.55;	author brlcad;	state Exp;
+branches;
+next	14.7;
+
+14.7
+date	2007.01.23.01.13.57;	author brlcad;	state Exp;
+branches;
+next	14.6;
+
+14.6
+date	2007.01.20.14.37.07;	author brlcad;	state Exp;
+branches;
+next	14.5;
+
+14.5
+date	2006.01.18.06.46.29;	author brlcad;	state Exp;
+branches;
+next	14.4;
+
+14.4
+date	2005.10.23.04.44.39;	author brlcad;	state Exp;
+branches;
+next	14.3;
+
+14.3
+date	2005.01.30.20.31.34;	author brlcad;	state Exp;
+branches
+	14.3.6.1;
+next	14.2;
+
+14.2
+date	2004.12.21.03.36.36;	author morrison;	state Exp;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.32;	author morrison;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2004.09.03.23.31.00;	author morrison;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2004.08.02.23.01.53;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.15.22.01;	author morrison;	state Exp;
+branches;
+next	;
+
+14.3.6.1
+date	2005.11.13.13.46.21;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.9
+log
+@more c89 embracing.  c89 provides string.h for all of the various str*() and mem*() functions, so remove the check for its presence.  there is still likely to be work required for strict c89 conformance for the various bsd strings.h functions that may be in use.
+@
+text
+@/*                    R E C O R D _ S E Q . C
+ * BRL-CAD
+ *
+ * Copyright (c) 2004-2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@file record_seq.c
+ * record_seq.c - control the display of a series of images
+ *	and record them frame by frame
+ *
+ * 	The interface to the framebuffer is that this program will execute
+ *	a command int the form: display_image n    where n will be a sequence
+ *	number from 0 to N-1 where N is the number of images specified
+ *	in the command line of this command.
+ *
+ *	The user will typically provide a shell script
+ *	that will display the appropriate image on the framebuffer.
+ */
+
+#include "common.h"
+
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+
+/* #define DEBUG 1  Define to only print system commands */
+
+#ifdef DEBUG
+#define SYSTEM(c)	fprintf(stderr,"system(%s);\n",c)
+#else
+#define SYSTEM(c)	fprintf(stderr,"system(%s);\n",c); system(c)
+#endif
+
+#define CBARS_TIME	10		/* Normal */
+
+void
+record_seq(int number_of_images, int number_of_frames, int start_seq_number)
+{
+	char cmd[100];
+	int i;
+
+	fprintf(stderr,
+		"number of images is %d, number of frames per image is %d\n",
+		number_of_images,number_of_frames);
+
+
+	SYSTEM("fbcbars");	/* Start out with color bars */
+
+	/* Make initial scene title matte recording */
+	SYSTEM("vas4 new");
+	SYSTEM("vas4 reset_time");
+
+	/* Handle the color bars specially. It is the first recording */
+	fprintf(stderr,"Record color bars for %d seconds\n",CBARS_TIME);
+	sprintf(cmd,"vas4 record %dsec", CBARS_TIME);
+	SYSTEM(cmd);
+
+	/* Now record the user files */
+	for (i=start_seq_number; i < start_seq_number+number_of_images; i++) {
+		sprintf(cmd,"display_image %d",i);
+		SYSTEM(cmd);
+		sprintf(cmd,"vas4 record %d",number_of_frames);
+		SYSTEM(cmd);
+	}
+
+	/* Record last frame for 30 more seconds */
+	fprintf(stderr,"Last image\n");
+	SYSTEM("vas4 record 30sec\n");
+
+	/* Wrap up by stopping the controller and rewind */
+	SYSTEM("vas4 time0\n");
+	SYSTEM("vas4 stop\n");
+
+}
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+14.8
+log
+@ws. lots and lots of ws.  see sh/ws.sh for details (cases 'abcdeg').
+@
+text
+@a34 1
+
+a36 1
+#ifdef HAVE_STRING_H
+a37 3
+#else
+#include <strings.h>
+#endif
+@
+
+
+14.7
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@a35 1
+
+@
+
+
+14.6
+log
+@update copyright to 2007
+@
+text
+@d8 2
+a9 3
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+d14 1
+a14 1
+ * General Public License for more details.
+d16 2
+a17 2
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+@
+
+
+14.5
+log
+@update copyright to 2006
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 2004-2006 United States Government as represented by
+@
+
+
+14.4
+log
+@trailing ws
+@
+text
+@d4 1
+a4 1
+ * Copyright (C) 2004-2005 United States Government as represented by
+@
+
+
+14.3
+log
+@update copyright to 2005
+@
+text
+@d66 1
+a66 1
+	
+@
+
+
+14.3.6.1
+log
+@merge changes from HEAD aka rel-7-6-4 to the rel-7-6-branch just in case someone peeks a gander or tries to continue/build the branch
+@
+text
+@d66 1
+a66 1
+
+@
+
+
+14.2
+log
+@assign copyright and GPL
+@
+text
+@d4 2
+a5 2
+ * Copyright (c) 2004 United States Government as represented by the
+ * U.S. Army Research Laboratory.
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@d1 21
+a21 1
+/*
+@
+
+
+1.3
+log
+@USE_STRING_H is no more.. it's HAVE_STRING_H
+@
+text
+@d75 10
+@
+
+
+1.2
+log
+@replace the wrapped config.h block with common.h
+@
+text
+@d20 1
+a20 1
+#ifdef USE_STRING_H
+@
+
+
+1.1
+log
+@Vast reorganization begins.  Sources moved from top-level directories into src/.
+@
+text
+@d14 1
+a14 3
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+@
+

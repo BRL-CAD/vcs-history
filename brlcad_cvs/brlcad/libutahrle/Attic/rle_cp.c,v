@@ -1,0 +1,427 @@
+head	11.6;
+access;
+symbols
+	ansi-20040405-merged:11.3.2.1
+	postmerge-20040405-ansi:11.4
+	premerge-20040404-ansi:11.3
+	postmerge-autoconf:11.3
+	autoconf-freeze:11.3
+	premerge-autoconf:11.3
+	postmerge-20040315-windows:11.3
+	premerge-20040315-windows:11.3
+	windows-20040315-freeze:11.3
+	autoconf-20031203:11.3
+	autoconf-20031202:11.3
+	autoconf-branch:11.3.0.10
+	phong-branch:11.3.0.8
+	photonmap-branch:11.3.0.6
+	rel-6-1-DP:11.3
+	windows-branch:11.3.0.4
+	rel-6-0-2:11.1
+	ansi-branch:11.3.0.2
+	rel-6-0-1-branch:11.1.0.4
+	hartley-6-0-post:11.2
+	hartley-6-0-pre:11.1
+	rel-6-0-1:11.1
+	rel-6-0:11.1
+	rel-5-4:11.1
+	offsite-5-3-pre:11.1
+	rel-5-3:11.1
+	rel-5-2:11.1
+	rel-5-1-branch:11.1.0.2
+	rel-5-1:11.1
+	rel-5-0:11.1
+	rel-5-0-beta:11.1
+	rel-4-5:11.1
+	ctj-4-5-post:11.1
+	ctj-4-5-pre:11.1
+	rel-4-4:11.1
+	rel-4-0:10.1;
+locks; strict;
+comment	@ * @;
+
+
+11.6
+date	2004.05.21.17.59.42;	author morrison;	state dead;
+branches;
+next	11.5;
+
+11.5
+date	2004.05.10.15.30.47;	author erikg;	state Exp;
+branches;
+next	11.4;
+
+11.4
+date	2004.04.05.07.40.44;	author morrison;	state Exp;
+branches;
+next	11.3;
+
+11.3
+date	2002.08.20.17.08.18;	author jra;	state Exp;
+branches
+	11.3.2.1;
+next	11.2;
+
+11.2
+date	2002.08.15.20.55.29;	author hartley;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	95.01.04.10.05.10;	author mike;	state Rel4_4;
+branches;
+next	10.2;
+
+10.2
+date	94.08.10.23.20.16;	author gdurf;	state Exp;
+branches;
+next	10.1;
+
+10.1
+date	91.10.12.06.38.23;	author mike;	state Rel4_0;
+branches;
+next	1.2;
+
+1.2
+date	91.01.09.03.32.19;	author butler;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	91.01.03.17.30.51;	author butler;	state Exp;
+branches;
+next	;
+
+11.3.2.1
+date	2002.09.19.18.01.56;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@Dist 3.0 patchlevel 2 installation
+@
+
+
+11.6
+log
+@moved from top-level to src/other/.
+@
+text
+@/*
+ * This software is copyrighted as noted below.  It may be freely copied,
+ * modified, and redistributed, provided that the copyright notice is 
+ * preserved on all copies.
+ * 
+ * There is no warranty or other guarantee of fitness for this software,
+ * it is provided solely "as is".  Bug reports or fixes may be sent
+ * to the author, who may or may not act on them as he desires.
+ *
+ * You may not include this software in a program or other software product
+ * without supplying the source, or without informing the end-user that the 
+ * source is available for no extra charge.
+ *
+ * If you modify this software, you should include a notice giving the
+ * name of the person performing the modification, the date of modification,
+ * and the reason for such modification.
+ */
+/* 
+ * rle_cp.c - Copy the contents of one RLE image file to another.
+ * 
+ * Author:	Spencer W. Thomas
+ * 		EECS Dept.
+ * 		University of Michigan
+ * Date:	Wed Jun 27 1990
+ * Copyright (c) 1990, University of Michigan
+ */
+
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+
+#include <stdio.h>
+
+#include "machine.h"
+#include "externs.h"
+#include "rle.h"
+#include "rle_code.h"
+#include "rle_put.h"
+
+/* Read a two-byte "short" that started in VAX (LITTLE_ENDIAN) order */
+#define VAXSHORT( var, fp )\
+	{ var = fgetc(fp)&0xFF; var |= (fgetc(fp)) << 8; }
+  
+/* Instruction format -- first byte is opcode, second is datum. */
+
+#define OPCODE(inst) (inst[0] & ~LONG)
+#define LONGP(inst) (inst[0] & LONG)
+#define DATUM(inst) (inst[1] & 0xff)	/* Make sure it's unsigned. */
+
+/* Write a two-byte value in little_endian order. */
+#define	put16(a)    (putc((a)&0xff,outfile),putc(((a)>>8)&0xff,outfile))
+
+/*****************************************************************
+ * TAG( rle_cp )
+ * 
+ * Copy the image described by in_hdr to that described by out_hdr
+ * until an end-of-image is encountered.
+ *
+ * Replaces the fread/fwrite loop used that was before we were
+ * concerned with concatenated images.
+ * 
+ * Inputs:
+ * 	in_hdr:		Describes input image.
+ * Outputs:
+ * 	out_hdr:	Describes output image.
+ * Assumptions:
+ * 	rle_get_setup/rle_put_setup have been called.
+ * 	in_hdr and out_hdr are compatible -- same number of channels,
+ * 	same size, all relevant channel bits set.
+ * 	The scanline most recently read from the input has been
+ * 	written to the output.
+ * Algorithm:
+ * 	Minimal processing is done.  Each opcode is recognized to the
+ * 	extent necessary to copy it and its data to the output.
+ */
+void
+rle_cp(rle_hdr *in_hdr, rle_hdr *the_hdr)
+{
+    register FILE *infile = in_hdr->rle_file;
+    register FILE *outfile = the_hdr->rle_file;
+    char inst[2];
+    short nc, buflen;
+    char *buffer;
+
+    /* Add in vertical skip from last scanline */
+    if ( in_hdr->priv.get.vert_skip > 0 )
+    {
+	in_hdr->priv.get.scan_y += in_hdr->priv.get.vert_skip;
+	if ( in_hdr->priv.get.vert_skip > 1 )
+	    rle_skiprow( the_hdr, in_hdr->priv.get.vert_skip - 1 );
+    }
+
+    if ( in_hdr->priv.get.is_eof )
+    {
+	rle_puteof( the_hdr );
+	return;
+    }
+
+    if ( the_hdr->priv.put.nblank > 0 )
+    {
+	SkipBlankLines( the_hdr->priv.put.nblank );
+	the_hdr->priv.put.nblank = 0;
+    }
+
+    /* Allocate memory for reading byte data. */
+    buflen = in_hdr->xmax - in_hdr->xmin + 2;
+    buffer = (char *)malloc( buflen );
+
+    /* Otherwise, read and write instructions until an EOF
+     * instruction is encountered.
+     */
+    for (;;)
+    {
+        inst[0] = getc( infile );
+	inst[1] = getc( infile );
+
+	/* Don't 'put' the instruction until we know what it is. */
+	if ( feof(infile) )
+	{
+	    in_hdr->priv.get.is_eof = 1;
+	    rle_puteof( the_hdr );
+	    break;		/* <--- one of the exits */
+	}
+
+	switch( OPCODE(inst) )
+	{
+	case RSkipLinesOp:
+	    putc( inst[0], outfile );
+	    putc( inst[1], outfile );
+	    if ( LONGP(inst) )
+	    {
+		putc( getc( infile ), outfile );
+		putc( getc( infile ), outfile );
+	    }
+	    break;			/* need to break for() here, too */
+
+	case RSetColorOp:
+	    putc( inst[0], outfile );
+	    putc( inst[1], outfile );
+	    break;
+
+	case RSkipPixelsOp:
+	    putc( inst[0], outfile );
+	    putc( inst[1], outfile );
+	    if ( LONGP(inst) )
+	    {
+		putc( getc( infile ), outfile );
+		putc( getc( infile ), outfile );
+	    }
+	    break;
+
+	case RByteDataOp:
+	    putc( inst[0], outfile );
+	    putc( inst[1], outfile );
+	    if ( LONGP(inst) )
+	    {
+	        VAXSHORT( nc, infile );
+		put16( nc );
+	    }
+	    else
+		nc = DATUM(inst);
+	    nc++;
+	    nc = 2 * ((nc + 1) / 2);
+	    /* Total paranoia.  nc should never be > buflen. */
+	    while ( nc > buflen )
+	    {
+		fread( buffer, nc, 1, infile );
+		fwrite( buffer, nc, 1, outfile );
+		nc -= buflen;
+	    }
+
+	    fread( buffer, nc, 1, infile );
+	    fwrite( buffer, nc, 1, outfile );
+	    break;
+
+	case RRunDataOp:
+	    putc( inst[0], outfile );
+	    putc( inst[1], outfile );
+	    if ( LONGP(inst) )
+	    {
+		putc( getc( infile ), outfile );
+		putc( getc( infile ), outfile );
+	    }
+
+	    putc( getc( infile ), outfile );
+	    putc( getc( infile ), outfile );
+	    break;
+
+	case REOFOp:
+	    in_hdr->priv.get.is_eof = 1;
+	    rle_puteof( the_hdr );
+	    break;
+
+	default:
+	    fprintf( stderr, "rle_cp: Unrecognized opcode: %d\n",
+		     OPCODE(inst) );
+	    fflush( the_hdr->rle_file );
+	    exit(1);
+	}
+	if ( OPCODE(inst) == REOFOp )
+	    break;			/* <--- the other loop exit */
+    }
+
+    /* Just in case the caller does something silly like calling rle_getrow. */
+    in_hdr->priv.get.scan_y = in_hdr->ymax;
+    in_hdr->priv.get.vert_skip = 0;
+
+    return;
+}
+@
+
+
+11.5
+log
+@change conf.h to a wrapped config.h
+@
+text
+@@
+
+
+11.4
+log
+@merge of ansi-6-0-branch into HEAD
+@
+text
+@d28 5
+a32 1
+#include "conf.h"
+@
+
+
+11.3
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d75 1
+a75 3
+rle_cp( in_hdr, the_hdr )
+rle_hdr *in_hdr;
+rle_hdr *the_hdr;
+@
+
+
+11.3.2.1
+log
+@Initial ANSIfication
+@
+text
+@d75 3
+a77 1
+rle_cp(rle_hdr *in_hdr, rle_hdr *the_hdr)
+@
+
+
+11.2
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d75 3
+a77 1
+rle_cp(rle_hdr *in_hdr, rle_hdr *the_hdr)
+@
+
+
+11.1
+log
+@Release_4.4
+@
+text
+@d75 1
+a75 3
+rle_cp( in_hdr, the_hdr )
+rle_hdr *in_hdr;
+rle_hdr *the_hdr;
+@
+
+
+10.2
+log
+@Altered #defines and #includes to conform to BRL-CAD standards
+@
+text
+@@
+
+
+10.1
+log
+@Release_4.0
+@
+text
+@d28 6
+@
+
+
+1.2
+log
+@changed include of rle*.h files to use quotes instead of <>
+@
+text
+@@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d28 3
+a30 3
+#include <rle.h>
+#include <rle_code.h>
+#include <rle_put.h>
+@

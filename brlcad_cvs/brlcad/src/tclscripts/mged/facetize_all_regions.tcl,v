@@ -1,0 +1,620 @@
+head	1.7;
+access;
+symbols
+	rel-7-10-4:1.7
+	STABLE:1.7.0.2
+	rel-7-10-2:1.7
+	rel-7-10-0:1.7
+	rel-7-8-4:1.4;
+locks; strict;
+comment	@# @;
+
+
+1.7
+date	2007.01.27.01.41.47;	author brlcad;	state Exp;
+branches;
+next	1.6;
+
+1.6
+date	2007.01.23.01.13.50;	author brlcad;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	2007.01.21.07.51.39;	author brlcad;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	2006.10.14.02.34.07;	author lbutler;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2006.10.12.04.06.51;	author lbutler;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2006.09.27.01.40.39;	author lbutler;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2006.09.23.16.27.54;	author lbutler;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.7
+log
+@ws. lots and lots of ws.  see sh/ws.sh for details (cases 'abcdeg').
+@
+text
+@#        F A C E T I Z E _ A L L _ R E G I O N S . T C L
+# BRL-CAD
+#
+# Copyright (c) 2007 United States Government as represented by
+# the U.S. Army Research Laboratory.
+#
+# This library is free software; you can redistribute it and/or
+# modify it under the terms of the GNU Lesser General Public License
+# version 2.1 as published by the Free Software Foundation.
+#
+# This library is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public
+# License along with this file; see the file named COPYING for more
+# information.
+#
+###
+#
+# return
+# -1 bot already exists
+# 0 success
+# 1 failure
+# 2 previously failed
+#
+proc attempt_facetize {reg reg_fail fail} {
+
+    # check to see if the bot already exists
+    # or previously failed to facetize
+    if { ! [catch {db get_type $reg.bot} dbtype]} {
+	# already exists
+	puts " ---- $reg.bot exists $dbtype"
+	return 3
+    }
+
+    if {[lsearch $reg_fail $reg] >= 0} {
+	# in list of previous failures
+	puts " ---- $reg.bot previously failed to facetize"
+	return 2
+    }
+
+    # not in the list of previous failures.  Facetize it
+    puts "---- Attempting to facetize $reg"
+
+    # record the region we are about to attempt as failed
+    # if we dump core, it won't be attempted again
+    set pos_fail [tell $fail]
+    set buf " $reg"
+    puts -nonewline $fail $buf
+    flush $fail
+
+    if {[catch {facetize $reg.bot $reg} res]} {
+	# facetize failed
+	puts "---- $reg failed to facetize"
+	return 1
+    }
+
+    puts "---- $reg now done"
+
+    # remove $reg from list of failed
+    seek $fail $pos_fail
+    set erase [format "%*s" [string length $buf] " "]
+    puts -nonewline $fail $erase
+    flush $fail
+    seek $fail $pos_fail
+
+    return 0
+}
+
+
+#
+#  Attempt to facetize each region in a database
+#  This proc is usually called from facetall.sh
+#  which manages re-starting mged when we get a
+#  core dump
+#
+proc facetize_all_regions {filename} {
+    global glob_compat_mode
+
+    set glob_compat_mode 0
+    set reg_list [ls -r]
+
+    puts "\nStarting to facetize regions\n\n"
+
+    # open list of files that previously failed to convert
+    # get list
+    if {[file exists $filename]} {
+	set fail [open $filename r]
+	set reg_fail [eval list [read $fail]]
+	close $fail
+    } else {
+	set reg_fail ""
+    }
+
+    set fail [open $filename a]
+
+    foreach reg $reg_list {
+	puts "------ <$reg> ------"
+	switch -exact [attempt_facetize $reg $reg_fail $fail] {
+	    0 {
+		#succeeded
+		puts "$reg ok"
+	    }
+	    1 {
+		# failed
+
+		puts "expanding $reg"
+		expand_comb ${reg}_ $reg 0
+		puts "sub-facetizing $reg"
+#		facetize_failed_comb ${reg}_ $reg_fail $fail
+	    }
+	    2 { # previous failure
+		puts "$reg failed before"
+	    }
+	    3 { # previously succeeded
+		puts "$reg previously succeeded"
+	    }
+	    default { puts "what?" }
+	}
+    }
+    set glob_compat_mode 1
+    return
+}
+
+
+#
+#  Facetize a sub-portion of a combination that failed to fully facetize
+#
+#
+proc facetize_failed_comb {reg reg_fail fail} {
+
+    puts "\n----- facetizing_failed_comb $reg -----"
+    if { [catch {db get $reg tree} tree] } {
+	puts "Could not get tree from $reg"
+	return
+    }
+
+    # get children
+    if { [lindex [lindex $tree 1] 0] != "l" } {
+	puts "left is not a leaf"
+	set comb [lindex [lindex $tree 1] 1]
+	expand_comb_tree $reg
+	facetize_failed_comb $reg $reg_fail $fail
+	return
+    } else {
+	set left [lindex [lindex $tree 1] 1]
+    }
+    if { [lindex [lindex $tree 2] 0] != "l" } {
+	puts "right is not a leaf"
+	set comb [lindex [lindex $tree 1] 1]
+	expand_comb_tree $reg
+	facetize_failed_comb $reg $reg_fail $fail
+	return
+    } else {
+	set right [lindex [lindex $tree 2] 1]
+    }
+
+    foreach child [list $left $right ] {
+
+	set cond [attempt_facetize $child $reg_fail $fail]
+	switch -exact $cond {
+	    0 { # succeeded, delete sub-tree, modify comb to contain facetized
+		puts "sub-child $child facetized"
+	    }
+	    1 {
+		# failed, try to facetize the sub-tree parts
+		if {[facetize_failed_comb $child $reg_fail $fail]} {
+		    puts "failed child $child"
+		} else {
+		    puts "succeeded child $child"
+		}
+	    }
+	    2 { # previously failed
+		puts "sub-child $child previously failed"
+		break
+	    }
+	    default {
+		puts "sub-child $child gave cond $cond"
+		break
+	    }
+	}
+    }
+}
+
+# Local Variables:
+# mode: Tcl
+# tab-width: 8
+# c-basic-offset: 4
+# tcl-indent-level: 4
+# indent-tabs-mode: t
+# End:
+# ex: shiftwidth=4 tabstop=8
+@
+
+
+1.6
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@d22 1
+a22 1
+# return 
+d58 1
+a58 1
+    } 
+d68 1
+a68 1
+    
+d76 1
+a76 1
+#  which manages re-starting mged when we get a 
+d102 1
+a102 1
+	    0 { 
+d117 1
+a117 1
+	    3 { # previously succeeded 
+a127 1
+
+@
+
+
+1.5
+log
+@add missing header/footer
+@
+text
+@d9 1
+a9 1
+# as published by the Free Software Foundation.
+@
+
+
+1.4
+log
+@updates to support expanding combination record trees.  Serious improvements.
+changes to facetization of all regions.
+@
+text
+@d1 2
+d4 17
+d187 9
+@
+
+
+1.3
+log
+@expand code moved into facetize_all_regions.tcl for ease of debugging.  Some code changes to facetize.
+@
+text
+@a1 110
+#  Expand a single boolean node in a tree
+#  to create new object called $name
+#
+proc expand_bool_node {name tree s} {
+
+    puts "$s expand_bool_node $name"
+
+    if { [catch {get $name} dbrec] } {
+	
+    } else {
+	# exists
+	puts "$name already exists... skipping\n$dbrec"
+	return
+    }
+
+    set left [lindex $tree 1]
+    set right [lindex $tree 2]
+
+    if {[lindex $left 0] != "l"} {
+	# need to expand left
+	set newname ${name}l
+	expand_bool_node $newname $left "$s  "
+	set left "l $newname"
+    }
+
+    if {[lindex $right 0] != "l"} {
+	# need to expand right
+	set newname ${name}r
+	expand_bool_node $newname $right "$s  "
+	set right "l $newname"
+    }
+
+
+    set tree [list [lindex $tree 0] $left $right]
+    set cmd "db put $name comb tree [list $tree]"
+    eval $cmd
+}
+
+#
+#  Create database objects for all boolean nodes in a combination tree
+#
+#  Options: -c  don't modify the given combination, copy it and expand that one.
+#               This allows the original combination record to remain intact.
+#
+# return 0 expanded all
+#	1 one or more did not expand (already single boolean)
+#
+#
+proc expand_comb_tree {args} {
+    set return_val 0
+
+    if {[llength $args] == 0} {
+	puts "usage: expand_comb_tree \[-c\] regname ..."
+    }
+
+    if {[string compare [lindex $args 0] "-c"] == 0} {
+	set duplicate 1
+    } else {
+	set duplicate 0
+    }
+
+    foreach r [lrange $args $duplicate end] {
+
+	puts "expand $r"
+
+	if {[catch {get $r tree} tree]} {
+	    puts "Error: could not get tree for $r.  Skipping"
+	    continue
+	}
+
+	if { [lindex $tree 0] == "l" } {
+	    # a combination of a single leaf?
+	    puts "single leaf [lindex $tree 1]"
+	    continue
+	}
+
+	set left [lindex $tree 1]
+	set right [lindex $tree 2]
+
+	# check to see if we are already a single boolean op
+	if {[lindex $left 0] == "l" && [lindex $right 0] == "l"} {
+	    puts "just 2 leaf nodes [lindex $left 1] [lindex $right 1]"} {
+	    set return_val 1
+	}
+	
+	# at lease one branch is deaper than a leaf
+
+	if {[lindex $left 0] != "l"} {
+	    expand_bool_node ${r}_xpand_l $left "  "
+	    set left "l ${r}_xpand_l"
+	}
+	if {[lindex $right 0] != "l"} {
+	    expand_bool_node  ${r}_xpand_r $right "  "
+	    set right "l ${r}_xpand_r"
+	}
+
+	set tree "[lindex $tree 0] [list $left] [list $right]"
+	if {$duplicate} {
+	    # create new region/combnation
+	    cp $r ${r}_xpand
+	    db adjust ${r}_xpand tree $tree
+	} else {
+	    db adjust $r tree $tree
+	}
+    }
+
+    return $return_val
+}
+
+#
+d4 1
+d13 1
+a13 1
+    if { ! [catch {db get $reg.bot} regval]} {
+d15 2
+a16 2
+	puts " ---- $reg.bot exists $regval"
+	return 0
+a24 1
+
+a25 1
+
+d39 35
+d75 4
+a78 1
+	puts "---- $reg now done"
+d80 23
+a102 6
+	# remove $reg from list of failed
+	seek $fail $pos_fail
+	set erase [format "%*s" [string length $buf] " "]
+	puts -nonewline $fail $erase
+	flush $fail
+	seek $fail $pos_fail
+d104 2
+a105 2
+    
+    return 0
+d108 2
+a167 55
+
+#
+#  Attempt to facetize each region in a database
+#  This proc is usually called from facetall.sh
+#  which manages re-starting mged when we get a 
+#  core dump
+#
+proc facetize_all_regions {filename} {
+    global glob_compat_mode
+
+    set glob_compat_mode 0
+    set reg_list [ls -r]
+
+    puts "\nStarting to facetize regions\n\n"
+
+    # open list of files that previously failed to convert
+    # get list
+    if {[file exists $filename]} {
+	set fail [open $filename r]
+	set reg_fail [eval list [read $fail]]
+	close $fail
+    } else {
+	set reg_fail ""
+    }
+
+    set fail [open $filename a]
+
+    foreach reg $reg_list {
+	puts "------ <$reg> ------"
+	switch [attempt_facetize $reg $reg_fail $fail] {
+	    0 { 
+		#succeeded
+		puts "$reg ok"
+	    }
+	    1 {
+		# failed
+
+		puts "expanding $reg"
+		if { [expand_comb_tree -c $reg] } {
+		    puts "sub-facetizing $reg"
+#		    facetize_failed_comb ${reg} $reg_fail $fail
+		} else {
+		    puts "sub-facetizing ${reg}_xpand"
+#		    facetize_failed_comb ${reg}_xpand $reg_fail $fail
+		}
+	    }
+	    2 { # previous failure
+		puts "$reg failed before"
+	    }
+	    default { puts "what?" }
+	}
+    }
+    set glob_compat_mode 1
+    return
+}
+@
+
+
+1.2
+log
+@removed debugging logging.  added code comment.
+@
+text
+@d1 5
+a5 1
+proc facetize_failed_comb {reg} {
+d7 7
+a13 2
+    if {[catch {db get $reg tree} tree]} {
+	puts "Could not get tree from $reg"
+d17 49
+a65 2
+    set left [lindex [lindex $tree 1] 1]
+    set right [lindex [lindex $tree 2] 1]
+d67 80
+a146 1
+    if {[catch {facetize $left.bot $left} res]} {
+d148 2
+a149 1
+	facetize_failed_comb $left
+d151 8
+a158 1
+	# facetize succeeded
+d160 3
+d164 28
+a191 3
+    if {[catch {facetize $right.bot $right} res]} {
+	# facetize failed
+	facetize_failed_comb $right
+d193 1
+a193 1
+	# facetize succeeded
+d196 25
+d223 8
+a231 1
+proc facetize_all_regions {} {
+d235 1
+a235 1
+    puts "\n\n\nStarting to facetize regions\n\n\n"
+d239 2
+a240 2
+    if {[file exists regions.fail]} {
+	set fail [open regions.fail r]
+d247 1
+a247 1
+    set fail [open regions.fail a]
+d251 7
+d259 4
+a262 21
+	# check to see if the bot already exists
+	if {[catch {db get $reg.bot} regval]} {
+
+	    # bot does not exist
+	    #
+	    # check to see if it previously failed
+	    if { [lsearch $reg_fail $reg] < 0} {
+		# not in the list of previous failures.  Facetize it
+
+		puts "facetizing $reg"
+
+		# record the region we are about to attempt as failed
+		# if we dump core, it won't be attempted again
+		set pos_fail [tell $fail]
+		set buf " $reg"
+		puts -nonewline $fail $buf
+		flush $fail
+
+		if {[catch {facetize $reg.bot $reg} res]} {
+		    # facetize failed
+		    puts "$reg failed"
+d264 2
+a265 9
+		    #facetize succeeded
+		    puts "facetized"
+
+		    # remove $reg from list of failed
+		    seek $fail $pos_fail
+		    set erase [format "%*s" [string length $buf] " "]
+		    puts -nonewline $fail $erase
+		    flush $fail
+		    seek $fail $pos_fail
+a266 2
+	    } else {
+		puts "previously failed on $reg"
+d268 4
+a271 2
+	} else {
+	    puts "   exists"
+d274 3
+a276 1
+}@
+
+
+1.1
+log
+@Routines to facetize all regions in a database.  For use in conjunction with the "facetall.sh" script
+@
+text
+@a48 1
+
+d53 1
+a53 1
+
+d61 1
+d88 1
+a88 1
+}
+@
+

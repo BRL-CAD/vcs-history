@@ -1,0 +1,1658 @@
+head	14.16;
+access;
+symbols
+	rel-7-10-4:14.16
+	STABLE:14.16.0.2
+	stable-branch:14.7
+	rel-7-10-2:14.16
+	rel-7-10-0:14.16
+	rel-7-8-4:14.12
+	rel-7-8-2:14.11
+	rel-7-8-0:14.11
+	trimnurbs-branch:14.11.0.2
+	help:14.11
+	temp_tag:14.10
+	bobWinPort-20051223-freeze:14.9
+	postmerge-20051223-bobWinPort:14.10
+	premerge-20051223-bobWinPort:14.10
+	rel-7-6-6:14.10
+	rel-7-6-4:14.10
+	rel-7-6-2:14.9
+	rel-7-6-branch:14.9.0.4
+	rel-7-6-0:14.9
+	rel-7-4-2:14.8
+	rel-7-4-branch:14.8.0.2
+	bobWinPort:14.9.0.2
+	rel-7-4-0:14.8
+	rel-7-2-6:14.7
+	rel-7-2-4:14.7
+	rel-7-2-2:14.7
+	rel-7-2-0:14.7
+	rel-7-0-4:14.6
+	rel-7-0-2:14.6
+	rel-7-0-1:14.6
+	opensource-post:14.6
+	opensource-pre:1.3
+	rel-7-0-branch:1.3.0.2
+	rel-7-0:1.3;
+locks; strict;
+comment	@ * @;
+
+
+14.16
+date	2007.01.27.01.41.35;	author brlcad;	state Exp;
+branches;
+next	14.15;
+
+14.15
+date	2007.01.23.01.13.33;	author brlcad;	state Exp;
+branches;
+next	14.14;
+
+14.14
+date	2007.01.21.04.45.41;	author brlcad;	state Exp;
+branches;
+next	14.13;
+
+14.13
+date	2007.01.20.14.36.50;	author brlcad;	state Exp;
+branches;
+next	14.12;
+
+14.12
+date	2006.09.04.04.42.40;	author lbutler;	state Exp;
+branches;
+next	14.11;
+
+14.11
+date	2006.01.18.06.46.16;	author brlcad;	state Exp;
+branches;
+next	14.10;
+
+14.10
+date	2005.10.23.04.44.31;	author brlcad;	state Exp;
+branches;
+next	14.9;
+
+14.9
+date	2005.08.12.22.28.35;	author lbutler;	state Exp;
+branches
+	14.9.4.1;
+next	14.8;
+
+14.8
+date	2005.06.30.00.20.03;	author erikgreenwald;	state Exp;
+branches;
+next	14.7;
+
+14.7
+date	2005.01.30.20.30.44;	author brlcad;	state Exp;
+branches;
+next	14.6;
+
+14.6
+date	2004.12.21.07.25.29;	author morrison;	state Exp;
+branches;
+next	14.5;
+
+14.5
+date	2004.12.21.07.18.57;	author morrison;	state Exp;
+branches;
+next	14.4;
+
+14.4
+date	2004.12.21.06.18.43;	author morrison;	state Exp;
+branches;
+next	14.3;
+
+14.3
+date	2004.12.21.05.45.20;	author morrison;	state Exp;
+branches;
+next	14.2;
+
+14.2
+date	2004.12.21.01.52.15;	author morrison;	state Exp;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.13;	author morrison;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2004.08.02.23.01.48;	author morrison;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2004.06.08.19.24.02;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.15.19.29;	author morrison;	state Exp;
+branches;
+next	;
+
+14.9.4.1
+date	2005.11.13.13.46.15;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.16
+log
+@ws. lots and lots of ws.  see sh/ws.sh for details (cases 'abcdeg').
+@
+text
+@/*                         N O I S E . C
+ * BRL-CAD
+ *
+ * Copyright (c) 2004-2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This library is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@addtogroup noise */
+/** @@{ */
+/** @@file noise.c
+ *
+ *  Signed noise functions
+ *
+ *	- bn_noise_perlin	Robert Skinner's Perlin-style "Noise" function
+ *	- bn_noise_vec	Vector-valued noise
+ *
+ *  Spectral Noise functions
+ *
+ *	- bn_noise_fbm	fractional Brownian motion.  Based on bn_noise_perlin
+ *	- bn_noise_turb	turbulence.  Based on bn_noise_perlin
+ *
+ *  These noise functions provide mostly random noise at the integer lattice
+ *  points.  The functions should be evaluated at non-integer locations for
+ *  their nature to be realized.
+ *
+ *
+ *  @@author	Lee A. Butler
+ *  @@par Contributed code from
+ *	F. Kenton Musgrave
+ *@@n  	Robert Skinner
+ *
+ *  @@par Source -
+ *	The U. S. Army Research Laboratory
+ *@@	Aberdeen Proving Ground, Maryland  21005-5068  USA
+ */
+
+
+#ifndef lint
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/libbn/noise.c,v 14.15 2007/01/23 01:13:33 brlcad Exp $ (ARL)";
+#endif
+
+#include "common.h"
+
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <math.h>
+#include "machine.h"
+#include "bu.h"
+#include "vmath.h"
+#include "bn.h"
+
+
+/**
+ * @@brief interpolate smoothly from 0 .. 1
+ *  SMOOTHSTEP() takes a value in the range [0:1] and provides a number
+ * in the same range indicating the amount of (a) present in a smooth
+ * interpolation transition between (a) and (b)
+ */
+#define SMOOTHSTEP(x)	(  (x) * (x) * (3 - 2*(x))  )
+
+
+#define FLOOR(x)	(  (int)(x) - (  (x) < 0 && (x) != (int)(x)  )  )
+
+/**
+ *@@brief fold space to extend the domain over which we can take
+ * noise values.
+ *
+ *@@n x, y, z are set to the noise space location for the source point.
+ *@@n ix, iy, iz are the integer lattice point (integer portion of x,y,z)
+ *@@n fx, fy, fz are the fractional lattice distance above ix,iy,iz
+ *
+ * The noise function has a finite domain, which can be exceeded when
+ * using fractal textures with very high frequencies.  This routine is
+ * designed to extend the effective domain of the function, albeit by
+ * introducing periodicity.	-FKM 4/93
+ */
+static void
+filter_args(fastf_t *src, fastf_t *p, fastf_t *f, int *ip)
+{
+	register int i;
+	point_t dst;
+	static unsigned long max2x = ~((unsigned long)0);
+	static unsigned long max = (~((unsigned long)0)) >> 1;
+
+	for (i=0 ; i < 3 ; i++) {
+		/* assure values are positive */
+		if (src[i] < 0) dst[i] = -src[i];
+		else dst[i] = src[i];
+
+
+		/* fold space */
+		while (dst[i] > max || dst[i]<0) {
+			if (dst[i] > max) {
+				dst[i] = max2x - dst[i];
+			} else {
+				dst[i] = -dst[i];
+			}
+		}
+
+	}
+
+	p[X] = dst[0];	ip[X] = FLOOR(p[X]);	f[X] = p[X] - ip[X];
+	p[Y] = dst[1];	ip[Y] = FLOOR(p[Y]);	f[Y] = p[Y] - ip[Y];
+	p[Z] = dst[2];	ip[Z] = FLOOR(p[Z]);	f[Z] = p[Z] - ip[Z];
+}
+
+
+#define MAXSIZE 267	/* 255 + 3 * (4 values) */
+
+/**
+ * The RTable maps numbers into the range [-1..1]
+ */
+static double	RTable[MAXSIZE];
+
+#define INCRSUM(m,s,x,y,z)	((s)*(RTable[m]*0.5		\
+					+ RTable[m+1]*(x)	\
+					+ RTable[m+2]*(y)	\
+					+ RTable[m+3]*(z)))
+
+
+/**
+ *  A heavily magic-number protected version of the hashtable.
+ *
+ *  This table is used to convert integers into repeatable random results
+ *  for indicies into RTable.
+ */
+struct str_ht {
+	long	magic;
+	char	hashTableValid;
+	long	*hashTableMagic1;
+	short	*hashTable;
+	long	*hashTableMagic2;
+	long	magic_end;
+};
+
+static struct str_ht ht;
+
+#define MAGIC_STRHT1	1771561
+#define MAGIC_STRHT2	1651771
+#define MAGIC_TAB1	   9823
+#define MAGIC_TAB2	 784642
+#define CK_HT() { \
+	BU_CKMAG(&ht.magic, MAGIC_STRHT1, "struct str_ht ht 1"); \
+	BU_CKMAG(&ht.magic_end, MAGIC_STRHT2, "struct str_ht ht 2"); \
+	BU_CKMAG(ht.hashTableMagic1, MAGIC_TAB1, "hashTable Magic 1"); \
+	BU_CKMAG(ht.hashTableMagic2, MAGIC_TAB2, "hashTable Magic 2"); \
+	if (ht.hashTable != (short *)&ht.hashTableMagic1[1] ) \
+		bu_bomb("ht.hashTable changed rel ht.hashTableMagic1"); \
+	if (ht.hashTableMagic2 != (long *)&ht.hashTable[4096] ) \
+		bu_bomb("ht.hashTable changed rel ht.hashTableMagic2"); \
+}
+
+/**
+ * Map integer point into repeatable random number [0..4095]
+ * We actually only use the first 8 bits of the final value extracted from
+ * this table.  It's not quite clear that we really need this big a table.
+ * The extra size does provide some extra randomness for intermediate results.
+ */
+#define Hash3d(a,b,c) \
+	ht.hashTable[  \
+		ht.hashTable[  \
+			ht.hashTable[(a) & 0xfff] ^ ((b) & 0xfff) \
+		]  ^ ((c) & 0xfff) \
+	]
+
+
+void
+bn_noise_init(void)
+{
+	int i, j, k, temp;
+	int rndtabi = BN_RAND_TABSIZE - 1;
+
+	bu_semaphore_acquire( BU_SEM_BN_NOISE );
+
+	if (ht.hashTableValid) {
+		bu_semaphore_release( BU_SEM_BN_NOISE );
+		return;
+	}
+
+	BN_RANDSEED(rndtabi, (BN_RAND_TABSIZE-1) );
+	ht.hashTableMagic1 = (long *) bu_malloc(
+		2*sizeof(long) + 4096*sizeof(short int),
+		"noise hashTable");
+	ht.hashTable = (short *)&ht.hashTableMagic1[1];
+	ht.hashTableMagic2 = (long *)&ht.hashTable[4096];
+
+	*ht.hashTableMagic1 = MAGIC_TAB1;
+	*ht.hashTableMagic2 = MAGIC_TAB2;
+
+	ht.magic_end = MAGIC_STRHT2;
+	ht.magic = MAGIC_STRHT1;
+
+	for (i = 0; i < 4096; i++)
+		ht.hashTable[i] = i;
+
+	/* scramble the hash table */
+	for (i = 4095; i > 0; i--) {
+		j = (int)(BN_RANDOM(rndtabi) * 4096.0);
+
+		temp = ht.hashTable[i];
+		ht.hashTable[i] = ht.hashTable[j];
+		ht.hashTable[j] = temp;
+	}
+
+	BN_RANDSEED(k, 13);
+
+	for (i = 0; i < MAXSIZE; i++)
+		RTable[i] = BN_RANDOM(k) * 2.0 - 1.0;
+
+
+	ht.hashTableValid = 1;
+
+	bu_semaphore_release( BU_SEM_BN_NOISE );
+
+
+	CK_HT();
+}
+
+
+/**
+ *@@brief
+ * Robert Skinner's Perlin-style "Noise" function
+ *
+ * Results are in the range [-0.5 .. 0.5].  Unlike many implementations,
+ * this function provides random noise at the integer lattice values.
+ * However this produces much poorer quality and should be avoided if
+ * possible.
+ *
+ * The power distribution of the result has no particular shape, though it
+ * isn't as flat as the literature would have one believe.
+ */
+double
+bn_noise_perlin(fastf_t *point)
+{
+	register int	jx, jy, jz;
+	int ix, iy, iz;	/* lower integer lattice point */
+	double x, y, z;	/* corrected point */
+	double fx, fy, fz;	/* distance above integer lattice point */
+	double	sx, sy, sz, tx, ty, tz;
+	double	sum;
+	short	m;
+	point_t p, f;
+	int ip[3];
+
+	if (!ht.hashTableValid) bn_noise_init();
+	else {
+/*		CK_HT(); */
+	}
+
+	/* IS: const fastf_t *, point_t, point_t, int[3] */
+	/* NE: fastf_t *, fastf_t *, fastf_t *, int *    */
+	filter_args( point, p, f, ip);
+	ix = ip[X];
+	iy = ip[Y];
+	iz = ip[Z];
+
+	fx = f[X];
+	fy = f[Y];
+	fz = f[Z];
+
+	x = p[X];
+	y = p[Y];
+	z = p[Z];
+
+	jx = ix + 1; /* (jx,jy,jz) = integer lattice point above (ix,iy,iz) */
+	jy = iy + 1;
+	jz = iz + 1;
+
+	sx = SMOOTHSTEP(fx);
+	sy = SMOOTHSTEP(fy);
+	sz = SMOOTHSTEP(fz);
+
+	/* the complement values of sx,sy,sz */
+	tx = 1.0 - sx;
+	ty = 1.0 - sy;
+	tz = 1.0 - sz;
+
+	/*
+	 *  interpolate!
+	 */
+	/* get a repeatable random # 0..4096 & 0xFF*/
+	m = Hash3d( ix, iy, iz ) & 0xFF;
+	sum = INCRSUM(m,(tx*ty*tz),(x-ix),(y-iy),(z-iz));
+
+	m = Hash3d( jx, iy, iz ) & 0xFF;
+	sum += INCRSUM(m,(sx*ty*tz),(x-jx),(y-iy),(z-iz));
+
+	m = Hash3d( ix, jy, iz ) & 0xFF;
+	sum += INCRSUM(m,(tx*sy*tz),(x-ix),(y-jy),(z-iz));
+
+	m = Hash3d( jx, jy, iz ) & 0xFF;
+	sum += INCRSUM(m,(sx*sy*tz),(x-jx),(y-jy),(z-iz));
+
+	m = Hash3d( ix, iy, jz ) & 0xFF;
+	sum += INCRSUM(m,(tx*ty*sz),(x-ix),(y-iy),(z-jz));
+
+	m = Hash3d( jx, iy, jz ) & 0xFF;
+	sum += INCRSUM(m,(sx*ty*sz),(x-jx),(y-iy),(z-jz));
+
+	m = Hash3d( ix, jy, jz ) & 0xFF;
+	sum += INCRSUM(m,(tx*sy*sz),(x-ix),(y-jy),(z-jz));
+
+	m = Hash3d( jx, jy, jz ) & 0xFF;
+	sum += INCRSUM(m,(sx*sy*sz),(x-jx),(y-jy),(z-jz));
+
+	return sum;
+
+}
+
+/**
+ * Vector-valued "Noise"
+ */
+void
+bn_noise_vec(fastf_t *point, fastf_t *result)
+{
+	register int	jx, jy, jz;
+	int ix, iy, iz;		/* lower integer lattice point */
+	double x, y, z;		/* corrected point */
+	double		px, py, pz, s;
+	double		sx, sy, sz, tx, ty, tz;
+	short		m;
+	point_t p, f;
+	int ip[3];
+
+
+	if ( ! ht.hashTableValid ) bn_noise_init();
+
+
+	/* sets:
+	 * x,y,z to range [0..maxval],
+	 * ix,iy,iz to integer portion,
+	 * fx,fy,fz to fractional portion
+	 */
+	filter_args( point, p, f, ip);
+	ix = ip[X];
+	iy = ip[Y];
+	iz = ip[Z];
+
+	x = p[X];
+	y = p[Y];
+	z = p[Z];
+
+	jx = ix+1;   jy = iy + 1;   jz = iz + 1;
+
+	sx = SMOOTHSTEP(x - ix);
+	sy = SMOOTHSTEP(y - iy);
+	sz = SMOOTHSTEP(z - iz);
+
+	/* the complement values of sx,sy,sz */
+	tx = 1.0 - sx;
+	ty = 1.0 - sy;
+	tz = 1.0 - sz;
+
+	/*
+	 *  interpolate!
+	 */
+	m = Hash3d( ix, iy, iz ) & 0xFF;
+	px = x-ix;
+	py = y-iy;
+	pz = z-iz;
+	s = tx*ty*tz;
+	result[0] = INCRSUM(m,s,px,py,pz);
+	result[1] = INCRSUM(m+4,s,px,py,pz);
+	result[2] = INCRSUM(m+8,s,px,py,pz);
+
+	m = Hash3d( jx, iy, iz ) & 0xFF;
+	px = x-jx;
+	s = sx*ty*tz;
+	result[0] += INCRSUM(m,s,px,py,pz);
+	result[1] += INCRSUM(m+4,s,px,py,pz);
+	result[2] += INCRSUM(m+8,s,px,py,pz);
+
+	m = Hash3d( jx, jy, iz ) & 0xFF;
+	py = y-jy;
+	s = sx*sy*tz;
+	result[0] += INCRSUM(m,s,px,py,pz);
+	result[1] += INCRSUM(m+4,s,px,py,pz);
+	result[2] += INCRSUM(m+8,s,px,py,pz);
+
+	m = Hash3d( ix, jy, iz ) & 0xFF;
+	px = x-ix;
+	s = tx*sy*tz;
+	result[0] += INCRSUM(m,s,px,py,pz);
+	result[1] += INCRSUM(m+4,s,px,py,pz);
+	result[2] += INCRSUM(m+8,s,px,py,pz);
+
+	m = Hash3d( ix, jy, jz ) & 0xFF;
+	pz = z-jz;
+	s = tx*sy*sz;
+	result[0] += INCRSUM(m,s,px,py,pz);
+	result[1] += INCRSUM(m+4,s,px,py,pz);
+	result[2] += INCRSUM(m+8,s,px,py,pz);
+
+	m = Hash3d( jx, jy, jz ) & 0xFF;
+	px = x-jx;
+	s = sx*sy*sz;
+	result[0] += INCRSUM(m,s,px,py,pz);
+	result[1] += INCRSUM(m+4,s,px,py,pz);
+	result[2] += INCRSUM(m+8,s,px,py,pz);
+
+	m = Hash3d( jx, iy, jz ) & 0xFF;
+	py = y-iy;
+	s = sx*ty*sz;
+	result[0] += INCRSUM(m,s,px,py,pz);
+	result[1] += INCRSUM(m+4,s,px,py,pz);
+	result[2] += INCRSUM(m+8,s,px,py,pz);
+
+	m = Hash3d( ix, iy, jz ) & 0xFF;
+	px = x-ix;
+	s = tx*ty*sz;
+	result[0] += INCRSUM(m,s,px,py,pz);
+	result[1] += INCRSUM(m+4,s,px,py,pz);
+	result[2] += INCRSUM(m+8,s,px,py,pz);
+}
+/*************************************************************
+ *@@brief
+ *	Spectral Noise functions
+ *
+ *************************************************************
+ *
+ *	The Spectral Noise functions cache the values of the
+ *	term:
+ *@@code
+		    (-h_val)
+		freq
+ *@@endcode
+ *	Which on some systems is rather expensive to compute.
+ *
+ *************************************************************/
+struct fbm_spec {
+	long	magic;
+	double	octaves;
+	double	lacunarity;
+	double	h_val;
+	double	remainder;
+	double	*spec_wgts;
+};
+#define MAGIC_fbm_spec_wgt 0x837592
+
+static struct fbm_spec *etbl = (struct fbm_spec *)NULL;
+static int etbl_next = 0;
+static int etbl_size = 0;
+
+#define PSCALE(_p, _s) _p[0] *= _s; _p[1] *= _s; _p[2] *= _s
+#define PCOPY(_d, _s) _d[0] = _s[0]; _d[1] = _s[1]; _d[2] = _s[2]
+
+
+static struct fbm_spec *
+build_spec_tbl(double h_val, double lacunarity, double octaves)
+{
+	struct fbm_spec	*ep;
+	double		*spec_wgts;
+	double		frequency;
+	int		i;
+
+	/* The right spectral weights table for these parameters has not been
+	 * pre-computed.  As a result, we compute the table now and save it
+	 * with the knowledge that we'll likely want it again later.
+	 */
+
+	/* allocate storage for new tables if needed */
+	if (etbl_next >= etbl_size) {
+		if (etbl_size) {
+			etbl_size *= 2;
+			etbl = (struct fbm_spec *)bu_realloc((char *)etbl,
+					etbl_size*sizeof(struct fbm_spec),
+					"spectral weights table");
+		} else
+			etbl = (struct fbm_spec *)bu_calloc(etbl_size = 10,
+					sizeof(struct fbm_spec),
+					"spectral weights table");
+
+		if (!etbl) abort();
+	}
+
+	/* set up the next available table */
+	ep = &etbl[etbl_next];
+	ep->magic = MAGIC_fbm_spec_wgt;	ep->octaves = octaves;
+	ep->h_val = h_val;		ep->lacunarity = lacunarity;
+	spec_wgts = ep->spec_wgts =
+		(double *)bu_malloc( ((int)(octaves+1)) * sizeof(double),
+		"spectral weights" );
+
+	/* precompute and store spectral weights table */
+	for (frequency = 1.0, i=0 ; i < octaves ; i++) {
+		/* compute weight for each frequency */
+		spec_wgts[i] = pow(frequency, -h_val);
+		frequency *= lacunarity;
+	}
+
+	etbl_next++; /* saved for last in case we're running multi-threaded */
+	return ep;
+}
+
+/**
+ * The first order of business is to see if we have pre-computed
+ * the spectral weights table for these parameters in a previous
+ * invocation.  If not, the we compute them and save them for
+ * possible future use
+ */
+
+struct fbm_spec		*
+find_spec_wgt(double h, double l, double o)
+{
+	struct fbm_spec	*ep;
+	int i;
+
+
+	for (ep = etbl, i=0 ; i < etbl_next ; i++, ep++) {
+		if (ep->magic != MAGIC_fbm_spec_wgt) bu_bomb("find_spec_wgt");
+		if (ep->lacunarity == l && ep->h_val == h &&
+			ep->octaves >= o )
+				return ep;
+	}
+
+	/* we didn't find the table we wanted so we've got to semaphore on
+	 * the list to wait our turn to add what we want to the table.
+	 */
+
+	bu_semaphore_acquire( BU_SEM_BN_NOISE );
+
+	/* We search the list one more time in case the last process to
+	 * hold the semaphore just created the table we were about to add
+	 */
+	for (ep = etbl, i=0 ; i < etbl_next ; i++, ep++) {
+		if (ep->magic != MAGIC_fbm_spec_wgt) bu_bomb("find_spec_wgt");
+		if (ep->lacunarity == l && ep->h_val == h &&
+			ep->octaves >= o )
+				break;
+	}
+
+	if (i >= etbl_next) ep = build_spec_tbl(h, l, o);
+
+	bu_semaphore_release( BU_SEM_BN_NOISE );
+
+	return (ep);
+}
+/**
+ * @@brief
+ * Procedural fBm evaluated at "point"; returns value stored in "value".
+ *
+ * @@param   point		location to sample noise
+ * @@param   ``h_val''		fractal increment parameter
+ * @@param   ``lacunarity''	gap between successive frequencies
+ * @@param   ``octaves''  	number of frequencies in the fBm
+ *
+ * The spectral properties of the result are in the APPROXIMATE range [-1..1]
+ * Depending upon the number of octaves computed, this range may be exceeded.
+ * Applications should clamp or scale the result to their needs.
+ * The results have a more-or-less gaussian distribution.  Typical
+ * results for 1M samples include:
+ *
+ * @@li  Min           -1.15246
+ * @@li  Max            1.23146
+ * @@li  Mean        -0.0138744
+ * @@li  s.d.          0.306642
+ * @@li  Var          0.0940295
+ *
+ * The function call pow() is relatively expensive.  Therfore, this function
+ * pre-computes and saves the spectral weights in a table for re-use in
+ * successive invocations.
+ */
+double
+bn_noise_fbm(fastf_t *point, double h_val, double lacunarity, double octaves)
+{
+	struct fbm_spec		*ep;
+	double			value, remainder, *spec_wgts;
+	point_t			pt;
+	int			i, oct;
+
+	/* The first order of business is to see if we have pre-computed
+	 * the spectral weights table for these parameters in a previous
+	 * invocation.  If not, the we compute them and save them for
+	 * possible future use
+	 */
+
+	ep = find_spec_wgt(h_val, lacunarity, octaves);
+
+	/* now we're ready to compute the fBm value */
+
+	value = 0.0;            /* initialize vars to proper values */
+	/* copy the point so we don't corrupt the caller's version */
+	PCOPY(pt, point);
+
+	spec_wgts = ep->spec_wgts;
+
+	/* inner loop of spectral construction */
+	oct=(int)octaves; /* save repeating double->int cast */
+	for (i=0 ; i < oct ; i++) {
+		value += bn_noise_perlin( pt ) * spec_wgts[i];
+		PSCALE(pt, lacunarity);
+	}
+
+	remainder = octaves - (int)octaves;
+	if ( remainder ) {
+		/* add in ``octaves''  remainder
+		 * ``i''  and spatial freq. are preset in loop above
+		 */
+	    value += remainder * bn_noise_perlin( pt ) * spec_wgts[i];
+	}
+
+	return( value );
+
+} /* bn_noise_fbm() */
+
+
+/**
+ * @@brief
+ * Procedural turbulence evaluated at "point";
+ *
+ * @@return  turbulence value for point
+ *
+ * @@param	point		location to sample noise at
+ * @@param   ``h_val''		fractal increment parameter
+ * @@param   ``lacunarity''	gap between successive frequencies
+ * @@param   ``octaves''  	number of frequencies in the fBm
+ *
+ * The result is characterized by sharp, narrow trenches in low values and
+ * a more fbm-like quality in the mid-high values.  Values are in the
+ * APPROXIMATE range [0 .. 1] depending upon the number of octaves evaluated.
+ * Typical results:
+@@code
+ * Min         0.00857137
+ * Max            1.26712
+ * Mean          0.395122
+ * s.d.          0.174796
+ * Var          0.0305536
+@@endcode
+ * The function call pow() is relatively expensive.  Therfore, this function
+ * pre-computes and saves the spectral weights in a table for re-use in
+ * successive invocations.
+ */
+double
+bn_noise_turb(fastf_t *point, double h_val, double lacunarity, double octaves)
+{
+	struct fbm_spec		*ep;
+	double			value, remainder, *spec_wgts;
+	point_t			pt;
+	int			i, oct;
+
+
+	/* The first order of business is to see if we have pre-computed
+	 * the spectral weights table for these parameters in a previous
+	 * invocation.  If not, the we compute them and save them for
+	 * possible future use
+	 */
+
+#define CACHE_SPECTRAL_WGTS 1
+#ifdef CACHE_SPECTRAL_WGTS
+
+	ep = find_spec_wgt(h_val, lacunarity, octaves);
+
+	/* now we're ready to compute the fBm value */
+
+	value = 0.0;            /* initialize vars to proper values */
+
+	/* copy the point so we don't corrupt
+	 * the caller's copy of the variable
+	 */
+	PCOPY(pt, point);
+	spec_wgts = ep->spec_wgts;
+
+	/* inner loop of spectral construction */
+	oct=(int)octaves; /* save repeating double->int cast */
+	for (i=0 ; i < oct ; i++) {
+		value += fabs(bn_noise_perlin( pt )) * spec_wgts[i];
+		PSCALE(pt, lacunarity);
+	}
+
+	remainder = octaves - (int)octaves;
+	if ( remainder ) {
+		/* add in ``octaves''  remainder
+		 * ``i''  and spatial freq. are preset in loop above
+		 */
+	    value += remainder * bn_noise_perlin( pt ) * spec_wgts[i];
+	}
+#else
+	PCOPY(pt, point);
+
+	value = 0.0;            /* initialize vars to proper values */
+	frequency = 1.0;
+
+	oct=(int)octaves; /* save repeating double->int cast */
+	for (i=0 ; i < oct ; i++) {
+		value += fabs(bn_noise_perlin( pt )) * pow(frequency, -h_val);
+		frequency *= lacunarity;
+		PSCALE(pt, lacunarity);
+	}
+
+	remainder = octaves - (int)octaves;
+	if ( remainder ) {
+		/* add in ``octaves''  remainder
+		 * ``i''  and spatial freq. are preset in loop above
+		 */
+	    value += remainder * bn_noise_perlin( pt ) * pow(frequency, -h_val);
+	}
+#endif
+	return( value );
+
+} /* bn_noise_turb() */
+
+/**
+ *@@brief
+ * A ridged noise pattern
+ *
+ *	From "Texturing and Modeling, A Procedural Approach" 2nd ed p338
+ */
+double
+bn_noise_ridged(fastf_t *point, double h_val, double lacunarity, double octaves, double offset)
+{
+	struct fbm_spec		*ep;
+	double			result, weight, signal, *spec_wgts;
+	point_t			pt;
+	int			i;
+
+	/* The first order of business is to see if we have pre-computed
+	 * the spectral weights table for these parameters in a previous
+	 * invocation.  If not, the we compute them and save them for
+	 * possible future use
+	 */
+
+	ep = find_spec_wgt(h_val, lacunarity, octaves);
+
+	/* copy the point so we don't corrupt
+	 * the caller's copy of the variable
+	 */
+	PCOPY(pt, point);
+	spec_wgts = ep->spec_wgts;
+
+
+	/* get first octave */
+	signal = bn_noise_perlin(pt);
+
+	/* get absolute value of signal (this creates the ridges) */
+	if (signal < 0.0) signal = -signal;
+
+	/* invert and translate (note that "offset shoudl be ~= 1.0 */
+	signal = offset - signal;
+
+	/* square the signal, to increase "sharpness" of ridges */
+	signal *= signal;
+
+	/* assign initial value */
+	result = signal;
+	weight = 1.0;
+
+	for (i=1 ; i < octaves ; i++ ) {
+		PSCALE(pt, lacunarity);
+
+		signal = bn_noise_perlin(pt);
+
+		if (signal < 0.0) signal = - signal;
+		signal = offset - signal;
+
+		/* weight the contribution */
+		signal *= weight;
+		result += signal * spec_wgts[i];
+	}
+	return result;
+}
+
+/**
+ *
+ *	From "Texturing and Modeling, A Procedural Approach" 2nd ed
+ */
+
+double
+bn_noise_mf(fastf_t *point, double h_val, double lacunarity, double octaves, double offset)
+{
+	double 			frequency = 1.0;
+	struct fbm_spec		*ep;
+	double			result, weight, signal, *spec_wgts;
+	point_t			pt;
+	int			i;
+
+	/* The first order of business is to see if we have pre-computed
+	 * the spectral weights table for these parameters in a previous
+	 * invocation.  If not, the we compute them and save them for
+	 * possible future use
+	 */
+
+	ep = find_spec_wgt( h_val, lacunarity, octaves );
+
+	/* copy the point so we don't corrupt
+	 * the caller's copy of the variable
+	 */
+	PCOPY( pt, point );
+	spec_wgts = ep->spec_wgts;
+	offset = 1.0;
+
+	result = (bn_noise_perlin(pt) + offset) * spec_wgts[0];
+	weight = result;
+
+	for (i=1 ; i < octaves ; i++) {
+		PSCALE(pt, lacunarity);
+
+		if (weight > 1.0) weight = 1.0;
+
+		signal = ( bn_noise_perlin(pt) + offset ) * spec_wgts[i];
+
+		signal += fabs(bn_noise_perlin( pt )) * pow(frequency, -h_val);
+		frequency *= lacunarity;
+		PSCALE(pt, lacunarity);
+	}
+	return result;
+}
+
+/** @@} */
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+14.15
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@d51 1
+a51 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/libbn/noise.c,v 14.14 2007/01/21 04:45:41 brlcad Exp $ (ARL)";
+a56 1
+
+a65 1
+
+a74 2
+
+
+a133 1
+
+a232 1
+
+d437 2
+a438 2
+ 		    (-h_val)
+ 		freq
+a460 1
+
+d542 1
+a542 1
+		    		break;
+d612 1
+a612 1
+            value += remainder * bn_noise_perlin( pt ) * spec_wgts[i];
+d688 1
+a688 1
+            value += remainder * bn_noise_perlin( pt ) * spec_wgts[i];
+d708 1
+a708 1
+            value += remainder * bn_noise_perlin( pt ) * pow(frequency, -h_val);
+@
+
+
+14.14
+log
+@ugh, what tedium.  put some effort towards cleaning up the doxygen labels and making the headers more consistent.  also exclusively using @@ for doxygen instead of \ to try to keep things more consistent.
+@
+text
+@d9 1
+a9 2
+ * as published by the Free Software Foundation; either version 2 of
+ * the License, or (at your option) any later version.
+d14 1
+a14 1
+ * Library General Public License for more details.
+d51 1
+a51 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/libbn/noise.c,v 14.13 2007/01/20 14:36:50 brlcad Exp $ (ARL)";
+@
+
+
+14.13
+log
+@update copyright to 2007
+@
+text
+@d21 2
+a22 3
+
+/** \addtogroup noise */
+/*@@{*/
+d24 1
+d52 1
+a52 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/libbn/noise.c,v 14.12 2006/09/04 04:42:40 lbutler Exp $ (ARL)";
+d829 1
+a829 1
+/*@@}*/
+@
+
+
+14.12
+log
+@Doxygen updates
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 2004-2006 United States Government as represented by
+d52 1
+a52 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/libbn/noise.c,v 14.11 2006/01/18 06:46:16 brlcad Exp $ (ARL)";
+@
+
+
+14.11
+log
+@update copyright to 2006
+@
+text
+@d22 1
+a22 1
+/** \addtogroup libbn */
+d39 3
+a41 2
+ *  Author -
+ *	Lee A. Butler
+d43 1
+a43 1
+ *	Robert Skinner
+d45 1
+a45 1
+ *  Source -
+d47 1
+a47 2
+ *	Aberdeen Proving Ground, Maryland  21005-5068  USA
+ *
+d49 1
+a49 1
+/*@@}*/
+d52 1
+a52 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/libbn/noise.c,v 14.10 2005/10/23 04:44:31 brlcad Exp $ (ARL)";
+d69 3
+a71 1
+/* SMOOTHSTEP() takes a value in the range [0:1] and provides a number
+d79 5
+a83 1
+/* FILTER_ARGS() folds space to extend the domain over which we can take
+d86 3
+a88 3
+ * x, y, z are set to the noise space location for the source point.
+ * ix, iy, iz are the integer lattice point (integer portion of x,y,z)
+ * fx, fy, fz are the fractional lattice distance above ix,iy,iz
+a94 37
+
+#define FLOOR(x)	(  (int)(x) - (  (x) < 0 && (x) != (int)(x)  )  )
+
+#if 0
+#define MAXVAL  	2147483647.  /* (2^31)-1 max val for noise integers */
+#define TWICE_MAXVAL 	4294967294.
+
+/* XXX Do we need this for 64bit integer architectures?
+ *
+ * #define MAXVAL	  	 9223372036854775807.
+ * #define TWICE_MAXVAL 	18446744073709551615.
+ * #endif
+ */
+
+
+#define FILTER_ARGS( src) {\
+	register int i; \
+	point_t dst; \
+ \
+	for (i=0 ; i < 3 ; i++) { \
+		/* assure values are positive */ \
+		if (src[i] < 0) dst[i] = -src[i]; \
+		else dst[i] = src[i]; \
+ \
+		/* fold space */ \
+		while (dst[i] > MAXVAL || dst[i]<0) \
+			if (dst[i] > MAXVAL) \
+				dst[i] = TWICE_MAXVAL - dst[i]; \
+			else \
+				dst[i] = -dst[i]; \
+	} \
+\
+	x = dst[0];	ix = FLOOR(x);	fx = x - ix; \
+	y = dst[1];	iy = FLOOR(y);	fy = y - iy; \
+	z = dst[2];	iz = FLOOR(z);	fz = z - iz; \
+}
+#endif
+d126 3
+a128 1
+/*
+a130 1
+#define MAXSIZE 267	/* 255 + 3 * (4 values) */
+d140 1
+a140 1
+/*
+a145 1
+
+d172 1
+a172 1
+/*
+d240 2
+a241 1
+/*
+d330 1
+a330 1
+/*
+d436 1
+a436 1
+ *
+d443 4
+a446 3
+ *		    (-h_val)
+ *		freq
+ *
+d516 2
+a517 1
+/* The first order of business is to see if we have pre-computed
+d559 2
+a560 1
+/*
+d563 4
+a566 4
+ * Parameters:
+ *    ``h_val''		fractal increment parameter
+ *    ``lacunarity''	gap between successive frequencies
+ *    ``octaves''  	number of frequencies in the fBm
+d574 5
+a578 7
+ * Min           -1.15246
+ * Max            1.23146
+ * Mean        -0.0138744
+ * s.d.          0.306642
+ * Var          0.0940295
+ *
+ *
+d628 2
+a629 1
+/*
+d632 1
+a632 1
+ * returns value stored in "value".
+d634 4
+a637 4
+ * Parameters:
+ *    ``h_val''		fractal increment parameter
+ *    ``lacunarity''	gap between successive frequencies
+ *    ``octaves''  	number of frequencies in the fBm
+d643 1
+a643 1
+ *
+d649 1
+a649 1
+ *
+d723 3
+a725 1
+/***********************************************************************
+d783 1
+a783 1
+/***********************************************************************
+a785 1
+ *
+d829 1
+a829 5
+
+
+
+
+
+@
+
+
+14.10
+log
+@trailing ws
+@
+text
+@d4 1
+a4 1
+ * Copyright (C) 2004-2005 United States Government as represented by
+d52 1
+a52 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/libbn/noise.c,v 14.9 2005/08/12 22:28:35 lbutler Exp $ (ARL)";
+@
+
+
+14.9
+log
+@Doxygen changes
+@
+text
+@d39 1
+a39 1
+ *  Author - 
+d47 1
+a47 1
+ *  
+d52 1
+a52 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/libbn/noise.c,v 14.8 2005/06/30 00:20:03 erikgreenwald Exp $ (ARL)";
+d157 1
+a157 1
+/* 
+d178 1
+a178 1
+	long	magic;	
+d183 1
+a183 1
+	long	magic_end;	
+d203 2
+a204 2
+/* 
+ * Map integer point into repeatable random number [0..4095] 
+d222 1
+a222 1
+	
+d275 2
+a276 2
+ * this function provides random noise at the integer lattice values.  
+ * However this produces much poorer quality and should be avoided if 
+d279 1
+a279 1
+ * The power distribution of the result has no particular shape, though it 
+d316 1
+a316 1
+	jy = iy + 1; 
+d319 2
+a320 2
+	sx = SMOOTHSTEP(fx); 
+	sy = SMOOTHSTEP(fy); 
+d324 2
+a325 2
+	tx = 1.0 - sx; 
+	ty = 1.0 - sy; 
+d395 2
+a396 2
+	sx = SMOOTHSTEP(x - ix); 
+	sy = SMOOTHSTEP(y - iy); 
+d400 2
+a401 2
+	tx = 1.0 - sx; 
+	ty = 1.0 - sy; 
+d408 2
+a409 2
+	px = x-ix;  
+	py = y-iy;  
+d530 1
+a530 1
+	spec_wgts = ep->spec_wgts = 
+d560 1
+a560 1
+		if (ep->lacunarity == l && ep->h_val == h && 
+d576 1
+a576 1
+		if (ep->lacunarity == l && ep->h_val == h && 
+d589 1
+a589 1
+ * 
+d598 1
+a598 1
+ * The results have a more-or-less gaussian distribution.  Typical 
+d606 3
+a608 3
+ * 
+ * 
+ * 
+d610 1
+a610 1
+ * pre-computes and saves the spectral weights in a table for re-use in 
+d658 2
+a659 2
+ * Procedural turbulence evaluated at "point"; 
+ * 
+d679 1
+a679 1
+ * pre-computes and saves the spectral weights in a table for re-use in 
+d706 1
+a706 1
+	/* copy the point so we don't corrupt 
+d709 1
+a709 1
+	PCOPY(pt, point);	
+d727 1
+a727 1
+	PCOPY(pt, point);	
+d738 1
+a738 1
+	
+d762 1
+a762 1
+	
+d771 1
+a771 1
+	/* copy the point so we don't corrupt 
+d774 1
+a774 1
+	PCOPY(pt, point);	
+d777 1
+a777 1
+	
+d823 1
+a823 1
+	
+d832 1
+a832 1
+	/* copy the point so we don't corrupt 
+@
+
+
+14.9.4.1
+log
+@merge changes from HEAD aka rel-7-6-4 to the rel-7-6-branch just in case someone peeks a gander or tries to continue/build the branch
+@
+text
+@d39 1
+a39 1
+ *  Author -
+d47 1
+a47 1
+ *
+d52 1
+a52 1
+static const char RCSid[] = "@@(#)$Header$ (ARL)";
+d157 1
+a157 1
+/*
+d178 1
+a178 1
+	long	magic;
+d183 1
+a183 1
+	long	magic_end;
+d203 2
+a204 2
+/*
+ * Map integer point into repeatable random number [0..4095]
+d222 1
+a222 1
+
+d275 2
+a276 2
+ * this function provides random noise at the integer lattice values.
+ * However this produces much poorer quality and should be avoided if
+d279 1
+a279 1
+ * The power distribution of the result has no particular shape, though it
+d316 1
+a316 1
+	jy = iy + 1;
+d319 2
+a320 2
+	sx = SMOOTHSTEP(fx);
+	sy = SMOOTHSTEP(fy);
+d324 2
+a325 2
+	tx = 1.0 - sx;
+	ty = 1.0 - sy;
+d395 2
+a396 2
+	sx = SMOOTHSTEP(x - ix);
+	sy = SMOOTHSTEP(y - iy);
+d400 2
+a401 2
+	tx = 1.0 - sx;
+	ty = 1.0 - sy;
+d408 2
+a409 2
+	px = x-ix;
+	py = y-iy;
+d530 1
+a530 1
+	spec_wgts = ep->spec_wgts =
+d560 1
+a560 1
+		if (ep->lacunarity == l && ep->h_val == h &&
+d576 1
+a576 1
+		if (ep->lacunarity == l && ep->h_val == h &&
+d589 1
+a589 1
+ *
+d598 1
+a598 1
+ * The results have a more-or-less gaussian distribution.  Typical
+d606 3
+a608 3
+ *
+ *
+ *
+d610 1
+a610 1
+ * pre-computes and saves the spectral weights in a table for re-use in
+d658 2
+a659 2
+ * Procedural turbulence evaluated at "point";
+ *
+d679 1
+a679 1
+ * pre-computes and saves the spectral weights in a table for re-use in
+d706 1
+a706 1
+	/* copy the point so we don't corrupt
+d709 1
+a709 1
+	PCOPY(pt, point);
+d727 1
+a727 1
+	PCOPY(pt, point);
+d738 1
+a738 1
+
+d762 1
+a762 1
+
+d771 1
+a771 1
+	/* copy the point so we don't corrupt
+d774 1
+a774 1
+	PCOPY(pt, point);
+d777 1
+a777 1
+
+d823 1
+a823 1
+
+d832 1
+a832 1
+	/* copy the point so we don't corrupt
+@
+
+
+14.8
+log
+@added missing includes
+@
+text
+@d21 3
+d27 2
+a28 2
+ *	bn_noise_perlin	Robert Skinner's Perlin-style "Noise" function
+ *	bn_noise_vec	Vector-valued noise
+d32 2
+a33 2
+ *	bn_noise_fbm	fractional Brownian motion.  Based on bn_noise_perlin
+ *	bn_noise_turb	turbulence.  Based on bn_noise_perlin
+d49 2
+d52 1
+a52 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/libbn/noise.c,v 14.7 2005/01/30 20:30:44 brlcad Exp $ (ARL)";
+@
+
+
+14.7
+log
+@update copyright to 2005
+@
+text
+@d47 1
+a47 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/libbn/noise.c,v 14.6 2004/12/21 07:25:29 morrison Exp $ (ARL)";
+d55 1
+@
+
+
+14.6
+log
+@tidy up a lil bit
+@
+text
+@d4 2
+a5 2
+ * Copyright (c) 2004 United States Government as represented by the
+ * U.S. Army Research Laboratory.
+d47 1
+a47 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/libbn/noise.c,v 14.5 2004/12/21 07:18:57 morrison Exp $ (ARL)";
+@
+
+
+14.5
+log
+@the significantly modified pd files are incorporated as new works and assigned copyright, so remove the old statement.
+@
+text
+@d47 1
+a47 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/libbn/noise.c,v 14.4 2004/12/21 06:18:43 morrison Exp $ (ARL)";
+a747 2
+ *
+ *
+@
+
+
+14.4
+log
+@they should have received a copy of the LGPL with LGPL'd files
+@
+text
+@a44 2
+ *  Distribution Status -
+ *	Public Domain, Distribution Unlimited.
+d47 1
+a47 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/libbn/noise.c,v 14.3 2004/12/21 05:45:20 morrison Exp $ (ARL)";
+@
+
+
+14.3
+log
+@s/GNU Library General/GNU Lesser General/g
+@
+text
+@d17 2
+a18 2
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+d49 1
+a49 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/libbn/noise.c,v 14.2 2004/12/21 01:52:15 morrison Exp $ (ARL)";
+@
+
+
+14.2
+log
+@assign copyright and LGPL
+@
+text
+@d8 1
+a8 1
+ * modify it under the terms of the GNU Library General Public License
+d49 1
+a49 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/libbn/noise.c,v 14.1 2004/11/16 19:42:13 morrison Exp $ (ARL)";
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@d1 2
+a2 1
+/*  S N O I S E . C
+d4 18
+d49 1
+a49 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/libbn/noise.c,v 1.3 2004/08/02 23:01:48 morrison Exp $ (ARL)";
+@
+
+
+1.3
+log
+@replace the wrapped config.h block with common.h
+@
+text
+@d30 1
+a30 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/libbn/noise.c,v 1.2 2004/06/08 19:24:02 morrison Exp $ (ARL)";
+d839 10
+@
+
+
+1.2
+log
+@bye bye externs.h
+@
+text
+@d30 1
+a30 1
+static const char RCSid[] = "@@(#)$Header$ (ARL)";
+d33 1
+a33 3
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+@
+
+
+1.1
+log
+@Vast reorganization begins.  Sources moved from top-level directories into src/.
+@
+text
+@d30 1
+a30 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/libbn/noise.c,v 1.15 2004/05/10 15:30:43 erikg Exp $ (ARL)";
+a41 1
+#include "externs.h"
+@
+

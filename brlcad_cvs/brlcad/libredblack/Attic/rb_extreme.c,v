@@ -1,0 +1,916 @@
+head	11.8;
+access;
+symbols
+	rel-4-5:11.7
+	ctj-4-5-post:11.7
+	ctj-4-5-pre:11.7
+	rel-4-4:11.1;
+locks; strict;
+comment	@ * @;
+
+
+11.8
+date	98.12.30.04.24.10;	author mike;	state dead;
+branches;
+next	11.7;
+
+11.7
+date	96.11.27.17.46.05;	author pjt;	state Exp;
+branches;
+next	11.6;
+
+11.6
+date	96.08.27.07.10.51;	author mike;	state Exp;
+branches;
+next	11.5;
+
+11.5
+date	95.09.20.16.00.44;	author pjt;	state Exp;
+branches;
+next	11.4;
+
+11.4
+date	95.09.20.12.34.44;	author pjt;	state Exp;
+branches;
+next	11.3;
+
+11.3
+date	95.07.10.20.17.51;	author pjt;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	95.04.19.20.12.47;	author pjt;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	95.01.04.10.05.54;	author mike;	state Rel4_4;
+branches;
+next	2.5;
+
+2.5
+date	95.01.04.05.49.56;	author mike;	state Exp;
+branches;
+next	2.4;
+
+2.4
+date	94.09.26.12.21.10;	author jra;	state Exp;
+branches;
+next	2.3;
+
+2.3
+date	94.09.22.15.34.44;	author pjt;	state Exp;
+branches;
+next	2.2;
+
+2.2
+date	94.09.22.15.27.01;	author pjt;	state Exp;
+branches;
+next	2.1;
+
+2.1
+date	93.03.25.11.03.18;	author pjt;	state Exp;
+branches;
+next	1.14;
+
+1.14
+date	93.03.25.11.00.22;	author pjt;	state Exp;
+branches;
+next	1.13;
+
+1.13
+date	93.01.15.13.08.49;	author pjt;	state zero_1;
+branches;
+next	1.12;
+
+1.12
+date	93.01.15.10.43.44;	author pjt;	state zero_0;
+branches;
+next	1.11;
+
+1.11
+date	93.01.14.15.06.42;	author pjt;	state Exp;
+branches;
+next	1.10;
+
+1.10
+date	93.01.14.12.25.36;	author pjt;	state Exp;
+branches;
+next	1.9;
+
+1.9
+date	93.01.14.10.57.30;	author pjt;	state Exp;
+branches;
+next	1.8;
+
+1.8
+date	93.01.14.09.30.52;	author pjt;	state Exp;
+branches;
+next	1.7;
+
+1.7
+date	92.12.23.12.42.52;	author pjt;	state Exp;
+branches;
+next	1.6;
+
+1.6
+date	92.12.23.11.10.49;	author pjt;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	92.11.06.13.54.23;	author pjt;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	92.11.05.11.32.21;	author pjt;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	92.11.04.12.12.32;	author pjt;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	92.11.04.10.49.01;	author pjt;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	92.11.04.10.29.41;	author pjt;	state Exp;
+branches;
+next	;
+
+
+desc
+@
+     Routines to extract mins and maxes from a red-black tree
+
+@
+
+
+11.8
+log
+@All moved to libbu
+@
+text
+@/*			R B _ E X T R E M E . C
+ *
+ *	Routines to extract mins, maxes, adjacent, and current nodes
+ *			from a red-black tree
+ *
+ *	Author:	Paul Tanenbaum
+ *
+ */
+#ifndef lint
+static char RCSid[] = "@@(#) $Header: /c/CVS/brlcad/libredblack/rb_extreme.c,v 11.7 1996/11/27 17:46:05 pjt Exp mike $";
+#endif
+
+#include "conf.h"
+
+#include <stdio.h>
+#include <math.h>
+#include "machine.h"
+#include "rtlist.h"
+#include "bu.h"
+#include "compat4.h"
+#include "redblack.h"
+#include "./rb_internals.h"
+
+/*		        _ R B _ E X T R E M E ( )
+ *
+ *	Find the minimum or maximum node in one order of a red-black tree
+ *
+ *	This function has four parameters: the root of the tree, the
+ *	order, the sense (min or max), and the address to be understood
+ *	as the nil node pointer. _rb_extreme() returns a pointer to the
+ *	extreme node.
+ */
+static struct rb_node *_rb_extreme (root, order, sense, empty_node)
+
+struct rb_node	*root;
+int		order;
+int		sense;
+struct rb_node	*empty_node;
+
+{
+    struct rb_node	*child;
+    rb_tree		*tree;
+
+    if (root == empty_node)
+	return (root);
+
+    while (1)
+    {
+	RB_CKMAG(root, RB_NODE_MAGIC, "red-black node");
+	tree = root -> rbn_tree;
+	RB_CKORDER(tree, order);
+
+	child = (sense == SENSE_MIN) ? rb_left_child(root, order) :
+				       rb_right_child(root, order);
+	if (child == empty_node)
+	    break;
+	root = child;
+    }
+
+    /* Record the node with which we've been working */
+    rb_current(tree) = root;
+
+    return (root);
+}
+
+/*		        R B _ E X T R E M E ( )
+ *
+ *		Applications interface to _rb_extreme()
+ *
+ *	This function has three parameters: the tree in which to find an
+ *	extreme node, the order on which to do the search, and the sense
+ *	(min or max).  On success, rb_extreme() returns a pointer to the
+ *	data in the extreme node.  Otherwise it returns NULL.
+ */
+void *rb_extreme (tree, order, sense)
+
+rb_tree	*tree;
+int	order;
+int	sense;
+
+{
+    struct rb_node	*node;
+
+    RB_CKMAG(tree, RB_TREE_MAGIC, "red-black tree");
+    RB_CKORDER(tree, order);
+
+    if ((sense != SENSE_MIN) && (sense != SENSE_MAX))
+    {
+	rt_log("FATAL: rb_extreme(): invalid sense %d, file %s, line %s\n",
+	    sense, __FILE__, __LINE__);
+	exit (0);
+    }
+
+    /* Wade throught the tree */
+    node = _rb_extreme(rb_root(tree, order), order, sense, rb_null(tree));
+
+    if (node == rb_null(tree))
+	return (NULL);
+    else
+	return (rb_data(node, order));
+}
+
+/*		    _ R B _ N E I G H B O R ( )
+ *
+ *	    Return a node adjacent to a given red-black node
+ *
+ *	This function has three parameters: the node of interest, the
+ *	order on which to do the search, and the sense (min or max,
+ *	which is to say predecessor or successor).  _rb_neighbor()
+ *	returns a pointer to the adjacent node.  This function is
+ *	modeled after the routine TREE-SUCCESSOR on p. 249 of Cormen et al.
+ */
+struct rb_node *_rb_neighbor (node, order, sense)
+
+struct rb_node	*node;
+int		order;
+int		sense;
+
+{
+    struct rb_node	*child;
+    struct rb_node	*parent;
+    rb_tree		*tree;
+    struct rb_node	*empty_node;
+
+    RB_CKMAG(node, RB_NODE_MAGIC, "red-black node");
+    tree = node -> rbn_tree;
+    RB_CKORDER(tree, order);
+
+    empty_node = rb_null(tree);
+
+    child = (sense == SENSE_MIN) ? rb_left_child(node, order) :
+				   rb_right_child(node, order);
+    if (child != empty_node)
+	return (_rb_extreme(child, order, 1 - sense, empty_node));
+    parent = rb_parent(node, order);
+    while ((parent != empty_node) &&
+	   (node == rb_child(parent, order, sense)))
+    {
+	node = parent;
+	parent = rb_parent(parent, order);
+    }
+
+    /* Record the node with which we've been working */
+    rb_current(tree) = parent;
+
+    return (parent);
+}
+
+/*		        R B _ N E I G H B O R ( )
+ *
+ *	    Return a node adjacent to the current red-black node
+ *
+ *	This function has three parameters: the tree and order on which
+ *	to do the search and the sense (min or max, which is to say
+ *	predecessor or successor) of the search.  rb_neighbor() returns
+ *	a pointer to the data in the node adjacent to the current node
+ *	in the specified direction, if that node exists.  Otherwise,
+ *	it returns NULL.
+ */
+void *rb_neighbor (tree, order, sense)
+
+rb_tree	*tree;
+int	order;
+int	sense;
+
+{
+    struct rb_node	*node;
+
+    RB_CKMAG(tree, RB_TREE_MAGIC, "red-black tree");
+    RB_CKORDER(tree, order);
+
+    if ((sense != SENSE_MIN) && (sense != SENSE_MAX))
+    {
+	rt_log("FATAL: rb_neighbor(): invalid sense %d, file %s, line %s\n",
+	    sense, __FILE__, __LINE__);
+	exit (0);
+    }
+
+    /* Wade through the tree */
+    node = _rb_neighbor(rb_current(tree), order, sense);
+
+    if (node == rb_null(tree))
+	return (NULL);
+    else
+    {
+	/* Record the node with which we've been working */
+	rb_current(tree) = node;
+	return (rb_data(node, order));
+    }
+}
+
+/*		            R B _ C U R R ( )
+ *
+ *	    Return the current red-black node
+ *
+ *	This function has two parameters: the tree and order in which
+ *	to find the current node.  rb_curr() returns a pointer to
+ *	the data in the current node, if it exists.  Otherwise,
+ *	it returns NULL.
+ */
+void *rb_curr (tree, order)
+
+rb_tree	*tree;
+int	order;
+
+{
+    RB_CKMAG(tree, RB_TREE_MAGIC, "red-black tree");
+    RB_CKORDER(tree, order);
+
+    if (rb_current(tree) == rb_null(tree))
+	return (NULL);
+    else
+	return (rb_data(rb_current(tree), order));
+}
+@
+
+
+11.7
+log
+@fixed bug in _rb_extreme() where it failed to make initial check
+for the case where (root == empty_node)
+@
+text
+@d10 1
+a10 1
+static char RCSid[] = "@@(#) $Header: /m/cad/libredblack/RCS/rb_extreme.c,v 11.6 1996/08/27 07:10:51 mike Exp $";
+@
+
+
+11.6
+log
+@Changed over to bu.h
+@
+text
+@d10 1
+a10 1
+static char RCSid[] = "@@(#) $Header: /m/cad/libredblack/RCS/rb_extreme.c,v 11.5 1995/09/20 16:00:44 pjt Exp pjt $";
+d43 3
+@
+
+
+11.5
+log
+@Changed a comment
+@
+text
+@d10 1
+a10 1
+static char RCSid[] = "@@(#) $Header: /m/cad/libredblack/RCS/rb_extreme.c,v 11.4 1995/09/20 12:34:44 pjt Exp pjt $";
+d19 2
+@
+
+
+11.4
+log
+@Tweeked a comment
+@
+text
+@d10 1
+a10 1
+static char RCSid[] = "@@(#) $Header: /m/cad/libredblack/RCS/rb_extreme.c,v 11.3 1995/07/10 20:17:51 pjt Exp pjt $";
+d174 1
+a174 1
+    /* Wade throught the tree */
+@
+
+
+11.3
+log
+@Must now include rtlist.h before redblack.h
+@
+text
+@d10 1
+a10 1
+static char RCSid[] = "@@(#) $Header: /m/cad/libredblack/RCS/rb_extreme.c,v 11.2 1995/04/19 20:12:47 pjt Exp pjt $";
+d150 1
+a150 1
+ *	predecessor or successor) of the search.  Rb_neighbor() returns
+d192 1
+a192 1
+ *	to find the current node.  Rb_curr() returns a pointer to
+@
+
+
+11.2
+log
+@Implemented rb_curr()
+@
+text
+@d10 1
+a10 1
+static char RCSid[] = "@@(#) $Header: /m/cad/libredblack/RCS/rb_extreme.c,v 11.1 1995/01/04 10:05:54 mike Rel4_4 $";
+d18 1
+a18 1
+
+@
+
+
+11.1
+log
+@Release_4.4
+@
+text
+@d3 1
+a3 1
+ *	Routines to extract mins, maxes, and adjacent nodes
+d10 1
+a10 1
+static char RCSid[] = "@@(#) $Header: /m/cad/libredblack/RCS/rb_extreme.c,v 2.5 95/01/04 05:49:56 mike Exp $";
+d185 24
+@
+
+
+2.5
+log
+@Add machine.h, *after* the <stdio.h> guys.
+@
+text
+@d10 1
+a10 1
+static char RCSid[] = "@@(#) $Header: /n/wolf/m/cad/libredblack/RCS/rb_extreme.c,v 2.4 1994/09/26 12:21:10 jra Exp stay $";
+@
+
+
+2.4
+log
+@Added #include "conf.h"
+@
+text
+@d10 1
+a10 1
+static char RCSid[] = "@@(#) $Header: /m/cad/libredblack/RCS/rb_extreme.c,v 2.3 94/09/22 15:34:44 pjt Exp Locker: jra $";
+d17 2
+@
+
+
+2.3
+log
+@Changed "#include "rt_internals.h" to "#include "./rt_internals.h"
+@
+text
+@d10 1
+a10 1
+static char RCSid[] = "@@(#) $Header: /m/cad/libredblack/RCS/rb_extreme.c,v 2.2 94/09/22 15:27:01 pjt Exp Locker: pjt $";
+d12 2
+@
+
+
+2.2
+log
+@Replaced prototype-type definition with K&R type
+@
+text
+@d10 1
+a10 1
+static char RCSid[] = "@@(#) $Header: /m/cad/libredblack/RCS/rb_extreme.c,v 2.1 93/03/25 11:03:18 pjt Exp $";
+d16 1
+a16 1
+#include "rb_internals.h"
+@
+
+
+2.1
+log
+@Installed into BRL CAD tree
+@
+text
+@d10 1
+a10 1
+static char RCSid[] = "@@(#) $Header: /m/cad/libredblack/RCS/rb_extreme.c,v 1.14 93/03/25 11:00:22 pjt Exp Locker: pjt $";
+d27 7
+a33 2
+static struct rb_node *_rb_extreme (struct rb_node *root, int order,
+				    int sense, struct rb_node *empty_node)
+d66 6
+a71 1
+void *rb_extreme (rb_tree *tree, int order, int sense)
+d104 6
+a109 1
+struct rb_node *_rb_neighbor (struct rb_node *node, int order, int sense)
+d151 6
+a156 1
+void *rb_neighbor (rb_tree *tree, int order, int sense)
+@
+
+
+1.14
+log
+@Added authorship comment
+@
+text
+@d10 1
+a10 1
+static char RCSid[] = "@@(#) $Header: /m/cad/libredblack/RCS/rb_extreme.c,v 1.13 93/01/15 13:08:49 pjt zero_1 Locker: pjt $";
+@
+
+
+1.13
+log
+@1. Switched from fprintf(stderr, ) to rt_log()
+2. Added comments and general clean up
+@
+text
+@d6 2
+d10 1
+a10 1
+static char RCSid[] = "@@(#) $Header: /arl/pjt/libredblack/RCS/rb_extreme.c,v 1.12 93/01/15 10:43:44 pjt Exp Locker: pjt $";
+@
+
+
+1.12
+log
+@Addes static char RCSid[] to contain the RCS header
+@
+text
+@d3 2
+a4 1
+ *	Written by:	Paul Tanenbaum
+d8 1
+a8 1
+static char RCSid[] = "@@(#) $Header: /arl/pjt/libredblack/RCS/rb_extreme.c,v 1.11 93/01/14 15:06:42 pjt Exp Locker: pjt $";
+d18 1
+a18 1
+ *	    Return the minimum or maximum node in a red-black tree
+d57 1
+a57 1
+ *	data in the extreme node.
+d68 1
+a68 2
+	fprintf(stderr,
+	    "Error: rb_extreme(): invalid sense %d, file %s, line %s\n",
+d89 2
+a90 4
+ *	returns a pointer to the adjacent node.  The bulk of this code
+ *	is from T. H. Cormen, C. E. Leiserson, and R. L. Rivest.
+ *	_Introduction to Algorithms_.  Cambridge, MA: MIT Press, 1990.
+ *	p. 249.
+a104 2
+    fprintf(stderr,
+	"_rb_neighbor(<%x>, %d, %d)...\n", (int) node, order, sense);
+d127 6
+a132 4
+ *	This function has two parameters: the order on which to do the
+ *	search and the sense (min or max, which is to say predecessor or
+ *	successor).  Rb_neighbor() returns a pointer to the data in the
+ *	adjacent node, if that node exists.  Otherwise, it returns NULL.
+d143 1
+a143 2
+	fprintf(stderr,
+	    "Error: rb_neighbor(): invalid sense %d, file %s, line %s\n",
+@
+
+
+1.11
+log
+@Switched from current_node to rb_current()
+@
+text
+@a4 1
+ *  $Header: /arl/pjt/libredblack/RCS/rb_extreme.c,v 1.10 93/01/14 12:25:36 pjt Exp Locker: pjt $
+d6 3
+@
+
+
+1.10
+log
+@rb_extreme() and rb_neighbor() now return NULL if they fall off
+either end of the tree
+,.
+@
+text
+@d5 1
+a5 1
+ *  $Header: /arl/pjt/libredblack/RCS/rb_extreme.c,v 1.9 93/01/14 10:57:30 pjt Exp Locker: pjt $
+d26 1
+d31 2
+a32 1
+	RB_CKORDER(root -> rbn_tree, order);
+d42 1
+a42 1
+    current_node = root;
+d96 2
+a97 1
+    struct rb_node	*empty_node = rb_null(node -> rbn_tree);
+d100 2
+a101 1
+    RB_CKORDER(node -> rbn_tree, order);
+d103 2
+d120 1
+a120 1
+    current_node = parent;
+d134 1
+a134 1
+void *rb_neighbor (int order, int sense)
+a135 1
+    rb_tree		*tree;
+d138 1
+a138 2
+    RB_CKMAG(current_node, RB_NODE_MAGIC, "red-black node");
+    tree = current_node -> rbn_tree;
+d150 1
+a150 1
+    node = _rb_neighbor(current_node, order, sense);
+d157 1
+a157 1
+	current_node = node;
+@
+
+
+1.9
+log
+@Added calls to RB_CKMAG() and RB_CKORDER()
+@
+text
+@d5 1
+a5 1
+ *  $Header: /arl/pjt/libredblack/RCS/rb_extreme.c,v 1.8 93/01/14 09:30:52 pjt Exp Locker: pjt $
+d72 4
+a75 1
+    return (rb_data(node, order));
+d99 2
+a100 2
+    printf("_rb_neighbor(<%d>, %d, %d)...\n", (int) node, order, sense);
+    fflush(stdout);
+d104 1
+a104 1
+	return (_rb_extreme(child, order, sense, empty_node));
+d148 5
+a152 2
+    /* Record the node with which we've been working */
+    if (node != rb_null(tree))
+d154 2
+a155 2
+
+    return (rb_data(node, order));
+@
+
+
+1.8
+log
+@1. Added empty_node parameter to _rb_extreme()
+2. Use rb_null() and rb_data()
+@
+text
+@d5 1
+a5 1
+ *  $Header: /arl/pjt/libredblack/RCS/rb_extreme.c,v 1.7 92/12/23 12:42:52 pjt Exp Locker: pjt $
+d30 2
+a57 1
+    /* Check data type of the parameter "tree" */
+d59 1
+a60 2
+    /* Ensure other two parameters are within range */
+    RB_CKORDER(tree, order);
+d93 3
+a129 1
+    /* Ensure other two parameters are within range */
+d133 1
+@
+
+
+1.7
+log
+@1. Broke _rb_extreme() out of rb_extreme()
+2. Implemented _rb_neighbor() and rb_neighbor()
+@
+text
+@d5 1
+a5 1
+ *  $Header: /arl/pjt/libredblack/RCS/rb_extreme.c,v 1.6 92/12/23 11:10:49 pjt Exp Locker: pjt $
+d17 4
+a20 3
+ *	This function has three parameters: the root of the tree, the
+ *	order, and the sense (min or max).  _rb_extreme() returns a
+ *	pointer to the extreme node.
+d22 2
+a23 1
+static struct rb_node *_rb_extreme (struct rb_node *root, int order, int sense)
+d32 1
+a32 1
+	if (child == RB_NODE_NULL)
+d64 1
+a64 1
+	    "Error: _rb_extreme(): invalid sense %d, file %s, line %s\n",
+d70 1
+a70 1
+    node = _rb_extreme(rb_root(tree, order), order, sense);
+d72 1
+a72 1
+    return (node -> rbn_data);
+d91 1
+d93 2
+d97 2
+a98 2
+    if (child != RB_NODE_NULL)
+	return (_rb_extreme(child, order, sense));
+d100 2
+a101 2
+    while ((parent != RB_NODE_NULL) &&
+	   (node == rb_child(parent, order, SENSE)))
+d143 1
+a143 1
+    if (node != RB_NODE_NULL)
+d146 1
+a146 1
+    return (node -> rbn_data);
+@
+
+
+1.6
+log
+@Changed a comment
+@
+text
+@d5 1
+a5 1
+ *  $Header: /arl/pjt/libredblack/RCS/rb_extreme.c,v 1.5 92/11/06 13:54:23 pjt Exp Locker: pjt $
+d13 1
+a13 1
+/*		        R B _ E X T R E M E ( )
+d17 28
+d47 2
+a48 2
+ *	(min or max).  On success, _rb_extreme() returns a pointer to
+ *	the extreme node.
+d50 1
+a50 1
+void *rb_extreme (rb_tree *tree, int order_nm, int sense)
+a51 2
+    int			(*order)();  /* Comparison functions */
+    struct rb_node	*child;
+d58 1
+a58 1
+    RB_CKORDER(tree, order_nm);
+d67 30
+a96 2
+    node = rb_root(tree, order_nm);
+    while (1)
+d98 2
+a99 6
+	RB_CKMAG(node, RB_NODE_MAGIC, "red-black node");
+	child = (sense == SENSE_MIN) ? rb_left_child(node, order_nm) :
+				       rb_right_child(node, order_nm);
+	if (child == RB_NODE_NULL)
+	    break;
+	node = child;
+d103 35
+d140 1
+@
+
+
+1.5
+log
+@renamed _rb_extreme() to rb_extreme()
+@
+text
+@d5 1
+a5 1
+ *  $Header: /arl/pjt/libredblack/RCS/rb_extreme.c,v 1.4 92/11/05 11:32:21 pjt Exp Locker: pjt $
+d20 1
+a20 1
+ *	the extreme node.  Otherwise, it returns RB_NODE_NULL.
+@
+
+
+1.4
+log
+@Replaced reference to rbt_root by call to rb_root()
+@
+text
+@d5 1
+a5 1
+ *  $Header: /arl/pjt/libredblack/RCS/rb_extreme.c,v 1.3 92/11/04 12:12:32 pjt Exp Locker: pjt $
+d13 1
+a13 1
+/*		        _ R B _ E X T R E M E ( )
+d22 1
+a22 1
+void *_rb_extreme (rb_tree *tree, int order_nm, int sense)
+@
+
+
+1.3
+log
+@Generalized rb_min() to _rb_extreme() and implemented
+rb_min() and rb_max() as calls to _rb_extreme()
+@
+text
+@d5 1
+a5 1
+ *  $Header: /arl/pjt/libredblack/RCS/rb_min.c,v 1.2 92/11/04 10:49:01 pjt Exp Locker: pjt $
+d41 1
+a41 1
+    node = tree -> rbt_root;
+@
+
+
+1.2
+log
+@Removed three diagnostics
+@
+text
+@d1 1
+a1 1
+/*			R B _ M I N . C
+d5 1
+a5 1
+ *  $Header: /arl/pjt/libredblack/RCS/rb_min.c,v 1.1 92/11/04 10:29:41 pjt Exp Locker: pjt $
+d13 1
+a13 1
+/*		        R B _ M I N ( )
+d15 1
+a15 1
+ *		Return the minimum node in a red-black tree
+d17 4
+a20 6
+ *	This function has two parameters: the tree in which to find the
+ *	the minimum node and the order on which to do the search.
+ *	is from T. H. Cormen, C. E. Leiserson, and R. L. Rivest.  _Intro-
+ *	duction to Algorithms_.  Cambridge, MA: MIT Press, 1990. p. 268.
+ *	On success, rb_min() returns a pointer to the minimum node.
+ *	Otherwise, it returns RB_NODE_NULL.
+d22 1
+a22 1
+void *rb_min (rb_tree *tree, int order_nm)
+d25 1
+a29 1
+    order = (tree -> rbt_order)[order_nm];
+d31 10
+d45 3
+a47 1
+	if (rb_left_child(node, order_nm) == RB_NODE_NULL)
+d49 1
+a49 1
+	node = rb_left_child(node, order_nm);
+d53 2
+a54 1
+    current_node = node;
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d5 1
+a5 1
+ *  $Header: /m/cad/h/RCS/raytrace.h,v 10.1 91/10/12 06:35:30 mike Rel4_0 $
+a33 1
+    fprintf(stderr, "node is <%x>\n", node);fflush(stderr);
+a39 1
+	fprintf(stderr, "node is <%x>\n", node);fflush(stderr);
+a43 2
+    fprintf(stderr, "rb_min() found node <%x>, returning <%x>\n",
+		node, node -> rbn_data);fflush(stderr);
+@

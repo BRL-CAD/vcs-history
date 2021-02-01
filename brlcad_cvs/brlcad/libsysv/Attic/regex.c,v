@@ -1,0 +1,554 @@
+head	11.5;
+access;
+symbols
+	ansi-20040405-merged:11.3
+	postmerge-20040405-ansi:11.3
+	premerge-20040404-ansi:11.3
+	postmerge-autoconf:11.3
+	autoconf-freeze:11.3
+	premerge-autoconf:11.3
+	ansi-20040316-freeze:11.3
+	postmerge-20040315-windows:11.3
+	premerge-20040315-windows:11.3
+	windows-20040315-freeze:11.3
+	autoconf-20031203:11.3
+	autoconf-20031202:11.3
+	autoconf-branch:11.3.0.12
+	phong-branch:11.3.0.10
+	photonmap-branch:11.3.0.8
+	rel-6-1-DP:11.3
+	windows-branch:11.3.0.6
+	rel-6-0-2:11.3
+	ansi-branch:11.3.0.4
+	rel-6-0-1-branch:11.3.0.2
+	hartley-6-0-post:11.3
+	hartley-6-0-pre:11.3
+	rel-6-0-1:11.3
+	rel-6-0:11.3
+	rel-5-4:11.1
+	offsite-5-3-pre:11.2
+	rel-5-3:11.1
+	rel-5-2:11.1
+	rel-5-1-branch:11.1.0.2
+	rel-5-1:11.1
+	rel-5-0:11.1
+	rel-5-0-beta:11.1
+	rel-4-5:11.1
+	ctj-4-5-post:11.1
+	ctj-4-5-pre:11.1
+	rel-4-4:11.1
+	rel-4-0:10.1
+	rel-3-5:9.1;
+locks; strict;
+comment	@ * @;
+
+
+11.5
+date	2004.05.21.18.07.36;	author morrison;	state dead;
+branches;
+next	11.4;
+
+11.4
+date	2004.05.10.15.30.47;	author erikg;	state Exp;
+branches;
+next	11.3;
+
+11.3
+date	2001.04.20.22.30.01;	author morrison;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	2000.07.07.05.18.57;	author cjohnson;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	95.01.04.09.51.01;	author mike;	state Rel4_4;
+branches;
+next	10.7;
+
+10.7
+date	94.12.07.20.52.37;	author mike;	state Exp;
+branches;
+next	10.6;
+
+10.6
+date	94.10.20.22.06.32;	author butler;	state Exp;
+branches;
+next	10.5;
+
+10.5
+date	94.10.02.18.38.00;	author mike;	state Exp;
+branches;
+next	10.4;
+
+10.4
+date	94.09.30.17.53.16;	author mike;	state Exp;
+branches;
+next	10.3;
+
+10.3
+date	94.09.01.06.09.16;	author gdurf;	state Exp;
+branches;
+next	10.2;
+
+10.2
+date	93.11.04.19.16.28;	author mike;	state Exp;
+branches;
+next	10.1;
+
+10.1
+date	91.10.12.06.36.21;	author mike;	state Rel4_0;
+branches;
+next	9.3;
+
+9.3
+date	91.10.04.06.35.03;	author butler;	state Exp;
+branches;
+next	9.2;
+
+9.2
+date	91.09.25.21.06.49;	author phil;	state Exp;
+branches;
+next	9.1;
+
+9.1
+date	89.05.19.05.45.34;	author mike;	state Rel3_5;
+branches;
+next	1.3;
+
+1.3
+date	89.04.24.08.01.01;	author mike;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	89.04.24.05.13.24;	author mike;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	89.01.11.05.29.36;	author mike;	state Exp;
+branches;
+next	;
+
+
+desc
+@BSD-style interface to AT&T regular expression routines
+@
+
+
+11.5
+log
+@moved to src/
+@
+text
+@/*
+ *			R E G E X . C
+ *
+ *  An interface to the System-V regular expression subroutines which
+ *  present the Berkeley (BSD) names and semantics, so that all
+ *  regular expression code can be programmed using the Berkeley interface.
+ *
+ *	last edit:	04-Nov-1987	D A Gwyn
+ *
+ *  Author -
+ *	D A Gwyn
+ *  
+ *  Source -
+ *	SECAD/VLD Computing Consortium, Bldg 394
+ *	The U. S. Army Ballistic Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005-5066
+ *  
+ *  Distribution Status -
+ *	Public Domain, Distribution Unlimitied.
+ */
+#ifndef lint
+static const char RCSid[] = "@@(#)$Header: /n/xoff/cvs/brlcad/libsysv/regex.c,v 11.4 2004/05/10 15:30:47 erikg Exp $ (BRL)";
+#endif
+
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+
+#include "machine.h"
+
+#if defined(HAVE_REGEX)
+#ifndef lint
+char	regex_dummy;      /* some systems can't handle empty object modules */
+#else
+		/* Nothing further to do on systems that have regex */
+#endif
+#else
+
+/* For systems with SYSV regular expression support */
+#if defined(USE_SYSV_RE)
+extern struct re_msg
+	{
+	int	number;
+	char	*message;
+	}	re_msgtab[];
+
+static char	*re_err;		/* sneak path to error string */
+
+/*	Handle error from <regexp.h>	*/
+
+static void
+re_error( n )
+	register int		n;	/* error number */
+	{
+	register struct re_msg	*mp;
+
+	for ( mp = re_msgtab; mp->number > 0; ++mp )
+		if ( mp->number == n )
+			break;
+
+	re_err = mp->message;
+	}
+
+/* macros for <regexp.h> */
+#define INIT		register char	*re_str = instring;
+#define GETC()		(*re_str == '\0' ? '\0' : (int)*re_str++)
+#define UNGETC( c )	--re_str
+#define PEEKC()		((int)*re_str)
+#define RETURN( c )	return (char *)0
+#define ERROR( n )	re_error( n )
+
+/* change the following global extern variables for safety's sake */
+#define braelist re_braelist
+#define braslist re_braslist
+#define	ebra	re_ebra
+#define	sed	re_sed
+#define	nbra	re_nbra
+#define	loc1	re_loc1
+#define	loc2	re_loc2
+#define	locs	re_locs
+#define nodelim	re_nodelim
+#define	circf	re_circf
+#define low	re_low
+#define size	re_size
+#define bittab	re_bittab
+
+/* change the following global extern functions for safety's sake */
+#define	compile	re_cmpl			/* avoid truncated name collision! */
+#define	step	re_step
+#define	advance	re_advance
+#define getrnge	re_getrnge
+#if !defined(sgi) && !defined(__sgi) && !defined(i386) && !defined(SUNOS)
+#	define ecmp	re_ecmp
+#endif
+
+#include	<regexp.h>
+
+#define	ESIZE	512
+static char	re_buf[ESIZE];		/* compiled r.e. */
+
+/*	Compile regular expression	*/
+
+char	*
+re_comp( s )				/* returns 0 or ptr to error message */
+	char	*s;
+	{
+	re_err = (char *)0;
+
+	if ( s != (char *)0 && *s != '\0' )
+		(void)compile( s, re_buf, &re_buf[ESIZE], '\0' );
+	else if ( re_buf[0] == '\0' )
+		ERROR( 41 );		/* no remembered search string */
+	/* else use remembered search string from previous call */
+
+	return re_err;
+	}
+
+/*	Test for match against compiled expression	*/
+
+int
+re_exec( s )				/* returns 1 if s matches, else 0 */
+	char	*s;
+	{
+	locs = 0;			/* ??? */
+	return step( s, re_buf );
+	}
+#endif
+
+
+/* For systems with the POSIX regcomp() support */
+#if defined(USE_REGCOMP)
+
+#include <sys/types.h>
+#include <regex.h>
+
+#if !defined(REG_BASIC)
+#	define REG_BASIC	0
+#endif
+
+static regex_t reg;
+
+char *
+re_comp(s)
+const char *s;
+{
+	int i;
+	static char errbuf[1024];
+	i = regcomp(&reg, s, REG_BASIC|REG_NOSUB);
+
+	if (i) {
+		regerror(i, &reg, errbuf, sizeof(errbuf));
+		return errbuf;
+	}
+	return (char *)0;
+}
+
+int
+re_exec(s)
+const char *s;
+{
+	int i;
+
+	i = regexec(&reg, s, (size_t) 0, (regmatch_t *)0, 0);
+
+	return !i;
+}
+#endif
+
+#endif
+@
+
+
+11.4
+log
+@change conf.h to a wrapped config.h
+@
+text
+@d22 1
+a22 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/libsysv/regex.c,v 11.3 2001/04/20 22:30:01 morrison Exp $ (BRL)";
+@
+
+
+11.3
+log
+@CONST to const
+@
+text
+@d22 1
+a22 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/libsysv/regex.c,v 11.2 2000/07/07 05:18:57 cjohnson Exp $ (BRL)";
+d25 5
+a29 1
+#include "conf.h"
+@
+
+
+11.2
+log
+@LINT
+@
+text
+@d22 1
+a22 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/libsysv/regex.c,v 11.1 1995/01/04 09:51:01 mike Rel4_4 $ (BRL)";
+d142 1
+a142 1
+CONST char *s;
+d157 1
+a157 1
+CONST char *s;
+@
+
+
+11.1
+log
+@Release_4.4
+@
+text
+@d22 1
+a22 1
+static char RCSid[] = "@@(#)$Header: /m/cad/libsysv/RCS/regex.c,v 10.7 94/12/07 20:52:37 mike Exp $ (BRL)";
+@
+
+
+10.7
+log
+@Linux GCC
+@
+text
+@d22 1
+a22 1
+static char RCSid[] = "@@(#)$Header: /m/cad/libsysv/RCS/regex.c,v 10.6 94/10/20 22:06:32 butler Exp Locker: mike $ (BRL)";
+@
+
+
+10.6
+log
+@Added support for regcomp() variation of regular expressions.
+@
+text
+@d22 1
+a22 1
+static char RCSid[] = "@@(#)$Header: /m/cad/libsysv/RCS/regex.c,v 10.5 94/10/02 18:38:00 mike Exp $ (BRL)";
+d27 2
+d134 4
+d142 1
+a142 1
+char *s;
+d157 1
+a157 1
+char *s;
+@
+
+
+10.5
+log
+@Replaced missing semi-colon that got deleted in revision 10.4
+@
+text
+@d22 1
+a22 1
+static char RCSid[] = "@@(#)$Header: /m/cad/libsysv/RCS/regex.c,v 10.4 94/09/30 17:53:16 mike Exp Locker: mike $ (BRL)";
+d35 2
+d123 38
+@
+
+
+10.4
+log
+@Changed from sparc to SUNOS
+@
+text
+@d22 1
+a22 1
+static char RCSid[] = "@@(#)$Header: /m/cad/libsysv/RCS/regex.c,v 10.3 94/09/01 06:09:16 gdurf Exp Locker: mike $ (BRL)"
+@
+
+
+10.3
+log
+@Changed #ifdef BSD to #ifdef HAVE_REGEX
+@
+text
+@d22 1
+a22 1
+static char RCSid[] = "@@(#)$Header: /m/cad/libsysv/RCS/regex.c,v 10.2 1993/11/04 19:16:28 mike Exp gdurf $ (BRL)"
+d86 1
+a86 1
+#if !defined(sgi) && !defined(__sgi) && !defined(i386) && !defined(sparc)
+@
+
+
+10.2
+log
+@sparc has ecmp
+@
+text
+@d22 1
+a22 1
+static char RCSid[] = "@@(#)$Header: /m/cad/libsysv/RCS/regex.c,v 10.1 91/10/12 06:36:21 mike Rel4_0 Locker: mike $ (BRL)";
+d25 3
+a27 1
+#if defined(BSD)
+d31 1
+a31 1
+		/* Nothing further to do on BSD systems */
+@
+
+
+10.1
+log
+@Release_4.0
+@
+text
+@d22 1
+a22 1
+static char RCSid[] = "@@(#)$Header: /m/cad/libsysv/RCS/regex.c,v 9.3 91/10/04 06:35:03 butler Exp $ (BRL)";
+d84 1
+a84 1
+#if !defined(sgi) && !defined(__sgi) && !defined(i386)
+@
+
+
+9.3
+log
+@added check for __sgi as well as sgi
+@
+text
+@d22 1
+a22 1
+static char RCSid[] = "@@(#)$Header: /m/cad/libsysv/RCS/regex.c,v 9.2 91/09/25 21:06:49 phil Exp Locker: butler $ (BRL)";
+@
+
+
+9.2
+log
+@Pure System V machines seem to have "ecmp" defined as a macro
+in regexp.h rather than a regular function.  Added condition
+of NOT redefining ecmp for a PC/AT running Unix.
+@
+text
+@d22 1
+a22 1
+static char RCSid[] = "@@(#)$Header: /m/cad/libsysv/RCS/regex.c,v 9.1 89/05/19 05:45:34 mike Rel3_5 Locker: phil $ (BRL)";
+d84 1
+a84 1
+#if !defined(sgi) && !defined(i386)
+@
+
+
+9.1
+log
+@Release_3.5
+@
+text
+@d22 1
+a22 1
+static char RCSid[] = "@@(#)$Header: regex.c,v 1.3 89/04/24 08:01:01 mike Exp $ (BRL)";
+d84 1
+a84 1
+#if !sgi
+@
+
+
+1.3
+log
+@SGI (4d at least) #define's ecmp to be a strncmp().
+@
+text
+@d22 1
+a22 1
+static char RCSid[] = "@@(#)$Header: regex.c,v 1.2 89/04/24 05:13:24 mike Locked $ (BRL)";
+@
+
+
+1.2
+log
+@Added more safety re-naming of things with stupid names found
+in <regexp.h> on SYSV machines (eg, variables like "size"!)
+@
+text
+@d22 1
+a22 1
+static char RCSid[] = "@@(#)$Header: regex.c,v 1.1 89/01/11 05:29:36 mike Locked $ (BRL)";
+d84 3
+a86 1
+#define ecmp	re_ecmp
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d22 1
+a22 1
+static char RCSid[] = "@@(#)$Header$ (BRL)";
+d64 4
+a67 1
+/* following for safety's sake */
+d73 1
+d75 5
+d83 2
+@

@@ -1,0 +1,420 @@
+head	1.11;
+access;
+symbols
+	ansi-20040405-merged:1.8.4.1
+	postmerge-20040405-ansi:1.9
+	premerge-20040404-ansi:1.9
+	postmerge-autoconf:1.9
+	autoconf-freeze:1.8.12.2
+	premerge-autoconf:1.9
+	postmerge-20040315-windows:1.9
+	premerge-20040315-windows:1.9
+	windows-20040315-freeze:1.8.6.1
+	autoconf-20031203:1.8
+	autoconf-20031202:1.8
+	autoconf-branch:1.8.0.12
+	phong-branch:1.8.0.10
+	photonmap-branch:1.8.0.8
+	rel-6-1-DP:1.8
+	windows-branch:1.8.0.6
+	rel-6-0-2:1.8
+	ansi-branch:1.8.0.4
+	rel-6-0-1-branch:1.8.0.2
+	hartley-6-0-post:1.8
+	hartley-6-0-pre:1.8
+	rel-6-0-1:1.8
+	rel-6-0:1.8
+	rel-5-4:1.6
+	offsite-5-3-pre:1.8
+	rel-5-3:1.6
+	rel-5-2:1.6
+	rel-5-1-branch:1.6.0.2
+	rel-5-1:1.6
+	rel-5-0:1.6
+	rel-5-0-beta:1.6
+	rel-4-5:1.6
+	ctj-4-5-post:1.6
+	ctj-4-5-pre:1.6;
+locks; strict;
+comment	@ * @;
+
+
+1.11
+date	2004.05.21.17.47.41;	author morrison;	state dead;
+branches;
+next	1.10;
+
+1.10
+date	2004.05.10.15.30.48;	author erikg;	state Exp;
+branches;
+next	1.9;
+
+1.9
+date	2004.02.02.17.39.32;	author morrison;	state Exp;
+branches;
+next	1.8;
+
+1.8
+date	2000.09.07.02.43.21;	author mike;	state Exp;
+branches
+	1.8.4.1
+	1.8.6.1
+	1.8.12.1;
+next	1.7;
+
+1.7
+date	2000.08.19.03.10.45;	author mike;	state Exp;
+branches;
+next	1.6;
+
+1.6
+date	97.04.23.18.30.43;	author bparker;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	97.02.28.21.30.23;	author jra;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	97.01.02.19.35.05;	author bparker;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	96.09.25.20.10.14;	author bparker;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	96.09.23.18.29.33;	author bparker;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	96.07.09.21.37.16;	author jra;	state Exp;
+branches;
+next	;
+
+1.8.4.1
+date	2004.03.17.21.21.57;	author morrison;	state Exp;
+branches;
+next	;
+
+1.8.6.1
+date	2004.03.11.23.46.34;	author morrison;	state Exp;
+branches;
+next	;
+
+1.8.12.1
+date	2004.02.12.18.34.14;	author erikg;	state Exp;
+branches;
+next	1.8.12.2;
+
+1.8.12.2
+date	2004.03.15.14.07.37;	author erikg;	state Exp;
+branches;
+next	;
+
+
+desc
+@Editing functions unique to the ARS solid.
+@
+
+
+1.11
+log
+@moved to src/mged/
+@
+text
+@/*
+ *			E D A R S . C
+ *
+ * Functions -
+ *	find_nearest_ars_pt - find which vertex of an ARS is nearest
+ *			the ray from "pt" in the viewing direction (for vertex selection in MGED)
+ *
+ *  Author -
+ *	John R. Anderson
+ *  
+ *  Source -
+ *	The U. S. Army Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005-5066
+ *  
+ *  Distribution Notice -
+ *	Re-distribution of this software is restricted, as described in
+ *	your "Statement of Terms and Conditions for the Release of
+ *	The BRL-CAD Pacakge" agreement.
+ *
+ *  Copyright Notice -
+ *	This software is Copyright (C) 1996-2004 by the United States Army
+ *	in all countries except the USA.  All rights reserved.
+ */
+
+#ifndef lint
+static const char RCSid[] = "@@(#)$Header: /n/xoff/cvs/brlcad/mged/edars.c,v 1.10 2004/05/10 15:30:48 erikg Exp $ (BRL)";
+#endif
+
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+
+#include <stdio.h>
+#include <math.h>
+#ifdef USE_STRING_H
+#include <string.h>
+#else
+#include <strings.h>
+#endif
+	
+#include "machine.h"
+#include "externs.h"
+#include "vmath.h"
+#include "nmg.h"
+#include "raytrace.h"
+#include "nurb.h"
+#include "rtgeom.h"
+#include "wdb.h"
+
+#include "./ged.h"
+#include "./mged_solid.h"
+#include "./sedit.h"
+#include "./mged_dm.h"
+
+extern struct bn_tol		mged_tol;	/* from ged.c */
+
+void
+find_nearest_ars_pt(
+	int *crv,
+	int *col,
+	struct rt_ars_internal *ars,
+	point_t pick_pt,
+	vect_t dir)
+{
+	int i,j;
+	int pt_no;
+	int closest_i=0,closest_j=0;
+	fastf_t min_dist_sq=MAX_FASTF;
+
+	RT_ARS_CK_MAGIC( ars );
+
+	pt_no = 0;
+	for( i=0 ; i<ars->ncurves ; i++ )
+	{
+		for( j=0 ; j<ars->pts_per_curve ; j++ )
+		{
+			fastf_t dist_sq;
+
+			dist_sq = bn_distsq_line3_pt3( pick_pt, dir, &ars->curves[i][j*3] );
+			if( dist_sq < min_dist_sq )
+			{
+				min_dist_sq = dist_sq;
+				closest_i = i;
+				closest_j = j;
+			}
+			pt_no += 3;
+		}
+	}
+	*crv = closest_i;
+	*col = closest_j;
+}
+@
+
+
+1.10
+log
+@change conf.h to a wrapped config.h
+@
+text
+@d26 1
+a26 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/mged/edars.c,v 1.9 2004/02/02 17:39:32 morrison Exp $ (BRL)";
+@
+
+
+1.9
+log
+@update copyright to include span through 2003
+@
+text
+@d26 1
+a26 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/mged/edars.c,v 1.8 2000/09/07 02:43:21 mike Exp $ (BRL)";
+d29 5
+a33 1
+#include "conf.h"
+@
+
+
+1.8
+log
+@
+More externs to ged.h to silence lint
+@
+text
+@d21 1
+a21 1
+ *	This software is Copyright (C) 1996 by the United States Army
+d26 1
+a26 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/mged/edars.c,v 1.7 2000/08/19 03:10:45 mike Exp $ (BRL)";
+@
+
+
+1.8.4.1
+log
+@sync branch with HEAD
+@
+text
+@d21 1
+a21 1
+ *	This software is Copyright (C) 1996-2004 by the United States Army
+d26 1
+a26 1
+static const char RCSid[] = "@@(#)$Header$ (BRL)";
+@
+
+
+1.8.6.1
+log
+@sync to HEAD...
+@
+text
+@d21 1
+a21 1
+ *	This software is Copyright (C) 1996-2004 by the United States Army
+d26 1
+a26 1
+static const char RCSid[] = "@@(#)$Header: /n/cad/c/CVS/brlcad/mged/edars.c,v 1.9 2004/02/02 17:39:32 morrison Exp $ (BRL)";
+@
+
+
+1.8.12.1
+log
+@merge from HEAD
+@
+text
+@d21 1
+a21 1
+ *	This software is Copyright (C) 1996-2004 by the United States Army
+d26 1
+a26 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/mged/edars.c,v 1.9 2004/02/02 17:39:32 morrison Exp $ (BRL)";
+@
+
+
+1.8.12.2
+log
+@merge from head
+@
+text
+@d26 1
+a26 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/mged/edars.c,v 1.8.12.1 2004/02/12 18:34:14 erikg Exp $ (BRL)";
+@
+
+
+1.7
+log
+@
+const RCSid
+@
+text
+@d26 1
+a26 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/mged/edars.c,v 1.6 1997/04/23 18:30:43 bparker Exp $ (BRL)";
+d54 1
+d56 6
+a61 6
+find_nearest_ars_pt( crv, col, ars, pick_pt, dir )
+int *crv;
+int *col;
+struct rt_ars_internal *ars;
+point_t pick_pt;
+vect_t dir;
+@
+
+
+1.6
+log
+@*** empty log message ***
+@
+text
+@d26 1
+a26 1
+static char RCSid[] = "@@(#)$Header: /m/cad/mged/RCS/edars.c,v 1.5 1997/02/28 21:30:23 jra Exp bparker $ (BRL)";
+@
+
+
+1.5
+log
+@removed include of db.h
+@
+text
+@d26 1
+a26 1
+static char RCSid[] = "@@(#)$Header: /m/cad/mged/RCS/edars.c,v 1.4 1997/01/02 19:35:05 bparker Exp jra $ (BRL)";
+a51 1
+#include "./menu.h"
+@
+
+
+1.4
+log
+@mods to use libbn and libbu
+@
+text
+@d26 1
+a26 1
+static char RCSid[] = "@@(#)$Header: /m/cad/mged/RCS/edars.c,v 1.3 1996/09/25 20:10:14 bparker Exp bparker $ (BRL)";
+a41 1
+#include "db.h"
+@
+
+
+1.3
+log
+@include mged_solid.h
+@
+text
+@d26 1
+a26 1
+static char RCSid[] = "@@(#)$Header: /m/cad/mged/RCS/edars.c,v 1.2 1996/09/23 18:29:33 bparker Exp bparker $ (BRL)";
+d55 1
+a55 1
+extern struct rt_tol		mged_tol;	/* from ged.c */
+d78 1
+a78 1
+			dist_sq = rt_distsq_line3_pt3( pick_pt, dir, &ars->curves[i][j*3] );
+@
+
+
+1.2
+log
+@changed dm.h to mged_dm.h
+@
+text
+@d26 1
+a26 1
+static char RCSid[] = "@@(#)$Header: /m/cad/mged/RCS/edars.c,v 1.1 1996/07/09 21:37:16 jra Exp bparker $ (BRL)";
+d50 1
+a50 1
+#include "./solid.h"
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d26 1
+a26 1
+static char RCSid[] = "@@(#)$Header: /m/cad/mged/RCS/edpipe.c,v 1.11 1996/04/18 20:26:00 bparker Exp $ (BRL)";
+d52 1
+a52 1
+#include "./dm.h"
+@

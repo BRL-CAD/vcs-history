@@ -1,0 +1,836 @@
+head	11.9;
+access;
+symbols
+	ansi-20040405-merged:11.7.4.1
+	postmerge-20040405-ansi:11.8
+	premerge-20040404-ansi:11.8
+	postmerge-autoconf:11.8
+	autoconf-freeze:11.7.12.2
+	premerge-autoconf:11.8
+	ansi-20040316-freeze:11.7
+	postmerge-20040315-windows:11.8
+	premerge-20040315-windows:11.8
+	windows-20040315-freeze:11.7.6.1
+	autoconf-20031203:11.7
+	autoconf-20031202:11.7
+	autoconf-branch:11.7.0.12
+	phong-branch:11.7.0.10
+	photonmap-branch:11.7.0.8
+	rel-6-1-DP:11.7
+	windows-branch:11.7.0.6
+	rel-6-0-2:11.7
+	ansi-branch:11.7.0.4
+	rel-6-0-1-branch:11.7.0.2
+	hartley-6-0-post:11.7
+	hartley-6-0-pre:11.7
+	rel-6-0-1:11.7
+	rel-6-0:11.7
+	rel-5-4:11.5
+	offsite-5-3-pre:11.6
+	rel-5-3:11.5
+	rel-5-2:11.5
+	rel-5-1-branch:11.5.0.2
+	rel-5-1:11.5
+	rel-5-0:11.4
+	rel-5-0-beta:11.4
+	rel-4-5:11.4
+	ctj-4-5-post:11.4
+	ctj-4-5-pre:11.4
+	rel-4-4:11.1;
+locks; strict;
+comment	@ * @;
+
+
+11.9
+date	2004.05.24.04.01.09;	author morrison;	state dead;
+branches;
+next	11.8;
+
+11.8
+date	2004.02.02.17.39.05;	author morrison;	state Exp;
+branches;
+next	11.7;
+
+11.7
+date	2001.08.08.20.25.12;	author jra;	state Exp;
+branches
+	11.7.4.1
+	11.7.6.1
+	11.7.12.1;
+next	11.6;
+
+11.6
+date	2000.08.24.04.10.49;	author mike;	state Exp;
+branches;
+next	11.5;
+
+11.5
+date	2000.03.29.18.42.46;	author mike;	state Exp;
+branches;
+next	11.4;
+
+11.4
+date	95.12.04.19.35.47;	author jra;	state Exp;
+branches;
+next	11.3;
+
+11.3
+date	95.12.01.15.47.52;	author mike;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	95.11.28.21.35.45;	author jra;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	95.01.04.10.07.58;	author mike;	state Rel4_4;
+branches;
+next	1.3;
+
+1.3
+date	94.11.08.14.50.18;	author jra;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	94.10.11.20.04.44;	author mike;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	94.08.26.09.03.45;	author jra;	state Exp;
+branches;
+next	;
+
+11.7.4.1
+date	2004.03.17.21.16.33;	author morrison;	state Exp;
+branches;
+next	;
+
+11.7.6.1
+date	2004.03.11.23.41.15;	author morrison;	state Exp;
+branches;
+next	;
+
+11.7.12.1
+date	2004.02.12.19.41.39;	author erikg;	state Exp;
+branches;
+next	11.7.12.2;
+
+11.7.12.2
+date	2004.03.15.14.06.13;	author erikg;	state Exp;
+branches;
+next	;
+
+
+desc
+@Code to correctly orient loops in an NMG object converted from IGES.
+@
+
+
+11.9
+log
+@moved to src/iges/
+@
+text
+@/*
+ *  Authors -
+ *	John R. Anderson
+ *  
+ *  Source -
+ *	The U. S. Army Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005-5068  USA
+ *  
+ *  Distribution Notice -
+ *	Re-distribution of this software is restricted, as described in
+ *	your "Statement of Terms and Conditions for the Release of
+ *	The BRL-CAD Package" agreement.
+ *
+ *  Copyright Notice -
+ *	This software is Copyright (C) 1994-2004 by the United States Army
+ *	in all countries except the USA.  All rights reserved.
+ */
+#ifndef lint
+static const char RCSid[] = "@@(#)$Header: /n/xoff/cvs/brlcad/iges/orient_loops.c,v 11.8 2004/02/02 17:39:05 morrison Exp $ (ARL)";
+#endif
+
+#include "./iges_struct.h"
+#include "./iges_extern.h"
+
+struct loop_list
+{
+	struct loopuse *lu;
+	struct loop_list *inner_loops;
+	struct loop_list *next;
+};
+
+static struct loop_list *loop_root;
+
+void
+Find_inner_loops( fu , lptr )
+struct faceuse *fu;
+struct loop_list *lptr;
+{
+	struct loop_list *inner;
+	struct loopuse *lu;
+
+	/* find all loops contained in lptr->lu */
+	for( BU_LIST_FOR( lu , loopuse , &fu->lu_hd ) )
+	{
+		if( lu == lptr->lu )
+			continue;
+
+		if( nmg_classify_lu_lu( lu , lptr->lu , &tol ) == NMG_CLASS_AinB )
+		{
+
+			if( lptr->inner_loops == (struct loop_list *)NULL )
+			{
+				lptr->inner_loops = (struct loop_list *)bu_malloc( sizeof( struct loop_list ),
+					"Find_inner_loops: lptr->inner_loops" );
+				inner = lptr->inner_loops;
+			}
+			else
+			{
+				inner = lptr->inner_loops;
+				while( inner->next != (struct loop_list *)NULL )
+					inner = inner->next;
+				inner->next = (struct loop_list *)bu_malloc( sizeof( struct loop_list ),
+					"Find_inner_loops: inner->next" );
+				inner = inner->next;
+			}
+			inner->next = (struct loop_list *)NULL;
+			inner->lu = lu;
+			inner->inner_loops = (struct loop_list *)NULL;
+		}
+	}
+
+	/* now eliminate those inner loops that are contained in other inner loops */
+	inner = lptr->inner_loops;
+	while( inner )
+	{
+		struct loop_list *inner1,*prev;
+		int deleted;
+
+		deleted = 0;
+		inner1 = lptr->inner_loops;
+		prev = (struct loop_list *)NULL;
+		while( inner1 )
+		{
+			if( inner->lu != inner1->lu )
+			{
+				if( nmg_classify_lu_lu( inner1->lu , inner->lu , &tol ) == NMG_CLASS_AinB )
+				{
+					struct loop_list *tmp;
+
+					/* inner1->lu is inside inner->lu,
+					 * so delete inner1->lu
+					 */
+					tmp = inner1;
+					if( prev )
+						prev->next = inner1->next;
+					else
+						lptr->inner_loops = inner1->next;
+
+					inner1 = inner1->next;
+					bu_free( (char *)tmp , "Find_inner_loops: tmp" );
+					deleted = 1;
+				}
+			}
+			if( !deleted )
+			{
+				prev = inner1;
+				inner1 = inner1->next;
+			}
+		}
+		inner = inner->next;
+	}
+
+	/* Now find inner loops for all these inner loops */
+	inner = lptr->inner_loops;
+	while( inner )
+	{
+		Find_inner_loops( fu , inner );
+		inner = inner->next;
+	}
+}
+
+void
+Orient_face_loops( fu )
+struct faceuse *fu;
+{
+	struct loopuse *lu;
+	struct loopuse *lu_outer=NULL;
+	struct loop_list *lptr;
+	int orient=OT_SAME;
+
+	NMG_CK_FACEUSE( fu );
+	if( fu->orientation != OT_SAME )
+		fu = fu->fumate_p;
+	if( fu->orientation != OT_SAME )
+	{
+		bu_log( "Orient_face_loops: fu x%x has orient %s and mate (x%x) has orient %s (no OT_SAME)\n",
+			fu , nmg_orientation(fu->orientation) , fu->fumate_p , nmg_orientation( fu->fumate_p->orientation ) );
+		rt_bomb( "Face with no OT_SAME use\n" );
+	}
+
+	loop_root = (struct loop_list *)NULL;
+
+	nmg_face_bb( fu->f_p , &tol );
+	for( BU_LIST_FOR( lu , loopuse , &fu->lu_hd ) )
+	{
+		int outer;
+		struct loopuse *lu1;
+
+		/* check if there are any other loops containing this loop */
+		outer = 1;
+		for( BU_LIST_FOR( lu1 , loopuse , &fu->lu_hd ) )
+		{
+			if( lu1 == lu )
+				continue;
+			if( nmg_classify_lu_lu( lu , lu1 , &tol ) == NMG_CLASS_AinB )
+			{
+				outer = 0;
+				break;
+			}
+		}
+
+		if( outer )
+		{
+			lu_outer = lu;
+			break;
+		}
+	}
+
+	loop_root = (struct loop_list *)bu_malloc( sizeof( struct loop_list ) , "Orient_face_loops: loop_root" );
+	loop_root->lu = lu_outer;
+	loop_root->next = (struct loop_list *)NULL;
+	loop_root->inner_loops = (struct loop_list *)NULL;
+
+	/* now look for loops contained in other loops */
+	Find_inner_loops( fu , loop_root );
+
+	/* All the loops in the face are now in the loop_list
+	 * structure from outermost working inward.
+	 * Adjust the loop orientations by alternating between
+	 * OT_SAME and OT_OPPOSITE
+	 */
+	lptr = loop_root;
+	while( lptr )
+	{
+		struct loop_list *lptr1;
+
+		lptr1 = lptr;
+		while( lptr1 )
+		{
+			if( lptr1->lu->orientation != orient )
+			{
+				/* exchange lu and lu_mate */
+				BU_LIST_DEQUEUE( &lptr1->lu->l );
+				BU_LIST_DEQUEUE( &lptr1->lu->lumate_p->l );
+				BU_LIST_APPEND( &fu->lu_hd , &lptr1->lu->lumate_p->l );
+				lptr1->lu->lumate_p->up.fu_p = fu;
+				BU_LIST_APPEND( &fu->fumate_p->lu_hd , &lptr1->lu->l );
+				lptr1->lu->up.fu_p = fu->fumate_p;
+				lptr1->lu->orientation = orient;
+				lptr1->lu->lumate_p->orientation = orient;
+			}
+			lptr1 = lptr1->next;
+		}
+		/* move to next inner level */
+		lptr = lptr->inner_loops;
+
+		/* loop orientation must reverse */
+		if( orient == OT_SAME )
+			orient = OT_OPPOSITE;
+		else
+			orient = OT_SAME;
+	}
+}
+
+void
+Orient_nurb_face_loops( fu )
+struct faceuse *fu;
+{
+	struct face *f;
+	struct face_g_snurb *fg;
+	struct loopuse *lu;
+	int flipped;
+
+	NMG_CK_FACEUSE( fu );
+
+	f = fu->f_p;
+	NMG_CK_FACE( f );
+	flipped = f->flip;
+
+	if( *f->g.magic_p != NMG_FACE_G_SNURB_MAGIC )
+		rt_bomb( "Orient_nurb_face_loops: called with non-nurb faceuse\n" );
+
+	fg = f->g.snurb_p;
+	NMG_CK_FACE_G_SNURB( fg );
+
+	for( BU_LIST_FOR( lu, loopuse, &fu->lu_hd ) )
+	{
+		int loop_uv_orient;
+
+		if( BU_LIST_FIRST_MAGIC( &lu->down_hd ) == NMG_VERTEXUSE_MAGIC )
+		{
+			lu->orientation = OT_SAME;
+			lu->lumate_p->orientation = OT_SAME;
+			continue;
+		}
+
+		loop_uv_orient = nmg_snurb_calc_lu_uv_orient( lu );
+
+		/* if area is in +Z-direction loop encloses area counter-clockwise
+		 * and must be OT_SAME. if area is in -Z-direction, loop encloses
+		 * area in clockwise direction nad must be OT_OPPOOSITE
+		 */
+		if( (loop_uv_orient == OT_SAME && !flipped) ||
+		    (loop_uv_orient == OT_OPPOSITE && flipped) )
+		{
+			lu->orientation = OT_SAME;
+			lu->lumate_p->orientation = OT_SAME;
+		}
+		else if( (loop_uv_orient == OT_OPPOSITE && !flipped) ||
+			 (loop_uv_orient == OT_SAME && flipped) )
+		{
+			lu->orientation = OT_OPPOSITE;
+			lu->lumate_p->orientation = OT_OPPOSITE;
+		}
+		else
+			rt_bomb( "Orient_nurb_face_loops: loop encloses no area in uv-space\n" );
+
+	}
+}
+
+void
+Orient_loops( r )
+struct nmgregion *r;
+{
+	struct shell *s;
+
+	NMG_CK_REGION( r );
+
+	for( BU_LIST_FOR( s , shell , &r->s_hd ) )
+	{
+		struct faceuse *fu;
+
+		NMG_CK_SHELL( s );
+
+		for( BU_LIST_FOR( fu , faceuse , &s->fu_hd ) )
+		{
+			struct face *f;
+
+			NMG_CK_FACEUSE( fu );
+
+			if( fu->orientation != OT_SAME )
+				continue;
+
+			f = fu->f_p;
+			NMG_CK_FACE( f );
+
+			if( !f->g.magic_p )
+				rt_bomb( "Face has no geometry!!\n" );
+
+			if( *f->g.magic_p == NMG_FACE_G_PLANE_MAGIC )
+				Orient_face_loops( fu );
+			else if( *f->g.magic_p == NMG_FACE_G_SNURB_MAGIC )
+				Orient_nurb_face_loops( fu );
+			else
+				rt_bomb( "Face has unrecognized geometry type\n" );
+		}
+	}
+}
+@
+
+
+11.8
+log
+@update copyright to include span through 2003
+@
+text
+@d19 1
+a19 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/iges/orient_loops.c,v 11.7 2001/08/08 20:25:12 jra Exp $ (ARL)";
+@
+
+
+11.7
+log
+@Lint
+@
+text
+@d15 1
+a15 1
+ *	This software is Copyright (C) 1994 by the United States Army
+d19 1
+a19 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/iges/orient_loops.c,v 11.6 2000/08/24 04:10:49 mike Exp $ (ARL)";
+@
+
+
+11.7.4.1
+log
+@sync branch with HEAD
+@
+text
+@d15 1
+a15 1
+ *	This software is Copyright (C) 1994-2004 by the United States Army
+d19 1
+a19 1
+static const char RCSid[] = "@@(#)$Header$ (ARL)";
+@
+
+
+11.7.6.1
+log
+@sync to HEAD...
+@
+text
+@d15 1
+a15 1
+ *	This software is Copyright (C) 1994-2004 by the United States Army
+d19 1
+a19 1
+static const char RCSid[] = "@@(#)$Header: /n/cad/c/CVS/brlcad/iges/orient_loops.c,v 11.8 2004/02/02 17:39:05 morrison Exp $ (ARL)";
+@
+
+
+11.7.12.1
+log
+@merge from HEAD
+@
+text
+@d15 1
+a15 1
+ *	This software is Copyright (C) 1994-2004 by the United States Army
+d19 1
+a19 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/iges/orient_loops.c,v 11.8 2004/02/02 17:39:05 morrison Exp $ (ARL)";
+@
+
+
+11.7.12.2
+log
+@merge from head
+@
+text
+@d19 1
+a19 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/iges/orient_loops.c,v 11.7.12.1 2004/02/12 19:41:39 erikg Exp $ (ARL)";
+@
+
+
+11.6
+log
+@
+mk_addmember
+RCSid
+@
+text
+@d19 1
+a19 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/iges/orient_loops.c,v 11.5 2000/03/29 18:42:46 mike Exp $ (ARL)";
+d127 1
+a127 1
+	struct loopuse *lu_outer;
+@
+
+
+11.5
+log
+@
+Converted from Release 4 names to know about libbu and libbn
+@
+text
+@d19 1
+a19 1
+static char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/iges/orient_loops.c,v 11.4 1995/12/04 19:35:47 jra Exp $ (ARL)";
+@
+
+
+11.4
+log
+@Mods for new SNURB struct.
+@
+text
+@d19 1
+a19 1
+static char RCSid[] = "@@(#)$Header: /m/cad/iges/RCS/orient_loops.c,v 11.3 1995/12/01 15:47:52 mike Exp $ (ARL)";
+a24 2
+RT_EXTERN( int nmg_snurb_calc_lu_uv_orient, (struct loopuse *lu ) );
+
+d43 1
+a43 1
+	for( RT_LIST_FOR( lu , loopuse , &fu->lu_hd ) )
+d53 1
+a53 1
+				lptr->inner_loops = (struct loop_list *)rt_malloc( sizeof( struct loop_list ),
+d62 1
+a62 1
+				inner->next = (struct loop_list *)rt_malloc( sizeof( struct loop_list ),
+d100 1
+a100 1
+					rt_free( (char *)tmp , "Find_inner_loops: tmp" );
+d136 1
+a136 1
+		rt_log( "Orient_face_loops: fu x%x has orient %s and mate (x%x) has orient %s (no OT_SAME)\n",
+d144 1
+a144 1
+	for( RT_LIST_FOR( lu , loopuse , &fu->lu_hd ) )
+d151 1
+a151 1
+		for( RT_LIST_FOR( lu1 , loopuse , &fu->lu_hd ) )
+d169 1
+a169 1
+	loop_root = (struct loop_list *)rt_malloc( sizeof( struct loop_list ) , "Orient_face_loops: loop_root" );
+d193 3
+a195 3
+				RT_LIST_DEQUEUE( &lptr1->lu->l );
+				RT_LIST_DEQUEUE( &lptr1->lu->lumate_p->l );
+				RT_LIST_APPEND( &fu->lu_hd , &lptr1->lu->lumate_p->l );
+d197 1
+a197 1
+				RT_LIST_APPEND( &fu->fumate_p->lu_hd , &lptr1->lu->l );
+d236 1
+a236 1
+	for( RT_LIST_FOR( lu, loopuse, &fu->lu_hd ) )
+d240 1
+a240 1
+		if( RT_LIST_FIRST_MAGIC( &lu->down_hd ) == NMG_VERTEXUSE_MAGIC )
+d279 1
+a279 1
+	for( RT_LIST_FOR( s , shell , &r->s_hd ) )
+d285 1
+a285 1
+		for( RT_LIST_FOR( fu , faceuse , &s->fu_hd ) )
+@
+
+
+11.3
+log
+@LIBNURBS has been converted over to using t-NURBS NMG data structures
+@
+text
+@d19 1
+a19 1
+static char RCSid[] = "@@(#)$Header: /m/cad/iges/RCS/orient_loops.c,v 11.2 1995/11/28 21:35:45 jra Exp $ (ARL)";
+d25 2
+d240 1
+a240 5
+		struct edgeuse *eu;
+		int edge_count=0;
+		int edge_no;
+		point_t *pts;
+		vect_t area;
+d249 1
+a249 87
+		/* count "psuedo-vertices" in loop */
+		for( RT_LIST_FOR( eu, edgeuse, &lu->down_hd ) )
+		{
+			struct edge_g_cnurb *eg;
+
+			NMG_CK_EDGEUSE( eu );
+
+			if( *eu->g.magic_p != NMG_EDGE_G_CNURB_MAGIC )
+				rt_bomb( "EU on NURB face does not have edge_g_cnurb geometry\n" );
+
+			eg = eu->g.cnurb_p;
+			NMG_CK_EDGE_G_CNURB( eg );
+
+			if( eg->order <= 0 )
+				edge_count++;
+			else
+				edge_count += 5;
+		}
+
+		/* allocate memory for "psuedo-vertices" */
+		pts = (point_t *)rt_calloc( edge_count, sizeof( point_t ), "Orient_nurb_face_loops: pts" );
+
+		/* Assign uv geometry to each "psuedo-vertex" */
+		edge_no = 0;
+		for( RT_LIST_FOR( eu, edgeuse, &lu->down_hd ) )
+		{
+			struct edge_g_cnurb *eg;
+			struct vertexuse *vu;
+			struct vertexuse_a_cnurb *vg1,*vg2;
+
+			eg = eu->g.cnurb_p;
+
+			if( eg->order <= 0 )
+			{
+				vu = eu->vu_p;
+				NMG_CK_VERTEXUSE( vu );
+				if( *vu->a.magic_p != NMG_VERTEXUSE_A_CNURB_MAGIC )
+					rt_bomb( "Orient_nurb_face_loops: vertexuse in face_g_snurb faceuse doesn't have edge_g_cnurb attribute\n" );
+				vg1 = vu->a.cnurb_p;
+				VMOVE( pts[edge_no], vg1->param )
+				edge_no++;
+			}
+			else
+			{
+				fastf_t t1,t2;
+				hpoint_t crv_pt;
+				int coords;
+				int i;
+
+				t1 = eg->k.knots[0];
+				t2 = eg->k.knots[eg->k.k_size-1];
+				coords = RT_NURB_EXTRACT_COORDS( eg->pt_type );
+
+				for( i=0 ; i<5 ; i++ )
+				{
+					fastf_t t;
+
+					t = t1 + (t2 - t1)*0.2*(fastf_t)i;
+
+					VSETALLN( crv_pt, 0.0, coords )
+					rt_nurb_c_eval( eg, t, crv_pt );
+					if( RT_NURB_IS_PT_RATIONAL( eg->pt_type ) )
+						VSCALE( pts[edge_no], crv_pt, crv_pt[coords-1] )
+					else
+						VMOVE( pts[edge_no], crv_pt )
+					edge_no++;
+				}
+			}
+		}
+
+		/* translate loop such that pts[0] is at (0,0,0) */
+		for( edge_no=1 ; edge_no<edge_count ; edge_no++ )
+		{
+			VSUB2( pts[edge_no], pts[edge_no], pts[0] )
+			pts[edge_no][Z] = 0.0;
+		}
+		VSETALL( pts[0], 0.0 )
+
+		/* calculate area of loop in uv-space */
+		VSETALL( area, 0.0 );
+		for( edge_no=1 ; edge_no<edge_count-1 ; edge_no++ )
+		{
+			vect_t cross;
+
+			VCROSS( cross, pts[edge_no], pts[edge_no+1] );
+			VADD2( area, area, cross );
+		}
+d255 2
+a256 1
+		if( (area[Z] > 0.0 && !flipped) || (area[Z] < 0.0 && flipped) )
+d261 2
+a262 1
+		else if( (area[Z] < 0.0 && !flipped) || (area[Z] > 0.0 && flipped) )
+a269 1
+		rt_free( (char *)pts, "Orient_nurb_face_loops: pts" );
+@
+
+
+11.2
+log
+@Mods to handle TNURB BREP. Also added RT_EXTERNS to iges_struct.h.
+@
+text
+@d19 1
+a19 1
+static char RCSid[] = "@@(#)$Header: /m/cad/iges/RCS/orient_loops.c,v 11.1 1995/01/04 10:07:58 mike Rel4_4 jra $ (ARL)";
+d259 1
+a259 1
+				rt_bomb( "EU on NURB face does not have cnurb geometry\n" );
+d288 1
+a288 1
+					rt_bomb( "Orient_nurb_face_loops: vertexuse in snurb faceuse doesn't have cnurb attribute\n" );
+a295 1
+				struct cnurb crv;
+d300 3
+a302 4
+				nmg_hack_cnurb( &crv, eg );
+				t1 = crv.knot.knots[0];
+				t2 = crv.knot.knots[crv.knot.k_size-1];
+				coords = RT_NURB_EXTRACT_COORDS( crv.pt_type );
+d311 2
+a312 2
+					rt_nurb_c_eval( &crv, t, crv_pt );
+					if( RT_NURB_IS_PT_RATIONAL( crv.pt_type ) )
+@
+
+
+11.1
+log
+@Release_4.4
+@
+text
+@d19 1
+a19 1
+static char RCSid[] = "@@(#)$Header: /m/cad/iges/RCS/orient_loops.c,v 1.3 94/11/08 14:50:18 jra Exp $ (ARL)";
+a21 13
+#include "conf.h"
+
+#include <stdio.h>
+#ifdef USE_STRING_H
+#include <string.h>
+#else
+#include <strings.h>
+#endif
+
+#include "machine.h"
+#include "vmath.h"
+#include "raytrace.h"
+#include "wdb.h"
+d216 147
+d378 2
+d385 12
+a396 1
+			Orient_face_loops( fu );
+a398 1
+	nmg_vregion( &r->m_p->r_hd , r->m_p );
+@
+
+
+1.3
+log
+@Mods for Irix 6.
+@
+text
+@d19 1
+a19 1
+static char RCSid[] = "@@(#)$Header: /n/wolf/m/cad/iges/RCS/orient_loops.c,v 1.2 1994/10/11 20:04:44 mike Exp jra $ (ARL)";
+@
+
+
+1.2
+log
+@Added conf.h
+@
+text
+@d19 1
+a19 1
+static char RCSid[] = "@@(#)$Header$ (ARL)";
+a51 1
+	struct loop_list *lptr1;
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d4 1
+a4 1
+ *
+a5 1
+ *	SLAD/BVLD/VMB
+d7 1
+a7 1
+ *	Aberdeen Proving Ground, Maryland  21005
+d9 5
+d15 2
+a16 2
+ *	This software is Copyright (C) 1994 by the United States Army.
+ *	All rights reserved.
+d19 1
+a19 1
+static char RCSid[] = "$Header: /m/cad/iges-g/RCS/g-iges.c,v 1.6 94/08/22 19:31:44 gdurf Exp Locker: jra $";
+d21 2
+@

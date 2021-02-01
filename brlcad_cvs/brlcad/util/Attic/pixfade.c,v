@@ -1,0 +1,751 @@
+head	11.10;
+access;
+symbols
+	ansi-20040405-merged:11.7.2.1
+	postmerge-20040405-ansi:11.8
+	premerge-20040404-ansi:11.7
+	postmerge-autoconf:11.7
+	autoconf-freeze:11.7
+	premerge-autoconf:11.7
+	postmerge-20040315-windows:11.7
+	premerge-20040315-windows:11.7
+	windows-20040315-freeze:11.7
+	autoconf-20031203:11.7
+	autoconf-20031202:11.7
+	autoconf-branch:11.7.0.10
+	phong-branch:11.7.0.8
+	photonmap-branch:11.7.0.6
+	rel-6-1-DP:11.7
+	windows-branch:11.7.0.4
+	rel-6-0-2:11.5
+	ansi-branch:11.7.0.2
+	rel-6-0-1-branch:11.5.0.2
+	hartley-6-0-post:11.6
+	hartley-6-0-pre:11.5
+	rel-6-0-1:11.5
+	rel-6-0:11.5
+	rel-5-4:11.3
+	offsite-5-3-pre:11.5
+	rel-5-3:11.3
+	rel-5-2:11.3
+	rel-5-1-branch:11.3.0.2
+	rel-5-1:11.3
+	rel-5-0:11.1
+	rel-5-0-beta:11.1
+	rel-4-5:11.1
+	ctj-4-5-post:11.1
+	ctj-4-5-pre:11.1
+	rel-4-4:11.1
+	rel-4-0:10.1
+	rel-3-5:9.1;
+locks; strict;
+comment	@ * @;
+
+
+11.10
+date	2004.05.21.14.57.52;	author morrison;	state dead;
+branches;
+next	11.9;
+
+11.9
+date	2004.05.10.15.30.51;	author erikg;	state Exp;
+branches;
+next	11.8;
+
+11.8
+date	2004.04.05.05.46.02;	author morrison;	state Exp;
+branches;
+next	11.7;
+
+11.7
+date	2002.08.20.17.09.02;	author jra;	state Exp;
+branches
+	11.7.2.1;
+next	11.6;
+
+11.6
+date	2002.08.15.20.56.13;	author hartley;	state Exp;
+branches;
+next	11.5;
+
+11.5
+date	2000.09.01.03.23.56;	author mike;	state Exp;
+branches;
+next	11.4;
+
+11.4
+date	2000.08.23.19.04.49;	author mike;	state Exp;
+branches;
+next	11.3;
+
+11.3
+date	2000.01.31.16.03.09;	author jra;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	99.10.30.03.06.28;	author butler;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	95.01.04.10.12.40;	author mike;	state Rel4_4;
+branches;
+next	10.2;
+
+10.2
+date	94.08.23.15.05.54;	author gdurf;	state Exp;
+branches;
+next	10.1;
+
+10.1
+date	91.10.12.06.48.37;	author mike;	state Rel4_0;
+branches;
+next	9.3;
+
+9.3
+date	90.12.07.01.25.30;	author mike;	state Exp;
+branches;
+next	9.2;
+
+9.2
+date	89.12.29.22.12.26;	author mike;	state Exp;
+branches;
+next	9.1;
+
+9.1
+date	89.05.19.06.10.21;	author mike;	state Rel3_5;
+branches;
+next	1.5;
+
+1.5
+date	89.04.30.21.28.07;	author mike;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	88.12.28.00.57.21;	author mike;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	88.12.28.00.22.32;	author mike;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	88.12.27.23.44.36;	author mike;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	88.12.27.23.42.08;	author mike;	state Exp;
+branches;
+next	;
+
+11.7.2.1
+date	2002.09.19.18.02.41;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@Picture fade-in/fade-out program
+@
+
+
+11.10
+log
+@moved to src/util/
+@
+text
+@/*
+ *			P I X F A D E . C
+ *
+ *  Fade a pixture
+ *
+ * pixfade will darken a pix by a certen percentage or do an integer
+ * max pixel value.  It runs in two modes, truncate which will cut any
+ * channel greater than param to param, and scale which will change
+ * a channel to param percent of its orignal value (limited by 0-255)
+ *
+ *  entry:
+ *	-m	integer max value
+ *	-f	fraction to fade
+ *	-p	percentage of fade (fraction = percentage/100)
+ *	file	a pixture file.
+ *	<stdin>	a pixture file if file is not given.
+ *
+ *  Exit:
+ *	<stdout>	the faded pixture.
+ *
+ *  Calls:
+ *	get_args
+ *
+ *  Method:
+ *	straight-forward.
+ *
+ *  Author:
+ *	Christopher T. Johnson - 88/12/27
+ */
+#ifndef lint
+static const char RCSid[] = "@@(#)$Header: /n/xoff/cvs/brlcad/util/pixfade.c,v 11.9 2004/05/10 15:30:51 erikg Exp $ (BRL)";
+#endif
+
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+
+#include <stdio.h>
+#include <math.h>
+
+#include "machine.h"
+#include "vmath.h"
+#include "externs.h"		/* For getopt */
+#include "bu.h"
+#include "bn.h"
+
+int	max = 255;
+double	multiplier = 1.0;
+FILE	*inp;
+
+static char usage[] = "\
+Usage: pixfade [-m max] [-p percent] [-f fraction] [pix-file]\n";
+
+int
+get_args(int argc, register char **argv)
+{
+	register int c;
+
+	while ( (c = getopt( argc, argv, "m:p:f:" )) != EOF )  {
+		switch( c )  {
+		case 'm':
+			max = atoi(optarg);
+			if ((max < 0) || (max > 255)) {
+				fprintf(stderr,"pixfade: max out of range");
+				exit(1);
+			}
+			break;
+		case 'p':
+			multiplier = atof(optarg) / 100.0;
+			if (multiplier < 0.0) {
+				fprintf(stderr,"pixfade: percent is negitive");
+				exit(1);
+			}
+			break;
+		case 'f':
+			multiplier = atof(optarg);
+			if (multiplier < 0.0) {
+				fprintf(stderr,"pixfade: fraction is negitive");
+				exit(1);
+			}
+			break;
+
+		default:		/* '?' */
+			return(0);
+		}
+	}
+
+	if( optind >= argc )  {
+		if( isatty(fileno(stdin)) )  {
+			fprintf(stderr,"pixfade: stdin is a tty\n");
+			return(0);
+		}
+		inp = stdin;
+	} else {
+		if( (inp = fopen(argv[optind], "r")) == NULL )  {
+			(void)fprintf( stderr,
+				"pixfade: cannot open \"%s\" for reading\n",
+				argv[optind] );
+			return(0);
+		}
+	}
+
+	if ( argc > ++optind )
+		(void)fprintf( stderr, "pixfade: excess argument(s) ignored\n" );
+
+	if( isatty(fileno(stdout)) )  {
+		fprintf(stderr,"pixfade: stdout is a tty\n");
+		return(0);
+	}
+
+	return(1);		/* OK */
+}
+
+int
+main(int argc, char **argv)
+{
+	register float	*randp;
+	struct color_rec {
+		unsigned char red,green,blue;
+	} cur_color;
+
+	bn_rand_init( randp, 0);
+
+	if ( !get_args( argc, argv ) )  {
+		(void)fputs(usage, stderr);
+		exit( 1 );
+	}
+
+/* fprintf(stderr,"pixfade: max = %d, multiplier = %f\n",max,multiplier); */
+
+
+	for(;;)  {
+		register double	t;
+
+		if( fread(&cur_color,1,3,inp) != 3 )  break;
+		if( feof(inp) )  break;
+
+		t = cur_color.red * multiplier + bn_rand_half(randp);
+		if (t > max)
+			cur_color.red   = max;
+		else
+			cur_color.red = t;
+
+		t = cur_color.green * multiplier + bn_rand_half(randp);
+		if (t > max)
+			cur_color.green = max;
+		else
+			cur_color.green = t;
+
+		t = cur_color.blue * multiplier + bn_rand_half(randp);
+		if (t > max)
+			cur_color.blue  = max;
+		else
+			cur_color.blue = t;
+
+		fwrite(&cur_color,1,3,stdout);
+	}
+	return 0;
+}
+@
+
+
+11.9
+log
+@change conf.h to a wrapped config.h
+@
+text
+@d31 1
+a31 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/util/pixfade.c,v 11.8 2004/04/05 05:46:02 morrison Exp $ (BRL)";
+@
+
+
+11.8
+log
+@merge of ansi-6-0-branch into head
+@
+text
+@d31 1
+a31 1
+static const char RCSid[] = "@@(#)$Header$ (BRL)";
+d34 5
+a38 1
+#include "conf.h"
+@
+
+
+11.7
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d31 1
+a31 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/util/pixfade.c,v 11.5 2000/09/01 03:23:56 mike Exp $ (BRL)";
+d53 1
+a53 2
+get_args( argc, argv )
+register char **argv;
+d113 1
+a113 3
+main( argc, argv )
+int argc;
+char *argv[];
+@
+
+
+11.7.2.1
+log
+@Initial ANSIfication
+@
+text
+@d31 1
+a31 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/util/pixfade.c,v 11.7 2002/08/20 17:09:02 jra Exp $ (BRL)";
+d53 2
+a54 1
+get_args(int argc, register char **argv)
+d114 3
+a116 1
+main(int argc, char **argv)
+@
+
+
+11.6
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d53 2
+a54 1
+get_args(int argc, register char **argv)
+d114 3
+a116 1
+main(int argc, char **argv)
+@
+
+
+11.5
+log
+@
+Lint fix
+@
+text
+@d31 1
+a31 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/util/pixfade.c,v 11.4 2000/08/23 19:04:49 mike Exp $ (BRL)";
+d53 1
+a53 2
+get_args( argc, argv )
+register char **argv;
+d113 1
+a113 3
+main( argc, argv )
+int argc;
+char *argv[];
+@
+
+
+11.4
+log
+@
+const RCSid
+@
+text
+@d31 1
+a31 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/util/pixfade.c,v 11.3 2000/01/31 16:03:09 jra Exp $ (BRL)";
+d52 1
+d113 1
+d159 1
+@
+
+
+11.3
+log
+@Eliminated some unused variables
+@
+text
+@d31 1
+a31 1
+static char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/util/pixfade.c,v 11.2 1999/10/30 03:06:28 butler Exp $ (BRL)";
+@
+
+
+11.2
+log
+@Moved mathtab/rand_half from rt into libbn
+Expanded structparse to include description and default
+@
+text
+@d31 1
+a31 1
+static char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/util/pixfade.c,v 11.1 1995/01/04 10:12:40 mike Rel4_4 $ (BRL)";
+a115 1
+	int	i;
+@
+
+
+11.1
+log
+@Release_4.4
+@
+text
+@d31 1
+a31 1
+static char RCSid[] = "@@(#)$Header: /m/cad/util/RCS/pixfade.c,v 10.2 94/08/23 15:05:54 gdurf Exp $ (BRL)";
+d40 1
+d42 2
+a43 1
+#include "../rt/mathtab.h"
+d117 1
+a117 1
+	register float	*randp = rand_tab;
+d122 2
+d138 1
+a138 1
+		t = cur_color.red * multiplier + rand_half(randp);
+d144 1
+a144 1
+		t = cur_color.green * multiplier + rand_half(randp);
+d150 1
+a150 1
+		t = cur_color.blue * multiplier + rand_half(randp);
+@
+
+
+10.2
+log
+@Factored ifdefs
+@
+text
+@d31 1
+a31 1
+static char RCSid[] = "@@(#)$Header: /m/cad/util/RCS/pixfade.c,v 10.1 1991/10/12 06:48:37 mike Rel4_0 gdurf $ (BRL)";
+@
+
+
+10.1
+log
+@Release_4.0
+@
+text
+@d31 1
+a31 1
+static char RCSid[] = "@@(#)$Header: /m/cad/util/RCS/pixfade.c,v 9.3 90/12/07 01:25:30 mike Exp $ (BRL)";
+d34 2
+d38 3
+a40 1
+#include "externs.h"
+a41 4
+
+extern int	getopt();
+extern char	*optarg;
+extern int	optind;
+@
+
+
+9.3
+log
+@Fixed uninitialized variable.
+@
+text
+@d31 1
+a31 1
+static char RCSid[] = "@@(#)$Header: /m/cad/util/RCS/pixfade.c,v 9.2 89/12/29 22:12:26 mike Exp $ (BRL)";
+@
+
+
+9.2
+log
+@Added "externs.h" to declare atof()
+@
+text
+@d31 1
+a31 1
+static char RCSid[] = "@@(#)$Header: pixfade.c,v 9.1 89/05/19 06:10:21 mike Locked $ (BRL)";
+d115 1
+a115 1
+	register float	*randp;
+@
+
+
+9.1
+log
+@Release_3.5
+@
+text
+@d31 1
+a31 1
+static char RCSid[] = "@@(#)$Header: pixfade.c,v 1.5 89/04/30 21:28:07 mike Exp $ (BRL)";
+d36 1
+@
+
+
+1.5
+log
+@Changed for new rand() routines
+@
+text
+@d31 1
+a31 1
+static char RCSid[] = "@@(#)$Header: pixfade.c,v 1.4 88/12/28 00:57:21 mike Locked $ (BRL)";
+@
+
+
+1.4
+log
+@Switched to getopt()
+@
+text
+@d31 1
+a31 1
+static char RCSid[] = "@@(#)$Header: pixfade.c,v 1.3 88/12/28 00:22:32 mike Exp $ (BRL)";
+d114 1
+d133 1
+a133 1
+		t = cur_color.red * multiplier + rand_half();
+d139 1
+a139 1
+		t = cur_color.green * multiplier + rand_half();
+d145 1
+a145 1
+		t = cur_color.blue * multiplier + rand_half();
+@
+
+
+1.3
+log
+@EOF detection improved
+Limiting to "max" implemented.
+@
+text
+@d12 3
+a14 2
+ *	-i	integer max value
+ *	-p	percentage of fade.
+d22 1
+a22 1
+ *	none.
+d31 1
+a31 1
+static char RCSid[] = "@@(#)$Header: pixfade.c,v 1.2 88/12/27 23:44:36 mike Locked $ (BRL)";
+d38 3
+a40 11
+main(argc,argv)
+int argc;
+char *argv[];
+{
+	FILE	*inp;
+	int	i;
+	int	max;
+	double	percent;
+	struct color_rec {
+		unsigned char red,green,blue;
+	} cur_color;
+d42 3
+a44 2
+	max = 255;
+	percent = 1.0;
+d46 2
+a47 1
+	inp = stdin;
+d49 9
+a57 12
+/*
+ * if argc .... -i max = param
+ * if argc .... -p percent = param
+ * if argc .... "" inp = fopen(param)
+ */
+	for (i = 1; i < argc; i++) {
+		if (!strcmp(argv[i],"-i")) {
+			if (++i >= argc) {
+				usage("max missing");
+				exit(1);
+			}
+			max = atoi(argv[i]);
+d59 1
+a59 1
+				usage("max out of range");
+d62 5
+a66 3
+		} else if (!strcmp(argv[i],"-p")) {
+			if (++i >= argc) {
+				usage("percent missing");
+d69 5
+a73 3
+			percent = atof(argv[i]) / 100.0;
+			if (percent < 0.0) {
+				usage("percent is negitive");
+d76 4
+a79 17
+		} else if (!strcmp(argv[i],"-f")) {
+			if (++i >= argc) {
+				usage("fraction missing");
+				exit(1);
+			}
+			percent = atof(argv[i]);
+			if (percent < 0.0) {
+				usage("fraction is negitive");
+				exit(1);
+			}
+		} else {
+			fclose(stdin);
+			inp = fopen(argv[i],"r");
+			if (inp == NULL) {
+				usage("bad file name?");
+				exit(1);
+			}
+d83 18
+d102 2
+a103 2
+		usage("stdout is a tty");
+		exit(1);
+d106 2
+a107 1
+/* fprintf(stderr,"max = %d, percent = %f\n",max,percent); */
+d109 8
+d118 8
+d132 1
+a132 1
+		t = cur_color.red * percent + rand_half();
+d138 1
+a138 1
+		t = cur_color.green * percent + rand_half();
+d144 1
+a144 1
+		t = cur_color.blue * percent + rand_half();
+a151 8
+}
+
+usage(s)
+char *s;
+{
+	fprintf(stderr,"pixfade: %s\n",s);
+	fprintf(stderr,"\
+Usage: pixfade [-i max] [-p percent] [-f fraction] [pix-file]\n");
+@
+
+
+1.2
+log
+@Checked for stdout being a tty
+@
+text
+@d30 1
+a30 1
+static char RCSid[] = "@@(#)$Header: pixfade.c,v 1.1 88/12/27 23:42:08 mike Locked $ (BRL)";
+d75 1
+a75 1
+			percent = atof(argv[i]);
+d80 10
+a89 1
+			if (percent > 5.0 ) percent /= 100.0;
+a106 1
+	fread(&cur_color,1,3,inp);
+d108 2
+a109 4
+	while (!feof(inp) ) {
+		cur_color.red = cur_color.red * percent + rand_half();
+		cur_color.green = cur_color.green * percent + rand_half();
+		cur_color.blue = cur_color.blue * percent + rand_half();
+d111 2
+a112 3
+		if (cur_color.red   > max) cur_color.red   = max;
+		if (cur_color.green > max) cur_color.green = max;
+		if (cur_color.blue  > max) cur_color.blue  = max;
+d114 18
+a132 1
+		fread(&cur_color,1,3,inp);
+d135 1
+d139 3
+a141 2
+	fprintf(stderr,"pixfade: [-i max][-p percent] [pix-file]\n");
+	fprintf(stderr,"       : %s\n",s);
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d30 1
+a30 1
+static char RCSid[] = "@@(#)$Header$ (BRL)";
+d89 5
+@

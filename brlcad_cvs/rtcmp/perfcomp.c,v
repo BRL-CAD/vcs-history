@@ -1,0 +1,295 @@
+head	1.5;
+access;
+symbols;
+locks; strict;
+comment	@ * @;
+
+
+1.5
+date	2007.04.03.17.13.28;	author erikgreenwald;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	2007.03.29.17.57.15;	author erikgreenwald;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2007.03.29.17.54.09;	author erikgreenwald;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2007.03.29.17.29.44;	author erikgreenwald;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2007.02.20.18.09.40;	author erikgreenwald;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.5
+log
+@Simple partition list comparison function, reports RMS deviation if it makes sense. Shoot spiral bundles instead of the same ray (should probably be changed to an ortho grid to keep ray density uniform)
+@
+text
+@/*
+ * $Id: perfcomp.c,v 1.4 2007/03/29 17:57:15 erikgreenwald Exp $
+ */
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <time.h>
+#include <sys/time.h>
+
+#include "rtcmp.h"
+#include "perfcomp.h"
+
+#define NUMRAYSPERVIEW NUMRAYS/NUMVIEWS
+
+void
+showpart(struct part *p) 
+{
+	while(p) {
+		printf("(%.2f)%s  ", p->depth, p->region);
+		p = p->next;
+	}
+	return;
+}
+
+/* 
+ * compare two partition lists. Return the RMS of deviation (both indist and
+ * outdist). If the regions don't match up, return a negative number
+ */
+double
+cmppartl(struct part *p1, struct part *p2)
+{
+	float rms = 0.0;
+	while(p1&&p2) {
+		if( strncmp(p1->region,p2->region,NAMELEN) != 0 )
+			return -99999;
+#define SQ(x) ((x)*(x))
+		rms += SQ(p1->in_dist - p2->in_dist) + SQ(p1->out_dist - p2->out_dist);
+
+		p1 = p1->next;
+		p2 = p2->next;
+	}
+	if(p1||p2)
+		return -1;
+	return sqrt(rms);
+}
+
+/*
+ * TODO:
+ *	* pass in "accuracy" rays and pass back the results.
+ *	* Shoot on a grid set instead of a single ray.
+ */
+struct retpack_s *
+perfcomp(char *prefix, int argc, char **argv, int nthreads, int nproc,
+	 void *(*constructor) (char *, int, char **),
+	 int (*getbox) (void *, point_t *, point_t *),
+	 double (*getsize) (void *),
+	 struct part * (*shoot) (void *, struct xray * ray),
+	 int (*destructor) (void *))
+{
+	int i, j;
+	clock_t cstart, cend;
+	struct part **p;
+	struct retpack_s *r;
+	struct timeval start, end;
+	struct xray *ray;
+	void *inst;
+
+	/* retained between runs. */
+	static double radius = -1.0;	/* bounding sphere and flag */
+	static point_t bb[3];	/* bounding box, third is center */
+
+	static vect_t dir[NUMVIEWS] = {
+		{0,0,1}, {0,1,0}, {1,0,0},	/* axis */
+		{1,1,1}, {1,4,-1}, {-1,-2,4}	/* non-axis */
+	};
+
+	prefix = prefix;
+	nthreads = nthreads; 
+	nproc = nproc; 
+
+	r = (struct retpack_s *)malloc(sizeof(struct retpack_s));
+	if(r == NULL) return NULL;
+
+	p = (struct part **)bu_malloc(sizeof(struct part *)*NUMTRAYS, "allocating partition space");
+	ray = (struct xray *)bu_malloc(sizeof(struct xray)*NUMTRAYS, "allocating ray space");
+
+	inst = constructor(*argv, argc-1, argv+1);
+	if(inst == NULL) { free(r); return NULL; }
+
+	/* first with a legit radius gets to define the bb and sph */
+	/* XXX: should this lock? */
+	if(radius < 0.0) {
+		radius = getsize(inst);
+		getbox(inst, bb, bb+1);
+		VADD2SCALE(bb[2], *bb, bb[1], 0.5);	/* (bb[0]+bb[1])/2 */
+		for(i=0;i<NUMVIEWS;i++) VUNITIZE(dir[i]); /* normalize the dirs */
+	}
+	/* XXX: if locking, we can unlock here */
+
+	/* build the views with pre-defined rays, yo */
+	for(j=0;j<NUMVIEWS;++j) {
+		VMOVE(ray->r_dir,dir[j]);
+		VJOIN1(ray->r_pt,bb[2],-radius,dir[j]);
+
+		r->p[j] = shoot(inst,ray);	/* shoot the accuracy ray while we're here */
+		/* set up an othographic grid */
+		vect_t avec,bvec;
+		bn_vec_ortho( avec, ray->r_dir );
+		VCROSS( bvec, ray->r_dir, avec );
+		VUNITIZE( bvec );
+		rt_raybundle_maker(ray+j*NUMRAYS,radius,avec,bvec,100,NUMRAYS/100);
+	}
+
+/* performance run */
+	gettimeofday(&start,NULL); cstart = clock();
+
+	/* actually shoot all the pre-defined rays */
+	for(i=0;i<NUMRAYS;++i) p[i] = shoot(inst,&ray[i]);
+
+	cend = clock(); gettimeofday(&end,NULL);
+/* end of performance run */
+
+	/* return the partitions to the pool */
+	for(i=0;i<NUMRAYS;++i) free_part_r(p[i]);
+
+	/* clean up */
+	bu_free(ray, "ray space");
+	bu_free(p, "partition space");
+	destructor(inst);
+
+	/* fill in the perfomrance data for the bundle */
+#define SEC(tv) ((double)tv.tv_sec + (double)(tv.tv_usec)/(double)1e6)
+	r->t = SEC(end) - SEC(start);
+	r->c = (double)(cend-cstart)/(double)CLOCKS_PER_SEC;
+
+	return r;
+}
+@
+
+
+1.4
+log
+@uh, normalize the right dir vectors...
+@
+text
+@d2 1
+a2 1
+ * $Id: perfcomp.c,v 1.3 2007/03/29 17:54:09 erikgreenwald Exp $
+d25 22
+d101 5
+a105 1
+	for(j=0;j<NUMVIEWS;++j)
+d107 5
+a111 11
+		for(i=0;i<NUMRAYS;++i) {
+			VMOVE(ray[j*NUMRAYS+i].r_dir, dir[j]);	/* direction is defined */
+			VSET(ray[j*NUMRAYS+i].r_pt, 0, 0, -radius);
+		}
+
+/* shoot the accuracy rays */
+	for(j=0;j<NUMVIEWS;++j) {
+		struct xray ray;
+		VMOVE(ray.r_dir,dir[j]);
+		VJOIN1(ray.r_pt,bb[2],-radius,dir[j]);
+		r->p[j] = shoot(inst,&ray);
+a112 1
+/* end accuracy ray shooting */
+@
+
+
+1.3
+log
+@add some more "interesting" ray directions
+@
+text
+@d2 1
+a2 1
+ * $Id: perfcomp.c,v 1.2 2007/03/29 17:29:44 erikgreenwald Exp $
+d74 1
+a74 1
+		for(i=0;i<NUMVIEWS;i++) VUNITIZE(dir[j]); /* normalize the dirs */
+@
+
+
+1.2
+log
+@add "golden rays", begin move to orthos view instead of "same ray"
+@
+text
+@d2 1
+a2 1
+ * $Id: perfcomp.c,v 1.1 2007/02/20 18:09:40 erikgreenwald Exp $
+d19 1
+a19 1
+		printf("(%f) %s\t", p->depth, p->region);
+d52 1
+a52 1
+		{0,0,1}, {0,0,1}, {0,0,1}	/* non-axis */
+d74 1
+@
+
+
+1.1
+log
+@the comparison engine
+@
+text
+@d2 1
+a2 1
+ * $Id: perfcomp.c,v 1.7 2007/02/02 21:15:18 erikg Exp $
+d13 2
+d19 1
+a19 1
+		printf("HIT: (%f) %s\n", p->depth, p->region);
+d38 1
+a38 1
+	int i;
+d40 1
+a40 1
+	struct part *p;
+d43 1
+a43 1
+	struct xray ray;
+d46 9
+a57 1
+	getbox = getbox; 
+d62 3
+d68 17
+d86 6
+d95 1
+a95 2
+	gettimeofday(&start,NULL);
+	cstart = clock();
+d97 2
+a98 2
+	VSET(ray.r_pt, 0, 0, -4000);
+	VSET(ray.r_dir, 0, 0, 1);
+d100 2
+a101 5
+	/* this needs to be changed to a grid based on geometry size */
+	for(i=0;i<NUMRAYS;++i) {
+		p = shoot(inst,&ray);
+		free_part_r(p);
+	}
+d103 2
+a104 3
+	cend = clock();
+	gettimeofday(&end,NULL);
+/* end of performance run */
+d106 3
+d111 1
+@
+

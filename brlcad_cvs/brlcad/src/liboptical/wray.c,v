@@ -1,0 +1,673 @@
+head	14.16;
+access;
+symbols
+	rel-7-10-4:14.14
+	STABLE:14.14.0.2
+	stable-branch:14.7
+	rel-7-10-2:14.14
+	rel-7-10-0:14.13
+	rel-7-8-4:14.10
+	rel-7-8-2:14.10
+	rel-7-8-0:14.10
+	trimnurbs-branch:14.10.0.2
+	help:14.10
+	temp_tag:14.9
+	bobWinPort-20051223-freeze:14.7
+	postmerge-20051223-bobWinPort:14.9
+	premerge-20051223-bobWinPort:14.9
+	rel-7-6-6:14.9
+	rel-7-6-4:14.8
+	rel-7-6-2:14.7
+	rel-7-6-branch:14.7.0.6
+	rel-7-6-0:14.7
+	rel-7-4-2:14.7
+	rel-7-4-branch:14.7.0.4
+	bobWinPort:14.7.0.2
+	rel-7-4-0:14.7
+	rel-7-2-6:14.7
+	rel-7-2-4:14.7
+	rel-7-2-2:14.7
+	rel-7-2-0:14.6
+	rel-7-0-4:14.5
+	rel-7-0-2:14.5
+	rel-7-0-1:14.5
+	opensource-post:14.5
+	opensource-pre:1.2
+	rel-7-0-branch:1.2.0.2
+	rel-7-0:1.2;
+locks; strict;
+comment	@ * @;
+
+
+14.16
+date	2007.12.17.07.53.18;	author brlcad;	state Exp;
+branches;
+next	14.15;
+
+14.15
+date	2007.11.28.14.11.25;	author erikgreenwald;	state Exp;
+branches;
+next	14.14;
+
+14.14
+date	2007.05.18.04.13.48;	author brlcad;	state Exp;
+branches;
+next	14.13;
+
+14.13
+date	2007.01.27.01.41.38;	author brlcad;	state Exp;
+branches;
+next	14.12;
+
+14.12
+date	2007.01.23.01.13.36;	author brlcad;	state Exp;
+branches;
+next	14.11;
+
+14.11
+date	2007.01.20.14.36.53;	author brlcad;	state Exp;
+branches;
+next	14.10;
+
+14.10
+date	2006.01.18.06.46.16;	author brlcad;	state Exp;
+branches;
+next	14.9;
+
+14.9
+date	2005.12.07.23.53.59;	author brlcad;	state Exp;
+branches;
+next	14.8;
+
+14.8
+date	2005.10.23.04.44.34;	author brlcad;	state Exp;
+branches;
+next	14.7;
+
+14.7
+date	2005.03.28.17.44.23;	author bob1961;	state Exp;
+branches
+	14.7.6.1;
+next	14.6;
+
+14.6
+date	2005.01.30.20.30.56;	author brlcad;	state Exp;
+branches;
+next	14.5;
+
+14.5
+date	2004.12.21.06.38.20;	author morrison;	state Exp;
+branches;
+next	14.4;
+
+14.4
+date	2004.12.21.06.18.44;	author morrison;	state Exp;
+branches;
+next	14.3;
+
+14.3
+date	2004.12.21.05.45.23;	author morrison;	state Exp;
+branches;
+next	14.2;
+
+14.2
+date	2004.12.21.04.03.25;	author morrison;	state Exp;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.15;	author morrison;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2004.08.02.23.01.49;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.15.19.53;	author morrison;	state Exp;
+branches;
+next	;
+
+14.7.6.1
+date	2005.11.13.13.46.16;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.16
+log
+@my bad deprecation instruction, revert/remove the LOCAL -> static conversion.  LOCAL is only static for non-SMP systems, but usually auto.
+@
+text
+@/*                          W R A Y . C
+ * BRL-CAD
+ *
+ * Copyright (c) 1985-2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This library is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@file wray.c
+ *
+ *  Write a VLD-standard ray on the given file pointer.
+ *  VLD-standard rays are defined by /vld/include/ray.h,
+ *  included here for portability.  A variety of VLD programs
+ *  exist to manipulate these files, including rayvect.
+ *
+ *  To obtain a UNIX-plot of a ray file, the procedure is:
+ *	/vld/bin/rayvect -mMM < file.ray > file.vect
+ *	/vld/bin/vectplot -mMM < file.vect > file.plot
+ *	tplot -Tmeg file.plot		# or equivalent
+ *
+ *  Author -
+ *	Michael John Muuss
+ *
+ *  Source -
+ *	SECAD/VLD Computing Consortium, Bldg 394
+ *	The U. S. Army Ballistic Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005
+ *
+ */
+
+#include "common.h"
+
+#include <stdio.h>
+#include <math.h>
+
+#include "machine.h"
+#include "vmath.h"
+#include "raytrace.h"
+#include "optical.h"
+
+
+/* binary ray segment data record; see ray(4V) (SCCS vers 1.4) */
+struct vldray
+{
+	float	ox;			/* origin coordinates */
+	float	oy;
+	float	oz;
+	float	rx;			/* ray vector */
+	float	ry;
+	float	rz;
+	float	na;			/* origin surface normal */
+	float	ne;
+	float	pa;			/* principal direction */
+	float	pe;
+	float	pc;			/* principal curvature */
+	float	sc;			/* secondary curvature */
+	long	ob;			/* object code */
+	long	rt;			/* ray tag */
+};
+
+/*
+ *  Convert the normal vector into an azimuth angle (from +X axis)
+ *  and an elevation angle (up from XY plane).
+ *  The normal is expected to be pointing out from the object.
+ *  The elevation is most readily computed as:
+ *
+ *	_ray.ne = asin( _norm[Z] );
+ *
+ *  but the asin() function can't deal with floating point noize that
+ *  might make _norm[Z] slightly outside of the range -1.0 to +1.0.
+ *  A completely stable formulation is:
+ *
+ *	_ray.ne = bn_atan2( _norm[Z], hypot( _norm[X], _norm[Y] ) );
+ *
+ *  Note that the hypot() return is always positive, restricting the
+ *  range of return values for elevation to between -pi/2 and +pi/2,
+ *  while the range of return values for azimuth is between -pi and +pi.
+ *
+ *  Because the normal vector has unit length (in 3-space, not necessarily
+ *  in the XY plane), the magnitude of the X and Y elements will be <= 1.0,
+ *  so the hypot() function can safely be expanded inline
+ *  using a sqrt() call.  This will often be more efficient, especially
+ *  on machines with hardware sqrt().
+ */
+#define WRAY_NORMAL(_ray, _norm)	\
+	_ray.na = bn_atan2( _norm[Y], _norm[X] ); \
+	_ray.ne = bn_atan2( _norm[Z], \
+		sqrt( _norm[X] * _norm[X] + _norm[Y] * _norm[Y]) );
+
+/*
+ *  The 32-bit ray tag field (rt) is encoded as follows:
+ *	13 bits for screen X,
+ *	13 bits for screen Y,
+ *	 6 bits for ray level.
+ *
+ *  This admits of different ray tags for every ray in a raytrace
+ *  up to 4096x4096 pixels, with up to 64 levels of recursion.
+ *  It is not clear just why this had to be encoded; it would have
+ *  been more useful for the file to have several fields for this.
+ *
+ *  0                   1                   2                   3 3
+ *  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+ * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+ * |         Screen Y        |          Screen X       |    Level  |
+ * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+ */
+#define WRAY_TAG(_ray, _ap)	{ \
+		if( (_ray.rt = _ap->a_level) > 0x3F || _ray.rt < 0 ) \
+			_ray.rt = 0x3F; \
+		_ray.rt |= ((_ap->a_x & 0x1FFF) << 6 ) | \
+			   ((_ap->a_y & 0x1FFF) << (6+13) ); \
+	}
+
+/*
+ *  			W R A Y
+ */
+void
+wray( struct partition *pp, struct application *ap, FILE *fp, const vect_t inormal )
+{
+	struct vldray vldray;
+	register struct hit *hitp= pp->pt_inhit;
+
+	VMOVE( &(vldray.ox), hitp->hit_point );
+	VSUB2( &(vldray.rx), pp->pt_outhit->hit_point,
+		hitp->hit_point );
+
+	WRAY_NORMAL( vldray, inormal );
+
+	vldray.pa = vldray.pe = vldray.pc = vldray.sc = 0;	/* no curv */
+
+	/*  Air is marked by zero or negative region ID codes.
+	 *  When air is encountered, the air code is taken from reg_aircode.
+	 *  The negative of the air code is used for the "ob" field, to
+	 *  distinguish air from other regions.
+	 */
+	if( (vldray.ob = pp->pt_regionp->reg_regionid) <= 0 )
+		vldray.ob = -(pp->pt_regionp->reg_aircode);
+
+	WRAY_TAG( vldray, ap );
+
+	if( fwrite( &vldray, sizeof(struct vldray), 1, fp ) != 1 )
+		bu_bomb("rway:  write error");
+}
+
+/*
+ *  			W R A Y P T S
+ *
+ *  Write a VLD-standard ray for a section of a ray specified
+ *  by the "in" and "out" distances along the ray.  This is usually
+ *  used for logging passage through "air" (ie, no solid).
+ *  The "inorm" flag holds an inward pointing normal (typ. a r_dir value)
+ *  that will be flipped on output, so that the "air solid"
+ *  has a proper outward pointing normal.
+ */
+void
+wraypts( vect_t in, vect_t inorm, vect_t out, int id, struct application *ap, FILE *fp )
+{
+	struct vldray vldray;
+	vect_t	norm;
+
+	VMOVE( &(vldray.ox), in );
+	VSUB2( &(vldray.rx), out, in );
+
+	VREVERSE( norm, inorm );
+	WRAY_NORMAL( vldray, norm );
+
+	vldray.pa = vldray.pe = vldray.pc = vldray.sc = 0;	/* no curv */
+
+	vldray.ob = id;
+
+	WRAY_TAG( vldray, ap );
+
+	fwrite( &vldray, sizeof(struct vldray), 1, fp );
+}
+
+/*
+ *			W R A Y P A I N T
+ *
+ *  Write "paint" into a VLD standard rayfile.
+ */
+void
+wraypaint( vect_t start, vect_t norm, int paint, struct application *ap, FILE *fp )
+{
+	struct vldray vldray;
+
+	VMOVE( &(vldray.ox), start );
+	VSETALL( &(vldray.rx), 0 );
+
+	WRAY_NORMAL( vldray, norm );
+
+	vldray.pa = vldray.pe = vldray.pc = vldray.sc = 0;	/* no curv */
+
+	vldray.ob = paint;
+
+	WRAY_TAG( vldray, ap );
+
+	fwrite( &vldray, sizeof(struct vldray), 1, fp );
+}
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+14.15
+log
+@LOCAL->static, per machine.h deprecation list
+@
+text
+@a40 3
+#ifndef lint
+static const char RCSwray[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/liboptical/wray.c,v 14.14 2007/05/18 04:13:48 brlcad Exp $ (BRL)";
+#endif
+a43 1
+
+d46 1
+a52 1
+/* /vld/include/ray.h -- ray segment data format (D A Gwyn) */
+d131 1
+a131 1
+	static struct vldray vldray;
+d169 1
+a169 1
+	static struct vldray vldray;
+d195 1
+a195 1
+	static struct vldray vldray;
+@
+
+
+14.14
+log
+@rt_bomb() has been deprecated since before 7.0, but even our sources weren't properly updated to reflect this change.  update all of our sources to use bu_bomb() now.
+@
+text
+@d42 1
+a42 1
+static const char RCSwray[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/liboptical/wray.c,v 14.13 2007/01/27 01:41:38 brlcad Exp $ (BRL)";
+d135 1
+a135 1
+	LOCAL struct vldray vldray;
+d173 1
+a173 1
+	LOCAL struct vldray vldray;
+d199 1
+a199 1
+	LOCAL struct vldray vldray;
+@
+
+
+14.13
+log
+@ws. lots and lots of ws.  see sh/ws.sh for details (cases 'abcdeg').
+@
+text
+@d42 1
+a42 1
+static const char RCSwray[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/liboptical/wray.c,v 14.12 2007/01/23 01:13:36 brlcad Exp $ (BRL)";
+d157 1
+a157 1
+		rt_bomb("rway:  write error");
+@
+
+
+14.12
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@d42 1
+a42 1
+static const char RCSwray[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/liboptical/wray.c,v 14.11 2007/01/20 14:36:53 brlcad Exp $ (BRL)";
+a47 1
+
+@
+
+
+14.11
+log
+@update copyright to 2007
+@
+text
+@d9 1
+a9 2
+ * as published by the Free Software Foundation; either version 2 of
+ * the License, or (at your option) any later version.
+d14 1
+a14 1
+ * Library General Public License for more details.
+d42 1
+a42 1
+static const char RCSwray[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/liboptical/wray.c,v 14.10 2006/01/18 06:46:16 brlcad Exp $ (BRL)";
+@
+
+
+14.10
+log
+@update copyright to 2006
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 1985-2006 United States Government as represented by
+d43 1
+a43 1
+static const char RCSwray[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/liboptical/wray.c,v 14.9 2005/12/07 23:53:59 brlcad Exp $ (BRL)";
+@
+
+
+14.9
+log
+@k&r -> ansi
+@
+text
+@d4 1
+a4 1
+ * Copyright (C) 1985-2005 United States Government as represented by
+d43 1
+a43 1
+static const char RCSwray[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/liboptical/wray.c,v 14.8 2005/10/23 04:44:34 brlcad Exp $ (BRL)";
+@
+
+
+14.8
+log
+@trailing ws
+@
+text
+@d43 1
+a43 1
+static const char RCSwray[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/liboptical/wray.c,v 14.7 2005/03/28 17:44:23 bob1961 Exp $ (BRL)";
+d135 1
+a135 5
+wray( pp, ap, fp, inormal )
+register struct partition *pp;
+register struct application *ap;
+FILE *fp;
+const vect_t	inormal;
+d173 1
+a173 7
+wraypts( in, inorm, out, id, ap, fp )
+vect_t	in;
+vect_t	inorm;
+vect_t	out;
+int	id;
+struct application *ap;
+FILE	*fp;
+d199 1
+a199 4
+wraypaint( start, norm, paint, ap, fp )
+vect_t start, norm;
+struct application *ap;
+FILE *fp;
+@
+
+
+14.7
+log
+@Include optical.h
+@
+text
+@d35 1
+a35 1
+ *  
+d40 1
+a40 1
+ *  
+d43 1
+a43 1
+static const char RCSwray[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/liboptical/wray.c,v 14.6 2005/01/30 20:30:56 brlcad Exp $ (BRL)";
+d168 1
+a168 1
+ *  
+@
+
+
+14.7.6.1
+log
+@merge changes from HEAD aka rel-7-6-4 to the rel-7-6-branch just in case someone peeks a gander or tries to continue/build the branch
+@
+text
+@d35 1
+a35 1
+ *
+d40 1
+a40 1
+ *
+d43 1
+a43 1
+static const char RCSwray[] = "@@(#)$Header$ (BRL)";
+d168 1
+a168 1
+ *
+@
+
+
+14.6
+log
+@update copyright to 2005
+@
+text
+@d43 1
+a43 1
+static const char RCSwray[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/liboptical/wray.c,v 14.5 2004/12/21 06:38:20 morrison Exp $ (BRL)";
+d55 1
+@
+
+
+14.5
+log
+@remove the old copyright notice section
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 1985-2004 United States Government as represented by
+d43 1
+a43 1
+static const char RCSwray[] = "@@(#)$Header: /cvs/brlcad/src/liboptical/wray.c,v 14.4 2004/12/21 06:18:44 morrison Exp $ (BRL)";
+@
+
+
+14.4
+log
+@they should have received a copy of the LGPL with LGPL'd files
+@
+text
+@a40 3
+ *  Copyright Notice -
+ *	This software is Copyright (C) 1985-2004 by the United States Army.
+ *	All rights reserved.
+d43 1
+a43 1
+static const char RCSwray[] = "@@(#)$Header: /cvs/brlcad/src/liboptical/wray.c,v 14.3 2004/12/21 05:45:23 morrison Exp $ (BRL)";
+@
+
+
+14.3
+log
+@s/GNU Library General/GNU Lesser General/g
+@
+text
+@d17 2
+a18 2
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+d46 1
+a46 1
+static const char RCSwray[] = "@@(#)$Header: /cvs/brlcad/src/liboptical/wray.c,v 14.2 2004/12/21 04:03:25 morrison Exp $ (BRL)";
+@
+
+
+14.2
+log
+@assign copyright and LGPL
+@
+text
+@d8 1
+a8 1
+ * modify it under the terms of the GNU Library General Public License
+d46 1
+a46 1
+static const char RCSwray[] = "@@(#)$Header: /cvs/brlcad/src/liboptical/wray.c,v 14.1 2004/11/16 19:42:15 morrison Exp $ (BRL)";
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@d1 21
+a21 2
+/*
+ *  			W R A Y . C
+d46 1
+a46 1
+static const char RCSwray[] = "@@(#)$Header: /cvs/brlcad/src/liboptical/wray.c,v 1.2 2004/08/02 23:01:49 morrison Exp $ (BRL)";
+@
+
+
+1.2
+log
+@replace the wrapped config.h block with common.h
+@
+text
+@d27 1
+a27 1
+static const char RCSwray[] = "@@(#)$Header: /cvs/brlcad/src/liboptical/wray.c,v 1.1 2004/05/20 15:19:53 morrison Exp $ (BRL)";
+d212 10
+@
+
+
+1.1
+log
+@Vast reorganization begins.  Sources moved from top-level directories into src/.
+@
+text
+@d27 1
+a27 1
+static const char RCSwray[] = "@@(#)$Header: /cvs/brlcad/liboptical/wray.c,v 1.3 2004/05/10 15:30:45 erikg Exp $ (BRL)";
+d30 1
+a30 3
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+@
+

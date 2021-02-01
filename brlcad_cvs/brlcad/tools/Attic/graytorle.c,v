@@ -1,0 +1,390 @@
+head	11.8;
+access;
+symbols
+	ansi-20040405-merged:11.5.2.1
+	postmerge-20040405-ansi:11.6
+	premerge-20040404-ansi:11.5
+	postmerge-autoconf:11.5
+	autoconf-freeze:11.5
+	premerge-autoconf:11.5
+	postmerge-20040315-windows:11.5
+	premerge-20040315-windows:11.5
+	windows-20040315-freeze:11.5
+	autoconf-20031203:11.5
+	autoconf-20031202:11.5
+	autoconf-branch:11.5.0.10
+	phong-branch:11.5.0.8
+	photonmap-branch:11.5.0.6
+	rel-6-1-DP:11.5
+	windows-branch:11.5.0.4
+	rel-6-0-2:11.3
+	ansi-branch:11.5.0.2
+	rel-6-0-1-branch:11.3.0.2
+	hartley-6-0-post:11.4
+	hartley-6-0-pre:11.3
+	rel-6-0-1:11.3
+	rel-6-0:11.3
+	rel-5-4:11.1
+	offsite-5-3-pre:11.3
+	rel-5-3:11.1
+	rel-5-2:11.1
+	rel-5-1-branch:11.1.0.2
+	rel-5-1:11.1
+	rel-5-0:11.1
+	rel-5-0-beta:11.1
+	rel-4-5:11.1
+	ctj-4-5-post:11.1
+	ctj-4-5-pre:11.1
+	rel-4-4:11.1
+	rel-4-0:10.1;
+locks; strict;
+comment	@ * @;
+
+
+11.8
+date	2004.05.21.16.38.46;	author morrison;	state dead;
+branches;
+next	11.7;
+
+11.7
+date	2004.05.10.15.30.50;	author erikg;	state Exp;
+branches;
+next	11.6;
+
+11.6
+date	2004.04.05.05.46.00;	author morrison;	state Exp;
+branches;
+next	11.5;
+
+11.5
+date	2002.08.20.17.08.48;	author jra;	state Exp;
+branches
+	11.5.2.1;
+next	11.4;
+
+11.4
+date	2002.08.15.20.56.00;	author hartley;	state Exp;
+branches;
+next	11.3;
+
+11.3
+date	2000.08.24.22.51.10;	author mike;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	2000.08.24.22.46.18;	author mike;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	95.01.04.10.20.34;	author mike;	state Rel4_4;
+branches;
+next	10.2;
+
+10.2
+date	94.08.11.16.45.27;	author gdurf;	state Exp;
+branches;
+next	10.1;
+
+10.1
+date	91.10.12.06.52.16;	author mike;	state Rel4_0;
+branches;
+next	1.1;
+
+1.1
+date	91.01.24.20.33.55;	author butler;	state Exp;
+branches;
+next	;
+
+11.5.2.1
+date	2002.09.19.18.02.27;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@Original distribution of Rel. 3 patchlevel 2
+@
+
+
+11.8
+log
+@moved to src/tools/
+@
+text
+@/*
+ * This software is copyrighted as noted below.  It may be freely copied,
+ * modified, and redistributed, provided that the copyright notices are 
+ * preserved on all copies.
+ * 
+ * There is no warranty or other guarantee of fitness for this software,
+ * it is provided solely "as is".  Bug reports or fixes may be sent
+ * to the author, who may or may not act on them as he desires.
+ *
+ * You may not include this software in a program or other software product
+ * without supplying the source, or without informing the end-user that the 
+ * source is available for no extra charge.
+ *
+ * If you modify this software, you should include a notice giving the
+ * name of the person performing the modification, the date of modification,
+ * and the reason for such modification.
+ */
+/* 
+ * graytorle.c - Create an RLE image from gray pixels.
+ * 
+ * Author:	Michael J. Banks
+ * 		Computer Science Dept.
+ * 		University of Utah
+ * Date:	Wed Jun 22 1988
+ * Copyright (c) 1988, University of Utah
+ */
+
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+
+#include <stdio.h>
+
+#include "machine.h"
+#include "externs.h"
+#include "rle.h"
+
+typedef FILE	*FILPTR;
+
+/*
+ * usage : graytorle xsize ysize [-h hdrsize] [-o outfile] [-a] files ...
+ *
+ *    xsize,ysize	Size of input files.
+ *    -h hdrsize	Input file header to discard.
+ *    -o outfile	Output file name.
+ *    -a		Uses first input file as alpha channel.
+ */
+
+int
+main(int argc, char **argv)
+{
+    int			hflag = 0;	/* Header size flag */
+    int 		aflag = 0;	/* Alpha channel flag. */
+    int			stdin_used = 0;
+    char 	       *oname = NULL;	/* Output file name. */
+    FILE **inpfil;		/* Input file pointers. */
+    int xsize, ysize;		/* Image size. */
+    int hsize;			/* Image header size. */
+    int oflag;	        	/* Output file flag. */
+    int files;			/* Number of files. */
+    char **fname;		/* List of input file names. */
+    rle_pixel **outrow;		/* Output buffer. */
+    int i, row;
+    char *trash;
+
+    if (! scanargs( argc,argv,
+	"% a%- h%-hdrsize!d o%-outfile!s xsize!d ysize!d files!*s",
+	    &aflag,
+	    &hflag, &hsize,
+	    &oflag, &oname,
+	    &xsize, &ysize,
+	    &files, &fname ))
+	exit( -1 );
+
+    /* 
+     * Get enough file pointers for all input files that are specified,
+     * and try to open them.
+     */
+
+    inpfil = (FILE **)malloc( sizeof( FILE * ) * files );
+    for ( i=0; i<files; i++ )
+    {
+	inpfil[i] = rle_open_f( "graytorle", fname[i], "r" );
+	if ( inpfil[i] == stdin )
+	{
+	    if ( stdin_used )
+	    {
+		fprintf( stderr,
+			 "Can't use standard input for more than one file\n" );
+		exit( -1 );
+	    }
+	    stdin_used++;
+	}
+    }
+
+    /* Throw away file headers. */
+
+    if ( hflag && (hsize > 0) ) 
+    {
+	trash = (char *)malloc( hsize );
+
+	for ( i=0; i<files; i++ )
+	    fread( trash, 1, hsize, inpfil[i] );
+
+	free( trash );
+    }
+
+    /* Adjust alpha channnel flag to use as index. */
+
+    if ( aflag ) 
+	aflag = 1;
+    else
+	aflag = 0;
+
+    /* Initialize the_hdr and allocate image row storage. */
+
+    rle_dflt_hdr.alpha = aflag;
+    rle_dflt_hdr.ncolors = files - aflag;
+    rle_dflt_hdr.xmax = xsize - 1;
+    rle_dflt_hdr.ymax = ysize - 1;
+    rle_dflt_hdr.rle_file = rle_open_f("graytorle", oname, "w");
+    for ( i = -aflag; i<rle_dflt_hdr.ncolors; i++)
+	RLE_SET_BIT( rle_dflt_hdr, i );
+    rle_addhist( argv, (rle_hdr *)NULL, &rle_dflt_hdr );
+    rle_put_setup( &rle_dflt_hdr );
+
+    if (rle_row_alloc( &rle_dflt_hdr, &outrow ))
+    {
+	fprintf(stderr, "Ran out of heap space!!\n");
+	exit(-2);
+    }
+
+    /* Combine rows and write to output file.  Adjust for alpha. */
+
+    for ( row=0; row<ysize; row++)
+    {
+	for ( i = -aflag; i<files-aflag; i++ )
+	    fread( outrow[i], 1, xsize, inpfil[i+aflag] );
+	rle_putrow( outrow, xsize, &rle_dflt_hdr );
+    }
+    return 0;
+}
+
+@
+
+
+11.7
+log
+@change conf.h to a wrapped config.h
+@
+text
+@@
+
+
+11.6
+log
+@merge of ansi-6-0-branch into head
+@
+text
+@d28 5
+a32 1
+#include "conf.h"
+@
+
+
+11.5
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d48 1
+a48 3
+main(argc, argv)
+int  argc;
+char *argv[];
+@
+
+
+11.5.2.1
+log
+@Initial ANSIfication
+@
+text
+@d48 3
+a50 1
+main(int argc, char **argv)
+@
+
+
+11.4
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d48 3
+a50 1
+main(int argc, char **argv)
+@
+
+
+11.3
+log
+@
+lint
+@
+text
+@d48 1
+a48 3
+main(argc, argv)
+int  argc;
+char *argv[];
+@
+
+
+11.2
+log
+@
+lint
+@
+text
+@d141 1
+@
+
+
+11.1
+log
+@Release_4.4
+@
+text
+@d47 1
+a47 1
+void
+@
+
+
+10.2
+log
+@Altered #defines and #includes to conform to BRL-CAD standards
+@
+text
+@@
+
+
+10.1
+log
+@Release_4.0
+@
+text
+@d28 2
+d31 3
+a34 13
+
+#ifdef USE_STDLIB_H
+#include <stdlib.h>
+#else
+
+#ifdef VOID_STAR
+extern void *malloc();
+#else
+extern char *malloc();
+#endif
+extern void free();
+
+#endif /* USE_STDLIB_H */
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@@

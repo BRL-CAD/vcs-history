@@ -1,0 +1,448 @@
+head	11.11;
+access;
+symbols
+	ansi-20040405-merged:11.9.6.1
+	postmerge-20040405-ansi:11.10
+	premerge-20040404-ansi:11.10
+	postmerge-autoconf:11.10
+	autoconf-freeze:11.9.14.1
+	premerge-autoconf:11.10
+	ansi-20040316-freeze:11.9
+	postmerge-20040315-windows:11.10
+	premerge-20040315-windows:11.10
+	windows-20040315-freeze:11.9.8.1
+	autoconf-20031203:11.9
+	autoconf-20031202:11.9
+	autoconf-branch:11.9.0.14
+	phong-branch:11.9.0.12
+	photonmap-branch:11.9.0.10
+	rel-6-1-DP:11.9
+	windows-branch:11.9.0.8
+	rel-6-0-2:11.9
+	ansi-branch:11.9.0.6
+	rel-6-0-1-branch:11.9.0.4
+	hartley-6-0-post:11.9
+	hartley-6-0-pre:11.9
+	rel-6-0-1:11.9
+	rel-6-0:11.9
+	rel-5-4:11.9
+	offsite-5-3-pre:11.9
+	rel-5-3:11.9
+	rel-5-2:11.9
+	rel-5-1-branch:11.9.0.2
+	rel-5-1:11.9
+	rel-5-0:11.7
+	rel-5-0-beta:11.7
+	rel-4-5:11.7
+	ctj-4-5-post:11.7
+	ctj-4-5-pre:11.7
+	rel-4-4:11.6;
+locks; strict;
+comment	@ * @;
+
+
+11.11
+date	2004.05.24.04.01.08;	author morrison;	state dead;
+branches;
+next	11.10;
+
+11.10
+date	2004.02.02.17.39.04;	author morrison;	state Exp;
+branches;
+next	11.9;
+
+11.9
+date	2000.03.29.18.42.45;	author mike;	state Exp;
+branches
+	11.9.6.1
+	11.9.8.1
+	11.9.14.1;
+next	11.8;
+
+11.8
+date	2000.01.05.14.16.08;	author jra;	state Exp;
+branches;
+next	11.7;
+
+11.7
+date	95.11.28.21.35.45;	author jra;	state Exp;
+branches;
+next	11.6;
+
+11.6
+date	95.01.04.10.07.45;	author mike;	state Rel4_4;
+branches;
+next	11.5;
+
+11.5
+date	94.11.08.14.50.08;	author jra;	state Exp;
+branches;
+next	11.4;
+
+11.4
+date	94.08.22.19.31.46;	author gdurf;	state Exp;
+branches;
+next	11.3;
+
+11.3
+date	94.01.07.15.16.01;	author jra;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	93.08.18.09.37.10;	author jra;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	93.06.28.10.04.51;	author jra;	state Exp;
+branches;
+next	;
+
+11.9.6.1
+date	2004.03.17.21.16.32;	author morrison;	state Exp;
+branches;
+next	;
+
+11.9.8.1
+date	2004.03.11.23.41.14;	author morrison;	state Exp;
+branches;
+next	;
+
+11.9.14.1
+date	2004.02.12.19.41.38;	author erikg;	state Exp;
+branches;
+next	;
+
+
+desc
+@Get the vertex associated with a particular edge
+@
+
+
+11.11
+log
+@moved to src/iges/
+@
+text
+@/*
+ *  Authors -
+ *	John R. Anderson
+ *
+ *  Source -
+ *	SLAD/BVLD/VMB
+ *	The U. S. Army Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005
+ *  
+ *  Copyright Notice -
+ *	This software is Copyright (C) 1993-2004 by the United States Army.
+ *	All rights reserved.
+ */
+
+#include "./iges_struct.h"
+#include "./iges_extern.h"
+
+struct vertex **
+Get_vertex( edge_use )
+struct iges_edge_use *edge_use;
+{
+	struct iges_edge_list		*e_list;
+	struct iges_vertex_list		*v_list;
+	int				edge_index;
+	int				vert_index;
+	int				vert_de;
+
+	if( (e_list = Get_edge_list( edge_use )) == NULL )
+		return( (struct vertex **)NULL );
+
+	edge_index = edge_use->index-1;
+	if( edge_use->orient )
+	{
+		vert_de = e_list->i_edge[edge_index].start_vert_de;
+		vert_index = e_list->i_edge[edge_index].start_vert_index - 1;
+	}
+	else
+	{
+		vert_de = e_list->i_edge[edge_index].end_vert_de;
+		vert_index = e_list->i_edge[edge_index].end_vert_index - 1;
+	}
+
+	if( (v_list = Get_vertex_list( vert_de )) == NULL )
+		return( (struct vertex **)NULL );
+
+	return( &v_list->i_verts[vert_index].v );
+}
+
+int
+Put_vertex( v, edge )
+struct vertex *v;
+struct iges_edge_use *edge;
+{
+	struct iges_edge_list		*e_list;
+	struct iges_edge_list		*el;
+	struct iges_vertex_list		*v_list;
+	int				vert_index;
+	int				vert_de;
+
+	if( (e_list = Get_edge_list( edge )) == NULL )
+		return( 0 );
+
+	
+	el = e_list;
+	while( el && el->edge_de != edge->edge_de )
+		el = el->next;
+
+	if( !el )
+	{
+		bu_log( "Cannot find an edge list with edge_de = %d\n" , edge->edge_de );
+		rt_bomb( "Cannot find correct edge list\n" );
+	}
+
+	if( edge->orient )
+	{
+		vert_de = el->i_edge[edge->index-1].start_vert_de;
+		vert_index = el->i_edge[edge->index-1].start_vert_index-1;
+	}
+	else
+	{
+		vert_de = el->i_edge[edge->index-1].end_vert_de;
+		vert_index = el->i_edge[edge->index-1].end_vert_index-1;
+	}
+	
+	
+	if( (v_list = Get_vertex_list( vert_de )) == NULL )
+		return( 0 );
+
+	if( v_list->i_verts[vert_index].v )
+	{
+		bu_log( "vertex already assigned x%x, trying to assign x%x\n", v_list->i_verts[vert_index].v, v );
+		rt_bomb( "Multiple vertex assignments\n" );
+	}
+
+	v_list->i_verts[vert_index].v = v;
+	return( 1 );
+}
+
+struct iges_edge *
+Get_edge( e_use )
+struct iges_edge_use *e_use;
+{
+	struct iges_edge_list	*e_list;
+	
+	if( (e_list = Get_edge_list( e_use )) == NULL )
+		return( (struct iges_edge *)NULL );
+
+	return( &e_list->i_edge[e_use->index-1] );
+}
+
+struct vertex *
+Get_edge_start_vertex( edge )
+struct iges_edge *edge;
+{
+	struct iges_vertex_list *v_list;
+
+	if( (v_list = Get_vertex_list( edge->start_vert_de )) == NULL )
+		return( (struct vertex *)NULL );
+
+	return( v_list->i_verts[edge->start_vert_index-1].v );
+}
+
+
+struct vertex *
+Get_edge_end_vertex( edge )
+struct iges_edge *edge;
+{
+	struct iges_vertex_list *v_list;
+
+	if( (v_list = Get_vertex_list( edge->end_vert_de )) == NULL )
+		return( (struct vertex *)NULL );
+
+	return( v_list->i_verts[edge->end_vert_index-1].v );
+}
+@
+
+
+11.10
+log
+@update copyright to include span through 2003
+@
+text
+@@
+
+
+11.9
+log
+@
+Converted from Release 4 names to know about libbu and libbn
+@
+text
+@d11 1
+a11 1
+ *	This software is Copyright (C) 1993 by the United States Army.
+@
+
+
+11.9.6.1
+log
+@sync branch with HEAD
+@
+text
+@d11 1
+a11 1
+ *	This software is Copyright (C) 1993-2004 by the United States Army.
+@
+
+
+11.9.8.1
+log
+@sync to HEAD...
+@
+text
+@d11 1
+a11 1
+ *	This software is Copyright (C) 1993-2004 by the United States Army.
+@
+
+
+11.9.14.1
+log
+@merge from HEAD
+@
+text
+@d11 1
+a11 1
+ *	This software is Copyright (C) 1993-2004 by the United States Army.
+@
+
+
+11.8
+log
+@Eliminated some unused variables
+@
+text
+@d70 1
+a70 1
+		rt_log( "Cannot find an edge list with edge_de = %d\n" , edge->edge_de );
+d91 1
+a91 1
+		rt_log( "vertex already assigned x%x, trying to assign x%x\n", v_list->i_verts[vert_index].v, v );
+@
+
+
+11.7
+log
+@Mods to handle TNURB BREP. Also added RT_EXTERNS to iges_struct.h.
+@
+text
+@a56 2
+	struct iges_edge		*e;
+	int				edge_index;
+@
+
+
+11.6
+log
+@Release_4.4
+@
+text
+@a13 1
+#include "conf.h"
+a14 10
+#include <stdio.h>
+#ifdef USE_STRING_H
+#include <string.h>
+#else
+#include <strings.h>
+#endif
+#include "machine.h"
+#include "vmath.h"
+#include "raytrace.h"
+#include "wdb.h"
+a17 3
+RT_EXTERN( struct iges_edge_list *Get_edge_list , (struct iges_edge_use *edge ) );
+RT_EXTERN( struct iges_vertex_list *Get_vertex_list , (int vert_de ) );
+
+d19 2
+a20 2
+Get_vertex( edge )
+struct iges_edge_use *edge;
+d28 1
+a28 1
+	if( (e_list = Get_edge_list( edge )) == NULL )
+d31 2
+a32 2
+	edge_index = edge->index-1;
+	if( edge->orient )
+d35 1
+a35 1
+		vert_index = e_list->i_edge[edge->index-1].start_vert_index - 1;
+d40 1
+a40 1
+		vert_index = e_list->i_edge[edge->index-1].end_vert_index - 1;
+d47 89
+@
+
+
+11.5
+log
+@Mods for Irix 6.
+@
+text
+@@
+
+
+11.4
+log
+@Factored ifdefs
+@
+text
+@a37 1
+	struct vertex			*vt;
+@
+
+
+11.3
+log
+@Modified header files
+@
+text
+@d14 2
+d17 5
+a23 5
+#ifdef BSD
+#include <strings.h>
+#else
+#include <string.h>
+#endif
+@
+
+
+11.2
+log
+@corrected use of edge orientation in getting vertex
+@
+text
+@d22 2
+a25 5
+#include "rtlist.h"
+#include "rtstring.h"
+#include "nmg.h"
+#include "raytrace.h"
+#include "wdb.h"
+@
+
+
+11.1
+log
+@Major Upgrade to IGES 5.1
+@
+text
+@d50 2
+a51 2
+		vert_de = e_list->i_edge[edge_index].end_vert_de;
+		vert_index = e_list->i_edge[edge->index-1].end_vert_index - 1;
+d55 2
+a56 2
+		vert_de = e_list->i_edge[edge_index].start_vert_de;
+		vert_index = e_list->i_edge[edge->index-1].start_vert_index - 1;
+@

@@ -1,0 +1,1048 @@
+head	11.8;
+access;
+symbols
+	ansi-20040405-merged:11.5.2.1
+	postmerge-20040405-ansi:11.6
+	premerge-20040404-ansi:11.5
+	postmerge-autoconf:11.5
+	autoconf-freeze:11.5
+	premerge-autoconf:11.5
+	postmerge-20040315-windows:11.5
+	premerge-20040315-windows:11.5
+	windows-20040315-freeze:11.5
+	autoconf-20031203:11.5
+	autoconf-20031202:11.5
+	autoconf-branch:11.5.0.10
+	phong-branch:11.5.0.8
+	photonmap-branch:11.5.0.6
+	rel-6-1-DP:11.5
+	windows-branch:11.5.0.4
+	rel-6-0-2:11.3
+	ansi-branch:11.5.0.2
+	rel-6-0-1-branch:11.3.0.2
+	hartley-6-0-post:11.4
+	hartley-6-0-pre:11.3
+	rel-6-0-1:11.3
+	rel-6-0:11.3
+	rel-5-4:11.1
+	offsite-5-3-pre:11.2
+	rel-5-3:11.1
+	rel-5-2:11.1
+	rel-5-1-branch:11.1.0.2
+	rel-5-1:11.1
+	rel-5-0:11.1
+	rel-5-0-beta:11.1
+	rel-4-5:11.1
+	ctj-4-5-post:11.1
+	ctj-4-5-pre:11.1
+	rel-4-4:11.1
+	rel-4-0:10.1;
+locks; strict;
+comment	@ * @;
+
+
+11.8
+date	2004.05.21.17.59.44;	author morrison;	state dead;
+branches;
+next	11.7;
+
+11.7
+date	2004.05.10.15.30.47;	author erikg;	state Exp;
+branches;
+next	11.6;
+
+11.6
+date	2004.04.05.07.40.44;	author morrison;	state Exp;
+branches;
+next	11.5;
+
+11.5
+date	2002.08.20.17.08.18;	author jra;	state Exp;
+branches
+	11.5.2.1;
+next	11.4;
+
+11.4
+date	2002.08.15.20.55.29;	author hartley;	state Exp;
+branches;
+next	11.3;
+
+11.3
+date	2001.04.20.22.31.07;	author morrison;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	2000.09.01.19.19.11;	author mike;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	95.01.04.10.05.16;	author mike;	state Rel4_4;
+branches;
+next	10.2;
+
+10.2
+date	94.08.10.23.20.20;	author gdurf;	state Exp;
+branches;
+next	10.1;
+
+10.1
+date	91.10.12.06.38.30;	author mike;	state Rel4_0;
+branches;
+next	1.3;
+
+1.3
+date	91.07.02.02.40.27;	author butler;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	91.01.05.02.18.58;	author butler;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	91.01.03.17.30.53;	author butler;	state Exp;
+branches;
+next	;
+
+11.5.2.1
+date	2002.09.19.18.01.56;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@Dist 3.0 patchlevel 2 installation
+@
+
+
+11.8
+log
+@moved from top-level to src/other/.
+@
+text
+@/*
+ * This software is copyrighted as noted below.  It may be freely copied,
+ * modified, and redistributed, provided that the copyright notice is 
+ * preserved on all copies.
+ * 
+ * There is no warranty or other guarantee of fitness for this software,
+ * it is provided solely "as is".  Bug reports or fixes may be sent
+ * to the author, who may or may not act on them as he desires.
+ *
+ * You may not include this software in a program or other software product
+ * without supplying the source, or without informing the end-user that the 
+ * source is available for no extra charge.
+ *
+ * If you modify this software, you should include a notice giving the
+ * name of the person performing the modification, the date of modification,
+ * and the reason for such modification.
+ *
+ *  Modified at BRL 16-May-88 by Mike Muuss to avoid Alliant STDC desire
+ *  to have all "void" functions so declared.
+ */
+/* 
+ * rle_getrow.c - Read an RLE file in.
+ * 
+ * Author:	Spencer W. Thomas
+ * 		Computer Science Dept.
+ * 		University of Utah
+ * Date:	Wed Apr 10 1985
+ * Copyright (c) 1985 Spencer W. Thomas
+ * 
+ * $Id: rle_getrow.c,v 11.7 2004/05/10 15:30:47 erikg Exp $
+ */
+#ifndef lint
+static const char rcs_ident[] = "$Id: rle_getrow.c,v 11.7 2004/05/10 15:30:47 erikg Exp $";
+#endif
+
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+
+#include <stdio.h>
+#ifdef USE_STRING_H
+#include <string.h>
+#else
+#include <strings.h>
+#endif
+
+#include "machine.h"
+#include "externs.h"
+#include "rle.h"
+#include "rle_code.h"
+
+/* Read a two-byte "short" that started in VAX (LITTLE_ENDIAN) order */
+#define VAXSHORT( var, fp )\
+	{ var = fgetc(fp)&0xFF; var |= (fgetc(fp)) << 8; }
+  
+/* Instruction format -- first byte is opcode, second is datum. */
+
+#define OPCODE(inst) (inst[0] & ~LONG)
+#define LONGP(inst) (inst[0] & LONG)
+#define DATUM(inst) (inst[1] & 0xff)	/* Make sure it's unsigned. */
+
+static int	   debug_f;		/* If non-zero, print debug info. */
+static void	bfill(register char *s, register int n, register int c);
+extern int vax_gshort(char *msgp);
+
+/*****************************************************************
+ * TAG( rle_get_setup )
+ * 
+ * Read the initialization information from an RLE file.
+ * Inputs:
+ * 	the_hdr:    Contains pointer to the input file.
+ * Outputs:
+ * 	the_hdr:    Initialized with information from the
+ *		    input file.
+ *	Returns 0 on success, -1 if the file is not an RLE file,
+ *	-2 if malloc of the color map failed, -3 if an immediate EOF
+ *	is hit (empty input file), and -4 if an EOF is encountered reading
+ *	the setup information.
+ * Assumptions:
+ * 	infile points to the "magic" number in an RLE file (usually
+ * byte 0 in the file).
+ * Algorithm:
+ * 	Read in the setup info and fill in the_hdr.
+ */
+int
+rle_get_setup(rle_hdr *the_hdr)
+{
+    struct XtndRsetup setup;
+    short magic;
+    register FILE *infile = the_hdr->rle_file;
+    rle_pixel * bg_color;
+    register int i;
+    char * comment_buf;
+
+    VAXSHORT( magic, infile );
+    if ( feof( infile ) )
+	return RLE_EMPTY;
+    if ( magic != RLE_MAGIC )
+	return RLE_NOT_RLE;
+    fread( &setup, 1, SETUPSIZE, infile );  /* assume VAX packing */
+    if ( feof( infile ) )
+	return RLE_EOF;
+
+    /* Extract information from setup */
+    the_hdr->ncolors = setup.h_ncolors;
+    for ( i = 0; i < the_hdr->ncolors; i++ )
+	RLE_SET_BIT( *the_hdr, i );
+
+    if ( !(setup.h_flags & H_NO_BACKGROUND) )
+    {
+	the_hdr->bg_color = (int *)malloc(
+	    (unsigned)(sizeof(int) * setup.h_ncolors) );
+	bg_color = (rle_pixel *)malloc(
+	    (unsigned)(1 + (setup.h_ncolors / 2) * 2) );
+	fread( (char *)bg_color, 1, 1 + (setup.h_ncolors / 2) * 2, infile );
+	for ( i = 0; i < setup.h_ncolors; i++ )
+	    the_hdr->bg_color[i] = bg_color[i];
+	free( bg_color );
+    }
+    else
+    {
+	(void)getc( infile );	/* skip filler byte */
+	the_hdr->bg_color = NULL;
+    }
+
+    if ( setup.h_flags & H_NO_BACKGROUND )
+	the_hdr->background = 0;
+    else if ( setup.h_flags & H_CLEARFIRST )
+	the_hdr->background = 2;
+    else
+	the_hdr->background = 1;
+    if ( setup.h_flags & H_ALPHA )
+    {
+	the_hdr->alpha = 1;
+	RLE_SET_BIT( *the_hdr, RLE_ALPHA );
+    }
+    else
+	the_hdr->alpha = 0;
+
+    the_hdr->xmin = vax_gshort( setup.hc_xpos );
+    the_hdr->ymin = vax_gshort( setup.hc_ypos );
+    the_hdr->xmax = the_hdr->xmin + vax_gshort( setup.hc_xlen ) - 1;
+    the_hdr->ymax = the_hdr->ymin + vax_gshort( setup.hc_ylen ) - 1;
+
+    the_hdr->ncmap = setup.h_ncmap;
+    the_hdr->cmaplen = setup.h_cmaplen;
+    if ( the_hdr->ncmap > 0 )
+    {
+	register int maplen =
+		     the_hdr->ncmap * (1 << the_hdr->cmaplen);
+	register int i;
+	register char *maptemp;
+
+	the_hdr->cmap = (rle_map *)malloc(
+	    (unsigned)(sizeof(rle_map) * maplen) );
+	maptemp = (char *)malloc( 2 * maplen );
+	if ( the_hdr->cmap == NULL || maptemp == NULL )
+	{
+	    fprintf( stderr,
+		"Malloc failed for color map of size %d*%d in rle_get_setup\n",
+		the_hdr->ncmap, (1 << the_hdr->cmaplen) );
+	    return RLE_NO_SPACE;
+	}
+	fread( maptemp, sizeof(short), maplen, infile );
+	for ( i = 0; i < maplen; i++ )
+	    the_hdr->cmap[i] = vax_gshort( &maptemp[i * 2] );
+	free( maptemp );
+    }
+
+    /* Check for comments */
+    if ( setup.h_flags & H_COMMENT )
+    {
+	short comlen, evenlen;
+	register char * cp;
+
+	VAXSHORT( comlen, infile );	/* get comment length */
+	evenlen = (comlen + 1) & ~1;	/* make it even */
+	if ( evenlen )
+	{
+	    comment_buf = (char *)malloc( (unsigned) evenlen );
+	
+	    if ( comment_buf == NULL )
+	    {
+		fprintf( stderr,
+	 "Malloc failed for comment buffer of size %d in rle_get_setup\n",
+			 comlen );
+		return RLE_NO_SPACE;
+	    }
+	    fread( comment_buf, 1, evenlen, infile );
+	    /* Count the comments */
+	    for ( i = 0, cp = comment_buf; cp < comment_buf + comlen; cp++ )
+		if ( *cp == 0 )
+		    i++;
+	    i++;			/* extra for NULL pointer at end */
+	    /* Get space to put pointers to comments */
+	    the_hdr->comments =
+		(const char **)malloc( (unsigned)(i * sizeof(char *)) );
+	    if ( the_hdr->comments == NULL )
+	    {
+		fprintf( stderr,
+		"Malloc failed for %d comment pointers in rle_get_setup\n",
+			 i );
+		return RLE_NO_SPACE;
+	    }
+	    /* Get pointers to the comments */
+	    *the_hdr->comments = comment_buf;
+	    for ( i = 1, cp = comment_buf + 1;
+		  cp < comment_buf + comlen;
+		  cp++ )
+		if ( *(cp - 1) == 0 )
+		    the_hdr->comments[i++] = cp;
+	    the_hdr->comments[i] = NULL;
+	}
+	else
+	    the_hdr->comments = NULL;
+    }
+    else
+	the_hdr->comments = NULL;
+
+    /* Initialize state for rle_getrow */
+    the_hdr->priv.get.scan_y = the_hdr->ymin;
+    the_hdr->priv.get.vert_skip = 0;
+    the_hdr->priv.get.is_eof = 0;
+    the_hdr->priv.get.is_seek = ftell( infile ) > 0;
+    debug_f = 0;
+
+    if ( !feof( infile ) )
+	return RLE_SUCCESS;	/* success! */
+    else
+    {
+	the_hdr->priv.get.is_eof = 1;
+	return RLE_EOF;
+    }
+}
+
+
+/*****************************************************************
+ * TAG( rle_get_error )
+ * 
+ * Print an error message for the return code from rle_get_setup
+ * Inputs:
+ * 	code:		The return code from rle_get_setup.
+ *	pgmname:	Name of this program (argv[0]).
+ *	fname:		Name of the input file.
+ * Outputs:
+ * 	Prints an error message on standard output.
+ *	Returns code.
+ */
+int
+rle_get_error(int code, const char *pgmname, const char *fname)
+{
+    if (! fname)
+	fname = "Standard Input";
+    if ( strcmp( fname, "-" ) == 0 )
+	fname = "Standard Input";
+
+    switch( code )
+    {
+    case RLE_SUCCESS:		/* success */
+	break;
+
+    case RLE_NOT_RLE:		/* Not an RLE file */
+	fprintf( stderr, "%s: %s is not an RLE file\n",
+		 pgmname, fname );
+	break;
+
+    case RLE_NO_SPACE:			/* malloc failed */
+	fprintf( stderr,
+		 "%s: Malloc failed reading header of file %s\n",
+		 pgmname, fname );
+	break;
+
+    case RLE_EMPTY:
+	fprintf( stderr, "%s: %s is an empty file\n", pgmname, fname );
+	break;
+
+    case RLE_EOF:
+	fprintf( stderr,
+		 "%s: RLE header of %s is incomplete (premature EOF)\n",
+		 pgmname, fname );
+	break;
+
+    default:
+	fprintf( stderr, "%s: Error encountered reading header of %s\n",
+		 pgmname, fname );
+	break;
+    }
+    return code;
+}
+
+
+/*****************************************************************
+ * TAG( rle_get_setup_ok )
+ * 
+ * Read the initialization information from an RLE file.
+ * Inputs:
+ * 	the_hdr:    Contains pointer to the input file.
+ *	prog_name:  Program name to be printed in the error message.
+ *      file_name:  File name to be printed in the error message.
+ *                  If NULL, the string "stdin" is generated.
+ * Outputs:
+ * 	the_hdr:    Initialized with information from the
+ *		    input file.
+ *      If reading the header fails, it prints an error message
+ *	and exits with the appropriate status code.
+ * Algorithm:
+ * 	rle_get_setup does all the work.
+ */
+void
+rle_get_setup_ok(rle_hdr *the_hdr, const char *prog_name, const char *file_name)
+{
+    int code;
+
+    code = rle_get_error( rle_get_setup( the_hdr ), prog_name, file_name );
+    if (code)
+	exit( code );
+}
+
+
+/*****************************************************************
+ * TAG( rle_debug )
+ * 
+ * Turn RLE debugging on or off.
+ * Inputs:
+ * 	on_off:		if 0, stop debugging, else start.
+ * Outputs:
+ * 	Sets internal debug flag.
+ * Assumptions:
+ *	[None]
+ * Algorithm:
+ *	[None]
+ */
+void
+rle_debug(int on_off)
+{
+    static char std_err_buf[BUFSIZ];	/* BUFSIZ from stdio.h */
+    debug_f = on_off;
+
+    /* Set line buffering on stderr.  Character buffering is the default, and
+     * it is SLOOWWW for large amounts of output.
+     */
+
+    setbuf( stderr, std_err_buf );
+}
+
+
+/*****************************************************************
+ * TAG( rle_getrow )
+ * 
+ * Get a scanline from the input file.
+ * Inputs:
+ *	the_hdr:    Header structure containing information about 
+ *		    the input file.
+ * Outputs:
+ * 	scanline:   an array of pointers to the individual color
+ *		    scanlines.  Scanline is assumed to have
+ *		    the_hdr->ncolors pointers to arrays of rle_pixel,
+ *		    each of which is at least the_hdr->xmax+1 long.
+ *	Returns the current scanline number.
+ * Assumptions:
+ * 	rle_get_setup has already been called.
+ * Algorithm:
+ * 	If a vertical skip is being executed, and clear-to-background is
+ *	specified (the_hdr->background is true), just set the
+ *	scanlines to the background color.  If clear-to-background is
+ *	not set, just increment the scanline number and return.
+ * 
+ *	Otherwise, read input until a vertical skip is encountered,
+ *	decoding the instructions into scanline data.
+ *
+ *	If ymax is reached (or, somehow, passed), continue reading and
+ *	discarding input until end of image.
+ */
+int
+rle_getrow(rle_hdr *the_hdr, rle_pixel **scanline)
+{
+    register rle_pixel * scanc;
+    register int nc;
+    register FILE *infile = the_hdr->rle_file;
+    int scan_x = the_hdr->xmin,	/* current X position */
+	   channel = 0;			/* current color channel */
+    short word, long_data;
+    char inst[2];
+
+    /* Clear to background if specified */
+    if ( the_hdr->background == 2 )
+    {
+	if ( the_hdr->alpha && RLE_BIT( *the_hdr, -1 ) )
+	    bfill( (char *)scanline[-1], the_hdr->xmax + 1, 0 );
+	for ( nc = 0; nc < the_hdr->ncolors; nc++ )
+	    if ( RLE_BIT( *the_hdr, nc ) )
+		bfill( (char *)scanline[nc], the_hdr->xmax+1,
+			the_hdr->bg_color[nc] );
+    }
+
+    /* If skipping, then just return */
+    if ( the_hdr->priv.get.vert_skip > 0 )
+    {
+	the_hdr->priv.get.vert_skip--;
+	the_hdr->priv.get.scan_y++;
+	if ( the_hdr->priv.get.vert_skip > 0 )
+    	{
+	    if ( the_hdr->priv.get.scan_y >= the_hdr->ymax )
+	    {
+		int y = the_hdr->priv.get.scan_y;
+		while ( rle_getskip( the_hdr ) != 32768 )
+		    ;
+		return y;
+	    }
+	    else
+		return the_hdr->priv.get.scan_y;
+    	}
+    }
+
+    /* If EOF has been encountered, return also */
+    if ( the_hdr->priv.get.is_eof )
+	return ++the_hdr->priv.get.scan_y;
+
+    /* Otherwise, read and interpret instructions until a skipLines
+     * instruction is encountered.
+     */
+    if ( RLE_BIT( *the_hdr, channel ) )
+	scanc = scanline[channel] + scan_x;
+    else
+	scanc = NULL;
+    for (;;)
+    {
+	inst[0] = getc( infile );
+	inst[1] = getc( infile );
+	if ( feof(infile) )
+	{
+	    the_hdr->priv.get.is_eof = 1;
+	    break;		/* <--- one of the exits */
+	}
+
+	switch( OPCODE(inst) )
+	{
+	case RSkipLinesOp:
+	    if ( LONGP(inst) )
+	    {
+		VAXSHORT( the_hdr->priv.get.vert_skip, infile );
+	    }
+	    else
+		the_hdr->priv.get.vert_skip = DATUM(inst);
+	    if (debug_f)
+		fprintf(stderr, "Skip %d Lines (to %d)\n",
+			the_hdr->priv.get.vert_skip,
+			the_hdr->priv.get.scan_y +
+			    the_hdr->priv.get.vert_skip );
+
+	    break;			/* need to break for() here, too */
+
+	case RSetColorOp:
+	    channel = DATUM(inst);	/* select color channel */
+	    if ( channel == 255 )
+		channel = -1;
+	    scan_x = the_hdr->xmin;
+	    if ( RLE_BIT( *the_hdr, channel ) )
+		scanc = scanline[channel]+scan_x;
+	    if ( debug_f )
+		fprintf( stderr, "Set color to %d (reset x to %d)\n",
+			 channel, scan_x );
+	    break;
+
+	case RSkipPixelsOp:
+	    if ( LONGP(inst) )
+	    {
+		VAXSHORT( long_data, infile );
+		scan_x += long_data;
+		scanc += long_data;
+		if ( debug_f )
+		    fprintf( stderr, "Skip %d pixels (to %d)\n",
+			    long_data, scan_x );
+			 
+	    }
+	    else
+	    {
+		scan_x += DATUM(inst);
+		scanc += DATUM(inst);
+		if ( debug_f )
+		    fprintf( stderr, "Skip %d pixels (to %d)\n",
+			    DATUM(inst), scan_x );
+	    }
+	    break;
+
+	case RByteDataOp:
+	    if ( LONGP(inst) )
+	    {
+		VAXSHORT( nc, infile );
+	    }
+	    else
+		nc = DATUM(inst);
+	    nc++;
+	    if ( RLE_BIT( *the_hdr, channel ) )
+	    {
+		fread( (char *)scanc, 1, nc, infile );
+		if ( nc & 1 )
+		    (void)getc( infile );	/* throw away odd byte */
+	    }
+	    else
+	    {
+		if ( the_hdr->priv.get.is_seek )
+		    fseek( infile, ((nc + 1) / 2) * 2, 1 );
+		else
+		{
+		    register int ii;
+		    for ( ii = ((nc + 1) / 2) * 2; ii > 0; ii-- )
+			(void) getc( infile );	/* discard it */
+		}
+	    }
+
+	    scanc += nc;
+	    scan_x += nc;
+	    if ( debug_f )
+	    {
+		if ( RLE_BIT( *the_hdr, channel ) )
+		{
+		    rle_pixel * cp = scanc - nc;
+		    fprintf( stderr, "Pixel data %d (to %d):", nc, scan_x );
+		    for ( ; nc > 0; nc-- )
+			fprintf( stderr, "%02x", *cp++ );
+		    putc( '\n', stderr );
+		}
+	    }
+	    else
+		fprintf( stderr, "Pixel data %d (to %d)\n", nc, scan_x );
+	    break;
+
+	case RRunDataOp:
+	    if ( LONGP(inst) )
+	    {
+		VAXSHORT( nc, infile );
+	    }
+	    else
+		nc = DATUM(inst);
+	    scan_x += nc + 1;
+
+	    VAXSHORT( word, infile );
+	    if ( debug_f )
+		fprintf( stderr, "Run length %d (to %d), data %02x\n",
+			    nc + 1, scan_x, word );
+	    if ( RLE_BIT( *the_hdr, channel ) )
+	    {
+		if ( nc >= 10 )		/* break point for 785, anyway */
+		{
+		    bfill( (char *)scanc, nc + 1, word );
+		    scanc += nc + 1;
+		}
+		else
+		    for ( ; nc >= 0; nc--, scanc++ )
+			*scanc = word;
+	    }
+	    break;
+
+	case REOFOp:
+	    the_hdr->priv.get.is_eof = 1;
+	    if ( debug_f )
+		fprintf( stderr, "End of Image\n" );
+	    break;
+
+	default:
+	    fprintf( stderr,
+		     "rle_getrow: Unrecognized opcode: %d\n", inst[0] );
+	    exit(1);
+	}
+	if ( OPCODE(inst) == RSkipLinesOp || OPCODE(inst) == REOFOp )
+	    break;			/* <--- the other loop exit */
+    }
+
+    /* If at end, skip the rest of a malformed image. */
+    if ( the_hdr->priv.get.scan_y >= the_hdr->ymax )
+    {
+	int y = the_hdr->priv.get.scan_y;
+	while ( rle_getskip( the_hdr ) != 32768 )
+	    ;
+	return y;
+    }
+
+    return the_hdr->priv.get.scan_y;
+}
+
+
+/* Fill buffer at s with n copies of character c.  N must be <= 65535*/
+/* ARGSUSED */
+static void bfill(register char *s, register int n, register int c)
+{
+#ifdef vax
+    asm("   movc5   $0,*4(ap),12(ap),8(ap),*4(ap)");
+#else
+    while ( n-- > 0 )
+	*s++ = c;
+#endif
+}
+@
+
+
+11.7
+log
+@change conf.h to a wrapped config.h
+@
+text
+@d30 1
+a30 1
+ * $Id: rle_getrow.c,v 11.6 2004/04/05 07:40:44 morrison Exp $
+d33 1
+a33 1
+static const char rcs_ident[] = "$Id: rle_getrow.c,v 11.6 2004/04/05 07:40:44 morrison Exp $";
+@
+
+
+11.6
+log
+@merge of ansi-6-0-branch into HEAD
+@
+text
+@d30 1
+a30 1
+ * $Id$
+d33 1
+a33 1
+static const char rcs_ident[] = "$Id$";
+d36 5
+a40 1
+#include "conf.h"
+@
+
+
+11.5
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d30 1
+a30 1
+ * $Id: rle_getrow.c,v 11.3 2001/04/20 22:31:07 morrison Exp $
+d33 1
+a33 1
+static const char rcs_ident[] = "$Id: rle_getrow.c,v 11.3 2001/04/20 22:31:07 morrison Exp $";
+d61 2
+a62 2
+static void	bfill();
+extern int vax_gshort();
+d84 1
+a84 2
+rle_get_setup( the_hdr )
+rle_hdr * the_hdr;
+d248 1
+a248 4
+rle_get_error( code, pgmname, fname )
+int code;
+const char *pgmname;
+const char *fname;
+d308 1
+a308 4
+rle_get_setup_ok( the_hdr, prog_name, file_name )
+rle_hdr * the_hdr;
+const char *prog_name;
+const char *file_name;
+d332 1
+a332 2
+rle_debug( on_off )
+int on_off;
+d373 1
+a373 3
+rle_getrow( the_hdr, scanline )
+rle_hdr * the_hdr;
+rle_pixel *scanline[];
+d583 1
+a583 3
+static void bfill( s, n, c )
+register char *s;
+register int n, c;
+@
+
+
+11.5.2.1
+log
+@Initial ANSIfication
+@
+text
+@d30 1
+a30 1
+ * $Id: rle_getrow.c,v 11.5 2002/08/20 17:08:18 jra Exp $
+d33 1
+a33 1
+static const char rcs_ident[] = "$Id: rle_getrow.c,v 11.5 2002/08/20 17:08:18 jra Exp $";
+d61 2
+a62 2
+static void	bfill(register char *s, register int n, register int c);
+extern int vax_gshort(char *msgp);
+d84 2
+a85 1
+rle_get_setup(rle_hdr *the_hdr)
+d249 4
+a252 1
+rle_get_error(int code, const char *pgmname, const char *fname)
+d312 4
+a315 1
+rle_get_setup_ok(rle_hdr *the_hdr, const char *prog_name, const char *file_name)
+d339 2
+a340 1
+rle_debug(int on_off)
+d381 3
+a383 1
+rle_getrow(rle_hdr *the_hdr, rle_pixel **scanline)
+d593 3
+a595 1
+static void bfill(register char *s, register int n, register int c)
+@
+
+
+11.4
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d61 2
+a62 2
+static void	bfill(register char *s, register int n, register int c);
+extern int vax_gshort(char *msgp);
+d84 2
+a85 1
+rle_get_setup(rle_hdr *the_hdr)
+d249 4
+a252 1
+rle_get_error(int code, const char *pgmname, const char *fname)
+d312 4
+a315 1
+rle_get_setup_ok(rle_hdr *the_hdr, const char *prog_name, const char *file_name)
+d339 2
+a340 1
+rle_debug(int on_off)
+d381 3
+a383 1
+rle_getrow(rle_hdr *the_hdr, rle_pixel **scanline)
+d593 3
+a595 1
+static void bfill(register char *s, register int n, register int c)
+@
+
+
+11.3
+log
+@CONST to const
+@
+text
+@d30 1
+a30 1
+ * $Id: rle_getrow.c,v 11.2 2000/09/01 19:19:11 mike Exp $
+d33 1
+a33 1
+static const char rcs_ident[] = "$Id: rle_getrow.c,v 11.2 2000/09/01 19:19:11 mike Exp $";
+d61 2
+a62 2
+static void	bfill();
+extern int vax_gshort();
+d84 1
+a84 2
+rle_get_setup( the_hdr )
+rle_hdr * the_hdr;
+d248 1
+a248 4
+rle_get_error( code, pgmname, fname )
+int code;
+const char *pgmname;
+const char *fname;
+d308 1
+a308 4
+rle_get_setup_ok( the_hdr, prog_name, file_name )
+rle_hdr * the_hdr;
+const char *prog_name;
+const char *file_name;
+d332 1
+a332 2
+rle_debug( on_off )
+int on_off;
+d373 1
+a373 3
+rle_getrow( the_hdr, scanline )
+rle_hdr * the_hdr;
+rle_pixel *scanline[];
+d583 1
+a583 3
+static void bfill( s, n, c )
+register char *s;
+register int n, c;
+@
+
+
+11.2
+log
+@
+lint
+@
+text
+@d30 1
+a30 1
+ * $Id: rle_getrow.c,v 11.1 1995/01/04 10:05:16 mike Rel4_4 $
+d33 1
+a33 1
+static const char rcs_ident[] = "$Id: rle_getrow.c,v 11.1 1995/01/04 10:05:16 mike Rel4_4 $";
+d196 1
+a196 1
+		(CONST char **)malloc( (unsigned)(i * sizeof(char *)) );
+d251 2
+a252 2
+CONST char *pgmname;
+CONST char *fname;
+d314 2
+a315 2
+CONST char *prog_name;
+CONST char *file_name;
+@
+
+
+11.1
+log
+@Release_4.4
+@
+text
+@d30 1
+a30 1
+ * $Id: rle_getrow.c,v 10.2 94/08/10 23:20:20 gdurf Exp $
+d33 1
+a33 1
+static char rcs_ident[] = "$Id: rle_getrow.c,v 10.2 94/08/10 23:20:20 gdurf Exp $";
+d410 1
+d420 1
+d509 1
+d518 1
+d523 1
+d532 1
+@
+
+
+10.2
+log
+@Altered #defines and #includes to conform to BRL-CAD standards
+@
+text
+@d30 1
+a30 1
+ * $Id: rle_getrow.c,v 10.1 1991/10/12 06:38:30 mike Rel4_0 gdurf $
+d33 1
+a33 1
+static char rcs_ident[] = "$Id: rle_getrow.c,v 10.1 1991/10/12 06:38:30 mike Rel4_0 gdurf $";
+@
+
+
+10.1
+log
+@Release_4.0
+@
+text
+@d30 1
+a30 1
+ * $Id: rle_getrow.c,v 3.0 90/08/03 15:20:45 spencer Exp $
+d33 1
+a33 1
+static char rcs_ident[] = "$Id: rle_getrow.c,v 3.0 90/08/03 15:20:45 spencer Exp $";
+d36 2
+a38 6
+#include "rle.h"
+#include "rle_code.h"
+#ifdef USE_STDLIB_H
+#include <stdlib.h>
+#else
+
+d45 4
+a48 8
+#ifndef VOID_STAR
+extern char * malloc();
+#else
+extern void *malloc();
+#endif
+extern void free();
+
+#endif /* USE_STDLIB_H */
+d196 1
+a196 1
+		(CONST_DECL char **)malloc( (unsigned)(i * sizeof(char *)) );
+d251 2
+a252 2
+CONST_DECL char *pgmname;
+CONST_DECL char *fname;
+d314 2
+a315 2
+CONST_DECL char *prog_name;
+CONST_DECL char *file_name;
+@
+
+
+1.3
+log
+@Changed from buggy setlinebuf to portable setbuf
+@
+text
+@@
+
+
+1.2
+log
+@changed #include "stdio.h" to #include <stdio.h>
+@
+text
+@d350 1
+d356 2
+a357 1
+    setlinebuf( stderr );
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d36 1
+a36 1
+#include "stdio.h"
+@

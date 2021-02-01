@@ -1,0 +1,486 @@
+head	1.11;
+access;
+symbols
+	ansi-20040405-merged:1.10
+	postmerge-20040405-ansi:1.10
+	premerge-20040404-ansi:1.10
+	postmerge-autoconf:1.10
+	autoconf-freeze:1.10
+	premerge-autoconf:1.10
+	postmerge-20040315-windows:1.10
+	premerge-20040315-windows:1.10
+	windows-20040315-freeze:1.10
+	autoconf-20031203:1.10
+	autoconf-20031202:1.10
+	autoconf-branch:1.10.0.12
+	phong-branch:1.10.0.10
+	photonmap-branch:1.10.0.8
+	rel-6-1-DP:1.10
+	windows-branch:1.10.0.6
+	rel-6-0-2:1.10
+	ansi-branch:1.10.0.4
+	rel-6-0-1-branch:1.10.0.2
+	hartley-6-0-post:1.10
+	hartley-6-0-pre:1.10
+	rel-6-0-1:1.10
+	rel-6-0:1.10;
+locks; strict;
+comment	@# @;
+
+
+1.11
+date	2004.05.19.19.18.25;	author morrison;	state dead;
+branches;
+next	1.10;
+
+1.10
+date	2001.09.24.22.36.42;	author morrison;	state Exp;
+branches;
+next	1.9;
+
+1.9
+date	2001.09.24.22.26.19;	author morrison;	state Exp;
+branches;
+next	1.8;
+
+1.8
+date	2001.09.06.00.27.37;	author morrison;	state Exp;
+branches;
+next	1.7;
+
+1.7
+date	2001.08.28.21.43.42;	author morrison;	state Exp;
+branches;
+next	1.6;
+
+1.6
+date	2001.08.28.21.21.34;	author morrison;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	2001.08.06.15.57.19;	author morrison;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	2001.07.31.17.01.32;	author morrison;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2001.07.23.19.43.39;	author morrison;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2001.06.29.18.15.43;	author butler;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2001.06.29.17.43.23;	author butler;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.11
+log
+@The old regression test scripts are being replaced by something else.  Likely it'll be Corredor with some unit test framework.  The old scripts are so far out of sync and so inadequate that it's simply not worth it any more.
+@
+text
+@#!/bin/sh
+#
+#  This script waits for the master script to check out a copy of the source
+#  distribution, and then starts the regression test on the local machine.
+#
+
+# include standard utility functions
+. `dirname $0`/library
+
+log "client_wait.sh"
+log "=============="
+
+
+args=`getopt b:d:e:qr:u: $*`
+
+if [ $? != 0 ] ; then
+	log "Usage: $0 [-r brlcad_root] [-b begin_time] [-e end_time] [-u user] -d regress_dir "
+	exit 2
+fi
+
+set -- $args
+
+BEGIN_HOUR=13
+END_HOUR=24
+MAILUSER=morrison@@arl.army.mil
+QUIET=0
+SLEEP_DELTA=10
+
+for i in $* ; do
+	case "$i" in
+		-b)
+			log "-b $2";
+			BEGIN_HOUR=$2;
+			shift 2;;
+		-d)
+			log "-d $2";
+			REGRESS_DIR=$2;
+			export REGRESS_DIR
+			shift 2;;
+		-e)
+			log "-e $2";
+			END_HOUR=$2;
+			shift 2;;
+		-q)
+			log "-q";
+			QUIET=1;
+			shift;;
+		-r)
+			log "-r $2";
+			BRLCAD_ROOT=$2;
+			shift 2;;
+		-s)
+			log "-S $2";
+			SLEEP_DELTA=$;
+			shift 2;;
+		-u)
+			log "-d $2";
+			MAIUSERUSER=$2;
+			export MAILUSER
+			shift 2;;
+		--)
+			shift; break;;
+	esac
+done
+
+export BEGIN_HOUR
+export END_HOUR
+export QUIET
+export BRLCAD_ROOT
+
+if [ X$REGRESS_DIR = X ] ; then
+	log "must specify regression directory"
+	exit 2
+fi
+
+START_HOUR=`date | awk '{print $4}' | awk -F: '{print $1}'`
+if [ $START_HOUR -ge $END_HOUR ] ; then
+    log "$HOSTNAME started after end time ${END_HOUR}:00 (at ${START_HOUR}:`date | awk '{print $4}' | awk -F: '{print $2}'`)"
+    exit 2
+fi
+
+#
+#  First we must sleep until the "cvs export" is complete or we are past
+#  when we are allowed to run
+#
+WAIT_MACH_TIME=`expr $SLEEP_DELTA \* 60`
+HOUR=$START_HOUR
+while [ ! -f $REGRESS_DIR/brlcad/sh/machinetype.sh ] ; do
+    if [ $HOUR -ge $END_HOUR ] ; then
+	log "$HOSTNAME time expired waiting for creation of machinetype.sh"
+	exit 2
+    fi
+    log "Waiting for [$REGRESS_DIR/brlcad/sh/machinetype.sh] to get created...sleeping $WAIT_MACH_TIME seconds"
+    sleep $WAIT_MACH_TIME
+    HOUR=`date | awk '{print $4}' | awk -F: '{print $1}'`
+done
+log "Verified that machinetype.sh exists"
+
+ARCH=`${REGRESS_DIR}/brlcad/sh/machinetype.sh`
+export ARCH
+
+initializeVariable BRLCAD_ROOT "${REGRESS_DIR}/brlcad.$ARCH"
+
+log "Regression testing an [$ARCH] architecture in [$REGRESS_DIR]"
+
+#
+# try to acquire the semaphore every minute until we run out of time
+#
+COUNT=0
+HOUR=`date | awk '{print $4}' | awk -F: '{print $1}'`
+log "HOUR=$HOUR, END_HOUR=$END_HOUR, BEGIN_HOUR=$BEGIN_HOUR"
+
+# !!! booo, sun5 sh giving trouble with while ! true
+if acquireSemaphore "start_${ARCH}" 2 10 "${REGRESS_DIR}" ; then LOCKED=1 ; else LOCKED=0 ; fi
+while [ ! "x$LOCKED" = "x1" ]  ; do
+    if [ $HOUR -ge $END_HOUR -o $HOUR -lt $BEGIN_HOUR ] ; then
+	bomb "time expired on $HOSTNAME waiting for creation of start_${ARCH}.semaphore"
+    fi
+    HOUR=`date | awk '{print $4}' | awk -F: '{print $1}'`
+    if acquireSemaphore "start_${ARCH}" 2 10 "${REGRESS_DIR}" ; then LOCKED=1 ; else LOCKED=0 ; fi
+done
+
+log "$ARCH commencing build at `date`"
+if [ ! -d ${REGRESS_DIR}/.regress.$ARCH ] ; then mkdir ${REGRESS_DIR}/.regress.$ARCH ; fi
+
+#
+# run the build script out of the source tree
+#
+log "Building source"
+log "Running [client_build.sh -d $REGRESS_DIR]"
+`dirname $0`/client_build.sh -d $REGRESS_DIR
+
+releaseSemaphore "start_${ARCH}" "${REGRESS_DIR}"
+
+log "Done $0"
+@
+
+
+1.10
+log
+@begin/end hour madness
+@
+text
+@@
+
+
+1.9
+log
+@extended default "valid" hours
+@
+text
+@d23 2
+a24 2
+BEGIN_HOUR=15
+END_HOUR=9
+@
+
+
+1.8
+log
+@updated client_wait to use new lib
+@
+text
+@d23 2
+a24 2
+BEGIN_HOUR=18
+END_HOUR=7
+@
+
+
+1.7
+log
+@missed the "linking" calls to use the dirname fix
+@
+text
+@d10 2
+a11 2
+echo "client_wait.sh"
+echo "=============="
+d17 1
+a17 1
+	echo "Usage: $0 [-r brlcad_root] [-b begin_time] [-e end_time] [-u user] -d regress_dir "
+d32 1
+a32 1
+			echo "-b $2";
+d36 1
+a36 1
+			echo "-d $2";
+d41 1
+a41 1
+			echo "-e $2";
+d45 1
+a45 1
+			echo "-q";
+d49 1
+a49 1
+			echo "-r $2";
+d53 1
+a53 1
+			echo "-S $2";
+d57 1
+a57 1
+			echo "-d $2";
+d72 1
+a72 1
+	echo "must specify regression directory"
+d78 1
+a78 1
+    echo "$HOSTNAME started after end time ${END_HOUR}:00 (at ${START_HOUR}:`date | awk '{print $4}' | awk -F: '{print $2}'`)"
+d90 1
+a90 1
+	echo "$HOSTNAME time expired waiting for creation of machinetype.sh"
+d93 1
+a93 1
+    echo "Waiting for [$REGRESS_DIR/brlcad/sh/machinetype.sh] to get created...sleeping $WAIT_MACH_TIME seconds"
+d97 1
+a97 1
+echo "Verified that machinetype.sh exists"
+d104 1
+a104 1
+echo "Regression testing an [$ARCH] architecture in [$REGRESS_DIR]"
+d111 1
+a111 1
+echo "HOUR=$HOUR, END_HOUR=$END_HOUR, BEGIN_HOUR=$BEGIN_HOUR"
+d114 1
+a114 1
+if acquireLock ${REGRESS_DIR}/start_${ARCH}.semaphore 2 10 ; then LOCKED=1 ; else LOCKED=0 ; fi
+d117 1
+a117 2
+	echo "ERROR: time expired on $HOSTNAME waiting for creation of start_${ARCH}.semaphore"
+	exit 2
+d120 1
+a120 1
+    if acquireLock ${REGRESS_DIR}/start_${ARCH}.semaphore 2 10 ; then LOCKED=1 ; else LOCKED=0 ; fi
+d123 1
+a123 1
+echo "$ARCH commencing build at `date`"
+d129 2
+a130 2
+echo "Building source"
+echo "Running [client_build.sh -d $REGRESS_DIR]"
+d133 1
+a133 1
+releaseLock ${REGRESS_DIR}/start_${ARCH}.semaphore
+d135 1
+a135 1
+echo "Done client_wait.sh"@
+
+
+1.6
+log
+@"fixed" the inclusion of the library resource file (that contains all the function definitions) so that the scripts could be called remotely (without needing to be in the same dir as the library file (. ./library))
+
+changed it to:
+. `dirname $0`/libaray
+@
+text
+@d131 2
+a132 2
+echo "Running [./client_build.sh -d $REGRESS_DIR]"
+./client_build.sh -d $REGRESS_DIR
+@
+
+
+1.5
+log
+@added a starting sun reference (fails)
+updated the linux and freebsd reference (also fail)
+updated scripts for more capabilities
+@
+text
+@d8 1
+a8 1
+. ./library
+@
+
+
+1.4
+log
+@updates to client scripts so sun5 will work properly
+added status.sh to verify builds and e-mail results of tests available
+@
+text
+@a26 1
+BRLCAD_ROOT=/tmp/brlcad
+a65 1
+
+d102 2
+d131 1
+d135 2
+@
+
+
+1.3
+log
+@rebuild of the regression test suite
+
+master.sh now uses a new utility library
+client.sh was broken into different stage files with inidividual post-build tests in the tests.d directory
+client scripts will be updated again later to conform more robustly with new testing architecture
+@
+text
+@d28 1
+a28 1
+SLEEP_DELTA=1
+d85 1
+a85 1
+#  First we must sleep until the "cvs checkout" is complete or we are past
+d101 2
+a102 1
+export ARCH=`${REGRESS_DIR}/brlcad/sh/machinetype.sh`
+d112 4
+a115 1
+while ! eval "acquireLock ${REGRESS_DIR}/start_${ARCH}.semaphore 2 $SLEEP_DELTA" ; do
+d121 1
+d124 1
+a125 1
+echo "$ARCH commencing build at `date`"
+@
+
+
+1.2
+log
+@run scripts out of source tree, not directory where regression was started
+@
+text
+@d7 7
+d23 1
+a23 1
+BEGIN_HOUR=20
+d25 1
+a25 1
+MAILUSER=acst
+d27 2
+a28 3
+BRLCAD_ROOT=/usr/brlcad
+SLEEP_DELTA=60
+
+d59 1
+a59 1
+			MAILUSER=$2;
+d80 1
+a80 1
+    echo "`hostname` started after end time $END_HOUR (at $START_HOUR)"
+d88 1
+a88 1
+WAIT_MACH_TIME=`expr $SLEEP_DELTA \* 10`
+d92 1
+a92 1
+	echo "`hostname` time expired waiting for creation of machinetype.sh"
+d95 1
+d99 3
+d103 1
+a103 2
+ARCH=`$REGRESS_DIR/brlcad/sh/machinetype.sh`
+export ARCH
+d105 3
+d110 4
+a113 3
+while [ ! -f $REGRESS_DIR/start_$ARCH ] ; do
+    if [ $HOUR -ge $END_HOUR -o $HOUR -lt BEGIN_HOUR ] ; then
+	echo "`hostname` time expired waiting for creation of start_$ARCH"
+a115 1
+    sleep $SLEEP_DELTA
+d119 1
+a119 8
+#
+#  Now we have got the go-ahead to build.
+#  Remove the semaphore file so that we don't accidentally re-start
+#
+rm $REGRESS_DIR/start_$ARCH
+mkdir $REGRESS_DIR/$ARCH
+cd $REGRESS_DIR/brlcad
+
+d125 4
+a128 1
+./regress/client_build.sh
+@
+
+
+1.1
+log
+@More evolution of the regression test
+@
+text
+@d112 2
+d115 6
+a120 1
+echo "$ARCH commencing build"
+@
+

@@ -1,0 +1,411 @@
+head	11.7;
+access;
+symbols
+	ansi-20040405-merged:11.3.2.2
+	postmerge-20040405-ansi:11.5
+	premerge-20040404-ansi:11.4
+	postmerge-autoconf:11.4
+	autoconf-freeze:11.3.10.2
+	premerge-autoconf:11.4
+	ansi-20040316-freeze:11.3.2.1
+	postmerge-20040315-windows:11.4
+	premerge-20040315-windows:11.4
+	windows-20040315-freeze:11.3.4.1
+	autoconf-20031203:11.3
+	autoconf-20031202:11.3
+	autoconf-branch:11.3.0.10
+	phong-branch:11.3.0.8
+	photonmap-branch:11.3.0.6
+	rel-6-1-DP:11.3
+	windows-branch:11.3.0.4
+	rel-6-0-2:11.1
+	ansi-branch:11.3.0.2
+	rel-6-0-1-branch:11.1.0.2
+	hartley-6-0-post:11.2
+	hartley-6-0-pre:11.1
+	rel-6-0-1:11.1
+	rel-6-0:11.1;
+locks; strict;
+comment	@ * @;
+
+
+11.7
+date	2004.05.24.04.16.13;	author morrison;	state dead;
+branches;
+next	11.6;
+
+11.6
+date	2004.05.10.15.30.42;	author erikg;	state Exp;
+branches;
+next	11.5;
+
+11.5
+date	2004.04.05.07.49.36;	author morrison;	state Exp;
+branches;
+next	11.4;
+
+11.4
+date	2004.02.02.17.39.00;	author morrison;	state Exp;
+branches;
+next	11.3;
+
+11.3
+date	2002.08.20.17.07.22;	author jra;	state Exp;
+branches
+	11.3.2.1
+	11.3.4.1
+	11.3.10.1;
+next	11.2;
+
+11.2
+date	2002.08.15.20.54.35;	author hartley;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	2001.04.12.20.50.35;	author jra;	state Exp;
+branches;
+next	;
+
+11.3.2.1
+date	2002.09.19.18.00.37;	author morrison;	state Exp;
+branches;
+next	11.3.2.2;
+
+11.3.2.2
+date	2004.03.17.21.16.00;	author morrison;	state Exp;
+branches;
+next	;
+
+11.3.4.1
+date	2004.03.11.23.40.31;	author morrison;	state Exp;
+branches;
+next	;
+
+11.3.10.1
+date	2004.02.12.19.24.24;	author erikg;	state Exp;
+branches;
+next	11.3.10.2;
+
+11.3.10.2
+date	2004.03.15.14.06.08;	author erikg;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+11.7
+log
+@moved to src/conv/
+@
+text
+@/* Routine to convert all the NMG solids in a BRL-CAD model to BoTs
+ *
+ *  Author -
+ *      John R. Anderson
+ *  
+ *  Source -
+ *	The U. S. Army Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005-5068  USA
+ *  
+ *  Distribution Notice -
+ *	Re-distribution of this software is restricted, as described in
+ *	your "Statement of Terms and Conditions for the Release of
+ *	The BRL-CAD Pacakge" agreement.
+ *
+ *  Copyright Notice -
+ *	This software is Copyright (C) 1998-2004 by the United States Army
+ *	in all countries except the USA.  All rights reserved.
+ */
+
+
+#ifndef lint
+static const char RCSid[] = "@@(#)$Header: /n/xoff/cvs/brlcad/conv/nmg-bot.c,v 11.6 2004/05/10 15:30:42 erikg Exp $ (BRL)";
+#endif
+ 
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+
+#include <stdio.h>
+
+#ifdef USE_STRING_H
+#include <string.h>
+#else
+#include <strings.h>
+#endif
+
+#include <ctype.h>
+#include "machine.h"
+#include "vmath.h"
+#include "externs.h"
+#include "db.h"
+#include "bu.h"
+#include "nmg.h"
+#include "raytrace.h"
+#include "rtgeom.h"
+#include "wdb.h"
+
+static struct db_i *dbip;
+static int verbose=0;
+static struct rt_wdb *fdout=NULL;
+
+static void
+nmg_conv(struct rt_db_internal *intern, const char *name )
+{
+	struct model *m;
+	struct nmgregion *r;
+	struct shell *s;
+
+	RT_CK_DB_INTERNAL(intern);
+	m = (struct model *)intern->idb_ptr;
+	NMG_CK_MODEL( m );
+	r = BU_LIST_FIRST( nmgregion, &m->r_hd );
+	if( BU_LIST_NEXT( nmgregion, &r->l ) !=  (struct nmgregion *)&m->r_hd )
+		bu_bomb( "ERROR: this code works only for NMG models with one region!!!\n" );
+
+	s = BU_LIST_FIRST( shell, &r->s_hd );
+	if( BU_LIST_NEXT( shell, &s->l) != (struct shell *)&r->s_hd )
+		bu_bomb( "ERROR: this code works only for NMG models with one shell!!!\n" );
+
+	if( BU_SETJUMP )
+	{
+		BU_UNSETJUMP;
+		bu_log( "Failed to convert %s\n", name );
+		rt_db_free_internal( intern, &rt_uniresource );
+		return;
+	}
+	mk_bot_from_nmg( fdout, name, s);
+	BU_UNSETJUMP;
+	if(verbose) bu_log("Converted %s to a Bot solid\n", name);
+	rt_db_free_internal( intern, &rt_uniresource );
+}
+
+int
+main(int argc, char **argv)
+{
+	struct directory *dp;
+
+	if( argc != 3 && argc != 4 )
+	{
+		bu_log( "Usage:\n\t%s [-v] input.g output.g\n", argv[0] );
+		exit( 1 );
+	}
+
+	if( argc == 4 )
+	{
+		if( !strcmp( argv[1], "-v" ) )
+			verbose = 1;
+		else
+		{
+			bu_log( "Illegal option: %s\n", argv[1] );
+			bu_log( "Usage:\n\t%s [-v] input.g output.g\n", argv[0] );
+			exit( 1 );
+		}
+	}
+
+	rt_init_resource( &rt_uniresource, 0, NULL );
+
+	dbip = db_open( argv[argc-2], "r" );
+	if( dbip == DBI_NULL )
+	{
+		bu_log( "Cannot open file (%s)\n", argv[argc-2] );
+		perror( argv[0] );	
+		bu_bomb( "Cannot open database file\n" );
+	}
+
+	if( (fdout=wdb_fopen( argv[argc-1] )) == NULL )
+	{
+		bu_log( "Cannot open file (%s)\n", argv[argc-1] );
+		perror( argv[0] );	
+		bu_bomb( "Cannot open output file\n" );
+	}
+	db_dirbuild( dbip );
+
+	/* Visit all records in input database, and spew them out,
+	 * modifying NMG objects into BoTs.
+	 */
+	FOR_ALL_DIRECTORY_START(dp, dbip)  {
+		struct rt_db_internal	intern;
+		int id;
+		int ret;
+		id = rt_db_get_internal( &intern, dp, dbip, NULL, &rt_uniresource );
+		if( id < 0 )  {
+			fprintf(stderr,
+				"%s: rt_db_get_internal(%s) failure, skipping\n",
+				argv[0], dp->d_namep);
+			continue;
+		}
+		if ( id == ID_NMG ) {
+	    		nmg_conv( &intern, dp->d_namep );
+		} else {
+			ret = wdb_put_internal( fdout, dp->d_namep, &intern, 1.0 );
+			if( ret < 0 )  {
+				fprintf(stderr,
+					"%s: wdb_put_internal(%s) failure, skipping\n",
+					argv[0], dp->d_namep);
+				rt_db_free_internal( &intern, &rt_uniresource );
+				continue;
+			}
+			rt_db_free_internal( &intern, &rt_uniresource );
+		}
+	} FOR_ALL_DIRECTORY_END
+	wdb_close(fdout);
+	return 0;
+}
+@
+
+
+11.6
+log
+@change conf.h to a wrapped config.h
+@
+text
+@d22 1
+a22 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/conv/nmg-bot.c,v 11.5 2004/04/05 07:49:36 morrison Exp $ (BRL)";
+@
+
+
+11.5
+log
+@merge of ansi-6-0-branch into HEAD
+@
+text
+@d22 1
+a22 1
+static const char RCSid[] = "@@(#)$Header$ (BRL)";
+d25 5
+a29 1
+#include "conf.h"
+@
+
+
+11.4
+log
+@update copyright to include span through 2003
+@
+text
+@d22 1
+a22 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/conv/nmg-bot.c,v 11.3 2002/08/20 17:07:22 jra Exp $ (BRL)";
+d82 1
+a82 3
+main( argc, argv )
+int argc;
+char *argv[];
+@
+
+
+11.3
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d16 1
+a16 1
+ *	This software is Copyright (C) 1998 by the United States Army
+d22 1
+a22 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/conv/nmg-bot.c,v 11.1 2001/04/12 20:50:35 jra Exp $ (BRL)";
+@
+
+
+11.3.4.1
+log
+@sync to HEAD...
+@
+text
+@d16 1
+a16 1
+ *	This software is Copyright (C) 1998-2004 by the United States Army
+d22 1
+a22 1
+static const char RCSid[] = "@@(#)$Header: /n/cad/c/CVS/brlcad/conv/nmg-bot.c,v 11.4 2004/02/02 17:39:00 morrison Exp $ (BRL)";
+@
+
+
+11.3.10.1
+log
+@merge from HEAD
+@
+text
+@d16 1
+a16 1
+ *	This software is Copyright (C) 1998-2004 by the United States Army
+d22 1
+a22 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/conv/nmg-bot.c,v 11.4 2004/02/02 17:39:00 morrison Exp $ (BRL)";
+@
+
+
+11.3.10.2
+log
+@merge from head
+@
+text
+@d22 1
+a22 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/conv/nmg-bot.c,v 11.3.10.1 2004/02/12 19:24:24 erikg Exp $ (BRL)";
+@
+
+
+11.3.2.1
+log
+@Initial ANSIfication
+@
+text
+@d22 1
+a22 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/conv/nmg-bot.c,v 11.3 2002/08/20 17:07:22 jra Exp $ (BRL)";
+d82 3
+a84 1
+main(int argc, char **argv)
+@
+
+
+11.3.2.2
+log
+@sync branch with HEAD
+@
+text
+@d16 1
+a16 1
+ *	This software is Copyright (C) 1998-2004 by the United States Army
+d22 1
+a22 1
+static const char RCSid[] = "@@(#)$Header$ (BRL)";
+@
+
+
+11.2
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d82 3
+a84 1
+main(int argc, char **argv)
+@
+
+
+11.1
+log
+@Replaced nmg-polysolid with nmg-bot
+@
+text
+@d22 1
+a22 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/conv/nmg-polysolid.c,v 11.11 2001/04/02 14:58:39 jra Exp $ (BRL)";
+d82 1
+a82 3
+main( argc, argv )
+int argc;
+char *argv[];
+@
+

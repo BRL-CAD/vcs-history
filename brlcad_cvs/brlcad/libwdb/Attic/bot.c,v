@@ -1,0 +1,710 @@
+head	11.12;
+access;
+symbols
+	ansi-20040405-merged:11.5.4.1
+	postmerge-20040405-ansi:11.10
+	premerge-20040404-ansi:11.10
+	postmerge-autoconf:11.10
+	autoconf-freeze:11.9.4.2
+	premerge-autoconf:11.10
+	postmerge-20040315-windows:11.10
+	premerge-20040315-windows:11.10
+	windows-20040315-freeze:11.5.6.1
+	autoconf-20031203:11.9
+	autoconf-20031202:11.9
+	autoconf-branch:11.9.0.4
+	phong-branch:11.9.0.2
+	photonmap-branch:11.8.0.2
+	rel-6-1-DP:11.5
+	windows-branch:11.5.0.6
+	rel-6-0-2:11.5
+	ansi-branch:11.5.0.4
+	rel-6-0-1-branch:11.5.0.2
+	hartley-6-0-post:11.5
+	hartley-6-0-pre:11.5
+	rel-6-0-1:11.5
+	rel-6-0:11.5
+	rel-5-4:11.2
+	offsite-5-3-pre:11.5
+	rel-5-3:11.2
+	rel-5-2:11.2
+	rel-5-1-branch:11.2.0.2
+	rel-5-1:11.2;
+locks; strict;
+comment	@ * @;
+
+
+11.12
+date	2004.05.21.18.07.37;	author morrison;	state dead;
+branches;
+next	11.11;
+
+11.11
+date	2004.05.10.15.30.47;	author erikg;	state Exp;
+branches;
+next	11.10;
+
+11.10
+date	2004.02.02.17.39.30;	author morrison;	state Exp;
+branches;
+next	11.9;
+
+11.9
+date	2003.05.17.00.42.49;	author morrison;	state Exp;
+branches
+	11.9.4.1;
+next	11.8;
+
+11.8
+date	2002.11.29.13.40.04;	author jra;	state Exp;
+branches
+	11.8.2.1;
+next	11.7;
+
+11.7
+date	2002.11.29.03.14.12;	author jra;	state Exp;
+branches;
+next	11.6;
+
+11.6
+date	2002.11.27.13.43.21;	author jra;	state Exp;
+branches;
+next	11.5;
+
+11.5
+date	2000.07.12.21.58.03;	author mike;	state Exp;
+branches
+	11.5.4.1
+	11.5.6.1;
+next	11.4;
+
+11.4
+date	2000.07.08.04.01.09;	author mike;	state Exp;
+branches;
+next	11.3;
+
+11.3
+date	2000.07.08.01.41.20;	author mike;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	99.11.17.18.14.26;	author jra;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	99.11.08.15.11.17;	author jra;	state Exp;
+branches;
+next	;
+
+11.5.4.1
+date	2004.03.17.21.21.47;	author morrison;	state Exp;
+branches;
+next	;
+
+11.5.6.1
+date	2004.03.11.23.45.47;	author morrison;	state Exp;
+branches;
+next	;
+
+11.8.2.1
+date	2003.08.26.14.03.40;	author justin;	state Exp;
+branches;
+next	;
+
+11.9.4.1
+date	2004.02.12.19.41.24;	author erikg;	state Exp;
+branches;
+next	11.9.4.2;
+
+11.9.4.2
+date	2004.03.15.14.07.33;	author erikg;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+11.12
+log
+@moved to src/
+@
+text
+@/*
+ *			B O T . C
+ *
+ * Support for BOT solid (Bag O'Triangles)
+ *
+ *  Author -
+ *	John Anderson
+ *
+ *  Source -
+ *	The U. S. Army Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005-5068  USA
+ *  
+ *  Distribution Notice -
+ *	Re-distribution of this software is restricted, as described in
+ *	your "Statement of Terms and Conditions for the Release of
+ *	The BRL-CAD Package" agreement.
+ *
+ *  Copyright Notice -
+ *	This software is Copyright (C) 1999-2004 by the United States Army
+ *	in all countries except the USA.  All rights reserved.
+ */
+#ifndef lint
+static const char part_RCSid[] = "@@(#)$Header: /n/xoff/cvs/brlcad/libwdb/bot.c,v 11.11 2004/05/10 15:30:47 erikg Exp $ (BRL)";
+#endif
+
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+
+#include <stdio.h>
+#ifdef USE_STRING_H
+#include <string.h>
+#else
+#include <strings.h>
+#endif
+#include <math.h>
+#include "machine.h"
+
+#include "bu.h"
+#include "vmath.h"
+#include "bn.h"
+#include "rtgeom.h"
+#include "raytrace.h"
+#include "wdb.h"
+
+
+int
+mk_bot_w_normals(
+	struct rt_wdb *fp,
+	const char *name,
+	unsigned char	mode,
+	unsigned char	orientation,
+	unsigned char	flags,
+	int		num_vertices,
+	int		num_faces,
+	fastf_t		*vertices,	/* array of floats for vertices [num_vertices*3] */
+	int		*faces,		/* array of ints for faces [num_faces*3] */
+	fastf_t		*thickness,	/* array of plate mode thicknesses (corresponds to array of faces)
+					 * NULL for modes RT_BOT_SURFACE and RT_BOT_SOLID.
+					 */
+	struct bu_bitv	*face_mode,	/* a flag for each face indicating thickness is appended to hit point,
+					 * otherwise thickness is centered about hit point
+					 */
+	int		num_normals,	/* number of unit normals in normals array */
+	fastf_t		*normals,	/* array of floats for normals [num_normals*3] */
+	int		*face_normals )	/* array of ints (indices into normals array), must have 3*num_faces entries */
+{
+	struct rt_bot_internal *bot;
+	int i;
+
+	if( (num_normals > 0) && (fp->dbip->dbi_version < 5 ) ) {
+		bu_log( "You are using an old database format which does not support surface normals for BOT primitives\n" );
+		bu_log( "You are attempting to create a BOT primitive named \"%s\" with surface normals\n" );
+		bu_log( "The surface normals will not be saved\n" );
+		bu_log( "Please upgrade to the current database format by using \"dbupgrade\"\n" );
+	}
+
+	BU_GETSTRUCT( bot, rt_bot_internal );
+	bot->magic = RT_BOT_INTERNAL_MAGIC;
+	bot->mode = mode;
+	bot->orientation = orientation;
+	bot->bot_flags = flags;
+	bot->num_vertices = num_vertices;
+	bot->num_faces = num_faces;
+	bot->vertices = (fastf_t *)bu_calloc( num_vertices * 3, sizeof( fastf_t ), "bot->vertices" );
+	for( i=0 ; i<num_vertices*3 ; i++ )
+		bot->vertices[i] = vertices[i];
+	bot->faces = (int *)bu_calloc( num_faces * 3, sizeof( int ), "bot->faces" );
+	for( i=0 ; i<num_faces*3 ; i++ )
+		bot->faces[i] = faces[i];
+	if( mode == RT_BOT_PLATE )
+	{
+		bot->thickness = (fastf_t *)bu_calloc( num_faces, sizeof( fastf_t ), "bot->thickness" );
+		for( i=0 ; i<num_faces ; i++ )
+			bot->thickness[i] = thickness[i];
+		bot->face_mode = bu_bitv_dup( face_mode );
+	}
+	else
+	{
+		bot->thickness = (fastf_t *)NULL;
+		bot->face_mode = (struct bu_bitv *)NULL;
+	}
+
+	if( (num_normals > 0) && (fp->dbip->dbi_version >= 5 ) ) {
+		bot->num_normals = num_normals;
+		bot->num_face_normals = bot->num_faces;
+		bot->normals = (fastf_t *)bu_calloc( bot->num_normals * 3, sizeof( fastf_t ), "BOT normals" );
+		bot->face_normals = (int *)bu_calloc( bot->num_faces * 3, sizeof( int ), "BOT face normals" );
+		memcpy( bot->normals, normals, bot->num_normals * 3 * sizeof( fastf_t ) );
+		memcpy( bot->face_normals, face_normals, bot->num_faces * 3 * sizeof( int ) );
+	} else {
+		bot->bot_flags = 0;
+		bot->num_normals = 0;
+		bot->num_face_normals = 0;
+		bot->normals = (fastf_t *)NULL;
+		bot->face_normals = (int *)NULL;
+	}
+
+	return wdb_export( fp, name, (genptr_t)bot, ID_BOT, mk_conv2mm );
+}
+
+int
+mk_bot(
+	struct rt_wdb *fp,
+	const char *name,
+	unsigned char	mode,
+	unsigned char	orientation,
+	unsigned char	flags,
+	int		num_vertices,
+	int		num_faces,
+	fastf_t		*vertices,	/* array of floats for vertices [num_vertices*3] */
+	int		*faces,		/* array of ints for faces [num_faces*3] */
+	fastf_t		*thickness,	/* array of plate mode thicknesses (corresponds to array of faces)
+					 * NULL for modes RT_BOT_SURFACE and RT_BOT_SOLID.
+					 */
+	struct bu_bitv	*face_mode )	/* a flag for each face indicating thickness is appended to hit point,
+					 * otherwise thickness is centered about hit point
+					 */
+{
+	return( mk_bot_w_normals( fp, name, mode, orientation, flags, num_vertices, num_faces, vertices,
+				  faces, thickness, face_mode, 0, NULL, NULL ) );
+}
+@
+
+
+11.11
+log
+@change conf.h to a wrapped config.h
+@
+text
+@d23 1
+a23 1
+static const char part_RCSid[] = "@@(#)$Header: /cvs/brlcad/libwdb/bot.c,v 11.10 2004/02/02 17:39:30 morrison Exp $ (BRL)";
+@
+
+
+11.10
+log
+@update copyright to include span through 2003
+@
+text
+@d23 1
+a23 1
+static const char part_RCSid[] = "@@(#)$Header: /c/CVS/brlcad/libwdb/bot.c,v 11.9 2003/05/17 00:42:49 morrison Exp $ (BRL)";
+d26 5
+a30 1
+#include "conf.h"
+@
+
+
+11.9
+log
+@*** empty log message ***
+@
+text
+@d19 1
+a19 1
+ *	This software is Copyright (C) 1999 by the United States Army
+d23 1
+a23 1
+static const char part_RCSid[] = "@@(#)$Header: /c/CVS/brlcad/libwdb/bot.c,v 11.8 2002/11/29 13:40:04 jra Exp $ (BRL)";
+@
+
+
+11.9.4.1
+log
+@merge from HEAD
+@
+text
+@d19 1
+a19 1
+ *	This software is Copyright (C) 1999-2004 by the United States Army
+d23 1
+a23 1
+static const char part_RCSid[] = "@@(#)$Header: /c/CVS/brlcad/libwdb/bot.c,v 11.10 2004/02/02 17:39:30 morrison Exp $ (BRL)";
+@
+
+
+11.9.4.2
+log
+@merge from head
+@
+text
+@d23 1
+a23 1
+static const char part_RCSid[] = "@@(#)$Header: /c/CVS/brlcad/libwdb/bot.c,v 11.9.4.1 2004/02/12 19:41:24 erikg Exp $ (BRL)";
+@
+
+
+11.8
+log
+@mk_bot_w_normals now honors the passed in flags
+@
+text
+@d23 1
+a23 1
+static const char part_RCSid[] = "@@(#)$Header: /c/CVS/brlcad/libwdb/bot.c,v 11.7 2002/11/29 03:14:12 jra Exp $ (BRL)";
+d36 1
+@
+
+
+11.8.2.1
+log
+@updated for merging
+@
+text
+@d23 1
+a23 1
+static const char part_RCSid[] = "@@(#)$Header: /c/CVS/brlcad/libwdb/bot.c,v 11.9 2003/05/17 00:42:49 morrison Exp $ (BRL)";
+a35 1
+
+@
+
+
+11.7
+log
+@Now sets USE_NORMALS flag
+@
+text
+@d23 1
+a23 1
+static const char part_RCSid[] = "@@(#)$Header: /c/CVS/brlcad/libwdb/bot.c,v 11.6 2002/11/27 13:43:21 jra Exp $ (BRL)";
+d79 1
+a79 1
+	bot->bot_flags = 0;
+a101 1
+		bot->bot_flags = RT_BOT_HAS_SURFACE_NORMALS | RT_BOT_USE_NORMALS;
+@
+
+
+11.6
+log
+@BOT primitives can now have vertex normals
+@
+text
+@d23 1
+a23 1
+static const char part_RCSid[] = "@@(#)$Header: /c/CVS/brlcad/libwdb/bot.c,v 11.5 2000/07/12 21:58:03 mike Exp $ (BRL)";
+d102 1
+a102 1
+		bot->bot_flags = RT_BOT_HAS_SURFACE_NORMALS;
+@
+
+
+11.5
+log
+@
+New version of LIBWDB which takes a (struct rt_wdb *) rather than a
+(FILE *) as the first parameter.
+@
+text
+@d23 1
+a23 1
+static const char part_RCSid[] = "@@(#)$Header: /c/CVS/brlcad/libwdb/bot.c,v 11.4 2000/07/08 04:01:09 mike Exp $ (BRL)";
+d29 5
+d43 1
+d45 1
+a45 1
+mk_bot(
+d50 1
+a50 1
+	unsigned char	error_mode,	/* may be used to indicate error handling (ignored for now) */
+d58 1
+a58 1
+	struct bu_bitv	*face_mode )	/* a flag for each face indicating thickness is appended to hit point,
+d61 3
+d68 7
+d79 1
+a79 1
+	bot->error_mode = error_mode;
+d100 16
+a115 1
+	
+d118 22
+@
+
+
+11.5.4.1
+log
+@sync branch with HEAD
+@
+text
+@d19 1
+a19 1
+ *	This software is Copyright (C) 1999-2004 by the United States Army
+d23 1
+a23 1
+static const char part_RCSid[] = "@@(#)$Header$ (BRL)";
+a28 5
+#ifdef USE_STRING_H
+#include <string.h>
+#else
+#include <strings.h>
+#endif
+a30 1
+
+a37 1
+
+d39 1
+a39 1
+mk_bot_w_normals(
+d44 1
+a44 1
+	unsigned char	flags,
+d52 1
+a52 1
+	struct bu_bitv	*face_mode,	/* a flag for each face indicating thickness is appended to hit point,
+a54 3
+	int		num_normals,	/* number of unit normals in normals array */
+	fastf_t		*normals,	/* array of floats for normals [num_normals*3] */
+	int		*face_normals )	/* array of ints (indices into normals array), must have 3*num_faces entries */
+a58 7
+	if( (num_normals > 0) && (fp->dbip->dbi_version < 5 ) ) {
+		bu_log( "You are using an old database format which does not support surface normals for BOT primitives\n" );
+		bu_log( "You are attempting to create a BOT primitive named \"%s\" with surface normals\n" );
+		bu_log( "The surface normals will not be saved\n" );
+		bu_log( "Please upgrade to the current database format by using \"dbupgrade\"\n" );
+	}
+
+d63 1
+a63 1
+	bot->bot_flags = flags;
+d84 1
+a84 15
+
+	if( (num_normals > 0) && (fp->dbip->dbi_version >= 5 ) ) {
+		bot->num_normals = num_normals;
+		bot->num_face_normals = bot->num_faces;
+		bot->normals = (fastf_t *)bu_calloc( bot->num_normals * 3, sizeof( fastf_t ), "BOT normals" );
+		bot->face_normals = (int *)bu_calloc( bot->num_faces * 3, sizeof( int ), "BOT face normals" );
+		memcpy( bot->normals, normals, bot->num_normals * 3 * sizeof( fastf_t ) );
+		memcpy( bot->face_normals, face_normals, bot->num_faces * 3 * sizeof( int ) );
+	} else {
+		bot->bot_flags = 0;
+		bot->num_normals = 0;
+		bot->num_face_normals = 0;
+		bot->normals = (fastf_t *)NULL;
+		bot->face_normals = (int *)NULL;
+	}
+a86 22
+}
+
+int
+mk_bot(
+	struct rt_wdb *fp,
+	const char *name,
+	unsigned char	mode,
+	unsigned char	orientation,
+	unsigned char	flags,
+	int		num_vertices,
+	int		num_faces,
+	fastf_t		*vertices,	/* array of floats for vertices [num_vertices*3] */
+	int		*faces,		/* array of ints for faces [num_faces*3] */
+	fastf_t		*thickness,	/* array of plate mode thicknesses (corresponds to array of faces)
+					 * NULL for modes RT_BOT_SURFACE and RT_BOT_SOLID.
+					 */
+	struct bu_bitv	*face_mode )	/* a flag for each face indicating thickness is appended to hit point,
+					 * otherwise thickness is centered about hit point
+					 */
+{
+	return( mk_bot_w_normals( fp, name, mode, orientation, flags, num_vertices, num_faces, vertices,
+				  faces, thickness, face_mode, 0, NULL, NULL ) );
+@
+
+
+11.5.6.1
+log
+@sync to HEAD...
+@
+text
+@d19 1
+a19 1
+ *	This software is Copyright (C) 1999-2004 by the United States Army
+d23 1
+a23 1
+static const char part_RCSid[] = "@@(#)$Header: /n/cad/c/CVS/brlcad/libwdb/bot.c,v 11.10 2004/02/02 17:39:30 morrison Exp $ (BRL)";
+a28 5
+#ifdef USE_STRING_H
+#include <string.h>
+#else
+#include <strings.h>
+#endif
+a30 1
+
+a37 1
+
+d39 1
+a39 1
+mk_bot_w_normals(
+d44 1
+a44 1
+	unsigned char	flags,
+d52 1
+a52 1
+	struct bu_bitv	*face_mode,	/* a flag for each face indicating thickness is appended to hit point,
+a54 3
+	int		num_normals,	/* number of unit normals in normals array */
+	fastf_t		*normals,	/* array of floats for normals [num_normals*3] */
+	int		*face_normals )	/* array of ints (indices into normals array), must have 3*num_faces entries */
+a58 7
+	if( (num_normals > 0) && (fp->dbip->dbi_version < 5 ) ) {
+		bu_log( "You are using an old database format which does not support surface normals for BOT primitives\n" );
+		bu_log( "You are attempting to create a BOT primitive named \"%s\" with surface normals\n" );
+		bu_log( "The surface normals will not be saved\n" );
+		bu_log( "Please upgrade to the current database format by using \"dbupgrade\"\n" );
+	}
+
+d63 1
+a63 1
+	bot->bot_flags = flags;
+d84 1
+a84 15
+
+	if( (num_normals > 0) && (fp->dbip->dbi_version >= 5 ) ) {
+		bot->num_normals = num_normals;
+		bot->num_face_normals = bot->num_faces;
+		bot->normals = (fastf_t *)bu_calloc( bot->num_normals * 3, sizeof( fastf_t ), "BOT normals" );
+		bot->face_normals = (int *)bu_calloc( bot->num_faces * 3, sizeof( int ), "BOT face normals" );
+		memcpy( bot->normals, normals, bot->num_normals * 3 * sizeof( fastf_t ) );
+		memcpy( bot->face_normals, face_normals, bot->num_faces * 3 * sizeof( int ) );
+	} else {
+		bot->bot_flags = 0;
+		bot->num_normals = 0;
+		bot->num_face_normals = 0;
+		bot->normals = (fastf_t *)NULL;
+		bot->face_normals = (int *)NULL;
+	}
+a86 22
+}
+
+int
+mk_bot(
+	struct rt_wdb *fp,
+	const char *name,
+	unsigned char	mode,
+	unsigned char	orientation,
+	unsigned char	flags,
+	int		num_vertices,
+	int		num_faces,
+	fastf_t		*vertices,	/* array of floats for vertices [num_vertices*3] */
+	int		*faces,		/* array of ints for faces [num_faces*3] */
+	fastf_t		*thickness,	/* array of plate mode thicknesses (corresponds to array of faces)
+					 * NULL for modes RT_BOT_SURFACE and RT_BOT_SOLID.
+					 */
+	struct bu_bitv	*face_mode )	/* a flag for each face indicating thickness is appended to hit point,
+					 * otherwise thickness is centered about hit point
+					 */
+{
+	return( mk_bot_w_normals( fp, name, mode, orientation, flags, num_vertices, num_faces, vertices,
+				  faces, thickness, face_mode, 0, NULL, NULL ) );
+@
+
+
+11.4
+log
+@
+Modified to allow mk_fwrite_internal() to free the objects.
+Added flag variable mk_version to indicate what database version to be written.
+@
+text
+@d23 1
+a23 1
+static const char part_RCSid[] = "@@(#)$Header: /c/CVS/brlcad/libwdb/bot.c,v 11.3 2000/07/08 01:41:20 mike Exp $ (BRL)";
+d39 11
+a49 11
+mk_bot( fp, name, mode, orientation, error_mode, num_vertices, num_faces, vertices, faces, thickness, face_mode )
+FILE *fp;
+char *name;
+unsigned char	mode;
+unsigned char	orientation;
+unsigned char	error_mode;		/* may be used to indicate error handling (ignored for now) */
+int		num_vertices;
+int		num_faces;
+fastf_t		*vertices;		/* array of floats for vertices [num_vertices*3] */
+int		*faces;			/* array of ints for faces [num_faces*3] */
+fastf_t		*thickness;		/* array of plate mode thicknesses (corresponds to array of faces)
+d52 1
+a52 1
+struct bu_bitv	*face_mode;		/* a flag for each face indicating thickness is appended to hit point,
+d86 1
+a86 1
+	return mk_export_fwrite( fp, name, (genptr_t)bot, ID_BOT );
+@
+
+
+11.3
+log
+@
+const RCSid
+@
+text
+@d23 1
+a23 1
+static const char part_RCSid[] = "@@(#)$Header: /c/CVS/brlcad/libwdb/bot.c,v 11.2 1999/11/17 18:14:26 jra Exp $ (BRL)";
+d56 1
+a56 1
+	struct rt_bot_internal bot;
+d59 8
+a66 7
+	bot.magic = RT_BOT_INTERNAL_MAGIC;
+	bot.mode = mode;
+	bot.orientation = orientation;
+	bot.error_mode = error_mode;
+	bot.num_vertices = num_vertices;
+	bot.num_faces = num_faces;
+	bot.vertices = (fastf_t *)bu_calloc( num_vertices * 3, sizeof( fastf_t ), "bot.vertices" );
+d68 2
+a69 2
+		bot.vertices[i] = vertices[i];
+	bot.faces = (int *)bu_calloc( num_faces * 3, sizeof( int ), "bot.faces" );
+d71 1
+a71 1
+		bot.faces[i] = faces[i];
+d74 1
+a74 1
+		bot.thickness = (fastf_t *)bu_calloc( num_faces, sizeof( fastf_t ), "bot.thickness" );
+d76 2
+a77 2
+			bot.thickness[i] = thickness[i];
+		bot.face_mode = bu_bitv_dup( face_mode );
+d81 2
+a82 2
+		bot.thickness = (fastf_t *)NULL;
+		bot.face_mode = (struct bu_bitv *)NULL;
+d86 1
+a86 1
+	return mk_export_fwrite( fp, name, (genptr_t)&bot, ID_BOT );
+@
+
+
+11.2
+log
+@mk_bot returns an int
+@
+text
+@d23 1
+a23 1
+static char part_RCSid[] = "@@(#)$Header: /c/CVS/brlcad/libwdb/bot.c,v 11.1 1999/11/08 15:11:17 jra Exp $ (BRL)";
+@
+
+
+11.1
+log
+@
+Added BOT solid.
+@
+text
+@d23 1
+a23 1
+static char part_RCSid[] = "@@(#)$Header: /c/CVS/brlcad/libwdb/fgp.c,v 11.1 1999/10/12 13:58:13 jra Exp $ (BRL)";
+d38 1
+@
+

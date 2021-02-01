@@ -1,0 +1,461 @@
+head	1.13;
+access;
+symbols
+	rel-7-10-4:1.11
+	STABLE:1.11.0.2
+	rel-7-10-2:1.10
+	rel-7-10-0:1.10
+	rel-7-8-4:1.4
+	rel-7-8-2:1.4
+	rel-7-8-0:1.4
+	trimnurbs-branch:1.4.0.2
+	help:1.4
+	temp_tag:1.4
+	bobWinPort-20051223-freeze:1.2
+	postmerge-20051223-bobWinPort:1.4
+	premerge-20051223-bobWinPort:1.4
+	rel-7-6-6:1.4
+	rel-7-6-4:1.4
+	rel-7-6-2:1.3
+	rel-7-6-branch:1.3.0.2
+	rel-7-6-0:1.3
+	bobWinPort:1.2.0.2;
+locks; strict;
+comment	@ * @;
+
+
+1.13
+date	2007.12.22.15.01.59;	author brlcad;	state Exp;
+branches;
+next	1.12;
+
+1.12
+date	2007.10.14.08.01.45;	author brlcad;	state Exp;
+branches;
+next	1.11;
+
+1.11
+date	2007.09.10.19.38.27;	author erikgreenwald;	state Exp;
+branches;
+next	1.10;
+
+1.10
+date	2007.02.20.08.05.27;	author brlcad;	state Exp;
+branches;
+next	1.9;
+
+1.9
+date	2007.02.08.06.49.17;	author brlcad;	state Exp;
+branches;
+next	1.8;
+
+1.8
+date	2007.02.02.17.11.21;	author erikgreenwald;	state Exp;
+branches;
+next	1.7;
+
+1.7
+date	2007.02.02.08.48.27;	author brlcad;	state Exp;
+branches;
+next	1.6;
+
+1.6
+date	2007.01.23.01.13.21;	author brlcad;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	2007.01.21.00.12.17;	author brlcad;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	2005.10.23.04.44.27;	author brlcad;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2005.08.29.06.37.16;	author twingy;	state Exp;
+branches
+	1.3.2.1;
+next	1.2;
+
+1.2
+date	2005.08.15.18.18.38;	author twingy;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2005.08.15.03.46.41;	author twingy;	state Exp;
+branches;
+next	;
+
+1.3.2.1
+date	2005.11.13.13.46.11;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.13
+log
+@probably going to revert to a libbu solution, but manually null-terminate for now anyways
+@
+text
+@/*                          M A I N . C
+ * BRL-CAD / ADRT
+ *
+ * Copyright (c) 2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This library is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@file main.c
+ *
+ * Author -
+ *   Justin Shumaker
+ *
+ * $Id$
+ */
+
+#ifdef HAVE_CONFIG_H
+# include "common.h"
+#endif
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <signal.h>
+#include <unistd.h>
+
+#include <bu.h>
+
+#include "bench.h"
+
+
+#ifdef HAVE_GETOPT_H
+# include <getopt.h>
+#endif
+
+#ifdef HAVE_GETOPT_LONG
+static struct option longopts[] =
+{
+	{ "dump cache", no_argument,	NULL, 'c' },
+	{ "dump image",	no_argument,	NULL, 'i' },
+	{ "help",	no_argument,	NULL, 'h' },
+};
+#endif
+
+static char shortopts[] = "cdh";
+
+
+static void finish(int sig) {
+  printf("Collected signal %d, aborting!\n", sig);
+  exit(EXIT_FAILURE);
+}
+
+
+static void help() {
+  printf("%s\n", "usage: adrt_bench [options] [proj_env_file]\n\
+  -c\t\tdump cache.\n\
+  -d\t\tdump ppm image.\n\
+  -h\t\tdisplay help.\n");
+}
+
+
+int main(int argc, char **argv) {
+  int c = 0, image, cache;
+  char proj[64], temp[64];
+
+
+  signal(SIGINT, finish);
+
+  if(argc == 1) {
+    help();
+    return EXIT_FAILURE;
+  }
+
+  /* Initialize */
+  cache = 0;
+  image = 0;
+  proj[0] = 0;
+
+  /* Parse command line options */
+
+  while((c =
+#ifdef HAVE_GETOPT_LONG
+	getopt_long(argc, argv, shortopts, longopts, NULL)
+#else
+	getopt(argc, argv, shortopts)
+#endif
+	)!= -1)
+  {
+	  switch(c) {
+		  case 'c':
+			  cache = 1;
+			  break;
+		  case 'd':
+			  image = 1;
+			  break;
+		  case 'h':
+			  help();
+			  return EXIT_SUCCESS;
+		default:
+			  help();
+			  return EXIT_FAILURE;
+	  }
+  }
+  argc -= optind;
+  argv += optind;
+
+  strncpy(proj, argv[0], 64-1);
+  proj[64-1] = '\0'; /* sanity */
+
+  if(proj[0]) {
+    bench(proj, cache, image);
+  } else {
+    help();
+    return EXIT_FAILURE;
+  }
+
+  return EXIT_SUCCESS;
+}
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+1.12
+log
+@take care of a slew of level 4 flawfinder issues related to adding length parameters to string and i/o functions
+@
+text
+@d25 1
+a25 1
+ * $Id: main.c,v 1.11 2007/09/10 19:38:27 erikgreenwald Exp $
+d118 2
+a119 1
+  strncpy(proj, argv[0], 64);
+@
+
+
+1.11
+log
+@should only be using common.h, not brlcad_config.h
+@
+text
+@d25 1
+a25 1
+ * $Id: main.c,v 1.10 2007/02/20 08:05:27 brlcad Exp $
+d118 1
+a118 1
+  strcpy(proj, argv[0]);
+@
+
+
+1.10
+log
+@revert the introduction of a libbu dependency to adrt, it's somewhat inconsequential value added just to get bu_getopt processing compared to the benefit of it still compiling stand-alone if needed.
+@
+text
+@d25 1
+a25 1
+ * $Id: main.c,v 1.9 2007/02/08 06:49:17 brlcad Exp $
+d29 1
+a29 1
+# include "brlcad_config.h"
+@
+
+
+1.9
+log
+@give adrt some distinctiveness in the header
+@
+text
+@d25 1
+a25 1
+ * $Id: main.c,v 1.8 2007/02/02 17:11:21 erikgreenwald Exp $
+d96 1
+a96 1
+	bu_getopt(argc, argv, shortopts)
+d115 2
+a116 2
+  argc -= bu_optind;
+  argv += bu_optind;
+@
+
+
+1.8
+log
+@include bu.h and link libbu for bu_getopt
+@
+text
+@d2 1
+a2 1
+ * BRL-CAD
+d25 1
+a25 1
+ * $Id: main.c,v 1.7 2007/02/02 08:48:27 brlcad Exp $
+@
+
+
+1.7
+log
+@convert all of the lingering getopt calls to bu_getopt (as well as the related getopt globals optind, opterr, optarg) -- libbu's getopt has the benefit of being re-entrant and is portable to environments where getopt() may not be available.
+@
+text
+@d25 1
+a25 1
+ * $Id: main.c,v 1.6 2007/01/23 01:13:21 brlcad Exp $
+d37 3
+@
+
+
+1.6
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@d25 1
+a25 1
+ * $Id: main.c,v 1.5 2007/01/21 00:12:17 brlcad Exp $
+d93 1
+a93 1
+	getopt(argc, argv, shortopts)
+d112 2
+a113 2
+  argc -= optind;
+  argv += optind;
+@
+
+
+1.5
+log
+@standard header and footer
+@
+text
+@d9 1
+a9 1
+ * as published by the Free Software Foundation.
+d25 1
+a25 1
+ * $Id: main.c,v 1.4 2005/10/23 04:44:27 brlcad Exp $
+@
+
+
+1.4
+log
+@trailing ws
+@
+text
+@d1 25
+a25 2
+/*
+ * $Id: main.c,v 1.3 2005/08/29 06:37:16 twingy Exp $
+d126 10
+@
+
+
+1.3
+log
+@Integrated kd-tree caching.
+It's generated with adrt_bench by supplying the -c argument.
+kdtree_cache_file,kdtree.cache goes into project.env file to make it work.
+@
+text
+@d2 1
+a2 1
+ * $Id: main.c,v 1.2 2005/08/15 18:18:38 twingy Exp $
+d66 1
+a66 1
+  while((c = 
+@
+
+
+1.3.2.1
+log
+@merge changes from HEAD aka rel-7-6-4 to the rel-7-6-branch just in case someone peeks a gander or tries to continue/build the branch
+@
+text
+@d2 1
+a2 1
+ * $Id$
+d66 1
+a66 1
+  while((c =
+@
+
+
+1.2
+log
+@benchmark utility almost done.
+@
+text
+@d2 1
+a2 1
+ * $Id: main.c,v 1.1 2005/08/15 03:46:41 twingy Exp $
+d24 2
+a26 1
+	{ "dump image",	no_argument,	NULL, 'd' },
+d30 1
+a30 1
+static char shortopts[] = "dh";
+d41 2
+a42 1
+  -d\t\tdump output.\n\
+d48 1
+a48 1
+  int c = 0, dump;
+d59 3
+a61 2
+  /* Initialize strings */
+  dump = 0;
+d75 3
+d79 1
+a79 1
+			  dump = 1;
+d95 1
+a95 1
+    bench(proj, dump);
+@
+
+
+1.1
+log
+@some of the benchmarking files
+@
+text
+@d2 1
+a2 1
+ * $Id: main.c,v 1.3 2005/07/01 21:07:54 twingy Exp $
+d39 1
+a39 2
+  printf("%s\n", RISE_VER_DETAIL);
+  printf("%s\n", "usage: rise_master [options] [proj_env_file]\n\
+d41 1
+a41 1
+  -h\t\tdisplay help.\n\");
+@
+

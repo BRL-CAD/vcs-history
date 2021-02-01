@@ -1,0 +1,379 @@
+head	1.10;
+access;
+symbols
+	rel-7-10-4:1.7
+	STABLE:1.7.0.2
+	stable-branch:1.3
+	rel-7-10-2:1.7
+	rel-7-10-0:1.7
+	rel-7-8-4:1.7
+	rel-7-8-2:1.7
+	rel-7-8-0:1.7
+	trimnurbs-branch:1.6.0.2
+	help:1.6
+	temp_tag:1.6
+	bobWinPort-20051223-freeze:1.5
+	postmerge-20051223-bobWinPort:1.6
+	premerge-20051223-bobWinPort:1.6
+	rel-7-6-6:1.6
+	rel-7-6-4:1.6
+	rel-7-6-2:1.5
+	rel-7-6-branch:1.5.0.6
+	rel-7-6-0:1.5
+	rel-7-4-2:1.5
+	rel-7-4-branch:1.5.0.4
+	bobWinPort:1.5.0.2
+	rel-7-4-0:1.5
+	rel-7-2-6:1.5
+	rel-7-2-4:1.4
+	rel-7-2-2:1.3
+	rel-7-2-0:1.1
+	rel-7-0-4:1.1;
+locks; strict;
+comment	@ * @;
+
+
+1.10
+date	2007.12.15.08.44.39;	author brlcad;	state Exp;
+branches;
+next	1.9;
+
+1.9
+date	2007.12.07.14.21.08;	author brlcad;	state Exp;
+branches;
+next	1.8;
+
+1.8
+date	2007.09.14.15.21.13;	author erikgreenwald;	state Exp;
+branches;
+next	1.7;
+
+1.7
+date	2006.03.24.19.36.13;	author brlcad;	state Exp;
+branches;
+next	1.6;
+
+1.6
+date	2005.11.04.20.27.11;	author brlcad;	state Exp;
+branches
+	1.6.2.1;
+next	1.5;
+
+1.5
+date	2005.05.28.02.14.57;	author brlcad;	state Exp;
+branches
+	1.5.6.1;
+next	1.4;
+
+1.4
+date	2005.04.27.02.02.13;	author brlcad;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2005.03.28.16.47.38;	author brlcad;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2005.03.13.02.56.17;	author brlcad;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2005.01.24.05.12.41;	author brlcad;	state Exp;
+branches;
+next	;
+
+1.5.6.1
+date	2005.11.13.13.46.18;	author brlcad;	state Exp;
+branches;
+next	;
+
+1.6.2.1
+date	2006.04.07.19.34.10;	author jlowenz;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.10
+log
+@strerror is c89, and does work on windows at least with vc8 so drop the obsolete and error-prone sys_errlist array alternates and configure check
+@
+text
+@/*
+ * This software is copyrighted as noted below.  It may be freely copied,
+ * modified, and redistributed, provided that the copyright notice is
+ * preserved on all copies.
+ *
+ * There is no warranty or other guarantee of fitness for this software,
+ * it is provided solely "as is".  Bug reports or fixes may be sent
+ * to the author, who may or may not act on them as he desires.
+ *
+ * You may not include this software in a program or other software product
+ * without supplying the source, or without informing the end-user that the
+ * source is available for no extra charge.
+ *
+ * If you modify this software, you should include a notice giving the
+ * name of the person performing the modification, the date of modification,
+ * and the reason for such modification.
+ */
+/*
+ * into.c - Put output into a file without destroying it.
+ *
+ * Author:	Spencer W. Thomas
+ * 		Computer Science Dept.
+ * 		University of Utah
+ * Date:	Mon Aug 22 1983
+ * Copyright (c) 1983 Spencer W. Thomas
+ */
+
+#include "rle_config.h"
+#include <stdlib.h>
+#include <stdio.h>
+#include <unistd.h>
+#include <errno.h>
+#include <sys/types.h>
+#include <sys/param.h>			/* for MAXPATHLEN */
+#include <sys/stat.h>
+
+#ifndef MAXPATHLEN
+# define MAXPATHLEN BUFSIZ
+#endif
+
+static char temp[] = "intoXXXXXXXX";
+static char buf[MAXPATHLEN+1];
+short forceflg;				/* overwrite an unwritable file? */
+
+extern int errno;
+
+int
+main(argc, argv)
+int argc;
+char **argv;
+{
+    char *cp;
+    int c;
+    FILE * outf;
+    char iobuf[BUFSIZ];
+    int size;
+
+    /* Don't allow files named "-f" in order to catch common error */
+    if (argc >= 2 && !strcmp(argv[1], "-f"))
+    {
+	forceflg++;
+	argc--, argv++;
+    }
+    if (argc != 2)
+    {
+	fprintf(stderr, "Usage: into [ -f ] file\n");
+	exit(1);
+    }
+    if (!forceflg && access(argv[1], 2) < 0 && errno != ENOENT)
+    {
+	fprintf(stderr, "into: ");
+	perror(argv[1]);
+	exit(1);
+    }
+
+    if ( (cp = rindex( argv[1], '/' )) != NULL )
+    {
+	c = *++cp;
+	*cp = 0;
+	strcpy( buf, argv[1] );
+	*cp = c;
+	strcat( buf, temp );
+    }
+    else
+	strcpy( buf, temp );
+    mkstemp( buf );
+
+    if ( (outf = fopen( buf, "w" )) == NULL )
+    {
+	perror(buf);
+	exit(1);
+    }
+
+    while ( (size = fread(iobuf, 1, sizeof iobuf, stdin)) != 0)
+	fwrite(iobuf, 1, size, outf);
+
+    if ( !forceflg && ftell(outf) == 0L )
+    {
+	fprintf( stderr, "into: empty output, \"%s\" not modified\n", argv[1]);
+	unlink( buf );
+	exit(1);
+    }
+    fflush(outf);
+    if (ferror(outf))
+    {
+	fprintf(stderr, "into: %s, \"%s\" not modified\n", strerror(errno), argv[1]);
+	unlink(buf);
+	exit(1);
+    }
+    fclose( outf );
+
+    if ( rename( buf, argv[1] ) < 0 )
+    {
+	fprintf(stderr, "into: rename(%s, %s): ", buf, argv[1]);
+	perror("");
+    }
+    exit( 0 );
+}
+
+#ifdef NEED_RENAME
+rename( file1, file2 )
+char *file1, *file2;
+{
+    struct stat st;
+
+    if ( stat(file2, &st) >= 0 && unlink(file2) < 0 )
+	return -1;
+    if ( link(file1, file2) < 0 )
+	return -1;
+    return unlink( file1 );
+}
+#endif
+@
+
+
+1.9
+log
+@apply a modified form of Pedro F. Giffuni - giffunip's sf patch [ 1845889 ] "Minor fixes to URT" (seems half his changes were already applied)
+@
+text
+@a105 1
+#ifdef HAVE_STRERROR
+a106 3
+#else
+	fprintf(stderr, "into: %s, \"%s\" not modified\n", sys_errlist[errno], argv[1]);
+#endif
+@
+
+
+1.8
+log
+@removed trailing whitespace
+@
+text
+@d86 1
+a86 1
+    mktemp( buf );
+@
+
+
+1.7
+log
+@quell compiler warnings
+@
+text
+@d3 1
+a3 1
+ * modified, and redistributed, provided that the copyright notice is 
+d5 1
+a5 1
+ * 
+d11 1
+a11 1
+ * without supplying the source, or without informing the end-user that the 
+d18 1
+a18 1
+/* 
+d20 1
+a20 1
+ * 
+@
+
+
+1.6
+log
+@sys_errlist is defined as _sys_errlist in include/config_win.h so no need for the duplicated WIN32 sections
+@
+text
+@d31 1
+@
+
+
+1.6.2.1
+log
+@update from HEAD
+@
+text
+@a30 1
+#include <unistd.h>
+@
+
+
+1.5
+log
+@convert WIN32 define checks to _WIN32 since the latter is one of the defaults provided by MSVC whereas the prior is not.  remove some of them related to header inclusions using HAVE_ defines instead.
+@
+text
+@a107 3
+#  ifdef _WIN32
+	fprintf(stderr, "into: %s, \"%s\" not modified\n", _sys_errlist[errno], argv[1]);
+#  else
+a108 1
+#  endif
+@
+
+
+1.5.6.1
+log
+@merge changes from HEAD aka rel-7-6-4 to the rel-7-6-branch just in case someone peeks a gander or tries to continue/build the branch
+@
+text
+@d108 3
+d112 1
+@
+
+
+1.4
+log
+@and sure enough, solaris sneaks back into the picture so it's time to refix the sys_errlist problem.  solaris wants strerror, win32 can use _sys_errlist.  these should eventually get refactored into some sort of libbu facility/macro some day.
+@
+text
+@d108 1
+a108 1
+#  ifdef WIN32
+@
+
+
+1.3
+log
+@make HAVE_SYS_ERRLIST_DECL go away.  there's a better way to check for it, so fix when solaris returns to the rotation (where it'll probably be a problem).  windows gets _sys_errlist from stdlib.h so make sure that's included too.
+@
+text
+@d105 9
+a113 2
+	fprintf(stderr, "into: %s, \"%s\" not modified\n",
+	    sys_errlist[errno], argv[1]);
+@
+
+
+1.2
+log
+@quell warning, main needs to return an int
+@
+text
+@d29 1
+a44 3
+#ifndef HAVE_SYS_ERRLIST_DECL
+extern char *sys_errlist[];
+#endif
+@
+
+
+1.1
+log
+@update of urt from 3.0 to 3.1b1; this includes keeping directory structure and moving tools to src/other/URToolkit/tools
+@
+text
+@d48 1
+a48 1
+void
+@
+

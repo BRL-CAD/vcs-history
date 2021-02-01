@@ -1,0 +1,467 @@
+head	14.8;
+access;
+symbols
+	rel-7-10-4:14.8
+	STABLE:14.8.0.2
+	stable-branch:14.3
+	rel-7-10-2:14.8
+	rel-7-10-0:14.8
+	rel-7-8-4:14.5
+	rel-7-8-2:14.5
+	rel-7-8-0:14.5
+	trimnurbs-branch:14.5.0.2
+	help:14.5
+	temp_tag:14.4
+	bobWinPort-20051223-freeze:14.3
+	postmerge-20051223-bobWinPort:14.4
+	premerge-20051223-bobWinPort:14.4
+	rel-7-6-6:14.4
+	rel-7-6-4:14.4
+	rel-7-6-2:14.3
+	rel-7-6-branch:14.3.0.6
+	rel-7-6-0:14.3
+	rel-7-4-2:14.3
+	rel-7-4-branch:14.3.0.4
+	bobWinPort:14.3.0.2
+	rel-7-4-0:14.3
+	rel-7-2-6:14.3
+	rel-7-2-4:14.3
+	rel-7-2-2:14.3
+	rel-7-2-0:14.3
+	rel-7-0-4:14.2
+	rel-7-0-2:14.2
+	rel-7-0-1:14.1
+	opensource-post:14.1
+	opensource-pre:1.2
+	rel-7-0-branch:1.2.0.2
+	rel-7-0:1.2;
+locks; strict;
+comment	@ * @;
+
+
+14.8
+date	2007.01.27.01.41.45;	author brlcad;	state Exp;
+branches;
+next	14.7;
+
+14.7
+date	2007.01.23.01.13.46;	author brlcad;	state Exp;
+branches;
+next	14.6;
+
+14.6
+date	2007.01.20.14.37.00;	author brlcad;	state Exp;
+branches;
+next	14.5;
+
+14.5
+date	2006.01.18.06.46.24;	author brlcad;	state Exp;
+branches;
+next	14.4;
+
+14.4
+date	2005.10.23.04.44.38;	author brlcad;	state Exp;
+branches;
+next	14.3;
+
+14.3
+date	2005.01.30.20.31.10;	author brlcad;	state Exp;
+branches
+	14.3.6.1;
+next	14.2;
+
+14.2
+date	2004.12.24.01.40.00;	author brlcad;	state Exp;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.31;	author morrison;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2004.08.02.23.01.52;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.15.20.47;	author morrison;	state Exp;
+branches;
+next	;
+
+14.3.6.1
+date	2005.11.13.13.46.19;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.8
+log
+@ws. lots and lots of ws.  see sh/ws.sh for details (cases 'abcdeg').
+@
+text
+@/*                     V I E W D U M M Y . C
+ * BRL-CAD
+ *
+ * Copyright (c) 2004-2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@file viewdummy.c
+ *
+ *  A dummy or example "view" module.
+ *  This code may be used as a prototype for building a new application
+ *  to the RT User-Interface (RTUIF) specification.
+ *
+ *  For more details, see:
+ *  S. Muuss, ``Rapid Creation of Analysis Codes Using BRL-CAD:
+ *  The RT View-Module Interface'', in the Proceedings of the
+ *  BRL-CAD Symposium 1991.
+ *
+ *
+ *  Source -
+ *	SECAD/VLD Computing Consortium, Bldg 394
+ *	The U. S. Army Ballistic Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005
+ */
+#ifndef lint
+static const char RCSview[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/rt/viewdummy.c,v 14.7 2007/01/23 01:13:46 brlcad Exp $ (BRL)";
+#endif
+
+#include "common.h"
+
+
+#include <stdio.h>
+#include "machine.h"
+#include "vmath.h"
+#include "raytrace.h"
+
+#include "rtprivate.h"
+
+/*
+ *  If this variable is set to zero, then "air" solids in the model
+ *  will be entirely discarded.
+ *  If this variable is set non-zero, then "air" solids will be
+ *  retained, and can be expected to show up in the partition lists.
+ */
+int	use_air = 0;		/* Handling of air in librt */
+
+/*
+ *  Viewing module specific "set" variables.
+ *  Any additional variables that the user may be allowed to change
+ *  should be listed here.
+ *  They can then be accessed via a "set" command, either from
+ *  the command line, or from within an animation script.
+ */
+struct bu_structparse view_parse[] = {
+	"",	0, (char *)0,	0,	BU_STRUCTPARSE_FUNC_NULL
+};
+
+/*
+ *  The usage message for this application.
+ */
+char usage[] = "\
+Usage:  rtdummy [options] model.g objects... >file.rad\n\
+Options:\n\
+ -s #		Grid size in pixels, default 512\n\
+ -a Az		Azimuth in degrees\n\
+ -e Elev	Elevation in degrees\n\
+ -M		Read matrix, cmds on stdin\n\
+ -o file.rad	Output file name, else stdout\n\
+ -x #		Set librt debug flags\n\
+";
+
+int	rayhit(register struct application *ap, struct partition *PartHeadp);
+int	raymiss(register struct application *ap);
+
+/*
+ *  			V I E W _ I N I T
+ *
+ *  Called by main() at the start of a run.
+ *  Returns 1 if framebuffer should be opened, else 0.
+ */
+view_init(register struct application *ap, char *file, char *obj, int minus_o)
+{
+	return(0);		/* no framebuffer needed */
+}
+
+/*
+ *			V I E W _ 2 I N I T
+ *
+ *  The beginning of a frame.
+ *  Called by do_frame() just before raytracing starts.
+ */
+void
+view_2init(struct application *ap)
+{
+	ap->a_hit = rayhit;
+	ap->a_miss = raymiss;
+	ap->a_onehit = 1;
+}
+
+/*
+ *			V I E W _ P I X E L
+ *
+ *  Called by worker() after the end of proccessing for each pixel.
+ */
+void
+view_pixel(register struct application *ap)
+{
+}
+
+/*
+ *			V I E W _ E O L
+ *
+ *  Called by worker() at the end of each line.  Depricated.
+ *  Any end-of-line processing should be done in view_pixel().
+ */
+void
+view_eol(register struct application *ap)
+{
+}
+
+/*
+ *			V I E W _ E N D
+ *
+ *  Called in do_frame() at the end of a frame,
+ *  just after raytracing completes.
+ */
+void
+view_end(register struct application *ap)
+{
+}
+
+/*
+ *			V I E W _ S E T U P
+ *
+ *  Called by do_prep(), just before rt_prep() is called, in do.c
+ *  This allows the lighting model to get set up for this frame,
+ *  e.g., generate lights, associate materials routines, etc.
+ */
+void
+view_setup(struct rt_i *rtip)
+{
+}
+
+/*
+ *			V I E W _ C L E A N U P
+ *
+ *  Called by "clean" command, just before rt_clean() is called, in do.c
+ */
+void
+view_cleanup(struct rt_i *rtip)
+{
+}
+
+/*
+ *			R A Y H I T
+ *
+ *  Called via a_hit linkage from rt_shootray() when ray hits.
+ */
+int
+rayhit(register struct application *ap, struct partition *PartHeadp)
+{
+	bu_log("hit: 0x%x\n", ap->a_resource);
+
+	return(1);	/* report hit to main routine */
+}
+
+/*
+ *			R A Y M I S S
+ *
+ *  Called via a_miss linkage from rt_shootray() when ray misses.
+ */
+int
+raymiss(register struct application *ap)
+{
+	bu_log("miss: 0x%x\n", ap->a_resource);
+
+	return(0);
+}
+
+void application_init (void) {}
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+14.7
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@d38 1
+a38 1
+static const char RCSview[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/rt/viewdummy.c,v 14.6 2007/01/20 14:37:00 brlcad Exp $ (BRL)";
+a43 1
+
+@
+
+
+14.6
+log
+@update copyright to 2007
+@
+text
+@d8 2
+a9 3
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+d14 1
+a14 1
+ * General Public License for more details.
+d16 2
+a17 2
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+d38 1
+a38 1
+static const char RCSview[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/rt/viewdummy.c,v 14.5 2006/01/18 06:46:24 brlcad Exp $ (BRL)";
+@
+
+
+14.5
+log
+@update copyright to 2006
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 2004-2006 United States Government as represented by
+d39 1
+a39 1
+static const char RCSview[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/rt/viewdummy.c,v 14.4 2005/10/23 04:44:38 brlcad Exp $ (BRL)";
+@
+
+
+14.4
+log
+@trailing ws
+@
+text
+@d4 1
+a4 1
+ * Copyright (C) 2004-2005 United States Government as represented by
+d39 1
+a39 1
+static const char RCSview[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/rt/viewdummy.c,v 14.3 2005/01/30 20:31:10 brlcad Exp $ (BRL)";
+@
+
+
+14.3
+log
+@update copyright to 2005
+@
+text
+@d32 1
+a32 1
+ *  
+d39 1
+a39 1
+static const char RCSview[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/rt/viewdummy.c,v 14.2 2004/12/24 01:40:00 brlcad Exp $ (BRL)";
+d147 1
+a147 1
+ *			V I E W _ S E T U P 
+@
+
+
+14.3.6.1
+log
+@merge changes from HEAD aka rel-7-6-4 to the rel-7-6-branch just in case someone peeks a gander or tries to continue/build the branch
+@
+text
+@d32 1
+a32 1
+ *
+d39 1
+a39 1
+static const char RCSview[] = "@@(#)$Header$ (BRL)";
+d147 1
+a147 1
+ *			V I E W _ S E T U P
+@
+
+
+14.2
+log
+@add the mysteriously missing gpl header..
+@
+text
+@d4 2
+a5 2
+ * Copyright (c) 2004 United States Government as represented by the
+ * U.S. Army Research Laboratory.
+d39 1
+a39 1
+static const char RCSview[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/rt/viewdummy.c,v 14.1 2004/11/16 19:42:31 morrison Exp $ (BRL)";
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@d1 21
+a21 2
+/*
+ *			V I E W D U M M Y . C
+d39 1
+a39 1
+static const char RCSview[] = "@@(#)$Header: /cvs/brlcad/src/rt/viewdummy.c,v 1.2 2004/08/02 23:01:52 morrison Exp $ (BRL)";
+@
+
+
+1.2
+log
+@replace the wrapped config.h block with common.h
+@
+text
+@d20 1
+a20 1
+static const char RCSview[] = "@@(#)$Header: /cvs/brlcad/src/rt/viewdummy.c,v 1.1 2004/05/20 15:20:47 morrison Exp $ (BRL)";
+d176 10
+@
+
+
+1.1
+log
+@Vast reorganization begins.  Sources moved from top-level directories into src/.
+@
+text
+@d20 1
+a20 1
+static const char RCSview[] = "@@(#)$Header: /cvs/brlcad/rt/viewdummy.c,v 11.11 2004/05/10 15:30:49 erikg Exp $ (BRL)";
+d23 1
+a23 3
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+@
+

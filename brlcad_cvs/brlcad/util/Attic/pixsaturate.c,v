@@ -1,0 +1,350 @@
+head	11.8;
+access;
+symbols
+	ansi-20040405-merged:11.6.2.1
+	postmerge-20040405-ansi:11.7
+	premerge-20040404-ansi:11.6
+	postmerge-autoconf:11.6
+	autoconf-freeze:11.6
+	premerge-autoconf:11.6
+	postmerge-20040315-windows:11.6
+	premerge-20040315-windows:11.6
+	windows-20040315-freeze:11.6
+	autoconf-20031203:11.6
+	autoconf-20031202:11.6
+	autoconf-branch:11.6.0.10
+	phong-branch:11.6.0.8
+	photonmap-branch:11.6.0.6
+	rel-6-1-DP:11.6
+	windows-branch:11.6.0.4
+	rel-6-0-2:11.4
+	ansi-branch:11.6.0.2
+	rel-6-0-1-branch:11.4.0.2
+	hartley-6-0-post:11.5
+	hartley-6-0-pre:11.4
+	rel-6-0-1:11.4
+	rel-6-0:11.4
+	rel-5-4:11.1
+	offsite-5-3-pre:11.3
+	rel-5-3:11.1
+	rel-5-2:11.1
+	rel-5-1-branch:11.1.0.2
+	rel-5-1:11.1
+	rel-5-0:11.1
+	rel-5-0-beta:11.1
+	rel-4-5:11.1
+	ctj-4-5-post:11.1
+	ctj-4-5-pre:11.1
+	rel-4-4:11.1
+	rel-4-0:10.1;
+locks; strict;
+comment	@ * @;
+
+
+11.8
+date	2004.05.21.14.57.56;	author morrison;	state dead;
+branches;
+next	11.7;
+
+11.7
+date	2004.04.05.05.46.02;	author morrison;	state Exp;
+branches;
+next	11.6;
+
+11.6
+date	2002.08.20.17.09.03;	author jra;	state Exp;
+branches
+	11.6.2.1;
+next	11.5;
+
+11.5
+date	2002.08.15.20.56.15;	author hartley;	state Exp;
+branches;
+next	11.4;
+
+11.4
+date	2001.08.10.20.57.07;	author butler;	state Exp;
+branches;
+next	11.3;
+
+11.3
+date	2000.09.01.03.23.59;	author mike;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	2000.08.23.19.04.56;	author mike;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	95.01.04.10.12.58;	author mike;	state Rel4_4;
+branches;
+next	10.1;
+
+10.1
+date	91.10.12.06.48.53;	author mike;	state Rel4_0;
+branches;
+next	1.2;
+
+1.2
+date	90.12.05.06.08.03;	author mike;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	90.09.03.16.59.00;	author mike;	state Exp;
+branches;
+next	;
+
+11.6.2.1
+date	2002.09.19.18.02.42;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@Modify the saturation of a .pix file.
+@
+
+
+11.8
+log
+@moved to src/util/
+@
+text
+@/*
+ *			P I X S A T U R A T E . C
+ *
+ *  A saturation value of 0 gives monochrome,
+ *  1.0 gives the original image,
+ *  and values larger than 1.0 give a more saturated image.
+ *
+ *  Author -
+ *	Michael John Muuss
+ *	(based on a subroutine by Paul Haeberli)
+ *  
+ *  Source -
+ *	SECAD/VLD Computing Consortium, Bldg 394
+ *	The U. S. Army Ballistic Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005-5066
+ *  
+ *  Distribution Status -
+ *	Public Domain, Distribution Unlimitied.
+ *
+ *  Remarks from Haeberli's routine:
+ *	saturate-
+ *		Change the saturation of a row of pixels.  If sat is
+ *	set to 0.0 the result will be monochromatic, if sat is made
+ *	1.0, the color will not change, if sat is made greater than 1.0,
+ *	the amount of color is increased.
+ *	
+ *	The input and output pixel values are in the range 0..255.
+ *
+ *	This technique requires 6 multiplies, 5 adds and 3 bound
+ *	checks per pixel.
+ *
+ *			Paul Haeberli - 1988
+ */
+#ifndef lint
+static const char RCSid[] = "@@(#)$Header: /n/xoff/cvs/brlcad/util/pixsaturate.c,v 11.7 2004/04/05 05:46:02 morrison Exp $ (BRL)";
+#endif
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <math.h>
+
+#define RINTLUM	(79)
+#define GINTLUM	(156)
+#define BINTLUM	(21)
+
+char	buf[3*16*1024];
+
+int
+main(int argc, char **argv)
+{
+	double	sat;			/* saturation */
+	int	bw;			/* monochrome intensity */
+	int	rwgt, gwgt, bwgt;
+	int	rt, gt, bt;
+	int	n;
+	int	nby;
+	register unsigned char	*cp;
+
+	if( argc != 2 )  {
+		fprintf(stderr, "Usage: pixsaturate saturation\n");
+		exit(1);
+	}
+	sat = atof(argv[1]);
+
+	rwgt = RINTLUM*(1.0-sat);
+	gwgt = GINTLUM*(1.0-sat);
+	bwgt = BINTLUM*(1.0-sat);
+
+	while( (nby = fread( buf, 1, sizeof(buf), stdin )) > 0 )  {
+		cp = (unsigned char *)buf;
+		for( n = nby ; n > 0; n -= 3 )  {
+			rt = cp[0];
+			gt = cp[1];
+			bt = cp[2];
+			bw = (rwgt*rt + gwgt*gt + bwgt*bt)>>8;
+			rt = bw+sat*rt;
+			gt = bw+sat*gt;
+			bt = bw+sat*bt;
+			if(rt<0) rt = 0; else if(rt>255) rt=255;
+			if(gt<0) gt = 0; else if(gt>255) gt=255;
+			if(bt<0) bt = 0; else if(bt>255) bt=255;
+			*cp++ = rt;
+			*cp++ = gt;
+			*cp++ = bt;
+		}
+		if( fwrite( buf, 1, nby, stdout ) != nby )  {
+			perror("fwrite");
+			exit(1);
+		}
+	}
+	return(0);
+}
+@
+
+
+11.7
+log
+@merge of ansi-6-0-branch into head
+@
+text
+@d35 1
+a35 1
+static const char RCSid[] = "@@(#)$Header$ (BRL)";
+@
+
+
+11.6
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d35 1
+a35 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/util/pixsaturate.c,v 11.4 2001/08/10 20:57:07 butler Exp $ (BRL)";
+d49 1
+a49 3
+main(argc, argv)
+int	argc;
+char	**argv;
+@
+
+
+11.6.2.1
+log
+@Initial ANSIfication
+@
+text
+@d35 1
+a35 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/util/pixsaturate.c,v 11.6 2002/08/20 17:09:03 jra Exp $ (BRL)";
+d49 3
+a51 1
+main(int argc, char **argv)
+@
+
+
+11.5
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d49 3
+a51 1
+main(int argc, char **argv)
+@
+
+
+11.4
+log
+@Misc compiler warnings eliminated
+@
+text
+@d35 1
+a35 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/util/pixsaturate.c,v 11.3 2000/09/01 03:23:59 mike Exp $ (BRL)";
+d49 1
+a49 3
+main(argc, argv)
+int	argc;
+char	**argv;
+@
+
+
+11.3
+log
+@
+Lint fix
+@
+text
+@d35 1
+a35 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/util/pixsaturate.c,v 11.2 2000/08/23 19:04:56 mike Exp $ (BRL)";
+d39 1
+@
+
+
+11.2
+log
+@
+const RCSid
+@
+text
+@d35 1
+a35 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/util/pixsaturate.c,v 11.1 1995/01/04 10:12:58 mike Rel4_4 $ (BRL)";
+d47 1
+@
+
+
+11.1
+log
+@Release_4.4
+@
+text
+@d35 1
+a35 1
+static char RCSid[] = "@@(#)$Header: /m/cad/util/RCS/pixsaturate.c,v 10.1 91/10/12 06:48:53 mike Rel4_0 $ (BRL)";
+@
+
+
+10.1
+log
+@Release_4.0
+@
+text
+@d35 1
+a35 1
+static char RCSid[] = "@@(#)$Header: /m/cad/util/RCS/pixsaturate.c,v 1.2 90/12/05 06:08:03 mike Exp $ (BRL)";
+@
+
+
+1.2
+log
+@lint
+@
+text
+@d35 1
+a35 1
+static char RCSid[] = "@@(#)$Header: /m/cad/util/RCS/pixsaturate.c,v 1.1 90/09/03 16:59:00 mike Exp $ (BRL)";
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d35 1
+a35 1
+static char RCSid[] = "@@(#)$Header$ (BRL)";
+d70 1
+a70 1
+		cp = buf;
+d91 1
+@

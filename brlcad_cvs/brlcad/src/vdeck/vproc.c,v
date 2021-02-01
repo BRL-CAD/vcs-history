@@ -1,0 +1,1243 @@
+head	14.15;
+access;
+symbols
+	rel-7-10-4:14.12
+	STABLE:14.12.0.2
+	rel-7-10-2:14.12
+	rel-7-10-0:14.10
+	rel-7-8-4:14.7
+	rel-7-8-2:14.7
+	rel-7-8-0:14.7
+	trimnurbs-branch:14.7.0.2
+	help:14.7
+	temp_tag:14.4
+	bobWinPort-20051223-freeze:14.3
+	postmerge-20051223-bobWinPort:14.4
+	premerge-20051223-bobWinPort:14.4
+	rel-7-6-6:14.4
+	rel-7-6-4:14.4
+	rel-7-6-2:14.3
+	rel-7-6-branch:14.3.0.6
+	rel-7-6-0:14.3
+	rel-7-4-2:14.3
+	rel-7-4-branch:14.3.0.4
+	bobWinPort:14.3.0.2
+	rel-7-4-0:14.3
+	rel-7-2-6:14.3
+	rel-7-2-4:14.3
+	rel-7-2-2:14.3
+	rel-7-2-0:14.3
+	rel-7-0-4:14.2
+	rel-7-0-2:14.2
+	rel-7-0-1:14.2
+	opensource-post:14.2
+	opensource-pre:1.1
+	rel-7-0-branch:1.1.0.2
+	rel-7-0:1.1;
+locks; strict;
+comment	@ * @;
+
+
+14.15
+date	2007.11.21.20.49.14;	author erikgreenwald;	state Exp;
+branches;
+next	14.14;
+
+14.14
+date	2007.11.21.19.49.13;	author erikgreenwald;	state Exp;
+branches;
+next	14.13;
+
+14.13
+date	2007.10.14.08.01.46;	author brlcad;	state Exp;
+branches;
+next	14.12;
+
+14.12
+date	2007.07.26.01.14.00;	author brlcad;	state Exp;
+branches;
+next	14.11;
+
+14.11
+date	2007.05.14.21.04.34;	author brlcad;	state Exp;
+branches;
+next	14.10;
+
+14.10
+date	2007.01.27.01.41.55;	author brlcad;	state Exp;
+branches;
+next	14.9;
+
+14.9
+date	2007.01.23.01.13.57;	author brlcad;	state Exp;
+branches;
+next	14.8;
+
+14.8
+date	2007.01.20.14.37.08;	author brlcad;	state Exp;
+branches;
+next	14.7;
+
+14.7
+date	2006.01.29.08.39.28;	author brlcad;	state Exp;
+branches;
+next	14.6;
+
+14.6
+date	2006.01.24.05.00.27;	author brlcad;	state Exp;
+branches;
+next	14.5;
+
+14.5
+date	2006.01.18.06.46.31;	author brlcad;	state Exp;
+branches;
+next	14.4;
+
+14.4
+date	2005.10.23.04.44.39;	author brlcad;	state Exp;
+branches;
+next	14.3;
+
+14.3
+date	2005.01.30.20.31.35;	author brlcad;	state Exp;
+branches
+	14.3.6.1;
+next	14.2;
+
+14.2
+date	2004.12.21.03.36.56;	author morrison;	state Exp;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.32;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.15.22.02;	author morrison;	state Exp;
+branches;
+next	;
+
+14.3.6.1
+date	2005.11.13.13.46.21;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.15
+log
+@pass bu_exit a NULL instead of an empty string
+@
+text
+@/*                         V P R O C . C
+ * BRL-CAD
+ *
+ * Copyright (c) 2004-2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@file vproc.c
+ *
+ * Procedures for vproc.c
+ *
+ * Section 1:  Commands
+ *	3:  List Processing Routines
+ *	4:  String Processing Routines
+ *	5:  Input/Output Routines
+ *	6:  Interrupt Handlers
+ *
+ * Author:	Gary S. Moss
+ */
+#ifndef lint
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/vdeck/vproc.c,v 14.14 2007/11/21 19:49:13 erikgreenwald Exp $ (BRL)";
+#endif
+#include <stdio.h>
+#include <signal.h>
+#include <math.h>
+#include <setjmp.h>
+
+#include "machine.h"
+#include "vmath.h"
+#include "rtstring.h"
+#include "raytrace.h"
+#include "./vextern.h"
+
+#include "./std.h"
+
+extern void	ewrite();
+
+
+char		getarg();
+void		quit(), abort_sig();
+void		blank_fill();
+
+/*
+	Section 1:	C O M M A N D S
+
+			deck()
+			shell()
+ */
+
+/*	d e c k ( )
+	make a COMGEOM deck for current list of objects
+
+ */
+deck( prefix )
+register char *prefix;
+{
+	register int	i;
+
+	nns = nnr = 0;
+
+	/* Create file for solid table.					*/
+	if( prefix != 0 )
+	{
+		(void) strncpy( st_file, prefix, 73 );
+		(void) strcat( st_file, ".st" );
+	}
+	else
+		(void) strncpy( st_file, "solids", 7 );
+	if( (solfd = creat( st_file, 0644 )) < 0 )
+	{
+		perror( st_file );
+		bu_exit( 10, NULL );
+	}
+
+
+	/* Target units (a2,3x)						*/
+	ewrite( solfd, bu_units_string(dbip->dbi_local2base), 2 );
+	blank_fill( solfd, 3 );
+
+	/* Title							*/
+	if( dbip->dbi_title == NULL )
+		ewrite( solfd, objfile, (unsigned) strlen( objfile ) );
+	else
+		ewrite( solfd, dbip->dbi_title, (unsigned) strlen( dbip->dbi_title ) );
+	ewrite( solfd, LF, 1 );
+
+	/* Save space for number of solids and regions.			*/
+	savsol = lseek( solfd, 0L, 1 );
+	blank_fill( solfd, 10 );
+	ewrite( solfd, LF, 1 );
+
+	/* Create file for region table.				*/
+	if( prefix != 0 )
+	{
+		(void) strncpy( rt_file, prefix, 73 );
+		(void) strcat( rt_file, ".rt" );
+	}
+	else
+		(void) strncpy( rt_file, "regions", 8 );
+	if( (regfd = creat( rt_file, 0644 )) < 0 )
+	{
+		perror( rt_file );
+		bu_exit( 10, NULL );
+	}
+
+	/* create file for region ident table
+	 */
+	if( prefix != 0 )
+	{
+		(void) strncpy( id_file, prefix, 73 );
+		(void) strcat( id_file, ".id" );
+	}
+	else
+		(void) strncpy( id_file, "region_ids", 11 );
+	if( (ridfd = creat( id_file, 0644 )) < 0 )
+	{
+		perror( id_file );
+		bu_exit( 10, NULL );
+	}
+	itoa( -1, buff, 5 );
+	ewrite( ridfd, buff, 5 );
+	ewrite( ridfd, LF, 1 );
+
+	/* Initialize matrices.						*/
+	MAT_IDN( identity );
+
+	/* Check integrity of list against directory and build card deck.	*/
+	for( i = 0; i < curr_ct; i++ )
+	{
+		struct directory	*dirp;
+		if( (dirp = db_lookup( dbip, curr_list[i], LOOKUP_NOISY )) != DIR_NULL )  {
+#if 1
+			treewalk( curr_list[i] );
+#else
+			cgobj( dirp, 0, identity );
+#endif
+		}
+	}
+	/* Add number of solids and regions on second card.		*/
+	(void) lseek( solfd, savsol, 0 );
+	itoa( nns, buff, 5 );
+	ewrite( solfd, buff, 5 );
+	itoa( nnr, buff, 5 );
+	ewrite( solfd, buff, 5 );
+
+	/* Finish region id table.					*/
+	ewrite( ridfd, LF, 1 );
+
+	(void) printf( "====================================================\n" );
+	(void) printf( "O U T P U T    F I L E S :\n\n" );
+	(void) printf( "solid table = \"%s\"\n", st_file );
+	(void) printf( "region table = \"%s\"\n", rt_file );
+	(void) printf( "region identification table = \"%s\"\n", id_file );
+	(void) close( solfd );
+	(void) close( regfd );
+	(void) close( ridfd );
+
+	/* reset starting numbers for solids and regions
+	 */
+	delsol = delreg = 0;
+	/* XXX should free soltab list */
+}
+
+/*	s h e l l ( )
+	Execute shell command.
+ */
+int
+shell( args )
+char  *args[];
+{
+	register char	*from, *to;
+	char		*argv[4], cmdbuf[MAXLN];
+	int		pid, ret, status;
+	register int	i;
+
+	(void) signal( SIGINT, SIG_IGN );
+
+	/* Build arg vector.						*/
+	argv[0] = "Shell( deck )";
+	argv[1] = "-c";
+	to = argv[2] = cmdbuf;
+	for( i = 1; i < arg_ct; i++ ) {
+		from = args[i];
+		if( (to + strlen( args[i] )) - argv[2] > MAXLN - 1 ) {
+			(void) fprintf( stderr, "\ncommand line too long\n" );
+			bu_exit( 10, NULL );
+		}
+		(void) printf( "%s ", args[i] );
+		while( *from )
+			*to++ = *from++;
+		*to++ = ' ';
+	}
+	to[-1] = '\0';
+	(void) printf( "\n" );
+	argv[3] = 0;
+	if( (pid = fork()) == -1 ) {
+		perror( "shell()" );
+		return( -1 );
+	} else	if( pid == 0 ) { /*
+				  * CHILD process - execs a shell command
+					  */
+		(void) signal( SIGINT, SIG_DFL );
+		(void) execv( "/bin/sh", argv );
+		perror( "/bin/sh -c" );
+		bu_exit( 99, NULL );
+	} else	/*
+		 * PARENT process - waits for shell command
+		 * to finish.
+			 */
+		do {
+			if( (ret = wait( &status )) == -1 ) {
+				perror( "wait( /bin/sh -c )" );
+				break;
+			}
+		} while( ret != pid );
+	return( 0 );
+}
+
+/*	t o c ( )
+	Build a sorted list of names of all the objects accessable
+	in the object file.
+ */
+void
+toc()
+{
+	register struct directory *dp;
+	register int		i;
+
+	(void) printf( "Making the Table of Contents.\n" );
+	(void) fflush( stdout );
+
+	FOR_ALL_DIRECTORY_START(dp, dbip) {
+	    toc_list[ndir++] = dp->d_namep;
+	} FOR_ALL_DIRECTORY_END;
+}
+
+/*
+	Section 3:	L I S T   P R O C E S S I N G   R O U T I N E S
+
+			list_toc()
+			col_prt()
+			insert()
+			delete()
+*/
+
+/*	l i s t _ t o c ( )
+	List the table of contents.
+ */
+void
+list_toc( args )
+char	 *args[];
+{
+	register int	i, j;
+	(void) fflush( stdout );
+	for( tmp_ct = 0, i = 1; args[i] != NULL; i++ )
+	{
+		for( j = 0; j < ndir; j++ )
+		{
+			if( match( args[i], toc_list[j] ) )
+				tmp_list[tmp_ct++] = toc_list[j];
+		}
+	}
+	if( i > 1 )
+		(void) col_prt( tmp_list, tmp_ct );
+	else
+		(void) col_prt( toc_list, ndir );
+	return;
+}
+
+#define NAMESIZE	16
+#define MAX_COL	(NAMESIZE*5)
+#define SEND_LN()	{\
+			buf[column++] = '\n';\
+			ewrite( 1, buf, (unsigned) column );\
+			column = 0;\
+			}
+
+/*	c o l _ p r t ( )
+	Print list of names in tabular columns.
+ */
+col_prt( list, ct )
+register char	*list[];
+register int	ct;
+{
+	char		buf[MAX_COL+2];
+	register int	i, column, spaces;
+
+	for( i = 0, column = 0; i < ct; i++ )
+	{
+		if( column + strlen( list[i] ) > MAX_COL )
+		{
+			SEND_LN();
+			i--;
+		}
+		else
+		{
+			(void) strncpy( &buf[column], list[i], MAX_COL+2 );
+			column += strlen( list[i] );
+			spaces = NAMESIZE - (column % NAMESIZE );
+			if( column + spaces < MAX_COL )
+				for( ; spaces > 0; spaces-- )
+					buf[column++] = ' ';
+			else
+				SEND_LN();
+		}
+	}
+	SEND_LN();
+	return	ct;
+}
+
+/*	i n s e r t ( )
+	Insert each member of the table of contents 'toc_list' which
+	matches one of the arguments into the current list 'curr_list'.
+ */
+int
+insert(  args,	ct )
+char		*args[];
+register int	ct;
+{
+	register int	i, j, nomatch;
+
+	/* For each argument (does not include args[0]).			*/
+	for( i = 1; i < ct; i++ )
+	{ /* If object is in table of contents, insert in current list.	*/
+		nomatch = YES;
+		for( j = 0; j < ndir; j++ )
+		{
+			if( match( args[i], toc_list[j] ) )
+			{
+				nomatch = NO;
+				/* Allocate storage for string.			*/
+				curr_list[curr_ct++] = bu_strdup(toc_list[j]);
+			}
+		}
+		if( nomatch )
+			(void) fprintf( stderr,
+			    "Object \"%s\" not found.\n", args[i] );
+	}
+	return	curr_ct;
+}
+
+/*	d e l e t e ( )
+	delete all members of current list 'curr_list' which match
+	one of the arguments
+ */
+int
+delete(  args )
+char	*args[];
+{
+	register int	i;
+	register int	nomatch;
+
+	/* for each object in arg list
+	 */
+	for( i = 1; i < arg_ct; i++ ) {
+		register int	j;
+		nomatch = YES;
+
+		/* traverse list to find string
+		 */
+		for( j = 0; j < curr_ct; )
+			if( match( args[i], curr_list[j] ) )
+			{
+				register int	k;
+
+				nomatch = NO;
+				bu_free( curr_list[j], "curr_list" );
+				--curr_ct;
+				/* starting from bottom of list,
+				 * pull all entries up to fill up space
+				 made by deletion
+				 */
+				for( k = j; k < curr_ct; k++ )
+					curr_list[k] = curr_list[k+1];
+			}
+			else	++j;
+		if( nomatch )
+			(void) fprintf( stderr,
+			    "Object \"%s\" not found.\n",
+			    args[i]
+			    );
+	}
+	return( curr_ct );
+}
+
+/*
+	Section 4:	S T R I N G   P R O C E S S I N G   R O U T I N E S
+
+			itoa()
+			check()
+ */
+
+/*	i t o a ( )
+	Convert integer to ascii  wd format.
+ */
+itoa( n, s, w )
+register
+char	*s;
+register
+int   n,    w;
+{
+	int	 c, i, j, sign;
+
+	if( (sign = n) < 0 )	n = -n;
+	i = 0;
+	do
+		s[i++] = n % 10 + '0';
+	while( (n /= 10) > 0 );
+	if( sign < 0 )	s[i++] = '-';
+
+	/* Blank fill array.					*/
+	for( j = i; j < w; j++ )	s[j] = ' ';
+	if( i > w ) {
+		s[w-1] = (s[w]-1-'0')*10 + (s[w-1]-'0')  + 'A';
+	}
+	s[w] = '\0';
+
+	/* Reverse the array.					*/
+	for( i = 0, j = w - 1; i < j; i++, j-- ) {
+		c    = s[i];
+		s[i] = s[j];
+		s[j] =    c;
+	}
+}
+
+vls_blanks( v, n )
+struct rt_vls	*v;
+int		n;
+{
+	RT_VLS_CHECK(v);
+	rt_vls_strncat( v, "                                                                                                                                ",
+	    n);
+}
+
+/*
+ *			V L S _ I T O A
+ *
+ *	Convert integer to ascii  wd format.
+ */
+vls_itoa( v, n, w )
+struct rt_vls	*v;
+register int	n;
+register int	w;
+{
+	int	 c, i, j, sign;
+	register char	*s;
+
+	RT_VLS_CHECK(v);
+	rt_vls_strncat( v, "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", w);
+	s = rt_vls_addr(v)+rt_vls_strlen(v)-w;
+
+	if( (sign = n) < 0 )	n = -n;
+	i = 0;
+	do
+		s[i++] = n % 10 + '0';
+	while( (n /= 10) > 0 );
+	if( sign < 0 )	s[i++] = '-';
+
+	/* Blank fill array.					*/
+	for( j = i; j < w; j++ )	s[j] = ' ';
+	if( i > w ) {
+		s[w-1] = (s[w]-1-'0')*10 + (s[w-1]-'0')  + 'A';
+	}
+	s[w] = '\0';
+
+	/* Reverse the array.					*/
+	for( i = 0, j = w - 1; i < j; i++, j-- ) {
+		c    = s[i];
+		s[i] = s[j];
+		s[j] =    c;
+	}
+}
+
+vls_ftoa_vec_cvt( v, vec, w, d )
+struct rt_vls	*v;
+vect_t		vec;
+int		w;
+int		d;
+{
+	vls_ftoa( v, vec[X]*dbip->dbi_base2local, w, d );
+	vls_ftoa( v, vec[Y]*dbip->dbi_base2local, w, d );
+	vls_ftoa( v, vec[Z]*dbip->dbi_base2local, w, d );
+}
+
+vls_ftoa_vec( v, vec, w, d )
+struct rt_vls	*v;
+vect_t		vec;
+int		w;
+int		d;
+{
+	vls_ftoa( v, vec[X], w, d );
+	vls_ftoa( v, vec[Y], w, d );
+	vls_ftoa( v, vec[Z], w, d );
+}
+
+vls_ftoa_cvt( v, f, w, d )
+struct rt_vls	*v;
+register double	f;
+register int	w, d;
+{
+	vls_ftoa( v, f*dbip->dbi_base2local, w, d );
+}
+
+/*
+ *			V L S _ F T O A
+ *
+ *	Convert float to ascii  w.df format.
+ */
+vls_ftoa( v, f, w, d )
+struct rt_vls	*v;
+register double	f;
+register int	w, d;
+{
+	register char	*s;
+	register int	c, i, j;
+	long	n, sign;
+
+	RT_VLS_CHECK(v);
+	rt_vls_strncat( v, "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", w);
+	s = rt_vls_addr(v)+rt_vls_strlen(v)-w;
+
+	if( w <= d + 2 )
+	{
+		(void) fprintf( stderr,
+		    "ftoascii: incorrect format  need w.df  stop"
+		    );
+		bu_exit( 10, NULL );
+	}
+	for( i = 1; i <= d; i++ )
+		f = f * 10.0;
+
+	/* round up */
+	if( f < 0.0 )
+		f -= 0.5;
+	else
+		f += 0.5;
+	n = f;
+	if( (sign = n) < 0 )
+		n = -n;
+	i = 0;
+	do	{
+		s[i++] = n % 10 + '0';
+		if( i == d )
+			s[i++] = '.';
+	}	while( (n /= 10) > 0 );
+
+	/* Zero fill the d field if necessary.				*/
+	if( i < d )
+	{
+		for( j = i; j < d; j++ )
+			s[j] = '0';
+		s[j++] = '.';
+		i = j;
+	}
+	if( sign < 0 )
+		s[i++] = '-';
+
+	/* Blank fill rest of field.					*/
+	for ( j = i; j < w; j++ )
+		s[j] = ' ';
+	if( i > w )
+		(void) fprintf( stderr, "Ftoascii: field length too small\n" );
+	s[w] = '\0';
+
+	/* Reverse the array.						*/
+	for( i = 0, j = w - 1; i < j; i++, j-- )
+	{
+		c    = s[i];
+		s[i] = s[j];
+		s[j] =    c;
+	}
+}
+
+/*
+	Section 5:	I / O   R O U T I N E S
+ *
+			getcmd()
+			getarg()
+			menu()
+			blank_fill()
+			bug()
+			fbug()
+ */
+
+/*	g e t c m d ( )
+	Return first character read from keyboard,
+	copy command into args[0] and arguments into args[1]...args[n].
+
+ */
+char
+getcmd( args, ct )
+char		*args[];
+register int	ct;
+{
+	/* Get arguments.						 */
+	if( ct == 0 )
+		while( --arg_ct >= 0 )
+			bu_free( args[arg_ct], "args[arg_ct]" );
+	for( arg_ct = ct; arg_ct < MAXARG - 1; ++arg_ct )
+	{
+		args[arg_ct] = bu_malloc( MAXLN, "getcmd buffer" );
+		if( ! getarg( args[arg_ct] ) )
+			break;
+	}
+	++arg_ct;
+	args[arg_ct] = 0;
+
+	/* Before returning to command interpreter,
+	 * set up interrupt handler for commands...
+	 * trap interrupts such that command is aborted cleanly and
+	 * command line is restored rather than terminating program
+	 */
+	(void) signal( SIGINT, abort_sig );
+	return	(args[0])[0];
+}
+
+/*	g e t a r g ( )
+	Get a word of input into 'str',
+	Return 0 if newline is encountered.
+	Return 1 otherwise.
+ */
+char
+getarg( str )
+register char	*str;
+{
+	do
+	{
+		*str = getchar();
+		if( (int)(*str) == ' ' )
+		{
+			*str = '\0';
+			return( 1 );
+		}
+		else
+			++str;
+	}	while( (int)(str[-1]) != EOF && (int)(str[-1]) != '\n' );
+	if( (int)(str[-1]) == '\n' )
+		--str;
+	*str = '\0';
+	return	0;
+}
+
+/*	m e n u ( )
+	Display menu stored at address 'addr'.
+ */
+void
+menu( addr )
+char **addr;
+{
+	register char	**sbuf = addr;
+	while( *sbuf )
+		(void) printf( "%s\n", *sbuf++ );
+	(void) fflush( stdout );
+	return;
+}
+
+/*	b l a n k _ f i l l ( )
+	Write count blanks to fildes.
+ */
+void
+blank_fill( fildes, count )
+register int	fildes,	count;
+{
+	register char	*blank_buf = BLANKS;
+	ewrite( fildes, blank_buf, (unsigned) count );
+	return;
+}
+
+/*
+	Section 6:	I N T E R R U P T   H A N D L E R S
+ *
+			abort_sig()
+			quit()
+ */
+
+/*	a b o r t ( )
+	Abort command without terminating run (restore command prompt) and
+	cleanup temporary files.
+ */
+/*ARGSUSED*/
+void
+abort_sig( sig )
+{
+	(void) signal( SIGINT, quit );	/* reset trap */
+
+	/* goto command interpreter with environment restored.		*/
+	longjmp( env, sig );
+}
+
+/*	q u i t ( )
+	Terminate run.
+ */
+/*ARGSUSED*/
+void
+quit( sig )
+{
+	(void) fprintf( stdout, "quitting...\n" );
+	bu_exit( 0, NULL );
+}
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+14.14
+log
+@exit->bu_exit where applicable
+@
+text
+@d33 1
+a33 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/vdeck/vproc.c,v 14.13 2007/10/14 08:01:46 brlcad Exp $ (BRL)";
+d84 1
+a84 1
+		bu_exit( 10, "" );
+d115 1
+a115 1
+		bu_exit( 10, "" );
+d130 1
+a130 1
+		bu_exit( 10, "" );
+d198 1
+a198 1
+			bu_exit( 10, "" );
+d217 1
+a217 1
+		bu_exit( 99, "" );
+d539 1
+a539 1
+		bu_exit( 10, "" );
+d710 1
+a710 1
+	bu_exit( 0, "" );
+@
+
+
+14.13
+log
+@take care of a slew of level 4 flawfinder issues related to adding length parameters to string and i/o functions
+@
+text
+@d33 1
+a33 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/vdeck/vproc.c,v 14.12 2007/07/26 01:14:00 brlcad Exp $ (BRL)";
+d84 1
+a84 1
+		exit( 10 );
+d115 1
+a115 1
+		exit( 10 );
+d130 1
+a130 1
+		exit( 10 );
+d198 1
+a198 1
+			exit( 10 );
+d217 1
+a217 1
+		exit( 99 );
+d539 1
+a539 1
+		exit( 10 );
+d710 1
+a710 1
+	exit( 0 );
+@
+
+
+14.12
+log
+@remove ephemeral data like phone numbers and addresses, including the misleading 'source' statements on code that is continually evolving and receiving contributions from many many sources
+@
+text
+@d33 1
+a33 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/vdeck/vproc.c,v 14.11 2007/05/14 21:04:34 brlcad Exp $ (BRL)";
+d309 1
+a309 1
+			(void) strcpy( &buf[column], list[i] );
+@
+
+
+14.11
+log
+@gah, pick up where someone left off over half a decade ago.  finish updating all of the compat4 symbols throughout the code to their new names.  finally. it's done.  make the deprecated headers obsolete -- make compat4.h obsolete too so we can be sure that all of the changes are now picked up by the compiler as errors.  this change will likely impact muves if they've similarly not updated to the new names too, so the headers are kept with a #warning for now (though will likely disappear down the road entirely).
+@
+text
+@a30 4
+ *		U. S. Army Ballistic Research Laboratory
+ *		Aberdeen Proving Ground
+ *		Maryland 21005-5066
+ *		(301)278-6647 or AV-298-6647
+d33 1
+a33 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/vdeck/vproc.c,v 14.10 2007/01/27 01:41:55 brlcad Exp $ (BRL)";
+@
+
+
+14.10
+log
+@ws. lots and lots of ws.  see sh/ws.sh for details (cases 'abcdeg').
+@
+text
+@d21 15
+a35 6
+	Author:		Gary S. Moss
+			U. S. Army Ballistic Research Laboratory
+			Aberdeen Proving Ground
+			Maryland 21005-5066
+			(301)278-6647 or AV-298-6647
+*/
+d37 1
+a37 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/vdeck/vproc.c,v 14.9 2007/01/23 01:13:57 brlcad Exp $ (BRL)";
+a38 10
+/*
+	Procedures for vproc.c
+
+	Section 1:  Commands
+		3:  List Processing Routines
+		4:  String Processing Routines
+		5:  Input/Output Routines
+		6:  Interrupt Handlers
+
+ */
+d93 1
+a93 1
+	ewrite( solfd, rt_units_string(dbip->dbi_local2base), 2 );
+@
+
+
+14.9
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@d28 1
+a28 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/vdeck/vproc.c,v 14.8 2007/01/20 14:37:08 brlcad Exp $ (BRL)";
+d637 1
+a637 1
+ 	Return 1 otherwise.
+@
+
+
+14.8
+log
+@update copyright to 2007
+@
+text
+@d8 2
+a9 3
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+d14 1
+a14 1
+ * General Public License for more details.
+d16 2
+a17 2
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+d28 1
+a28 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/vdeck/vproc.c,v 14.7 2006/01/29 08:39:28 brlcad Exp $ (BRL)";
+@
+
+
+14.7
+log
+@update to api changes from rt_* to bu_* for certain routines.
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 2004-2006 United States Government as represented by
+d29 1
+a29 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/vdeck/vproc.c,v 14.6 2006/01/24 05:00:27 brlcad Exp $ (BRL)";
+@
+
+
+14.6
+log
+@convert iteration over the array of linked list of directory nodes to FOR_ALL_DIRECTORY_START/FOR_ALL_DIRECTORY_END instead
+@
+text
+@d29 1
+a29 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/vdeck/vproc.c,v 14.5 2006/01/18 06:46:31 brlcad Exp $ (BRL)";
+d350 1
+a350 1
+				curr_list[curr_ct++] = rt_strdup(toc_list[j]);
+d385 1
+a385 1
+				rt_free( curr_list[j], "curr_list" );
+d616 1
+a616 1
+			rt_free( args[arg_ct], "args[arg_ct]" );
+d619 1
+a619 1
+		args[arg_ct] = rt_malloc( MAXLN, "getcmd buffer" );
+@
+
+
+14.5
+log
+@update copyright to 2006
+@
+text
+@d29 1
+a29 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/vdeck/vproc.c,v 14.4 2005/10/23 04:44:39 brlcad Exp $ (BRL)";
+d250 3
+a252 5
+	for( i = 0; i < RT_DBNHASH; i++ )  {
+		for( dp = dbip->dbi_Head[i]; dp != DIR_NULL; dp=dp->d_forw )  {
+			toc_list[ndir++] = dp->d_namep;
+		}
+	}
+@
+
+
+14.4
+log
+@trailing ws
+@
+text
+@d4 1
+a4 1
+ * Copyright (C) 2004-2005 United States Government as represented by
+d29 1
+a29 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/vdeck/vproc.c,v 14.3 2005/01/30 20:31:35 brlcad Exp $ (BRL)";
+@
+
+
+14.3
+log
+@update copyright to 2005
+@
+text
+@d29 1
+a29 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/vdeck/vproc.c,v 14.2 2004/12/21 03:36:56 morrison Exp $ (BRL)";
+d39 1
+a39 1
+	  
+d74 1
+a74 1
+{	
+d147 1
+a147 1
+	{	
+d272 1
+a272 1
+{	
+d304 1
+a304 1
+{	
+d339 1
+a339 1
+{	
+d375 1
+a375 1
+	for( i = 1; i < arg_ct; i++ ) { 
+d383 1
+a383 1
+			{	
+d395 1
+a395 1
+			} 
+d426 2
+a427 2
+	do	
+		s[i++] = n % 10 + '0';	
+d474 2
+a475 2
+	do	
+		s[i++] = n % 10 + '0';	
+d608 1
+a608 1
+		
+d669 1
+a669 1
+{	
+d683 1
+a683 1
+{	
+@
+
+
+14.3.6.1
+log
+@merge changes from HEAD aka rel-7-6-4 to the rel-7-6-branch just in case someone peeks a gander or tries to continue/build the branch
+@
+text
+@d29 1
+a29 1
+static const char RCSid[] = "@@(#)$Header$ (BRL)";
+d39 1
+a39 1
+
+d74 1
+a74 1
+{
+d147 1
+a147 1
+	{
+d272 1
+a272 1
+{
+d304 1
+a304 1
+{
+d339 1
+a339 1
+{
+d375 1
+a375 1
+	for( i = 1; i < arg_ct; i++ ) {
+d383 1
+a383 1
+			{
+d395 1
+a395 1
+			}
+d426 2
+a427 2
+	do
+		s[i++] = n % 10 + '0';
+d474 2
+a475 2
+	do
+		s[i++] = n % 10 + '0';
+d608 1
+a608 1
+
+d669 1
+a669 1
+{
+d683 1
+a683 1
+{
+@
+
+
+14.2
+log
+@assign copyright and GPL
+@
+text
+@d4 2
+a5 2
+ * Copyright (c) 2004 United States Government as represented by the
+ * U.S. Army Research Laboratory.
+d29 1
+a29 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/vdeck/vproc.c,v 14.1 2004/11/16 19:42:32 morrison Exp $ (BRL)";
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@d1 21
+a21 1
+/*
+d29 1
+a29 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/vdeck/vproc.c,v 1.1 2004/05/20 15:22:02 morrison Exp $ (BRL)";
+@
+
+
+1.1
+log
+@Vast reorganization begins.  Sources moved from top-level directories into src/.
+@
+text
+@d9 1
+a9 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/vdeck/vproc.c,v 11.4 2001/08/10 18:45:16 jra Exp $ (BRL)";
+d700 10
+@
+

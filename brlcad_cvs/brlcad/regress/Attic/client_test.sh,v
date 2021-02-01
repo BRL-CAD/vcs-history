@@ -1,0 +1,485 @@
+head	1.17;
+access;
+symbols
+	ansi-20040405-merged:1.16
+	postmerge-20040405-ansi:1.16
+	premerge-20040404-ansi:1.16
+	postmerge-autoconf:1.16
+	autoconf-freeze:1.16
+	premerge-autoconf:1.16
+	postmerge-20040315-windows:1.16
+	premerge-20040315-windows:1.16
+	windows-20040315-freeze:1.16
+	autoconf-20031203:1.16
+	autoconf-20031202:1.16
+	autoconf-branch:1.16.0.12
+	phong-branch:1.16.0.10
+	photonmap-branch:1.16.0.8
+	rel-6-1-DP:1.16
+	windows-branch:1.16.0.6
+	rel-6-0-2:1.16
+	ansi-branch:1.16.0.4
+	rel-6-0-1-branch:1.16.0.2
+	hartley-6-0-post:1.16
+	hartley-6-0-pre:1.16
+	rel-6-0-1:1.16
+	rel-6-0:1.16;
+locks; strict;
+comment	@# @;
+
+
+1.17
+date	2004.05.19.19.18.25;	author morrison;	state dead;
+branches;
+next	1.16;
+
+1.16
+date	2001.09.26.16.08.37;	author morrison;	state Exp;
+branches;
+next	1.15;
+
+1.15
+date	2001.09.25.00.31.06;	author morrison;	state Exp;
+branches;
+next	1.14;
+
+1.14
+date	2001.09.24.23.51.12;	author morrison;	state Exp;
+branches;
+next	1.13;
+
+1.13
+date	2001.09.24.22.04.11;	author morrison;	state Exp;
+branches;
+next	1.12;
+
+1.12
+date	2001.09.19.09.35.31;	author morrison;	state Exp;
+branches;
+next	1.11;
+
+1.11
+date	2001.09.19.08.38.23;	author morrison;	state Exp;
+branches;
+next	1.10;
+
+1.10
+date	2001.09.07.04.58.50;	author morrison;	state Exp;
+branches;
+next	1.9;
+
+1.9
+date	2001.09.07.04.30.55;	author morrison;	state Exp;
+branches;
+next	1.8;
+
+1.8
+date	2001.09.06.04.06.47;	author morrison;	state Exp;
+branches;
+next	1.7;
+
+1.7
+date	2001.09.06.02.52.45;	author morrison;	state Exp;
+branches;
+next	1.6;
+
+1.6
+date	2001.08.28.21.21.34;	author morrison;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	2001.08.06.15.57.19;	author morrison;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	2001.07.31.17.01.32;	author morrison;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2001.07.23.20.51.59;	author morrison;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2001.07.23.19.43.39;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2001.06.29.17.43.23;	author butler;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.17
+log
+@The old regression test scripts are being replaced by something else.  Likely it'll be Corredor with some unit test framework.  The old scripts are so far out of sync and so inadequate that it's simply not worth it any more.
+@
+text
+@#!/bin/sh
+#
+#  This script is intended to be run from the client_build.sh which is run
+#  from the client_wait.sh script.  That is how the environment variables
+#  get set.
+
+. `dirname $0`/library
+
+initializeVariable ARCH `${REGRESS_DIR}/brlcad/sh/machinetype.sh`
+initializeVariable TESTS_DIR "${REGRESS_DIR}/brlcad/regress/tests.d"
+
+#
+# Now we have an installed version of the software.  We can now excercise the
+# programs to see if things are working properly
+#
+
+# if [ -f ${REGRESS_DIR}/.regress.${ARCH}/MAKE_LOG ] ; then mv ${REGRESS_DIR}/.regress.${ARCH}/MAKE_LOG ${REGRESS_DIR}/.regress.${ARCH}/MAKE_LOG.bak ; fi
+
+if [ -d $TESTS_DIR ] ; then
+    log "Running tests found in $TESTS_DIR"
+    log "cd ${REGRESS_DIR}/.regress.${ARCH}"
+    cd "${REGRESS_DIR}/.regress.${ARCH}"
+
+    SCRIPTS=`ls -A $TESTS_DIR`
+    for SCRIPT in $SCRIPTS ; do
+	if [ -f ${TESTS_DIR}/$SCRIPT ] && [ -x ${TESTS_DIR}/$SCRIPT ] ; then
+		log "Running [${TESTS_DIR}/$SCRIPT] test" 
+		log "RUNNING TEST:" >> $REGRESS_DIR/.regress.${ARCH}/MAKE_LOG
+		log "${TESTS_DIR}/$SCRIPT" >> $REGRESS_DIR/.regress.${ARCH}/MAKE_LOG
+		${TESTS_DIR}/$SCRIPT $REGRESS_DIR >> $REGRESS_DIR/.regress.${ARCH}/MAKE_LOG 2>&1
+	fi
+    done
+    cd "$LPWD"
+else
+    log "WARNING: could not find any tests to run in $TESTS_DIR"
+fi
+
+###cd $REGRESS_DIR/.regress.${ARCH}
+
+
+# log "$HOSTNAME regression complete at `date`" >> $REGRESS_DIR/.regress.${ARCH}/MAKE_LOG
+log "Regression Tests Complete" >> $REGRESS_DIR/.regress.${ARCH}/MAKE_LOG
+
+#
+# Now we check to see how we compare to our "reference" run
+#
+if [ -f $REGRESS_DIR/brlcad/regress/ref_${ARCH} ] ; then
+
+	# not all diffs are the same :) no -B or -d 
+	diff -c	-w -b $REGRESS_DIR/brlcad/regress/ref_${ARCH} \
+		$REGRESS_DIR/.regress.${ARCH}/MAKE_LOG \
+		> $REGRESS_DIR/.regress.${ARCH}/DIFFS
+else
+# only master (non-client) scripts should be setting reference
+#	cp $REGRESS_DIR/.regress.${ARCH}/MAKE_LOG ./ref_${ARCH}
+
+	log "No reference file was available" >> $REGRESS_DIR/.regress.${ARCH}/DIFFS
+	cat $REGRESS_DIR/.regress.${ARCH}/MAKE_LOG  >> $REGRESS_DIR/.regress.${ARCH}/DIFFS
+fi
+
+log "--- Execution Test Status ---" >> $REGRESS_DIR/.regress.${ARCH}/DIFFS
+tail -10 $REGRESS_DIR/.regress.${ARCH}/MAKE_LOG >> $REGRESS_DIR/.regress.${ARCH}/DIFFS
+
+#export MAILUSER=morrison@@arl.army.mil
+#if [ -s $REGRESS_DIR/.regress.${ARCH}/DIFFS -a X$MAILUSER != X ] ; then
+#    log "MAILING OUT DIFF FILE"
+#    mail -s "Regression Errors .regress.${ARCH}" $MAILUSER < $REGRESS_DIR/.regress.${ARCH}/DIFFS
+# 	$MAIL -s "Regression Errors .regress.${ARCH}"  $REPORT_TO_USER \
+# 		< $REGRESS_DIR/.regress.${ARCH}/DIFFS
+#fi
+
+log "Done $0"
+@
+
+
+1.16
+log
+@test clients can put their junk into the .regress.ARCH dirs now
+@
+text
+@@
+
+
+1.15
+log
+@case agreement with logged output
+@
+text
+@d21 2
+d29 1
+a29 1
+		log ${TESTS_DIR}/$SCRIPT >> $REGRESS_DIR/.regress.${ARCH}/MAKE_LOG
+d33 1
+@
+
+
+1.14
+log
+@added -b option to diff comparison to ignore whitespace
+@
+text
+@d39 1
+a39 1
+log "Regression Tests Completed" >> $REGRESS_DIR/.regress.${ARCH}/MAKE_LOG
+@
+
+
+1.13
+log
+@Stopped output of date and hostname at end of testing
+@
+text
+@d47 1
+a47 1
+	diff -c	-w $REGRESS_DIR/brlcad/regress/ref_${ARCH} \
+@
+
+
+1.12
+log
+@removed extra diff options
+@
+text
+@d38 2
+a39 1
+log "$HOSTNAME regression complete at `date`" >> $REGRESS_DIR/.regress.${ARCH}/MAKE_LOG
+@
+
+
+1.11
+log
+@added better path to the reference log files
+@
+text
+@d45 2
+a46 1
+	diff -c	-w -B -d $REGRESS_DIR/brlcad/regress/ref_${ARCH} \
+@
+
+
+1.10
+log
+@*** empty log message ***
+@
+text
+@d43 1
+a43 1
+if [ -f ./ref_${ARCH} ] ; then
+d45 1
+a45 1
+	diff -c	-w -B -d ref_${ARCH} \
+@
+
+
+1.9
+log
+@*** empty log message ***
+@
+text
+@d22 1
+a22 1
+    SCRIPTS=`ls -B $TESTS_DIR`
+@
+
+
+1.8
+log
+@added regress dir argument to each test that gets run
+@
+text
+@d10 1
+a10 1
+initializeVariable TESTS_DIR "$PWD/tests.d"
+@
+
+
+1.7
+log
+@*** empty log message ***
+@
+text
+@d28 1
+a28 1
+		${TESTS_DIR}/$SCRIPT >> $REGRESS_DIR/.regress.${ARCH}/MAKE_LOG 2>&1
+@
+
+
+1.6
+log
+@"fixed" the inclusion of the library resource file (that contains all the function definitions) so that the scripts could be called remotely (without needing to be in the same dir as the library file (. ./library))
+
+changed it to:
+. `dirname $0`/libaray
+@
+text
+@d20 1
+a20 1
+    echo "Running tests found in $TESTS_DIR"
+d25 3
+a27 3
+		echo "Running [${TESTS_DIR}/$SCRIPT] test" 
+		echo "RUNNING TEST:" >> $REGRESS_DIR/.regress.${ARCH}/MAKE_LOG
+		echo ${TESTS_DIR}/$SCRIPT >> $REGRESS_DIR/.regress.${ARCH}/MAKE_LOG
+d32 1
+a32 1
+    echo "WARNING: could not find any tests to run in $TESTS_DIR"
+d38 1
+a38 1
+echo "$HOSTNAME regression complete at `date`" >> $REGRESS_DIR/.regress.${ARCH}/MAKE_LOG
+d52 1
+a52 1
+	echo "No reference file was available" >> $REGRESS_DIR/.regress.${ARCH}/DIFFS
+d56 1
+a56 1
+echo "--- Execution Test Status ---" >> $REGRESS_DIR/.regress.${ARCH}/DIFFS
+d61 1
+a61 1
+#    echo "MAILING OUT DIFF FILE"
+d67 1
+a67 1
+echo "Done client_test.sh"
+@
+
+
+1.5
+log
+@added a starting sun reference (fails)
+updated the linux and freebsd reference (also fail)
+updated scripts for more capabilities
+@
+text
+@d7 1
+a7 1
+. ./library
+@
+
+
+1.4
+log
+@updates to client scripts so sun5 will work properly
+added status.sh to verify builds and e-mail results of tests available
+@
+text
+@d9 1
+@
+
+
+1.3
+log
+@email change
+@
+text
+@d16 1
+a16 1
+if [ -f ${REGRESS_DIR}/.regress.${ARCH}/MAKE_LOG ] ; then mv ${REGRESS_DIR}/.regress.${ARCH}/MAKE_LOG ${REGRESS_DIR}/.regress.${ARCH}/MAKE_LOG.bak ; fi
+d44 1
+a44 1
+	diff -c	-b ref_${ARCH} \
+d48 2
+a49 1
+	cp $REGRESS_DIR/.regress.${ARCH}/MAKE_LOG ./ref_${ARCH}
+d51 1
+a51 1
+	echo "No reference file available, installed this one" >> $REGRESS_DIR/.regress.${ARCH}/DIFFS
+d58 4
+a61 4
+export MAILUSER=morrison@@arl.army.mil
+if [ -s $REGRESS_DIR/.regress.${ARCH}/DIFFS -a X$MAILUSER != X ] ; then
+    echo "MAILING OUT DIFF FILE"
+    mail -s "Regression Errors .regress.${ARCH}" $MAILUSER < $REGRESS_DIR/.regress.${ARCH}/DIFFS
+d64 1
+a64 1
+fi
+d66 1
+a66 1
+echo "Done $0"
+@
+
+
+1.2
+log
+@rebuild of the regression test suite
+
+master.sh now uses a new utility library
+client.sh was broken into different stage files with inidividual post-build tests in the tests.d directory
+client scripts will be updated again later to conform more robustly with new testing architecture
+@
+text
+@d57 1
+a57 1
+export MAILUSER=morrison
+@
+
+
+1.1
+log
+@More evolution of the regression test
+@
+text
+@d7 3
+d16 1
+a16 1
+cd $REGRESS_DIR/$ARCH
+d18 2
+a19 4
+if [ -f $REGRESS_DIR/brlcad/regress/solids.sh ] ; then
+	echo solids.sh >> $REGRESS_DIR/$ARCH/MAKE_LOG
+	$REGRESS_DIR/brlcad/regress/solids.sh \
+		>> $REGRESS_DIR/$ARCH/MAKE_LOG 2>&1
+d21 11
+a31 5
+fi
+if [ -f $REGRESS_DIR/brlcad/regress/shaders.sh ] ; then
+	echo shaders.sh >> $REGRESS_DIR/$ARCH/MAKE_LOG
+	$REGRESS_DIR/brlcad/regress/shaders.sh \
+		>> $REGRESS_DIR/$ARCH/MAKE_LOG 2>&1
+d34 4
+a37 1
+echo "`hostname` regression complete at `date`" >> $REGRESS_DIR/$ARCH/MAKE_LOG
+d42 1
+a42 1
+if [ -f $REGRESS_DIR/brlcad/regress/ref_${ARCH} ] ; then
+d44 3
+a46 3
+	diff -c	$REGRESS_DIR/brlcad/regress/ref_${ARCH} \
+		$REGRESS_DIR/$ARCH/MAKE_LOG \
+		> $REGRESS_DIR/$ARCH/DIFFS
+d48 1
+a48 1
+	cp $REGRESS_DIR/$ARCH/MAKE_LOG $REGRESS_DIR/brlcad/regress/ref_${ARCH}
+d50 2
+a51 2
+	cat $REGRESS_DIR/$ARCH/MAKE_LOG  >> $REGRESS_DIR/$ARCH/DIFFS
+	echo "No reference file available, installed this one" >> $REGRESS_DIR/$ARCH/DIFFS
+d54 2
+a55 2
+echo "--- Execution Test Status ---" >> $REGRESS_DIR/$ARCH/DIFFS
+tail -10 $REGRESS_DIR/$ARCH/MAKE_LOG >> $REGRESS_DIR/$ARCH/DIFFS
+d57 6
+a62 3
+if [ -s $REGRESS_DIR/$ARCH/DIFFS -a X$MAILUSER != X ] ; then
+	$MAIL -s "Regression Errors $ARCH"  $REPORT_TO_USER \
+		< $REGRESS_DIR/$ARCH/DIFFS
+d65 1
+a65 13
+
+#
+# Build any appropriate binary distribution kit
+#
+
+case "${ARCH}" in
+	fbsd)
+	;;
+	li)
+	;;
+	7d)
+	;;
+esac
+@
+

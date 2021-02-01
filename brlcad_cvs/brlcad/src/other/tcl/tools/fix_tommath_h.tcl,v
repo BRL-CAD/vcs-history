@@ -1,0 +1,161 @@
+head	1.3;
+access;
+symbols
+	rel-7-10-4:1.2
+	STABLE:1.2.0.2
+	rel-7-10-2:1.2
+	rel-7-10-0:1.1;
+locks; strict;
+comment	@# @;
+
+
+1.3
+date	2007.11.06.21.35.31;	author erikgreenwald;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2007.05.07.04.17.35;	author brlcad;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2007.03.02.21.49.28;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.3
+log
+@tcl 8.5a6->8.5b1
+@
+text
+@# fixtommath.tcl --
+#
+#	Changes to 'tommath.h' to make it conform with Tcl's linking
+#	conventions.
+#
+# Copyright (c) 2005 by Kevin B. Kenny.  All rights reserved.
+#
+# See the file "license.terms" for information on usage and redistribution
+# of this file, and for a DISCLAIMER OF ALL WARRANTIES.
+#
+# RCS: @@(#) $Id: fix_tommath_h.tcl,v 1.6 2007/02/14 17:59:22 kennykb Exp $
+#
+#----------------------------------------------------------------------
+
+set f [open [lindex $argv 0] r]
+set data [read $f]
+close $f
+
+set eat_endif 0
+set eat_semi 0
+set def_count 0
+foreach line [split $data \n] {
+    if { !$eat_semi && !$eat_endif } {
+	switch -regexp -- $line {
+	    {#define BN_H_} {
+		puts $line
+		puts {}
+		puts "\#include <tclTomMathDecls.h>"
+		puts "\#ifndef MODULE_SCOPE"
+		puts "\#define MODULE_SCOPE extern"
+		puts "\#endif"
+	    }
+	    {typedef\s+unsigned long\s+mp_digit;} {
+		# change the second 'typedef unsigned long mp
+		incr def_count
+		puts "\#ifndef MP_DIGIT_DECLARED"
+		if {$def_count == 2} {
+		    puts [string map {long int} $line]
+		} else {
+		    puts $line
+		}
+		puts "\#define MP_DIGIT_DECLARED"
+		puts "\#endif"
+	    }
+	    {typedef.*mp_digit;} {
+		puts "\#ifndef MP_DIGIT_DECLARED"
+		puts $line
+		puts "\#define MP_DIGIT_DECLARED"
+		puts "\#endif"
+	    }
+	    {typedef struct} {
+		puts "\#ifndef MP_INT_DECLARED"
+		puts "\#define MP_INT_DECLARED"
+		puts "typedef struct mp_int mp_int;"
+		puts "\#endif"
+		puts "struct mp_int \{"
+	    }
+	    \}\ mp_int\; {
+		puts "\};"
+	    }
+	    {^(char|int|void)} {
+		puts "/*"
+		puts $line
+		set eat_semi 1
+		set after_semi "*/"
+	    }
+	    {^extern (int|const)} {
+		puts "\#if defined(BUILD_tcl) || !defined(_WIN32)"
+		puts [regsub {^extern} $line "MODULE_SCOPE"]
+		set eat_semi 1
+		set after_semi "\#endif"
+	    }
+	    {define heap macros} {
+		puts $line
+		puts "\#if 0 /* these are macros in tclTomMathDecls.h */"
+		set eat_endif 1
+	    }
+	    {__x86_64__} {
+		puts "[string map {__x86_64__ NEVER} $line]\
+                      /* 128-bit ints fail in too many places */"
+	    }
+	    default {
+		puts $line
+	    }
+	}
+    } else {
+	puts $line
+    }
+    if {$eat_semi} {
+	if {[regexp {; *$} $line]} {
+	    puts $after_semi
+	    set eat_semi 0
+	}
+    }
+    if {$eat_endif} {
+	if {[regexp {^\#endif} $line]} {
+	    puts "\#endif"
+	    set eat_endif 0
+	}
+    }
+}
+@
+
+
+1.2
+log
+@upgrade to tcl/tk 8.5a6 (from 8.5a5) .. includes even more (extensive) aquatk fixes/enhancements
+@
+text
+@@
+
+
+1.1
+log
+@upgrade tcl/tk from 8.4.6 to 8.5a5; also move to a recursive configure, using AC_CONFIG_SUBDIRS to call upon tcl, tk, and enigma's configure scripts as needed instead of redoing their build systems for our purpose.  this has a rather drastic impact on the way the libraries are linked together, including the need to compile tcl/tk static so as to avoid libtool portability issues as well as letting us take advantage of their build system for reduced maintenance and easing future upgrades.  undoubtedly more build issues to be worked out with other platforms given the extent of this change.  this does move us one step closer towards correctly linking against system tcl/tk installations too.
+@
+text
+@d11 1
+a11 1
+# RCS: @@(#) $Id: fix_tommath_h.tcl,v 1.4 2005/12/13 22:43:18 kennykb Exp $
+d21 1
+d33 12
+d78 4
+@
+

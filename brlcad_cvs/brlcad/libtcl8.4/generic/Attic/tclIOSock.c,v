@@ -1,0 +1,288 @@
+head	1.4;
+access;
+symbols
+	ansi-20040405-merged:1.3.4.1
+	postmerge-20040405-ansi:1.3
+	premerge-20040404-ansi:1.3
+	postmerge-autoconf:1.3
+	autoconf-freeze:1.1.6.4
+	premerge-autoconf:1.3
+	postmerge-20040315-windows:1.3
+	premerge-20040315-windows:1.3
+	windows-20040315-freeze:1.3.2.1
+	autoconf-20031203:1.1.6.1
+	autoconf-20031202:1.1
+	autoconf-branch:1.1.0.6
+	phong-branch:1.1.0.4
+	photonmap-branch:1.1.0.2
+	windows-branch:1.3.0.2
+	ansi-branch:1.3.0.4;
+locks; strict;
+comment	@ * @;
+
+
+1.4
+date	2004.05.21.18.03.46;	author morrison;	state dead;
+branches;
+next	1.3;
+
+1.3
+date	2004.03.04.19.47.02;	author morrison;	state Exp;
+branches
+	1.3.2.1
+	1.3.4.1;
+next	1.2;
+
+1.2
+date	2003.11.07.14.54.27;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2003.03.13.19.18.07;	author jra;	state Exp;
+branches
+	1.1.6.1;
+next	;
+
+1.1.6.1
+date	2003.12.03.16.24.29;	author erikg;	state Exp;
+branches;
+next	1.1.6.2;
+
+1.1.6.2
+date	2004.02.12.18.42.33;	author erikg;	state Exp;
+branches;
+next	1.1.6.3;
+
+1.1.6.3
+date	2004.03.15.12.04.42;	author erikg;	state Exp;
+branches;
+next	1.1.6.4;
+
+1.1.6.4
+date	2004.03.15.14.01.10;	author erikg;	state Exp;
+branches;
+next	;
+
+1.3.2.1
+date	2004.03.12.09.58.45;	author morrison;	state Exp;
+branches;
+next	;
+
+1.3.4.1
+date	2004.03.17.21.19.30;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.4
+log
+@moved from top-level to src/other/.
+@
+text
+@/* 
+ * tclIOSock.c --
+ *
+ *	Common routines used by all socket based channel types.
+ *
+ * Copyright (c) 1995-1997 Sun Microsystems, Inc.
+ *
+ * See the file "license.terms" for information on usage and redistribution
+ * of this file, and for a DISCLAIMER OF ALL WARRANTIES.
+ *
+ * RCS: @@(#) $Id: tclIOSock.c,v 1.3 2004/03/04 19:47:02 morrison Exp $
+ */
+
+#include "tclInt.h"
+#include "tclPort.h"
+
+/*
+ *---------------------------------------------------------------------------
+ *
+ * TclSockGetPort --
+ *
+ *	Maps from a string, which could be a service name, to a port.
+ *	Used by socket creation code to get port numbers and resolve
+ *	registered service names to port numbers.
+ *
+ * Results:
+ *	A standard Tcl result.  On success, the port number is returned
+ *	in portPtr. On failure, an error message is left in the interp's
+ *	result.
+ *
+ * Side effects:
+ *	None.
+ *
+ *---------------------------------------------------------------------------
+ */
+
+int
+TclSockGetPort(interp, string, proto, portPtr)
+    Tcl_Interp *interp;
+    char *string;		/* Integer or service name */
+    char *proto;		/* "tcp" or "udp", typically */
+    int *portPtr;		/* Return port number */
+{
+    struct servent *sp;		/* Protocol info for named services */
+    Tcl_DString ds;
+    CONST char *native;
+
+    if (Tcl_GetInt(NULL, string, portPtr) != TCL_OK) {
+	/*
+	 * Don't bother translating 'proto' to native.
+	 */
+	 
+	native = Tcl_UtfToExternalDString(NULL, string, -1, &ds);
+	sp = getservbyname(native, proto);		/* INTL: Native. */
+	Tcl_DStringFree(&ds);
+	if (sp != NULL) {
+	    *portPtr = ntohs((unsigned short) sp->s_port);
+	    return TCL_OK;
+	}
+    }
+    if (Tcl_GetInt(interp, string, portPtr) != TCL_OK) {
+	return TCL_ERROR;
+    }
+    if (*portPtr > 0xFFFF) {
+        Tcl_AppendResult(interp, "couldn't open socket: port number too high",
+                (char *) NULL);
+	return TCL_ERROR;
+    }
+    return TCL_OK;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * TclSockMinimumBuffers --
+ *
+ *	Ensure minimum buffer sizes (non zero).
+ *
+ * Results:
+ *	A standard Tcl result.
+ *
+ * Side effects:
+ *	Sets SO_SNDBUF and SO_RCVBUF sizes.
+ *
+ *----------------------------------------------------------------------
+ */
+
+int
+TclSockMinimumBuffers(sock, size)
+    int sock;			/* Socket file descriptor */
+    int size;			/* Minimum buffer size */
+{
+    int current;
+    socklen_t len;
+
+    len = sizeof(int);
+    getsockopt(sock, SOL_SOCKET, SO_SNDBUF, (char *)&current, &len);
+    if (current < size) {
+	len = sizeof(int);
+	setsockopt(sock, SOL_SOCKET, SO_SNDBUF, (char *)&size, len);
+    }
+    len = sizeof(int);
+    getsockopt(sock, SOL_SOCKET, SO_RCVBUF, (char *)&current, &len);
+    if (current < size) {
+	len = sizeof(int);
+	setsockopt(sock, SOL_SOCKET, SO_RCVBUF, (char *)&size, len);
+    }
+    return TCL_OK;
+}
+@
+
+
+1.3
+log
+@Updated to tcl 8.4.6
+@
+text
+@d11 1
+a11 1
+ * RCS: @@(#) $Id: tclIOSock.c,v 1.7 2002/07/29 16:54:41 rmax Exp $
+@
+
+
+1.3.4.1
+log
+@sync branch with HEAD
+@
+text
+@d11 1
+a11 1
+ * RCS: @@(#) $Id$
+@
+
+
+1.3.2.1
+log
+@merge from HEAD
+@
+text
+@d11 1
+a11 1
+ * RCS: @@(#) $Id$
+@
+
+
+1.2
+log
+@updated tcl to 8.4.4
+@
+text
+@@
+
+
+1.1
+log
+@*** empty log message ***
+@
+text
+@@
+
+
+1.1.6.1
+log
+@updates from HEAD, part 1
+@
+text
+@d11 1
+a11 1
+ * RCS: @@(#) $Id: tclIOSock.c,v 1.2 2003/11/07 14:54:27 morrison Exp $
+@
+
+
+1.1.6.2
+log
+@merge from HEAD
+@
+text
+@@
+
+
+1.1.6.3
+log
+@merge from head
+@
+text
+@d11 1
+a11 1
+ * RCS: @@(#) $Id: tclIOSock.c,v 1.3 2004/03/04 19:47:02 morrison Exp $
+@
+
+
+1.1.6.4
+log
+@merge from head...
+@
+text
+@d11 1
+a11 1
+ * RCS: @@(#) $Id: tclIOSock.c,v 1.1.6.3 2004/03/15 12:04:42 erikg Exp $
+@
+
+

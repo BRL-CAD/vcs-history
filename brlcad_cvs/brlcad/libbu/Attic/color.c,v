@@ -1,0 +1,682 @@
+head	1.14;
+access;
+symbols
+	ansi-20040405-merged:1.10.2.2
+	postmerge-20040405-ansi:1.12
+	premerge-20040404-ansi:1.11
+	postmerge-autoconf:1.11
+	autoconf-freeze:1.10.10.2
+	premerge-autoconf:1.11
+	ansi-20040316-freeze:1.10.2.1
+	postmerge-20040315-windows:1.11
+	premerge-20040315-windows:1.11
+	windows-20040315-freeze:1.10.4.1
+	autoconf-20031203:1.10
+	autoconf-20031202:1.10
+	autoconf-branch:1.10.0.10
+	phong-branch:1.10.0.8
+	photonmap-branch:1.10.0.6
+	rel-6-1-DP:1.10
+	windows-branch:1.10.0.4
+	rel-6-0-2:1.8
+	ansi-branch:1.10.0.2
+	rel-6-0-1-branch:1.8.0.2
+	hartley-6-0-post:1.9
+	hartley-6-0-pre:1.8
+	rel-6-0-1:1.8
+	rel-6-0:1.8
+	rel-5-4:1.6
+	offsite-5-3-pre:1.7
+	rel-5-3:1.6
+	rel-5-2:1.6
+	rel-5-1-branch:1.6.0.2
+	rel-5-1:1.6
+	rel-5-0:1.5
+	rel-5-0-beta:1.5;
+locks; strict;
+comment	@ * @;
+
+
+1.14
+date	2004.05.21.18.06.23;	author morrison;	state dead;
+branches;
+next	1.13;
+
+1.13
+date	2004.05.10.15.30.44;	author erikg;	state Exp;
+branches;
+next	1.12;
+
+1.12
+date	2004.04.05.07.46.16;	author morrison;	state Exp;
+branches;
+next	1.11;
+
+1.11
+date	2004.02.02.17.39.07;	author morrison;	state Exp;
+branches;
+next	1.10;
+
+1.10
+date	2002.08.20.17.07.39;	author jra;	state Exp;
+branches
+	1.10.2.1
+	1.10.4.1
+	1.10.10.1;
+next	1.9;
+
+1.9
+date	2002.08.15.20.54.51;	author hartley;	state Exp;
+branches;
+next	1.8;
+
+1.8
+date	2001.07.20.13.47.13;	author morrison;	state Exp;
+branches;
+next	1.7;
+
+1.7
+date	2000.07.07.05.21.20;	author cjohnson;	state Exp;
+branches;
+next	1.6;
+
+1.6
+date	2000.03.28.18.56.37;	author mike;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	99.02.11.15.10.23;	author pjt;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	98.06.09.19.21.00;	author pjt;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	98.06.01.19.22.11;	author pjt;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	98.06.01.14.55.17;	author pjt;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	98.05.28.19.54.43;	author pjt;	state Exp;
+branches;
+next	;
+
+1.10.2.1
+date	2002.09.19.18.01.12;	author morrison;	state Exp;
+branches;
+next	1.10.2.2;
+
+1.10.2.2
+date	2004.03.17.21.16.49;	author morrison;	state Exp;
+branches;
+next	;
+
+1.10.4.1
+date	2004.03.11.23.41.49;	author morrison;	state Exp;
+branches;
+next	;
+
+1.10.10.1
+date	2004.02.12.18.39.18;	author erikg;	state Exp;
+branches;
+next	1.10.10.2;
+
+1.10.10.2
+date	2004.03.15.14.06.17;	author erikg;	state Exp;
+branches;
+next	;
+
+
+desc
+@     Routines to convert between various color models
+@
+
+
+1.14
+log
+@moved to src/
+@
+text
+@/*
+ *			C O L O R . C
+ *
+ *  Routines to convert between various color models
+ *
+ *  Author -
+ *	Paul Tanenbaum
+ *
+ *  Source -
+ *	The U. S. Army Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005-5068  USA
+ *  
+ *  Distribution Notice -
+ *	Re-distribution of this software is restricted, as described in
+ *	your "Statement of Terms and Conditions for the Release of
+ *	The BRL-CAD Package" agreement.
+ *
+ *  Copyright Notice -
+ *	This software is Copyright (C) 1997-2004 by the United States Army
+ *	in all countries except the USA.  All rights reserved.
+ */
+static const char libbu_color_RCSid[] = "@@(#)$Header: /n/xoff/cvs/brlcad/libbu/color.c,v 1.13 2004/05/10 15:30:44 erikg Exp $ (BRL)";
+
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+
+#include <stdio.h>
+#include <math.h>
+#include <ctype.h>
+#ifdef USE_STRING_H
+#include <string.h>
+#else
+#include <strings.h>
+#endif
+#if defined(HAVE_STDARG_H)
+# include <stdarg.h>
+#endif
+
+#include "machine.h"
+#include "externs.h"
+#include "bu.h"
+#include "vmath.h"
+#include "fb.h"
+
+/*
+ *		Convert between RGB and HSV color models
+ *
+ *	R, G, and B are in {0, 1, ..., 255},
+ *	H is in [0.0, 360.0), and S and V are in [0.0, 1.0],
+ *	unless S = 0.0, in which case H = ACHROMATIC.
+ *
+ *	These two routines are adapted from
+ *	pp. 592-3 of J.D. Foley, A. van Dam, S.K. Feiner, and J.F. Hughes,
+ *	_Computer graphics: principles and practice_, 2nd ed., Addison-Wesley,
+ *	Reading, MA, 1990.
+ */
+
+#define	ACHROMATIC	-1.0
+#define	HUE		0
+#define	SAT		1
+#define	VAL		2
+
+/*
+ *			B U _ R G B _ T O _ H S V
+ *
+ */
+void bu_rgb_to_hsv (unsigned char *rgb, fastf_t *hsv)
+{
+    fastf_t	red, grn, blu;
+    fastf_t	*hue = &hsv[HUE];
+    fastf_t	*sat = &hsv[SAT];
+    fastf_t	*val = &hsv[VAL];
+    fastf_t	max, min;
+    fastf_t	delta;
+
+    /*
+     *	Compute value
+     */
+    max = min = red = ((fastf_t) rgb[RED]) / 255.0;
+
+    grn = ((fastf_t) rgb[GRN]) / 255.0;
+    if (grn < min)
+	min = grn;
+    else if (grn > max)
+	max = grn;
+
+    blu = ((fastf_t) rgb[BLU]) / 255.0;
+    if (blu < min)
+	min = blu;
+    else if (blu > max)
+	max = blu;
+
+    *val = max;
+
+    /*
+     *	Compute saturation
+     */
+    delta = max - min;
+    if (max > 0.0)
+	*sat = delta / max;
+    else
+	*sat = 0.0;
+    
+    /*
+     *	Compute hue
+     */
+    if (*sat == 0.0)
+	*hue = ACHROMATIC;
+    else
+    {
+	if (red == max)
+	    *hue = (grn - blu) / delta;
+	else if (grn == max)
+	    *hue = 2.0 + (blu - red) / delta;
+	else if (blu == max)
+	    *hue = 4.0 + (red - grn) / delta;
+
+	/*
+	 *	Convert hue to degrees
+	 */
+	*hue *= 60.0;
+	if (*hue < 0.0)
+	    *hue += 360.0;
+    }
+}
+
+/*
+ *			B U _ H S V _ T O _ R G B
+ *
+ */
+int bu_hsv_to_rgb (fastf_t *hsv, unsigned char *rgb)
+{
+    fastf_t	float_rgb[3];
+    fastf_t	hue, sat, val;
+    fastf_t	hue_frac;
+    fastf_t	p, q, t;
+    int		hue_int;
+
+    hue = hsv[HUE];
+    sat = hsv[SAT];
+    val = hsv[VAL];
+
+    if ((((hue < 0.0) || (hue > 360.0)) && (hue != ACHROMATIC))
+     || (sat < 0.0) || (sat > 1.0)
+     || (val < 0.0) || (val > 1.0)
+     || ((hue == ACHROMATIC) && (sat > 0.0)))
+    {
+	bu_log("bu_hsv_to_rgb: Illegal HSV (%g, %g, %g)\n",
+	    V3ARGS(hsv));
+	return (0);
+    }
+    if (sat == 0.0)	/*	so hue == ACHROMATIC (or is ignored)	*/
+	VSETALL(float_rgb, val)
+    else
+    {
+	if (hue == 360.0)
+	    hue = 0.0;
+	hue /= 60.0;
+	hue_int = floor((double) hue);
+	hue_frac = hue - hue_int;
+	p = val * (1.0 - sat);
+	q = val * (1.0 - (sat * hue_frac));
+	t = val * (1.0 - (sat * (1.0 - hue_frac)));
+	switch (hue_int)
+	{
+	    case 0: VSET(float_rgb, val, t, p); break;
+	    case 1: VSET(float_rgb, q, val, p); break;
+	    case 2: VSET(float_rgb, p, val, t); break;
+	    case 3: VSET(float_rgb, p, q, val); break;
+	    case 4: VSET(float_rgb, t, p, val); break;
+	    case 5: VSET(float_rgb, val, p, q); break;
+	    default:
+		bu_log("%s:%d: This shouldn't happen\n",
+		    __FILE__, __LINE__);
+		exit (1);
+	}
+    }
+
+    rgb[RED] = float_rgb[RED] * 255;
+    rgb[GRN] = float_rgb[GRN] * 255;
+    rgb[BLU] = float_rgb[BLU] * 255;
+
+    return (1);
+}
+
+/*
+ *			B U _ S T R _ T O _ R G B
+ *
+ */
+int bu_str_to_rgb (char *str, unsigned char *rgb)
+{
+    int	num;
+    int	r, g, b;
+
+    r = g = b = -1;
+    while (isspace(*str))
+	++str;
+    
+    if (*str == '#')
+    {
+	if (strlen(++str) != 6)
+	    return 0;
+	num = sscanf(str, "%02x%02x%02x", (unsigned int *)&r, (unsigned int *)&g, (unsigned int *)&b);
+#if 0
+	bu_log("# notation: I read %d of %d, %d, %d\n", num, r, g, b);
+#endif
+    }
+    else if (isdigit(*str))
+    {
+	num = sscanf(str, "%d/%d/%d", &r, &g, &b);
+#if 0
+	bu_log("slash separation: I read %d of %d, %d, %d\n", num, r, g, b);
+#endif
+	if (num == 1)
+	{
+	    num = sscanf(str, "%d %d %d", &r, &g, &b);
+#if 0
+	    bu_log("blank separation: I read %d of %d, %d, %d\n", num, r, g, b);
+#endif
+	}
+	VSET(rgb, r, g, b);
+	if ((r < 0) || (r > 255)
+	 || (g < 0) || (g > 255)
+	 || (b < 0) || (b > 255))
+	    return 0;
+    }
+    else
+	return 0;
+
+    VSET(rgb, r, g, b);
+    return 1;
+}
+@
+
+
+1.13
+log
+@change conf.h to a wrapped config.h
+@
+text
+@d22 1
+a22 1
+static const char libbu_color_RCSid[] = "@@(#)$Header: /cvs/brlcad/libbu/color.c,v 1.12 2004/04/05 07:46:16 morrison Exp $ (BRL)";
+@
+
+
+1.12
+log
+@merge of ansi-6-0-branch into HEAD
+@
+text
+@d22 6
+a27 1
+static const char libbu_color_RCSid[] = "@@(#)$Header$ (BRL)";
+a28 1
+#include "conf.h"
+@
+
+
+1.11
+log
+@update copyright to include span through 2003
+@
+text
+@d22 1
+a22 1
+static const char libbu_color_RCSid[] = "@@(#)$Header: /c/CVS/brlcad/libbu/color.c,v 1.10 2002/08/20 17:07:39 jra Exp $ (BRL)";
+d66 1
+a66 5
+void bu_rgb_to_hsv (rgb, hsv)
+
+unsigned char	*rgb;
+fastf_t		*hsv;
+
+d130 1
+a130 5
+int bu_hsv_to_rgb (hsv, rgb)
+
+fastf_t		*hsv;
+unsigned char	*rgb;
+
+d189 1
+a189 5
+int bu_str_to_rgb (str, rgb)
+
+char		*str;
+unsigned char	*rgb;
+
+@
+
+
+1.10
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d19 1
+a19 1
+ *	This software is Copyright (C) 1997 by the United States Army
+d22 1
+a22 1
+static const char libbu_color_RCSid[] = "@@(#)$Header: /c/CVS/brlcad/libbu/color.c,v 1.8 2001/07/20 13:47:13 morrison Exp $ (BRL)";
+@
+
+
+1.10.4.1
+log
+@sync to HEAD...
+@
+text
+@d19 1
+a19 1
+ *	This software is Copyright (C) 1997-2004 by the United States Army
+d22 1
+a22 1
+static const char libbu_color_RCSid[] = "@@(#)$Header: /n/cad/c/CVS/brlcad/libbu/color.c,v 1.11 2004/02/02 17:39:07 morrison Exp $ (BRL)";
+@
+
+
+1.10.10.1
+log
+@merge from HEAD
+@
+text
+@d19 1
+a19 1
+ *	This software is Copyright (C) 1997-2004 by the United States Army
+d22 1
+a22 1
+static const char libbu_color_RCSid[] = "@@(#)$Header: /c/CVS/brlcad/libbu/color.c,v 1.11 2004/02/02 17:39:07 morrison Exp $ (BRL)";
+@
+
+
+1.10.10.2
+log
+@merge from head
+@
+text
+@d22 1
+a22 1
+static const char libbu_color_RCSid[] = "@@(#)$Header: /c/CVS/brlcad/libbu/color.c,v 1.10.10.1 2004/02/12 18:39:18 erikg Exp $ (BRL)";
+@
+
+
+1.10.2.1
+log
+@Initial ANSIfication
+@
+text
+@d22 1
+a22 1
+static const char libbu_color_RCSid[] = "@@(#)$Header: /c/CVS/brlcad/libbu/color.c,v 1.10 2002/08/20 17:07:39 jra Exp $ (BRL)";
+d66 5
+a70 1
+void bu_rgb_to_hsv (unsigned char *rgb, fastf_t *hsv)
+d134 5
+a138 1
+int bu_hsv_to_rgb (fastf_t *hsv, unsigned char *rgb)
+d197 5
+a201 1
+int bu_str_to_rgb (char *str, unsigned char *rgb)
+@
+
+
+1.10.2.2
+log
+@sync branch with HEAD
+@
+text
+@d19 1
+a19 1
+ *	This software is Copyright (C) 1997-2004 by the United States Army
+d22 1
+a22 1
+static const char libbu_color_RCSid[] = "@@(#)$Header$ (BRL)";
+@
+
+
+1.9
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d66 5
+a70 1
+void bu_rgb_to_hsv (unsigned char *rgb, fastf_t *hsv)
+d134 5
+a138 1
+int bu_hsv_to_rgb (fastf_t *hsv, unsigned char *rgb)
+d197 5
+a201 1
+int bu_str_to_rgb (char *str, unsigned char *rgb)
+@
+
+
+1.8
+log
+@warning quell for sscanf (unsigned int *) cast
+@
+text
+@d22 1
+a22 1
+static const char libbu_color_RCSid[] = "@@(#)$Header: /c/CVS/brlcad/libbu/color.c,v 1.7 2000/07/07 05:21:20 cjohnson Exp $ (BRL)";
+d66 1
+a66 5
+void bu_rgb_to_hsv (rgb, hsv)
+
+unsigned char	*rgb;
+fastf_t		*hsv;
+
+d130 1
+a130 5
+int bu_hsv_to_rgb (hsv, rgb)
+
+fastf_t		*hsv;
+unsigned char	*rgb;
+
+d189 1
+a189 5
+int bu_str_to_rgb (str, rgb)
+
+char		*str;
+unsigned char	*rgb;
+
+@
+
+
+1.7
+log
+@LINT plus minor bug fix in bu_tcl.c
+@
+text
+@d22 1
+a22 1
+static const char libbu_color_RCSid[] = "@@(#)$Header: /c/CVS/brlcad/libbu/color.c,v 1.6 2000/03/28 18:56:37 mike Exp $ (BRL)";
+d214 1
+a214 1
+	num = sscanf(str, "%02x%02x%02x", &r, &g, &b);
+@
+
+
+1.6
+log
+@
+Fixed RCSids
+@
+text
+@d22 1
+a22 1
+static char libbu_color_RCSid[] = "@@(#)$Header: /c/CVS/brlcad/libbu/color.c,v 1.5 1999/02/11 15:10:23 pjt Exp $ (BRL)";
+@
+
+
+1.5
+log
+@#ifdef-ed out some diagnostic print statements
+@
+text
+@d22 1
+a22 1
+static char RCSrtstring[] = "@@(#)$Header: /c/CVS/brlcad/libbu/color.c,v 1.4 1998/06/09 19:21:00 pjt Exp $ (BRL)";
+@
+
+
+1.4
+log
+@bu_hsv_to_rgb() no longer requires hue==ACRHOMATIC when sat==0.0
+@
+text
+@d22 1
+a22 1
+static char RCSrtstring[] = "@@(#)$Header: /m/cad/libbu/RCS/color.c,v 1.3 1998/06/01 19:22:11 pjt Exp $ (BRL)";
+d215 3
+a217 1
+	printf("# notation: I read %d of %d, %d, %d\n", num, r, g, b);
+d222 3
+a224 1
+	printf("slash separation: I read %d of %d, %d, %d\n", num, r, g, b);
+d228 3
+a230 1
+	    printf("blank separation: I read %d of %d, %d, %d\n", num, r, g, b);
+@
+
+
+1.3
+log
+@First working version of bu_str_to_rgb()
+@
+text
+@d22 1
+a22 1
+static char RCSrtstring[] = "@@(#)$Header: /m/cad/libbu/RCS/color.c,v 1.2 1998/06/01 14:55:17 pjt Exp $ (BRL)";
+d153 1
+a153 2
+     || ((hue == ACHROMATIC) && (sat > 0.0))
+     || ((sat == 0.0) && (hue != ACHROMATIC)))
+d159 1
+a159 1
+    if (sat == 0.0)	/*	so hue == ACHROMATIC	*/
+@
+
+
+1.2
+log
+@First chop at bu_str_to_rgb()
+@
+text
+@d22 1
+a22 1
+static char RCSrtstring[] = "@@(#)$Header: /n/vapor/m/cad/libbu/RCS/color.c,v 1.1 1998/05/28 19:54:43 pjt Exp pjt $ (BRL)";
+d213 1
+a213 1
+	if (strlen(++str) != 7)
+d216 1
+a216 1
+	printf("I read %d of %d, %d, %d\n", num, r, g, b);
+d218 17
+d236 1
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d22 1
+a22 1
+static char RCSrtstring[] = "@@(#)$Header: /m/cad/libbu/RCS/file.c,v 1.4 1997/12/19 17:04:00 pjt Exp $ (BRL)";
+d192 28
+@

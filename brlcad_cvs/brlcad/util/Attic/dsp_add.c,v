@@ -1,0 +1,634 @@
+head	1.9;
+access;
+symbols
+	ansi-20040405-merged:1.6.2.2
+	postmerge-20040405-ansi:1.7
+	premerge-20040404-ansi:1.6
+	postmerge-autoconf:1.6
+	autoconf-freeze:1.6
+	premerge-autoconf:1.6
+	postmerge-20040315-windows:1.6
+	premerge-20040315-windows:1.6
+	windows-20040315-freeze:1.6
+	autoconf-20031203:1.6
+	autoconf-20031202:1.6
+	autoconf-branch:1.6.0.10
+	phong-branch:1.6.0.8
+	photonmap-branch:1.6.0.6
+	rel-6-1-DP:1.6
+	windows-branch:1.6.0.4
+	rel-6-0-2:1.4
+	ansi-branch:1.6.0.2
+	rel-6-0-1-branch:1.4.0.2
+	hartley-6-0-post:1.5
+	hartley-6-0-pre:1.4
+	rel-6-0-1:1.4
+	rel-6-0:1.4
+	offsite-5-3-pre:1.4;
+locks; strict;
+comment	@ * @;
+
+
+1.9
+date	2004.05.21.14.57.39;	author morrison;	state dead;
+branches;
+next	1.8;
+
+1.8
+date	2004.05.10.15.30.50;	author erikg;	state Exp;
+branches;
+next	1.7;
+
+1.7
+date	2004.04.05.05.46.01;	author morrison;	state Exp;
+branches;
+next	1.6;
+
+1.6
+date	2002.08.20.17.08.58;	author jra;	state Exp;
+branches
+	1.6.2.1;
+next	1.5;
+
+1.5
+date	2002.08.15.20.56.10;	author hartley;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	2000.08.15.21.49.43;	author mike;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2000.07.24.18.42.49;	author butler;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2000.07.24.18.37.59;	author butler;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2000.07.14.19.39.35;	author butler;	state Exp;
+branches;
+next	;
+
+1.6.2.1
+date	2002.09.19.18.02.36;	author morrison;	state Exp;
+branches;
+next	1.6.2.2;
+
+1.6.2.2
+date	2002.09.25.19.39.26;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.9
+log
+@moved to src/util/
+@
+text
+@/*	D S P _ A D D . C --- add 2 files of network unsigned shorts
+ *
+ *	Options
+ *	h	help
+ */
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+
+#include <stdio.h>
+#include <sys/stat.h>
+#include <unistd.h>
+
+#include "machine.h"
+#include "externs.h"
+#include "bu.h"
+#include "vmath.h"
+#include "bn.h"
+
+
+/* declarations to support use of getopt() system call */
+char *options = "h";
+extern char *optarg;
+extern int optind, opterr; 
+
+/* , getopt(int, char *const *, const char *);*/ 
+
+char *progname = "(noname)";
+
+#define ADD_STYLE_INT 0
+#define ADD_STYLE_FLOAT 1
+int style = ADD_STYLE_INT;
+
+/*
+ *	U S A G E --- tell user how to invoke this program, then exit
+ */
+void usage(char *s)
+{
+	if (s) (void)fputs(s, stderr);
+
+	(void) fprintf(stderr, "Usage: %s [ -%s ] dsp_1 dsp_2 > dsp_3\n",
+			progname, options);
+	exit(1);
+}
+
+/*
+ *	P A R S E _ A R G S --- Parse through command line flags
+ */
+int parse_args(int ac, char *av[])
+{
+	int  c;
+	char *strrchr(const char *, int);
+
+	if (  ! (progname=strrchr(*av, '/'))  )
+		progname = *av;
+	else
+		++progname;
+
+	/* Turn off getopt's error messages */
+	opterr = 0;
+
+	/* get all the option flags from the command line */
+	while ((c=getopt(ac,av,options)) != EOF)
+		switch (c) {
+		case '?'	:
+		case 'h'	:
+		default		: usage("Bad or help flag specified\n"); break;
+		}
+
+	return(optind);
+}
+
+
+void
+swap_bytes(unsigned short *buf, unsigned long count)
+{
+	register unsigned short *p;
+
+	for (p = &buf[count-1] ; p >= buf ; p--)
+		*p = ((*p << 8) & 0x0ff00) | (*p >> 8);
+}
+
+
+/*
+ *  A D D _ F L O A T
+ *  
+ *  Perform floating point addition and re-normalization of the data.
+ *
+ */
+void
+add_float(unsigned short *buf1, unsigned short *buf2, unsigned long count)
+{
+	register unsigned short *p, *q, *e;
+	register double *dbuf, *d;
+	double min, max, k;
+
+	dbuf = bu_malloc(sizeof(double) * count, "buffer of double");
+
+	min = MAX_FASTF;
+	max = -MAX_FASTF;
+	e = &buf1[count];
+
+	/* add everything, keeping track of the min/max values found */
+	for (d=dbuf, p=buf1, q=buf2 ; p < e ; p++, q++, d++) {
+		*d = *p + *q;
+		if (*d > max) max = *d;
+		if (*d < min) min = *d;
+	}
+
+	/* now we convert back to unsigned shorts in the range 1 .. 65535 */
+
+	k = 65534.0 / (max - min);
+
+	bu_log("min: %g scale: %g\n", min - k, k);
+
+	for (d=dbuf, p=buf1, q=buf2 ; p < e ; p++, q++, d++)
+		*p = (unsigned short)  ((*d - min) * k) + 1;
+
+	bu_free(dbuf, "buffer of double");
+}
+
+/*
+ *  A D D _ I N T
+ *
+ *  Perform simple integer addition to the input streams.  
+ *  Issue warning on overflow.
+ *
+ *  Result:	buf1 contents modified
+ */
+void
+add_int(unsigned short *buf1, unsigned short *buf2, unsigned long count)
+{
+	register int int_value;
+	int i;
+	unsigned short s;
+
+	for (i=0; i < count ; i++) {
+		int_value = buf1[i] + buf2[i];
+		s = (unsigned short)int_value;
+
+		if (s != int_value) {
+			bu_log("overflow (%d+%d) == %d at %d\n",
+			       buf1[i], buf2[i], int_value, i );
+		}
+		buf1[i] = s;
+	}
+
+}
+
+
+/*
+ *	M A I N
+ *
+ *	Call parse_args to handle command line arguments first, then
+ *	process input.
+ */
+int
+main(int ac, char *av[])
+{
+	int next_arg;
+	FILE *in1, *in2;
+	unsigned short *buf1, *buf2;
+	unsigned long count;
+	int in_cookie, out_cookie;
+	int conv;
+	struct stat sb;
+
+	next_arg = parse_args(ac, av);
+	
+	if (isatty(fileno(stdout))) usage("Redirect standard output\n");
+
+	if (next_arg >= ac) usage("No files specified\n");
+
+
+	/* Open the files */
+
+	if (stat(av[next_arg], &sb) ||
+	    (in1 = fopen(av[next_arg], "r"))  == (FILE *)NULL) {
+		perror(av[next_arg]);
+		return -1;
+	}
+	    
+	count = sb.st_size;
+	buf1 = bu_malloc(sb.st_size, "buf1");
+
+	next_arg++;
+
+	if (stat(av[next_arg], &sb) ||
+	    (in2 = fopen(av[next_arg], "r"))  == (FILE *)NULL) {
+		perror(av[next_arg]);
+		return -1;
+	}
+	    
+	if (sb.st_size != count)
+		bu_bomb("**** ERROR **** file size mis-match\n");
+
+	buf2 = bu_malloc(sb.st_size, "buf2");
+
+	count = count >> 1; /* convert count of char to count of short */
+
+	/* Read the terrain data */
+	fread(buf1, sizeof(short), count, in1);
+	fclose(in1);
+
+	fread(buf2, sizeof(short), count, in2);
+	fclose(in2);
+
+
+
+	/* Convert from network to host format */
+	in_cookie = bu_cv_cookie("nus");
+	out_cookie = bu_cv_cookie("hus");
+	conv = (bu_cv_optimize(in_cookie) != bu_cv_optimize(out_cookie));
+
+	if (conv) {
+		swap_bytes(buf1, count);
+		swap_bytes(buf2, count);
+	}
+
+
+	/* add the two datasets together */
+
+	switch (style) {
+	case ADD_STYLE_FLOAT	: add_float(buf1, buf2, count); break;
+	case ADD_STYLE_INT	: add_int(buf1, buf2, count); break;
+	default			: fprintf(stderr,
+					"Error: Unknown add style\n");
+				break;
+	}
+
+
+	/* convert back to network format & write out */
+	if (conv) {
+		swap_bytes(buf1, count);
+		swap_bytes(buf2, count);
+	}
+
+	if (fwrite(buf1, sizeof(short), count, stdout) != count) {
+		fprintf(stderr, "Error writing data\n");
+		return -1;
+	}
+
+	return 0;
+}
+
+@
+
+
+1.8
+log
+@change conf.h to a wrapped config.h
+@
+text
+@@
+
+
+1.7
+log
+@merge of ansi-6-0-branch into head
+@
+text
+@d6 5
+a10 1
+#include "conf.h"
+@
+
+
+1.6
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d22 3
+a24 1
+extern int optind, opterr, getopt();
+d50 1
+a50 1
+	char *strrchr();
+@
+
+
+1.6.2.1
+log
+@Initial ANSIfication
+@
+text
+@d22 1
+a22 1
+extern int optind, opterr, getopt(int, char *const *, const char *);
+d48 1
+a48 1
+	char *strrchr(const char *, int);
+@
+
+
+1.6.2.2
+log
+@fixed compiler type consistency errors being reported
+@
+text
+@d22 1
+a22 3
+extern int optind, opterr; 
+
+/* , getopt(int, char *const *, const char *);*/ 
+@
+
+
+1.5
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d22 1
+a22 1
+extern int optind, opterr, getopt(int, char *const *, const char *);
+d48 1
+a48 1
+	char *strrchr(const char *, int);
+@
+
+
+1.4
+log
+@
+'in2' was not set before used.
+Changed to more obvious variable names.
+@
+text
+@d22 1
+a22 1
+extern int optind, opterr, getopt();
+d48 1
+a48 1
+	char *strrchr();
+@
+
+
+1.3
+log
+@checkpoint
+@
+text
+@d157 1
+a157 1
+	FILE *inp, *in;
+d174 1
+a174 1
+	    (inp = fopen(av[next_arg], "r"))  == (FILE *)NULL) {
+d185 1
+a185 1
+	    (inp = fopen(av[next_arg], "r"))  == (FILE *)NULL) {
+d193 1
+a193 1
+	buf2 = bu_malloc(sb.st_size, "buf1");
+d198 2
+a199 2
+	fread(buf1, sizeof(short), count, inp);
+	fclose(inp);
+d201 2
+a202 2
+	fread(buf2, sizeof(short), count, in);
+	fclose(in);
+@
+
+
+1.2
+log
+@Further development.  Prototyped the offering of int/float calcualtions
+@
+text
+@d99 1
+d106 2
+d110 2
+d222 3
+d234 1
+a234 1
+	if (fwrite(buf1, sizeof(short), count, stdout) != count)
+d236 2
+@
+
+
+1.1
+log
+@Add two DSP files together
+@
+text
+@d9 2
+d20 1
+a20 1
+char *options = "hw:n:s:";
+d26 3
+a28 3
+int width;
+int length;
+int conv = 1;	/* flag: do conversion from network to host format */
+a61 30
+		case 'w'	:
+			c = atoi(optarg);
+			if (c > 0) width = c;
+			else {
+				fprintf(stderr,
+				    "%s: Width must be greater than 0 (-w %s)",
+					progname, optarg);
+				exit(-1);
+			}
+			break;
+		case 'n'	:
+			c = atoi(optarg);
+			if (c > 0) length = c;
+			else {
+				fprintf(stderr,
+				   "%s: Length must be greater than 0 (-n %s)",
+					progname, optarg);
+				exit(-1);
+			}
+			break;
+		case 's'	:
+			c = atoi(optarg);
+			if (c > 0) width = length = c;
+			else {
+				fprintf(stderr,
+				    "%s: size must be greater than 0 (-s %s)",
+					progname, optarg);
+				exit(-1);
+			}
+			break;
+d69 1
+d71 1
+a71 4
+read_and_convert(FILE *inp, FILE *in,
+		 int count,
+		 short *buf1, short *buf2,
+		 int in_cookie, int out_cookie)
+d73 5
+a77 3
+	
+	int got;
+	short *tmp;
+a78 1
+	tmp = (short *)bu_malloc(sizeof(short)*count, "tmp");
+d80 12
+a91 4
+	if (fread(tmp, sizeof(short), count, inp) != count) {
+		fprintf(stderr, "read error on file 1\n");
+		exit(-1);
+	}
+d93 1
+a93 1
+	got = bu_cv_w_cookie(buf1, out_cookie, count, tmp, in_cookie, count);
+d95 3
+a97 1
+	if (got != count) bu_bomb("bu_cv_w_cookie failed\n");
+d99 4
+a102 3
+	if (fread(tmp, sizeof(short), count, in) != count) {
+		fprintf(stderr, "read error on file 1\n");
+		exit(-1);
+d105 1
+a105 1
+	got = bu_cv_w_cookie(buf2, out_cookie, count, tmp, in_cookie, count);
+d107 2
+a108 1
+	if (got != count) bu_bomb("bu_cv_w_cookie failed\n");
+d110 1
+a110 1
+	bu_free(tmp, "tmp");
+d113 14
+d128 12
+d151 1
+a151 1
+	int arg_count;
+d153 2
+a154 2
+	short *buf1, *buf2, s;
+	int count, i, v;
+d156 2
+d159 1
+a159 1
+	arg_count = parse_args(ac, av);
+a160 5
+	if (width == 0 || length == 0) 
+		usage("must specify both grid dimensions\n");
+
+	count = width * length;
+
+d163 1
+a163 1
+	if (arg_count >= ac) usage("No files specified\n");
+d168 3
+a170 2
+	if ((inp = fopen(av[arg_count], "r")) == (FILE *)NULL) {
+		perror(av[arg_count]);
+d173 9
+a181 4
+	arg_count++;
+
+	if ((in = fopen(av[arg_count], "r")) == (FILE *)NULL) {
+		perror(av[arg_count]);
+d184 5
+d190 1
+d192 3
+a194 2
+	buf1 = bu_malloc(sizeof(short)*count, "buf1");
+	buf2 = bu_malloc(sizeof(short)*count, "buf1");
+d196 2
+a197 3
+	/* Read the terrain data 
+	 * Convert from network to host format (unless the user says not to)
+	 */
+d199 3
+d204 1
+d206 3
+a208 6
+	if (conv && bu_cv_optimize(in_cookie) != bu_cv_optimize(out_cookie))
+		read_and_convert(inp, in, count, buf1, buf2, 
+				 in_cookie, out_cookie);
+	else {
+		fread(buf1, sizeof(short), count, inp);
+		fread(buf2, sizeof(short), count, in);
+d214 5
+a218 3
+	for (i=0; i < count ; i++) {
+		v = buf1[i] + buf2[i];
+		s = (short)v;
+d220 4
+a223 5
+		if (s != v) {
+			bu_log("error adding value #%d, (%d+%d)\n",
+			       i, buf1[i], buf2[i]);
+		}
+		buf1[i] = s;
+d231 1
+@
+

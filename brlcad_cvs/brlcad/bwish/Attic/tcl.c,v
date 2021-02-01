@@ -1,0 +1,613 @@
+head	1.13;
+access;
+symbols
+	ansi-20040405-merged:1.8.2.2
+	postmerge-20040405-ansi:1.11
+	premerge-20040404-ansi:1.10
+	postmerge-autoconf:1.10
+	autoconf-freeze:1.9.6.1
+	premerge-autoconf:1.10
+	ansi-20040316-freeze:1.8.2.1
+	postmerge-20040315-windows:1.10
+	premerge-20040315-windows:1.10
+	windows-20040315-freeze:1.8.4.1
+	autoconf-20031203:1.9
+	autoconf-20031202:1.9
+	autoconf-branch:1.9.0.6
+	phong-branch:1.9.0.4
+	photonmap-branch:1.9.0.2
+	rel-6-1-DP:1.8
+	windows-branch:1.8.0.4
+	rel-6-0-2:1.6
+	ansi-branch:1.8.0.2
+	rel-6-0-1-branch:1.6.0.2
+	hartley-6-0-post:1.7
+	hartley-6-0-pre:1.6
+	rel-6-0-1:1.6
+	rel-6-0:1.6
+	rel-5-4:1.2.2.1
+	offsite-5-3-pre:1.3
+	rel-5-3:1.2.2.1
+	rel-5-2:1.2.2.1
+	rel-5-1-branch:1.2.0.2;
+locks; strict;
+comment	@ * @;
+
+
+1.13
+date	2004.05.24.04.18.40;	author morrison;	state dead;
+branches;
+next	1.12;
+
+1.12
+date	2004.05.10.15.30.41;	author erikg;	state Exp;
+branches;
+next	1.11;
+
+1.11
+date	2004.04.05.07.50.06;	author morrison;	state Exp;
+branches;
+next	1.10;
+
+1.10
+date	2004.02.02.17.38.58;	author morrison;	state Exp;
+branches;
+next	1.9;
+
+1.9
+date	2003.04.02.19.17.51;	author jra;	state Exp;
+branches
+	1.9.6.1;
+next	1.8;
+
+1.8
+date	2002.08.20.17.07.19;	author jra;	state Exp;
+branches
+	1.8.2.1
+	1.8.4.1;
+next	1.7;
+
+1.7
+date	2002.08.15.20.54.32;	author hartley;	state Exp;
+branches;
+next	1.6;
+
+1.6
+date	2001.04.18.22.19.51;	author bparker;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	2001.04.17.20.37.36;	author bparker;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	2001.04.12.18.18.14;	author bparker;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2000.09.06.20.40.07;	author mike;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2000.08.16.17.52.05;	author bparker;	state Exp;
+branches
+	1.2.2.1;
+next	1.1;
+
+1.1
+date	2000.08.16.17.29.02;	author bparker;	state Exp;
+branches;
+next	;
+
+1.2.2.1
+date	2000.08.16.18.00.43;	author bparker;	state Exp;
+branches;
+next	;
+
+1.8.2.1
+date	2002.09.19.18.00.33;	author morrison;	state Exp;
+branches;
+next	1.8.2.2;
+
+1.8.2.2
+date	2004.03.17.21.15.52;	author morrison;	state Exp;
+branches;
+next	;
+
+1.8.4.1
+date	2004.03.11.23.40.27;	author morrison;	state Exp;
+branches;
+next	;
+
+1.9.6.1
+date	2004.02.12.18.39.43;	author erikg;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.13
+log
+@moved to src/bwish/
+@
+text
+@/*
+ *				T C L . C
+ *
+ *  The supporting Tcl routines for BWISH and BTCLSH.
+ *
+ *  Author -
+ *	  Robert G. Parker
+ *
+ *  Source -
+ *	The U. S. Army Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005-5068  USA
+ *  
+ *  Distribution Notice -
+ *	Re-distribution of this software is restricted, as described in
+ *	your "Statement of Terms and Conditions for the Release of
+ *	The BRL-CAD Package" license agreement.
+ *
+ *  Copyright Notice -
+ *	This software is Copyright (C) 1998-2004 by the United States Army
+ *	in all countries except the USA.  All rights reserved.
+ *
+ *  Cad_Main --
+ *	     Main program for wish-like applications that desire command
+ *	     line editing when in interactive mode. Much of this code was
+ *	     borrowed from libtk/generic/tkMain.c.
+ *
+ */
+
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+#include <stdio.h>
+#include <ctype.h>
+#ifdef BWISH
+#include "tk.h"
+#else
+#include "tcl.h"
+#endif
+#include "tclInt.h"
+#include "machine.h"
+#include "externs.h"
+#include "bu.h"
+#include "libtermio.h"
+
+/* defined in input.c */
+extern void initInput(void);
+
+#ifdef BWISH
+/* defined in libtk/(unix|win|mac)/tk(Unix|Win|Mac)Init.c */
+void TkpDisplayWarning();
+#endif
+
+void Cad_MainLoop(void);
+void Cad_Exit(int status);
+
+#ifdef BWISH
+#	define CAD_RCFILENAME "~/.bwishrc"
+#else
+#	define CAD_RCFILENAME "~/.btclshrc"
+#endif
+
+/*
+ * Main program for wish-like applications that desire command
+ * line editing when in interactive mode. Much of this code was
+ * borrowed from libtk/generic/tkMain.c.
+ *
+ * Results:
+ *	None. This procedure never returns (it exits the process when
+ *	it's done.
+ *
+ * Side effects:
+ *	This procedure initializes the Tk world and then starts
+ *      interpreting commands;  almost anything could happen,
+ *      depending on the script being interpreted.
+ */
+void
+Cad_Main(int argc, char **argv, Tcl_AppInitProc (*appInitProc), Tcl_Interp *interp)
+{
+	char *filename = NULL;
+	char *args;
+	char buf[TCL_INTEGER_SPACE];
+	int status;
+	Tcl_DString argString;
+
+	if ((argc > 1) && (argv[1][0] != '-')) {
+		filename = argv[1];
+		argc--;
+		argv++;
+	}
+
+	/*
+	 * Make command-line arguments available in the Tcl variables "argc"
+	 * and "argv".
+	 */
+	args = Tcl_Merge(argc-1, (const char * const *)argv+1);
+	Tcl_ExternalToUtfDString(NULL, args, -1, &argString);
+	Tcl_SetVar(interp, "argv", Tcl_DStringValue(&argString), TCL_GLOBAL_ONLY);
+	Tcl_DStringFree(&argString);
+	ckfree(args);
+
+	if (filename == NULL) {
+		(void)Tcl_ExternalToUtfDString(NULL, argv[0], -1, &argString);
+	} else {
+		filename = Tcl_ExternalToUtfDString(NULL, filename, -1, &argString);
+	}
+
+	TclFormatInt(buf, argc-1);
+	Tcl_SetVar(interp, "argc", buf, TCL_GLOBAL_ONLY);
+	Tcl_SetVar(interp, "argv0", Tcl_DStringValue(&argString), TCL_GLOBAL_ONLY);
+
+	/*
+	 * Invoke application-specific initialization.
+	 */
+	if ((*appInitProc)(interp) != TCL_OK) {
+#ifdef BWISH
+		TkpDisplayWarning(Tcl_GetStringResult(interp),
+				  "Application initialization failed");
+#else
+		bu_log( "Application initialization failed: %s", Tcl_GetStringResult(interp));
+#endif
+	}
+
+	if (filename != NULL) {
+		/*XXX ??? need to arrange for a bu_log handler and or handlers
+		  for stdout/stderr ??? */
+		save_Tty(fileno(stdin));
+		Tcl_ResetResult(interp);
+		status = Tcl_EvalFile(interp, filename);
+		if (status != TCL_OK) {
+			Tcl_AddErrorInfo(interp, "");
+#ifdef BWISH
+			TkpDisplayWarning(Tcl_GetVar(interp, "errorInfo",
+						     TCL_GLOBAL_ONLY), "Error in startup script");
+#else
+			bu_log("Error in startup script: %s\n", Tcl_GetVar(interp, "errorInfo", TCL_GLOBAL_ONLY));
+#endif
+		}
+
+#ifndef BWISH
+		Cad_Exit(status);
+#endif
+	} else { /* We're running interactively. */
+		/* Set up to handle commands from user as well as
+		   provide a command line editing capability. */
+		initInput();
+
+		/* Set the name of the startup file. */
+		Tcl_SetVar(interp, "tcl_rcFileName", CAD_RCFILENAME, TCL_GLOBAL_ONLY);
+
+		/* Source the startup file if it exists. */
+		Tcl_SourceRCFile(interp);
+	}
+
+	Tcl_DStringFree(&argString);
+	Cad_MainLoop();
+	Cad_Exit(TCL_OK);
+}
+
+void
+Cad_MainLoop(void)
+{
+#ifdef BWISH
+	while (Tk_GetNumMainWindows() > 0) {
+#else
+	while (1) {
+#endif
+		Tcl_DoOneEvent(0);
+	}
+}
+
+void
+Cad_Exit(int status)
+{
+	reset_Tty(fileno(stdin)); 
+	Tcl_Exit(status);
+}
+@
+
+
+1.12
+log
+@change conf.h to a wrapped config.h
+@
+text
+@@
+
+
+1.11
+log
+@merge of ansi-6-0-branch into HEAD
+@
+text
+@d29 5
+a33 1
+#include "conf.h"
+@
+
+
+1.10
+log
+@update copyright to include span through 2003
+@
+text
+@d44 1
+a44 1
+extern void initInput();
+d51 2
+a52 2
+void Cad_MainLoop();
+void Cad_Exit();
+d75 1
+a75 5
+Cad_Main(argc, argv, appInitProc, interp)
+     int argc;
+     char **argv;
+     Tcl_AppInitProc *appInitProc;
+     Tcl_Interp *interp;
+d158 1
+a158 1
+Cad_MainLoop()
+@
+
+
+1.9
+log
+@Added a cast to quiet the compiler
+@
+text
+@d19 1
+a19 1
+ *	This software is Copyright (C) 1998 by the United States Army
+@
+
+
+1.9.6.1
+log
+@merge from HEAD
+@
+text
+@d19 1
+a19 1
+ *	This software is Copyright (C) 1998-2004 by the United States Army
+@
+
+
+1.8
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d97 1
+a97 1
+	args = Tcl_Merge(argc-1, argv+1);
+@
+
+
+1.8.4.1
+log
+@sync to HEAD...
+@
+text
+@d19 1
+a19 1
+ *	This software is Copyright (C) 1998-2004 by the United States Army
+d97 1
+a97 1
+	args = Tcl_Merge(argc-1, (const char * const *)argv+1);
+@
+
+
+1.8.2.1
+log
+@Initial ANSIfication
+@
+text
+@d44 1
+a44 1
+extern void initInput(void);
+d51 2
+a52 2
+void Cad_MainLoop(void);
+void Cad_Exit(int status);
+d75 5
+a79 1
+Cad_Main(int argc, char **argv, Tcl_AppInitProc (*appInitProc), Tcl_Interp *interp)
+d162 1
+a162 1
+Cad_MainLoop(void)
+@
+
+
+1.8.2.2
+log
+@sync branch with HEAD
+@
+text
+@d19 1
+a19 1
+ *	This software is Copyright (C) 1998-2004 by the United States Army
+d93 1
+a93 1
+	args = Tcl_Merge(argc-1, (const char * const *)argv+1);
+@
+
+
+1.7
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d44 1
+a44 1
+extern void initInput(void);
+d51 2
+a52 2
+void Cad_MainLoop(void);
+void Cad_Exit(int status);
+d75 5
+a79 1
+Cad_Main(int argc, char **argv, Tcl_AppInitProc (*appInitProc), Tcl_Interp *interp)
+d162 1
+a162 1
+Cad_MainLoop(void)
+@
+
+
+1.6
+log
+@*- include tclInt.h
+*- include tcl.h or tk.h according to ifdef
+*- use TclFormatInt to put argc-1 in buf
+*- if not BWISH and not interactive, quit after
+   evaluating the file
+*- add status parameter to Cad_Exit
+@
+text
+@d44 1
+a44 1
+extern void initInput();
+d51 2
+a52 2
+void Cad_MainLoop();
+void Cad_Exit();
+d75 1
+a75 5
+Cad_Main(argc, argv, appInitProc, interp)
+     int argc;
+     char **argv;
+     Tcl_AppInitProc *appInitProc;
+     Tcl_Interp *interp;
+d158 1
+a158 1
+Cad_MainLoop()
+@
+
+
+1.5
+log
+@*- mods to use in both BWISH and BTCLSH
+@
+text
+@d32 1
+d34 4
+a37 1
+
+a42 3
+/* defined in cmd.c */
+extern void quit();
+
+a101 1
+	sprintf(buf, "%d", argc-1);
+d109 1
+d118 2
+a119 2
+	  TkpDisplayWarning(Tcl_GetStringResult(interp),
+			    "Application initialization failed");
+d121 1
+a121 1
+	  bu_log( "Application initialization failed: %s", Tcl_GetStringResult(interp));
+d137 1
+a137 1
+			bu_log("Error in startup script: %s", Tcl_GetVar(interp, "errorInfo", TCL_GLOBAL_ONLY));
+a138 1
+			quit(status);
+d140 4
+d155 1
+a156 1
+
+d158 1
+a158 1
+	Cad_Exit();
+d174 1
+a174 1
+Cad_Exit(Tcl_Interp *interp)
+d177 1
+a177 2
+	Tcl_DeleteInterp(interp);
+	Tcl_Exit(0);
+@
+
+
+1.4
+log
+@*- remove more warnings
+@
+text
+@d4 1
+a4 1
+ *  The supporting Tcl routines for BWISH.
+d45 1
+d48 1
+d50 8
+a57 1
+#define BWISH_RCFILENAME ".bwishrc"
+d116 1
+d119 3
+d132 1
+d135 3
+d146 1
+a146 1
+		Tcl_SetVar(interp, "tcl_rcFileName", BWISH_RCFILENAME, TCL_GLOBAL_ONLY);
+d153 20
+a172 1
+	Tk_MainLoop();
+@
+
+
+1.3
+log
+@
+lint
+@
+text
+@d39 9
+@
+
+
+1.2
+log
+@replace cwish with bwish
+@
+text
+@d30 2
+d37 1
+@
+
+
+1.2.2.1
+log
+@moved from cwish
+@
+text
+@@
+
+
+1.1
+log
+@everything is from the old cwish
+@
+text
+@d4 1
+a4 1
+ *  The supporting Tcl routines for CWISH.
+d36 1
+a36 1
+#define CWISH_RCFILENAME ".cwishrc"
+d117 1
+a117 1
+		Tcl_SetVar(interp, "tcl_rcFileName", CWISH_RCFILENAME, TCL_GLOBAL_ONLY);
+@
+

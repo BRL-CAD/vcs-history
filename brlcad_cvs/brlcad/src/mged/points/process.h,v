@@ -1,0 +1,474 @@
+head	1.8;
+access;
+symbols
+	rel-7-10-4:1.8
+	STABLE:1.8.0.2
+	rel-7-10-2:1.8
+	rel-7-10-0:1.8
+	rel-7-8-4:1.6
+	rel-7-8-2:1.6
+	rel-7-8-0:1.6
+	trimnurbs-branch:1.6.0.2
+	help:1.6
+	temp_tag:1.5
+	postmerge-20051223-bobWinPort:1.5
+	premerge-20051223-bobWinPort:1.5
+	rel-7-6-6:1.5
+	rel-7-6-branch:1.4.0.2
+	rel-7-6-4:1.4;
+locks; strict;
+comment	@ * @;
+
+
+1.8
+date	2007.01.23.01.13.43;	author brlcad;	state Exp;
+branches;
+next	1.7;
+
+1.7
+date	2007.01.20.14.36.58;	author brlcad;	state Exp;
+branches;
+next	1.6;
+
+1.6
+date	2006.01.18.06.46.23;	author brlcad;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	2005.11.18.10.17.09;	author brlcad;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	2005.11.08.21.12.11;	author brlcad;	state Exp;
+branches
+	1.4.2.1;
+next	1.3;
+
+1.3
+date	2005.11.07.20.53.45;	author brlcad;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2005.10.29.23.00.05;	author brlcad;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2005.10.29.21.28.58;	author brlcad;	state Exp;
+branches;
+next	;
+
+1.4.2.1
+date	2005.11.08.21.12.11;	author brlcad;	state dead;
+branches;
+next	1.4.2.2;
+
+1.4.2.2
+date	2005.11.13.17.45.01;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.8
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@/*                       P R O C E S S . H
+ * BRL-CAD
+ *
+ * Copyright (c) 2004-2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ *
+ */
+/** @@file process.h
+ *
+ * Data structures for the comma-separated value point file parser.
+ *
+ * Author -
+ *   Christopher Sean Morrison
+ */
+
+/* private header */
+
+#ifndef __PROCESS_H__
+#define __PROCESS_H__
+
+#include "common.h"
+
+#include "machine.h"
+#include "vmath.h"
+
+#include "./count.h"
+
+typedef struct point_line {
+    const char *type;	/* type name (e.g. "POINTS") */
+    int code;		/* points_parse.h numeric code */
+    int index;		/* acquisition index */
+    int count;		/* how many values are set (private use)*/
+    point_t val;	/* xyz values */
+} point_line_t;
+
+#undef YYSTYPE
+#define YYSTYPE point_line_t
+
+/* must come after point_line_t typedef and YYSTYPE define */
+#include "./points_parse.h"
+
+
+#ifndef X
+#  define X 0
+#endif
+#ifndef Y
+#  define Y 1
+#endif
+#ifndef Z
+#  define Z 2
+#endif
+
+#define INITIALIZE_POINT_LINE_T(x) {\
+    (x).type = (const char *)NULL;\
+    (x).code = 0;\
+    (x).index = 0;\
+    (x).count = 0;\
+    (x).val[X] = (x).val[Y] = (x).val[Z] = (fastf_t)0.0;\
+}
+
+#define COPY_POINT_LINE_T(x,y) {\
+    (x).type = (y).type;\
+    (x).code = (y).code;\
+    (x).index = (y).index;\
+    (x).count = (y).count;\
+    (x).val[X] = (y).val[X];\
+    (x).val[Y] = (y).val[Y];\
+    (x).val[Z] = (y).val[Z];\
+}
+
+
+/** process a single point value, adding it to the point */
+void process_value(point_line_t *plt, double value);
+
+/** process a single point type, adding it to the point */
+void process_type(point_line_t *plt, const char *type, int code);
+
+/** process a single point, passing it along to process_multi_group when collection types change */
+void process_point(point_line_t *plt);
+
+/**
+ * remove nullified points, condensing the point array by collapsing
+ * the invalid points.
+ */
+int condense_points(point_line_t **plta, int count);
+
+/**
+ * remove points marked as "bogus".  this is conventionally done by
+ * specifying 5 or more identical points (within a given tolerance) in
+ * a given set of points.  if 5 or more points are followed by 5 or
+ * more different points, then two previous points are removed and so
+ * on.
+ */
+int delete_points(point_line_t **plta, int count, double tolerance);
+
+/** process a group a points with possible multiples within some tolerance distance */
+void process_multi_group(point_line_t **plta, int count, double tolerance);
+
+/** process a single group of points, returns true if processed */
+int process_group(point_line_t **plta, int count);
+
+/* primitive point set types */
+
+int create_plate(point_line_t **plta, int count);
+int create_arb(point_line_t **plta, int count);
+int create_points(point_line_t **plta, int count);
+int create_cylinder(point_line_t **plta, int count);
+int create_pipe(point_line_t **plta, int count);
+
+
+#endif  /* __PROCESS_H__ */
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+1.7
+log
+@update copyright to 2007
+@
+text
+@d8 2
+a9 3
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+d14 1
+a14 1
+ * General Public License for more details.
+d16 2
+a17 2
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+@
+
+
+1.6
+log
+@update copyright to 2006
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 2004-2006 United States Government as represented by
+@
+
+
+1.5
+log
+@condense points doesn't need tolerance
+@
+text
+@d4 1
+a4 1
+ * Copyright (C) 2004-2005 United States Government as represented by
+@
+
+
+1.4
+log
+@rename the create functions to have a create_ prefix (e.g. create_plate), add condense_points and delete_points for removing null points from a set and deleting detected 5-point replicates in the input (implying a need to delete the previous point).
+@
+text
+@d96 1
+a96 1
+ * remove nullified points, condensing the point array by collaping
+d99 1
+a99 1
+int condense_points(point_line_t **plta, int count, double tolerance);
+@
+
+
+1.4.2.1
+log
+@file process.h was added on branch rel-7-6-branch on 2005-11-13 17:45:01 +0000
+@
+text
+@d1 135
+@
+
+
+1.4.2.2
+log
+@more merging changes from HEAD aka rel-7-6-4 to the rel-7-6-branch, adding the items that were moved and resolving rcs keyword conflicts
+@
+text
+@a0 135
+/*                       P R O C E S S . H
+ * BRL-CAD
+ *
+ * Copyright (C) 2004-2005 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+ * information.
+ *
+ */
+/** @@file process.h
+ *
+ * Data structures for the comma-separated value point file parser.
+ *
+ * Author -
+ *   Christopher Sean Morrison
+ */
+
+/* private header */
+
+#ifndef __PROCESS_H__
+#define __PROCESS_H__
+
+#include "common.h"
+
+#include "machine.h"
+#include "vmath.h"
+
+#include "./count.h"
+
+typedef struct point_line {
+    const char *type;	/* type name (e.g. "POINTS") */
+    int code;		/* points_parse.h numeric code */
+    int index;		/* acquisition index */
+    int count;		/* how many values are set (private use)*/
+    point_t val;	/* xyz values */
+} point_line_t;
+
+#undef YYSTYPE
+#define YYSTYPE point_line_t
+
+/* must come after point_line_t typedef and YYSTYPE define */
+#include "./points_parse.h"
+
+
+#ifndef X
+#  define X 0
+#endif
+#ifndef Y
+#  define Y 1
+#endif
+#ifndef Z
+#  define Z 2
+#endif
+
+#define INITIALIZE_POINT_LINE_T(x) {\
+    (x).type = (const char *)NULL;\
+    (x).code = 0;\
+    (x).index = 0;\
+    (x).count = 0;\
+    (x).val[X] = (x).val[Y] = (x).val[Z] = (fastf_t)0.0;\
+}
+
+#define COPY_POINT_LINE_T(x,y) {\
+    (x).type = (y).type;\
+    (x).code = (y).code;\
+    (x).index = (y).index;\
+    (x).count = (y).count;\
+    (x).val[X] = (y).val[X];\
+    (x).val[Y] = (y).val[Y];\
+    (x).val[Z] = (y).val[Z];\
+}
+
+
+/** process a single point value, adding it to the point */
+void process_value(point_line_t *plt, double value);
+
+/** process a single point type, adding it to the point */
+void process_type(point_line_t *plt, const char *type, int code);
+
+/** process a single point, passing it along to process_multi_group when collection types change */
+void process_point(point_line_t *plt);
+
+/**
+ * remove nullified points, condensing the point array by collaping
+ * the invalid points.
+ */
+int condense_points(point_line_t **plta, int count, double tolerance);
+
+/**
+ * remove points marked as "bogus".  this is conventionally done by
+ * specifying 5 or more identical points (within a given tolerance) in
+ * a given set of points.  if 5 or more points are followed by 5 or
+ * more different points, then two previous points are removed and so
+ * on.
+ */
+int delete_points(point_line_t **plta, int count, double tolerance);
+
+/** process a group a points with possible multiples within some tolerance distance */
+void process_multi_group(point_line_t **plta, int count, double tolerance);
+
+/** process a single group of points, returns true if processed */
+int process_group(point_line_t **plta, int count);
+
+/* primitive point set types */
+
+int create_plate(point_line_t **plta, int count);
+int create_arb(point_line_t **plta, int count);
+int create_points(point_line_t **plta, int count);
+int create_cylinder(point_line_t **plta, int count);
+int create_pipe(point_line_t **plta, int count);
+
+
+#endif  /* __PROCESS_H__ */
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+1.3
+log
+@ws
+@
+text
+@d43 1
+a43 1
+    const char *type;	/* type name */
+d45 2
+a46 2
+    int index;		/* count index */
+    int count;		/* how many values are set */
+d95 15
+d118 5
+a122 5
+int plate(point_line_t **plta, int count);
+int arb(point_line_t **plta, int count);
+int points(point_line_t **plta, int count);
+int cylinder(point_line_t **plta, int count);
+int ppipe(point_line_t **plta, int count);
+@
+
+
+1.2
+log
+@header file is named points_parse.h now
+@
+text
+@d102 1
+@
+
+
+1.1
+log
+@initial files for a points file parser that reads them all in and processes groups of them at a time based on recognized line labels.  data collected in a requisite order may then be automatically turned into geometry using a tclscript helper code.
+@
+text
+@d44 1
+a44 1
+    int code;		/* points.h numeric code */
+d54 1
+a54 1
+#include "./points.h"
+@
+

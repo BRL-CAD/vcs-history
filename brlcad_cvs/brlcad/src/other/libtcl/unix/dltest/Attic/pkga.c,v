@@ -1,0 +1,224 @@
+head	14.2;
+access;
+symbols
+	stable-branch:14.1
+	rel-7-8-4:14.1
+	rel-7-8-2:14.1
+	rel-7-8-0:14.1
+	trimnurbs-branch:14.1.0.8
+	help:14.1
+	temp_tag:14.1
+	bobWinPort-20051223-freeze:14.1
+	postmerge-20051223-bobWinPort:14.1
+	premerge-20051223-bobWinPort:14.1
+	rel-7-6-6:14.1
+	rel-7-6-4:14.1
+	rel-7-6-2:14.1
+	rel-7-6-branch:14.1.0.6
+	rel-7-6-0:14.1
+	rel-7-4-2:14.1
+	rel-7-4-branch:14.1.0.4
+	bobWinPort:14.1.0.2
+	rel-7-4-0:14.1
+	rel-7-2-6:14.1
+	rel-7-2-4:14.1
+	rel-7-2-2:14.1
+	rel-7-2-0:14.1
+	rel-7-0-4:14.1
+	rel-7-0-2:14.1
+	rel-7-0-1:14.1
+	opensource-post:14.1
+	opensource-pre:1.1
+	rel-7-0-branch:1.1.0.2
+	rel-7-0:1.1;
+locks; strict;
+comment	@ * @;
+
+
+14.2
+date	2007.03.02.21.47.17;	author brlcad;	state dead;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.24;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.14.52.17;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.2
+log
+@upgrade tcl/tk from 8.4.6 to 8.5a5; also move to a recursive configure, using AC_CONFIG_SUBDIRS to call upon tcl, tk, and enigma's configure scripts as needed instead of redoing their build systems for our purpose.  this has a rather drastic impact on the way the libraries are linked together, including the need to compile tcl/tk static so as to avoid libtool portability issues as well as letting us take advantage of their build system for reduced maintenance and easing future upgrades.  undoubtedly more build issues to be worked out with other platforms given the extent of this change.  this does move us one step closer towards correctly linking against system tcl/tk installations too.
+@
+text
+@/* 
+ * pkga.c --
+ *
+ *	This file contains a simple Tcl package "pkga" that is intended
+ *	for testing the Tcl dynamic loading facilities.
+ *
+ * Copyright (c) 1995 Sun Microsystems, Inc.
+ *
+ * See the file "license.terms" for information on usage and redistribution
+ * of this file, and for a DISCLAIMER OF ALL WARRANTIES.
+ *
+ * RCS: @@(#) $Id: pkga.c,v 14.1 2004/11/16 19:42:24 morrison Exp $
+ */
+#include "tcl.h"
+
+/*
+ * Prototypes for procedures defined later in this file:
+ */
+
+static int    Pkga_EqObjCmd _ANSI_ARGS_((ClientData clientData,
+		Tcl_Interp *interp, int objc, Tcl_Obj * CONST objv[]));
+static int    Pkga_QuoteObjCmd _ANSI_ARGS_((ClientData clientData,
+		Tcl_Interp *interp, int objc, Tcl_Obj * CONST objv[]));
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * Pkga_EqObjCmd --
+ *
+ *	This procedure is invoked to process the "pkga_eq" Tcl command.
+ *	It expects two arguments and returns 1 if they are the same,
+ *	0 if they are different.
+ *
+ * Results:
+ *	A standard Tcl result.
+ *
+ * Side effects:
+ *	See the user documentation.
+ *
+ *----------------------------------------------------------------------
+ */
+
+static int
+Pkga_EqObjCmd(dummy, interp, objc, objv)
+    ClientData dummy;		/* Not used. */
+    Tcl_Interp *interp;		/* Current interpreter. */
+    int objc;			/* Number of arguments. */
+    Tcl_Obj * CONST objv[];	/* Argument objects. */
+{
+    int result;
+    CONST char *str1, *str2;
+    int len1, len2, n;
+
+    if (objc != 3) {
+	Tcl_WrongNumArgs(interp, 1, objv,  "string1 string2");
+	return TCL_ERROR;
+    }
+
+    str1 = Tcl_GetStringFromObj(objv[1], &len1);
+    str2 = Tcl_GetStringFromObj(objv[2], &len2);
+    if (len1 == len2) {
+	result = (Tcl_UtfNcmp(str1, str2, len1) == 0);
+    } else {
+	result = 0;
+    }
+    Tcl_SetObjResult(interp, Tcl_NewIntObj(result));
+    return TCL_OK;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * Pkga_QuoteObjCmd --
+ *
+ *	This procedure is invoked to process the "pkga_quote" Tcl command.
+ *	It expects one argument, which it returns as result.
+ *
+ * Results:
+ *	A standard Tcl result.
+ *
+ * Side effects:
+ *	See the user documentation.
+ *
+ *----------------------------------------------------------------------
+ */
+
+static int
+Pkga_QuoteObjCmd(dummy, interp, objc, objv)
+    ClientData dummy;			/* Not used. */
+    Tcl_Interp *interp;			/* Current interpreter. */
+    int objc;                         /* Number of arguments. */
+    Tcl_Obj * CONST objv[];           /* Argument strings. */
+{
+    if (objc != 2) {
+	Tcl_WrongNumArgs(interp, 1, objv, "value");
+	return TCL_ERROR;
+    }
+    Tcl_SetObjResult(interp, objv[1]);
+    return TCL_OK;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * Pkga_Init --
+ *
+ *	This is a package initialization procedure, which is called
+ *	by Tcl when this package is to be added to an interpreter.
+ *
+ * Results:
+ *	None.
+ *
+ * Side effects:
+ *	None.
+ *
+ *----------------------------------------------------------------------
+ */
+
+int
+Pkga_Init(interp)
+    Tcl_Interp *interp;		/* Interpreter in which the package is
+				 * to be made available. */
+{
+    int code;
+
+    if (Tcl_InitStubs(interp, TCL_VERSION, 1) == NULL) {
+	return TCL_ERROR;
+    }
+    code = Tcl_PkgProvide(interp, "Pkga", "1.0");
+    if (code != TCL_OK) {
+	return code;
+    }
+    Tcl_CreateObjCommand(interp, "pkga_eq", Pkga_EqObjCmd,
+	    (ClientData) 0, (Tcl_CmdDeleteProc *) NULL);
+    Tcl_CreateObjCommand(interp, "pkga_quote", Pkga_QuoteObjCmd,
+	    (ClientData) 0, (Tcl_CmdDeleteProc *) NULL);
+    return TCL_OK;
+}
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@d12 1
+a12 1
+ * RCS: @@(#) $Id: pkga.c,v 1.1 2004/05/20 14:52:17 morrison Exp $
+@
+
+
+1.1
+log
+@Sources that are external to BRL-CAD are moved from the top level to src/other/.
+@
+text
+@d12 1
+a12 1
+ * RCS: @@(#) $Id: pkga.c,v 1.2 2004/03/04 19:47:24 morrison Exp $
+@
+

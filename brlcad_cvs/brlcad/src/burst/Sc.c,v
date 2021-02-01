@@ -1,0 +1,1469 @@
+head	14.11;
+access;
+symbols
+	rel-7-10-4:14.10
+	STABLE:14.10.0.2
+	stable-branch:14.4
+	rel-7-10-2:14.10
+	rel-7-10-0:14.9
+	rel-7-8-4:14.7
+	rel-7-8-2:14.7
+	rel-7-8-0:14.7
+	trimnurbs-branch:14.7.0.2
+	help:14.7
+	temp_tag:14.6
+	bobWinPort-20051223-freeze:14.4
+	postmerge-20051223-bobWinPort:14.6
+	premerge-20051223-bobWinPort:14.6
+	rel-7-6-6:14.6
+	rel-7-6-4:14.6
+	rel-7-6-2:14.4
+	rel-7-6-branch:14.4.0.6
+	rel-7-6-0:14.4
+	rel-7-4-2:14.4
+	rel-7-4-branch:14.4.0.4
+	bobWinPort:14.4.0.2
+	rel-7-4-0:14.4
+	rel-7-2-6:14.4
+	rel-7-2-4:14.4
+	rel-7-2-2:14.4
+	rel-7-2-0:14.4
+	rel-7-0-4:14.3
+	rel-7-0-2:14.3
+	rel-7-0-1:14.3
+	opensource-post:14.3
+	opensource-pre:1.4
+	rel-7-0-branch:1.4.0.2
+	rel-7-0:1.4;
+locks; strict;
+comment	@ * @;
+
+
+14.11
+date	2007.09.15.16.23.03;	author brlcad;	state Exp;
+branches;
+next	14.10;
+
+14.10
+date	2007.07.26.01.13.50;	author brlcad;	state Exp;
+branches;
+next	14.9;
+
+14.9
+date	2007.01.23.01.13.24;	author brlcad;	state Exp;
+branches;
+next	14.8;
+
+14.8
+date	2007.01.20.14.36.42;	author brlcad;	state Exp;
+branches;
+next	14.7;
+
+14.7
+date	2006.01.18.06.46.13;	author brlcad;	state Exp;
+branches;
+next	14.6;
+
+14.6
+date	2005.11.04.14.50.57;	author brlcad;	state Exp;
+branches;
+next	14.5;
+
+14.5
+date	2005.10.23.04.44.29;	author brlcad;	state Exp;
+branches;
+next	14.4;
+
+14.4
+date	2005.01.30.20.30.15;	author brlcad;	state Exp;
+branches
+	14.4.6.1;
+next	14.3;
+
+14.3
+date	2004.12.18.06.50.49;	author morrison;	state Exp;
+branches;
+next	14.2;
+
+14.2
+date	2004.12.18.01.52.36;	author morrison;	state Exp;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.12;	author morrison;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	2004.09.17.20.14.53;	author morrison;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2004.09.03.23.30.56;	author morrison;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2004.08.02.23.01.47;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.15.18.42;	author morrison;	state Exp;
+branches;
+next	;
+
+14.4.6.1
+date	2005.11.13.13.46.13;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.11
+log
+@more c89 embracing.  c89 provides string.h for all of the various str*() and mem*() functions, so remove the check for its presence.  there is still likely to be work required for strict c89 conformance for the various bsd strings.h functions that may be in use.
+@
+text
+@/*                            S C . C
+ * BRL-CAD
+ *
+ * Copyright (c) 2004-2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ *
+ */
+/** @@file Sc.c
+ *  Author:	Gary S. Moss
+ */
+
+#include "common.h"
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#ifdef  HAVE_SYS__IOCTL_H
+#  include <sys/_ioctl.h>
+#else
+#  ifdef HAVE_SYS_IOCTL_H
+#    include <sys/ioctl.h>
+#    define _winsize winsize	/* For compatibility with _ioctl.h.	*/
+#  endif
+#endif
+
+/* Externals from termlib(3). */
+#ifdef HAVE_NCURSES_H
+#  include <ncurses.h>
+#else
+#  ifdef HAVE_CURSES_H
+#    include <curses.h>
+#  endif
+#endif
+#ifdef HAVE_TERM_H
+#  include <term.h>
+#endif
+
+#include "./Sc.h"
+
+
+static FILE	*out_fp;		/* Output stream.	*/
+static char	tstrings[ScTCAPSIZ];    /* Individual TCS.	*/
+static char	*tstr_addr = tstrings;	/* Used by tgetstr().	*/
+static int	fd_stdout = 1;
+
+/* This is a global buffer for the terminal capabilities entry.	*/
+char		ScTermcap[ScTCAPSIZ];
+
+/* This is a global buffer for the name of the terminal.	*/
+char		ScTermname[ScTERMSIZ] = "UNKNOWN";
+
+/* Individual terminal control strings (TCS).			*/
+char		*ScBC, /* Backspace character.			*/
+  *ScPC, /* Padding character.			*/
+  *ScUP, /* Cursor up one line.			*/
+  *ScCS, /* Change scrolling region.		*/
+  *ScSO, /* Begin standout mode.			*/
+  *ScSE, /* End standout mode.			*/
+  *ScCE, /* Clear to end of line.			*/
+  *ScCL, /* Clear display and home cursor.	*/
+  *ScHO, /* Home cursor.				*/
+  *ScCM, /* Screen-relative cursor motion.	*/
+  *ScTI, /* Initialize terminal.			*/
+  *ScAL, /* Insert line.				*/
+  *ScDL, /* Delete line.				*/
+  *ScSR, /* Scroll text down.			*/
+  *ScSF; /* Scroll text up.			*/
+
+/* Individual terminal parameters.				*/
+int		ScLI, /* Number of lines on screen.		*/
+  ScCO; /* Number of columns on screen.		*/
+
+
+/*
+  Get the terminal parameters.
+*/
+static void
+ScLoadTP( void ) {
+#ifdef TIOCGWINSZ
+  /* Get window size for DMD layers support.			*/
+  struct _winsize		window;
+
+  if(	ioctl( fd_stdout, TIOCGWINSZ, &window ) == 0
+	&&	window.ws_row != 0 && window.ws_col != 0
+	)
+    {
+      ScLI = (int) window.ws_row;
+      ScCO = (int) window.ws_col;
+    }
+  else
+#endif
+    {
+      ScLI = tgetnum( "li" );
+      ScCO = tgetnum( "co" );
+    }
+  return;
+}
+
+/*
+  Get the terminal control strings.
+*/
+static void
+ScLoadTCS( void ) {
+  ScCS = tgetstr( "cs", &tstr_addr );
+  ScSE = tgetstr( "se", &tstr_addr );
+  ScSO = tgetstr( "so", &tstr_addr );
+  ScCE = tgetstr( "ce", &tstr_addr );
+  ScCL = tgetstr( "cl", &tstr_addr );
+  ScHO = tgetstr( "ho", &tstr_addr );
+  ScCM = tgetstr( "cm", &tstr_addr );
+  ScBC = tgetstr( "bc", &tstr_addr );
+  ScPC = tgetstr( "pc", &tstr_addr );
+  ScUP = tgetstr( "up", &tstr_addr );
+  ScTI = tgetstr( "ti", &tstr_addr );
+  ScAL = tgetstr( "al", &tstr_addr );
+  ScDL = tgetstr( "dl", &tstr_addr );
+  ScSR = tgetstr( "sr", &tstr_addr );
+  ScSF = tgetstr( "sf", &tstr_addr );
+  return;
+}
+
+/*
+  This function prevents the default "PutChr" from being pulled in
+  from the termcap library (-ltermlib).  DO NOT change its name or
+  STDOUT will be assumed as the output stream for terminal control.
+  Some applications might want to open "/dev/tty" so that they can
+  use STDOUT for something else.
+*/
+int
+PutChr( char c ) {
+  return	putc( c, out_fp );
+}
+
+/*
+  ScInit() must be invoked before any other function in the Sc package.
+  Stream fp must be open for writing and all terminal control sequences
+  will be sent to fp, giving the application the option of using STDOUT
+  for other things.  Besides setting the output stream, ScInit() does
+  the following:
+
+  Initializes the terminal.  Fills terminal name and capabilities
+  into external buffers.  Gets terminal control strings into external
+  variables.  Gets individual terminal parameters into external
+  variables.  Returns "1" for success, "0" for failure and
+  prints appropriate diagnostics on STDERR if $TERM is not set or
+  there is a problem in retrieving the corresponding termcap entry.
+*/
+boolean
+ScInit( FILE *fp ) {
+  char	*term; /* Name of terminal from environment. */
+  out_fp = fp;
+  fd_stdout = fileno( out_fp );
+  if( (term = getenv( "TERM" )) == NULL )
+    {
+      (void) fprintf( stderr, "TERM not set or exported!\n" );
+      return	0;
+    }
+  (void) strncpy( ScTermname, term, ScTERMSIZ-1 );
+
+  /* Get terminal entry.						*/
+  switch( tgetent( ScTermcap, term ) )
+    {
+      case -1 :
+	(void) fprintf( stderr, "Can't open termcap file!\n" );
+	return	0;
+      case  0 :
+	(void) fprintf( stderr,
+			"Terminal type not in termcap file!\n"
+			);
+	return	0;
+    }
+
+  /* Get individual terminal parameters and control strings.	*/
+  ScLoadTP();
+  ScLoadTCS();
+
+  tputs( ScTI, 1, (int (*)(int))PutChr );	/* Initialize terminal.			*/
+  return	1;		/* All is well.				*/
+}
+
+/*
+  Clear from the cursor to the end of that line.
+*/
+boolean
+ScClrEOL( void ) {
+  if( ScCE == NULL )
+    return	0;
+  tputs( ScCE, 1, (int (*)(int))PutChr );
+  return	1;
+}
+
+/*
+  Reset the scrolling region to the entire screen.
+*/
+boolean
+ScClrScrlReg( void ) {
+  if( ScCS == NULL )
+    return	0;
+  tputs( tgoto( ScCS, ScLI-1, 0 ), 1, (int (*)(int))PutChr );
+  return	1;
+}
+
+/*
+  End standout mode.
+*/
+boolean
+ScClrStandout( void ) {
+  if( ScSE == NULL )
+    return	0;
+  tputs( ScSE, 1, (int (*)(int))PutChr );
+  return	1;
+}
+
+/*
+Clear the screen and "home" the cursor.
+*/
+boolean
+ScClrText( void ) {
+  if( ScCL == NULL )
+    return	0;
+  tputs( ScCL, ScLI, (int (*)(int))PutChr );
+  return	1;
+}
+
+/*
+  Insert a the line under the cursor.
+*/
+boolean
+ScInsertLn( void ) {
+  if( ScAL == NULL )
+    return	0;
+  tputs( ScAL, 1, (int (*)(int))PutChr );
+  return	1;
+}
+
+/*
+  Delete the line under the cursor.
+*/
+boolean
+ScDeleteLn( void ) {
+  if( ScDL == NULL )
+    return	0;
+  tputs( ScDL, 1, (int (*)(int))PutChr );
+  return	1;
+}
+
+/*
+  Scroll backward 1 line.
+*/
+boolean
+ScDnScroll( void ) {
+  if( ScSR == NULL )
+    return	0;
+  tputs( ScSR, 1, (int (*)(int))PutChr );
+  return	1;
+}
+
+/*
+  Move the cursor to the top-left corner of the screen.
+*/
+boolean
+ScHmCursor( void ) {
+  if( ScHO == NULL )
+    return	0;
+  tputs( ScHO, 1, (int (*)(int))PutChr );
+  return	1;
+}
+
+/*
+  Move the cursor to screen coordinates x, y (for column and row,
+  respectively).
+*/
+boolean
+ScMvCursor( int x, int y ) {
+  if( ScCM == NULL )
+    return	0;
+
+  --x; --y; /* Tgoto() adds 1 to each coordinate!? */
+  tputs( tgoto( ScCM, x, y ), 1, (int (*)(int))PutChr );
+  return	1;
+}
+
+/*
+  Set the scrolling region to be from "top" line to "btm" line,
+  inclusive.
+*/
+boolean
+ScSetScrlReg( int top, int btm ) {
+  if( ScCS == NULL )
+    return	0;
+  tputs( tgoto( ScCS, btm-1, top-1 ), 1, (int (*)(int))PutChr );
+  return	1;
+}
+
+/*
+  Begin standout mode.
+*/
+boolean
+ScSetStandout( void ) {
+  if( ScSO == NULL )
+    return	0;
+  tputs( ScSO, 1, (int (*)(int))PutChr );
+  return	1;
+}
+
+/*
+  Scroll text forward 1 line.
+*/
+boolean
+ScUpScroll( void ) {
+  if( ScSF == NULL )
+    return	0;
+  tputs( ScSF, 1, (int (*)(int))PutChr );
+  return	1;
+}
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+14.10
+log
+@remove ephemeral data like phone numbers and addresses, including the misleading 'source' statements on code that is continually evolving and receiving contributions from many many sources
+@
+text
+@a24 5
+/*LINTLIBRARY*/
+#ifndef lint
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/burst/Sc.c,v 14.9 2007/01/23 01:13:24 brlcad Exp $ (BRL)";
+#endif
+
+d29 1
+a29 6
+
+#ifdef HAVE_STRING_H
+#  include <string.h>
+#else
+#  include <strings.h>
+#endif
+@
+
+
+14.9
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@d22 2
+a23 6
+  Author:	Gary S. Moss
+  U. S. Army Ballistic Research Laboratory
+  Aberdeen Proving Ground
+  Maryland 21005-5066
+
+  $Header: /cvsroot/brlcad/brlcad/src/burst/Sc.c,v 14.8 2007/01/20 14:36:42 brlcad Exp $ (BRL)
+a24 1
+*/
+d27 1
+a27 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/burst/Sc.c,v 14.8 2007/01/20 14:36:42 brlcad Exp $ (BRL)";
+@
+
+
+14.8
+log
+@update copyright to 2007
+@
+text
+@d8 2
+a9 3
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+d14 1
+a14 1
+ * General Public License for more details.
+d16 2
+a17 2
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+d27 1
+a27 1
+  $Header: /cvsroot/brlcad/brlcad/src/burst/Sc.c,v 14.7 2006/01/18 06:46:13 brlcad Exp $ (BRL)
+d32 1
+a32 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/burst/Sc.c,v 14.7 2006/01/18 06:46:13 brlcad Exp $ (BRL)";
+@
+
+
+14.7
+log
+@update copyright to 2006
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 2004-2006 United States Government as represented by
+d28 1
+a28 1
+  $Header: /cvsroot/brlcad/brlcad/src/burst/Sc.c,v 14.6 2005/11/04 14:50:57 brlcad Exp $ (BRL)
+d33 1
+a33 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/burst/Sc.c,v 14.6 2005/11/04 14:50:57 brlcad Exp $ (BRL)";
+@
+
+
+14.6
+log
+@burst the non-ansi-yet-willing-to-pretend-we-are-c99 bubble that the burst code likes to use.  that is, use static instead of STATIC and don't clobber the bool/true/false reserved words of the c++ compilers.  clean up the headers to support this.
+@
+text
+@d4 1
+a4 1
+ * Copyright (C) 2004-2005 United States Government as represented by
+d28 1
+a28 1
+  $Header: /cvsroot/brlcad/brlcad/src/burst/Sc.c,v 14.5 2005/10/23 04:44:29 brlcad Exp $ (BRL)
+d33 1
+a33 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/burst/Sc.c,v 14.5 2005/10/23 04:44:29 brlcad Exp $ (BRL)";
+@
+
+
+14.5
+log
+@trailing ws
+@
+text
+@d28 1
+a28 1
+  $Header: /cvsroot/brlcad/brlcad/src/burst/Sc.c,v 14.4 2005/01/30 20:30:15 brlcad Exp $ (BRL)
+d33 1
+a33 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/burst/Sc.c,v 14.4 2005/01/30 20:30:15 brlcad Exp $ (BRL)";
+d174 1
+a174 1
+  variables.  Returns "true" for success, "false" for failure and
+d178 1
+a178 1
+bool
+d186 1
+a186 1
+      return	false;
+d195 1
+a195 1
+	return	false;
+d200 1
+a200 1
+	return	false;
+d208 1
+a208 1
+  return	true;		/* All is well.				*/
+d214 1
+a214 1
+bool
+d217 1
+a217 1
+    return	false;
+d219 1
+a219 1
+  return	true;
+d225 1
+a225 1
+bool
+d228 1
+a228 1
+    return	false;
+d230 1
+a230 1
+  return	true;
+d236 1
+a236 1
+bool
+d239 1
+a239 1
+    return	false;
+d241 1
+a241 1
+  return	true;
+d247 1
+a247 1
+bool
+d250 1
+a250 1
+    return	false;
+d252 1
+a252 1
+  return	true;
+d258 1
+a258 1
+bool
+d261 1
+a261 1
+    return	false;
+d263 1
+a263 1
+  return	true;
+d269 1
+a269 1
+bool
+d272 1
+a272 1
+    return	false;
+d274 1
+a274 1
+  return	true;
+d280 1
+a280 1
+bool
+d283 1
+a283 1
+    return	false;
+d285 1
+a285 1
+  return	true;
+d291 1
+a291 1
+bool
+d294 1
+a294 1
+    return	false;
+d296 1
+a296 1
+  return	true;
+d303 1
+a303 1
+bool
+d306 1
+a306 1
+    return	false;
+d310 1
+a310 1
+  return	true;
+d317 1
+a317 1
+bool
+d320 1
+a320 1
+    return	false;
+d322 1
+a322 1
+  return	true;
+d328 1
+a328 1
+bool
+d331 1
+a331 1
+    return	false;
+d333 1
+a333 1
+  return	true;
+d339 1
+a339 1
+bool
+d342 1
+a342 1
+    return	false;
+d344 1
+a344 1
+  return	true;
+@
+
+
+14.4
+log
+@update copyright to 2005
+@
+text
+@d28 1
+a28 1
+  $Header: /cvsroot/brlcad/brlcad/src/burst/Sc.c,v 14.3 2004/12/18 06:50:49 morrison Exp $ (BRL)
+d33 1
+a33 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/burst/Sc.c,v 14.3 2004/12/18 06:50:49 morrison Exp $ (BRL)";
+d189 1
+a189 1
+  
+d202 1
+a202 1
+  
+d206 1
+a206 1
+  
+d307 1
+a307 1
+  
+@
+
+
+14.4.6.1
+log
+@merge changes from HEAD aka rel-7-6-4 to the rel-7-6-branch just in case someone peeks a gander or tries to continue/build the branch
+@
+text
+@d28 1
+a28 1
+  $Header$ (BRL)
+d33 1
+a33 1
+static const char RCSid[] = "@@(#)$Header$ (BRL)";
+d174 1
+a174 1
+  variables.  Returns "1" for success, "0" for failure and
+d178 1
+a178 1
+boolean
+d186 1
+a186 1
+      return	0;
+d189 1
+a189 1
+
+d195 1
+a195 1
+	return	0;
+d200 1
+a200 1
+	return	0;
+d202 1
+a202 1
+
+d206 1
+a206 1
+
+d208 1
+a208 1
+  return	1;		/* All is well.				*/
+d214 1
+a214 1
+boolean
+d217 1
+a217 1
+    return	0;
+d219 1
+a219 1
+  return	1;
+d225 1
+a225 1
+boolean
+d228 1
+a228 1
+    return	0;
+d230 1
+a230 1
+  return	1;
+d236 1
+a236 1
+boolean
+d239 1
+a239 1
+    return	0;
+d241 1
+a241 1
+  return	1;
+d247 1
+a247 1
+boolean
+d250 1
+a250 1
+    return	0;
+d252 1
+a252 1
+  return	1;
+d258 1
+a258 1
+boolean
+d261 1
+a261 1
+    return	0;
+d263 1
+a263 1
+  return	1;
+d269 1
+a269 1
+boolean
+d272 1
+a272 1
+    return	0;
+d274 1
+a274 1
+  return	1;
+d280 1
+a280 1
+boolean
+d283 1
+a283 1
+    return	0;
+d285 1
+a285 1
+  return	1;
+d291 1
+a291 1
+boolean
+d294 1
+a294 1
+    return	0;
+d296 1
+a296 1
+  return	1;
+d303 1
+a303 1
+boolean
+d306 2
+a307 2
+    return	0;
+
+d310 1
+a310 1
+  return	1;
+d317 1
+a317 1
+boolean
+d320 1
+a320 1
+    return	0;
+d322 1
+a322 1
+  return	1;
+d328 1
+a328 1
+boolean
+d331 1
+a331 1
+    return	0;
+d333 1
+a333 1
+  return	1;
+d339 1
+a339 1
+boolean
+d342 1
+a342 1
+    return	0;
+d344 1
+a344 1
+  return	1;
+@
+
+
+14.3
+log
+@break up the doxygen marker to appease emacs M-x indent-region'ing
+@
+text
+@d4 2
+a5 2
+ * Copyright (c) 2004 United States Government as represented by the
+ * U.S. Army Research Laboratory.
+d28 1
+a28 1
+  $Header: /cvs/brlcad/src/burst/Sc.c,v 14.2 2004/12/18 01:52:36 morrison Exp $ (BRL)
+d33 1
+a33 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/burst/Sc.c,v 14.2 2004/12/18 01:52:36 morrison Exp $ (BRL)";
+@
+
+
+14.2
+log
+@assign copyright and GPL license
+@
+text
+@d21 2
+a22 1
+ **//** @@file Sc.c
+d28 1
+a28 1
+  $Header: /cvs/brlcad/src/burst/Sc.c,v 14.1 2004/11/16 19:42:12 morrison Exp $ (BRL)
+d33 1
+a33 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/burst/Sc.c,v 14.1 2004/11/16 19:42:12 morrison Exp $ (BRL)";
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@d1 21
+a21 1
+/*
+d27 1
+a27 1
+  $Header: /cvs/brlcad/src/burst/Sc.c,v 1.4 2004/09/17 20:14:53 morrison Exp $ (BRL)
+d32 1
+a32 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/burst/Sc.c,v 1.4 2004/09/17 20:14:53 morrison Exp $ (BRL)";
+@
+
+
+1.4
+log
+@massive header clean-up.  actually look for a valid curses header instead of trying to force a presumed definition of the extern functions needed.  clean up the whitespace and comments, and stick to ansi functions.
+@
+text
+@d7 1
+a7 1
+  $Header: /cvs/brlcad/src/burst/Sc.c,v 1.3 2004/09/03 23:30:56 morrison Exp $ (BRL)
+d12 1
+a12 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/burst/Sc.c,v 1.3 2004/09/03 23:30:56 morrison Exp $ (BRL)";
+d325 10
+@
+
+
+1.3
+log
+@USE_STRING_H is no more.. it's HAVE_STRING_H
+@
+text
+@d2 4
+a5 4
+	Author:	Gary S. Moss
+		U. S. Army Ballistic Research Laboratory
+		Aberdeen Proving Ground
+		Maryland 21005-5066
+d7 1
+a7 1
+	$Header: /cvs/brlcad/src/burst/Sc.c,v 1.2 2004/08/02 23:01:47 morrison Exp $ (BRL)
+d12 1
+a12 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/burst/Sc.c,v 1.2 2004/08/02 23:01:47 morrison Exp $ (BRL)";
+d14 1
+d18 1
+d21 1
+a21 1
+#include <string.h>
+d23 1
+a23 1
+#include <strings.h>
+d26 2
+a27 3
+#ifndef cray
+#if defined( VLDSYSV )
+#include <sys/_ioctl.h>
+d29 4
+a32 3
+#include <sys/ioctl.h>
+#define _winsize winsize	/* For compatibility with _ioctl.h.	*/
+#endif
+a33 1
+#include "./Sc.h"
+d36 2
+a37 5
+#if __STDC__
+extern char	*tgoto( char *cm, int destcol, int destline );
+extern char	*tgetstr( char *id, char **area );
+extern int	tgetent( char *bp, char *name );
+extern int	tgetnum( char *id );
+d39 3
+a41 4
+extern char	*tgoto();
+extern char	*tgetstr();
+extern int	tgetent();
+extern int	tgetnum();
+d43 5
+a47 1
+extern int	tputs();
+a48 7
+/* Externals from the C library. */
+#if __STDC__
+extern char	*getenv( char *s );
+#else
+extern char	*getenv();
+extern char	*strncpy();
+#endif
+d63 14
+a76 14
+		*ScPC, /* Padding character.			*/
+		*ScUP, /* Cursor up one line.			*/
+		*ScCS, /* Change scrolling region.		*/
+		*ScSO, /* Begin standout mode.			*/
+		*ScSE, /* End standout mode.			*/
+		*ScCE, /* Clear to end of line.			*/
+		*ScCL, /* Clear display and home cursor.	*/
+		*ScHO, /* Home cursor.				*/
+		*ScCM, /* Screen-relative cursor motion.	*/
+		*ScTI, /* Initialize terminal.			*/
+		*ScAL, /* Insert line.				*/
+		*ScDL, /* Delete line.				*/
+		*ScSR, /* Scroll text down.			*/
+		*ScSF; /* Scroll text up.			*/
+d80 2
+a81 1
+		ScCO; /* Number of columns on screen.		*/
+d84 2
+a85 5
+	static void ScLoadTP( void )
+
+	Get the terminal parameters.
+
+ */
+d87 1
+a87 6
+#if __STDC__
+ScLoadTP( void )
+#else
+ScLoadTP()
+#endif
+	{
+d89 2
+a90 2
+	/* Get window size for DMD layers support.			*/
+	struct _winsize		window;
+d92 15
+a106 15
+	if(	ioctl( fd_stdout, TIOCGWINSZ, &window ) == 0
+	    &&	window.ws_row != 0 && window.ws_col != 0
+		)
+		{
+		ScLI = (int) window.ws_row;
+		ScCO = (int) window.ws_col;
+		}
+	else
+#endif
+		{
+		ScLI = tgetnum( "li" );
+		ScCO = tgetnum( "co" );
+		}
+	return;
+	}
+d109 2
+a110 4
+	static void ScLoadTCS( void )
+
+	Get the terminal control strings.
+ */
+d112 26
+a137 34
+#if __STDC__
+ScLoadTCS( void )
+#else
+ScLoadTCS()
+#endif
+	{;
+	ScCS = tgetstr( "cs", &tstr_addr );
+	ScSE = tgetstr( "se", &tstr_addr );
+	ScSO = tgetstr( "so", &tstr_addr );
+	ScCE = tgetstr( "ce", &tstr_addr );
+	ScCL = tgetstr( "cl", &tstr_addr );
+	ScHO = tgetstr( "ho", &tstr_addr );
+	ScCM = tgetstr( "cm", &tstr_addr );
+	ScBC = tgetstr( "bc", &tstr_addr );
+	ScPC = tgetstr( "pc", &tstr_addr );
+	ScUP = tgetstr( "up", &tstr_addr );
+	ScTI = tgetstr( "ti", &tstr_addr );
+	ScAL = tgetstr( "al", &tstr_addr );
+	ScDL = tgetstr( "dl", &tstr_addr );
+	ScSR = tgetstr( "sr", &tstr_addr );
+	ScSF = tgetstr( "sf", &tstr_addr );
+	return;
+	}
+
+/*
+	int	PutChr( char c )
+
+	This function prevents the default "PutChr" from being pulled in
+	from the termcap library (-ltermlib).  DO NOT change its name or
+	STDOUT will be assumed as the output stream for terminal control.
+	Some applications might want to open "/dev/tty" so that they can
+	use STDOUT for something else.
+	
+ */
+d139 18
+a156 26
+#if __STDC__
+PutChr( char c )
+#else
+PutChr( c )
+char	c;
+#endif
+	{
+	return	putc( c, out_fp );
+	}
+
+/*
+	bool	ScInit( FILE *fp )
+
+	ScInit() must be invoked before any other function in the Sc package.
+	Stream fp must be open for writing and all terminal control sequences
+	will be sent to fp, giving the application the option of using STDOUT
+	for other things.  Besides setting the output stream, ScInit() does
+	the following:
+
+	Initializes the terminal.  Fills terminal name and capabilities
+	into external buffers.  Gets terminal control strings into external
+	variables.  Gets individual terminal parameters into external
+	variables.  Returns "true" for success, "false" for failure and
+	prints appropriate diagnostics on STDERR if $TERM is not set or
+	there is a problem in retrieving the corresponding termcap entry.
+ */
+d158 31
+a188 36
+#if __STDC__
+ScInit( FILE *fp )
+#else
+ScInit( fp )
+FILE	*fp;
+#endif
+	{	char	*term; /* Name of terminal from environment. */
+	out_fp = fp;
+	fd_stdout = fileno( out_fp );
+	if( (term = getenv( "TERM" )) == NULL )
+		{
+		(void) fprintf( stderr, "TERM not set or exported!\n" );
+		return	false;
+		}
+	(void) strncpy( ScTermname, term, ScTERMSIZ-1 );
+
+	/* Get terminal entry.						*/
+	switch( tgetent( ScTermcap, term ) )
+		{
+	case -1 :
+		(void) fprintf( stderr, "Can't open termcap file!\n" );
+		return	false;
+	case  0 :
+		(void) fprintf( stderr,
+				"Terminal type not in termcap file!\n"
+				);
+		return	false;
+		}
+
+	/* Get individual terminal parameters and control strings.	*/
+	ScLoadTP();
+	ScLoadTCS();
+
+	tputs( ScTI, 1, PutChr );	/* Initialize terminal.			*/
+	return	true;		/* All is well.				*/
+	}
+d191 9
+a199 1
+	bool	ScClrEOL( void )
+d201 3
+a203 3
+	Clear from the cursor to the end of that line.
+
+ */
+d205 6
+a210 11
+#if __STDC__
+ScClrEOL( void )
+#else
+ScClrEOL()
+#endif
+	{
+	if( ScCE == NULL )
+		return	false;
+	tputs( ScCE, 1, PutChr );
+	return	true;
+	}
+d213 2
+a214 5
+	bool	ScClrScrlReg( void )
+
+	Reset the scrolling region to the entire screen.
+
+ */
+d216 6
+a221 11
+#if __STDC__
+ScClrScrlReg( void )
+#else
+ScClrScrlReg()
+#endif
+	{
+	if( ScCS == NULL )
+		return	false;
+	tputs( tgoto( ScCS, ScLI-1, 0 ), 1, PutChr );
+	return	true;
+	}
+d224 2
+a225 5
+	bool	ScClrStandout( void )
+
+	End standout mode.
+
+ */
+d227 6
+a232 11
+#if __STDC__
+ScClrStandout( void )
+#else
+ScClrStandout()
+#endif
+	{
+	if( ScSE == NULL )
+		return	false;
+	tputs( ScSE, 1, PutChr );
+	return	true;
+	}
+d234 3
+a236 5
+/*	bool	ScClrText( void )
+
+	Clear the screen and "home" the cursor.
+
+ */
+d238 6
+a243 11
+#if __STDC__
+ScClrText( void )
+#else
+ScClrText()
+#endif
+	{
+	if( ScCL == NULL )
+		return	false;
+	tputs( ScCL, ScLI, PutChr );
+	return	true;
+	}
+d246 2
+a247 5
+	bool	ScInsertLn( void )
+
+	Insert a the line under the cursor.
+
+ */
+d249 6
+a254 11
+#if __STDC__
+ScInsertLn( void )
+#else
+ScInsertLn()
+#endif
+	{
+	if( ScAL == NULL )
+		return	false;
+	tputs( ScAL, 1, PutChr );
+	return	true;
+	}
+d257 2
+a258 5
+	bool	ScDeleteLn( void )
+
+	Delete the line under the cursor.
+
+ */
+d260 6
+a265 11
+#if __STDC__
+ScDeleteLn( void )
+#else
+ScDeleteLn()
+#endif
+	{
+	if( ScDL == NULL )
+		return	false;
+	tputs( ScDL, 1, PutChr );
+	return	true;
+	}
+d268 2
+a269 5
+	bool	ScDnScroll( void )
+
+	Scroll backward 1 line.
+
+ */
+d271 6
+a276 11
+#if __STDC__
+ScDnScroll( void )
+#else
+ScDnScroll()
+#endif
+	{
+	if( ScSR == NULL )
+		return	false;
+	tputs( ScSR, 1, PutChr );
+	return	true;
+	}
+d279 3
+a281 5
+	bool	ScHmCursor( void )
+
+	Move the cursor to the top-left corner of the screen.
+
+ */
+d283 8
+a290 11
+#if __STDC__
+ScHmCursor( void )
+#else
+ScHmCursor()
+#endif
+	{
+	if( ScHO == NULL )
+		return	false;
+	tputs( ScHO, 1, PutChr );
+	return	true;
+	}
+d293 3
+a295 6
+	bool	ScMvCursor( int x, int y )
+
+	Move the cursor to screen coordinates x, y (for column and row,
+		respectively).
+
+ */
+d297 6
+a302 14
+#if __STDC__
+ScMvCursor( int x, int y )
+#else
+ScMvCursor( x, y )
+int	x, y;
+#endif
+	{
+	if( ScCM == NULL )
+		return	false;
+
+	--x; --y; /* Tgoto() adds 1 to each coordinate!? */
+	tputs( tgoto( ScCM, x, y ), 1, PutChr );
+	return	true;
+	}
+d305 2
+a306 6
+	bool	ScSetScrlReg( int top, int btm )
+
+	Set the scrolling region to be from "top" line to "btm" line,
+		inclusive.
+
+ */
+d308 6
+a313 12
+#if __STDC__
+ScSetScrlReg( int top, int btm )
+#else
+ScSetScrlReg( top, btm )
+int	top, btm;
+#endif
+	{
+	if( ScCS == NULL )
+		return	false;
+	tputs( tgoto( ScCS, btm-1, top-1 ), 1, PutChr );
+	return	true;
+	}
+d316 2
+a317 5
+	bool	ScSetStandout( void )
+
+	Begin standout mode.
+
+ */
+d319 6
+a324 30
+#if __STDC__
+ScSetStandout( void )
+#else
+ScSetStandout()
+#endif
+	{
+	if( ScSO == NULL )
+		return	false;
+	tputs( ScSO, 1, PutChr );
+	return	true;
+	}
+
+/*
+	bool	ScUpScroll( void )
+
+	Scroll text forward 1 line.
+	
+ */
+bool
+#if __STDC__
+ScUpScroll( void )
+#else
+ScUpScroll()
+#endif
+	{
+	if( ScSF == NULL )
+		return	false;
+	tputs( ScSF, 1, PutChr );
+	return	true;
+	}
+@
+
+
+1.2
+log
+@replace the wrapped config.h block with common.h
+@
+text
+@d7 1
+a7 1
+	$Header: /cvs/brlcad/src/burst/Sc.c,v 1.1 2004/05/20 15:18:42 morrison Exp $ (BRL)
+d12 1
+a12 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/burst/Sc.c,v 1.1 2004/05/20 15:18:42 morrison Exp $ (BRL)";
+a15 1
+
+d18 1
+a18 1
+#ifdef USE_STRING_H
+@
+
+
+1.1
+log
+@Vast reorganization begins.  Sources moved from top-level directories into src/.
+@
+text
+@d7 1
+a7 1
+	$Header: /cvs/brlcad/burst/Sc.c,v 1.6 2004/05/10 15:30:41 erikg Exp $ (BRL)
+d12 1
+a12 4
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/burst/Sc.c,v 1.6 2004/05/10 15:30:41 erikg Exp $ (BRL)";
+#endif
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+d14 1
+@
+

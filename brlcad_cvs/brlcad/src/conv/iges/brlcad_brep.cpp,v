@@ -1,0 +1,1277 @@
+head	1.29;
+access;
+symbols
+	rel-7-10-4:1.28
+	STABLE:1.28.0.2
+	rel-7-10-2:1.28;
+locks; strict;
+comment	@// @;
+
+
+1.29
+date	2007.09.14.15.21.03;	author erikgreenwald;	state Exp;
+branches;
+next	1.28;
+
+1.28
+date	2007.07.18.10.26.19;	author jlowenz;	state Exp;
+branches;
+next	1.27;
+
+1.27
+date	2007.07.16.20.38.09;	author jlowenz;	state Exp;
+branches;
+next	1.26;
+
+1.26
+date	2007.07.13.20.25.55;	author jlowenz;	state Exp;
+branches;
+next	1.25;
+
+1.25
+date	2007.07.03.20.46.39;	author jlowenz;	state Exp;
+branches;
+next	1.24;
+
+1.24
+date	2007.06.28.17.07.45;	author jlowenz;	state Exp;
+branches;
+next	1.23;
+
+1.23
+date	2007.06.26.21.23.22;	author jlowenz;	state Exp;
+branches;
+next	1.22;
+
+1.22
+date	2007.06.21.20.33.45;	author jlowenz;	state Exp;
+branches;
+next	1.21;
+
+1.21
+date	2007.06.19.19.11.18;	author jlowenz;	state Exp;
+branches;
+next	1.20;
+
+1.20
+date	2007.06.18.20.14.48;	author jlowenz;	state Exp;
+branches;
+next	1.19;
+
+1.19
+date	2007.06.14.22.17.42;	author jlowenz;	state Exp;
+branches;
+next	1.18;
+
+1.18
+date	2007.06.06.20.40.39;	author erikgreenwald;	state Exp;
+branches;
+next	1.17;
+
+1.17
+date	2007.06.05.20.38.35;	author jlowenz;	state Exp;
+branches;
+next	1.16;
+
+1.16
+date	2007.06.04.20.19.59;	author jlowenz;	state Exp;
+branches;
+next	1.15;
+
+1.15
+date	2007.06.01.20.16.09;	author jlowenz;	state Exp;
+branches;
+next	1.14;
+
+1.14
+date	2007.05.31.21.04.47;	author jlowenz;	state Exp;
+branches;
+next	1.13;
+
+1.13
+date	2007.05.29.20.37.27;	author jlowenz;	state Exp;
+branches;
+next	1.12;
+
+1.12
+date	2007.05.22.20.27.29;	author jlowenz;	state Exp;
+branches;
+next	1.11;
+
+1.11
+date	2007.05.16.18.08.05;	author jlowenz;	state Exp;
+branches;
+next	1.10;
+
+1.10
+date	2007.05.16.15.17.28;	author jlowenz;	state Exp;
+branches;
+next	1.9;
+
+1.9
+date	2007.05.15.20.06.59;	author jlowenz;	state Exp;
+branches;
+next	1.8;
+
+1.8
+date	2007.05.14.20.17.32;	author jlowenz;	state Exp;
+branches;
+next	1.7;
+
+1.7
+date	2007.05.14.18.00.47;	author jlowenz;	state Exp;
+branches;
+next	1.6;
+
+1.6
+date	2007.05.14.16.48.57;	author jlowenz;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	2007.05.14.14.01.59;	author jlowenz;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	2007.05.10.19.50.25;	author jlowenz;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2007.05.10.17.39.36;	author jlowenz;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2007.05.07.19.58.45;	author jlowenz;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2007.05.07.13.54.47;	author jlowenz;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.29
+log
+@removed trailing whitespace
+@
+text
+@#include <assert.h>
+
+#include "brlcad.hpp"
+#include "vmath.h"
+
+namespace brlcad {
+
+  BRLCADBrepHandler::BRLCADBrepHandler() {
+    id_name = "Test B-Rep from IGES";
+    geom_name = "piston";
+    ON::Begin();
+    _written = false;
+  }
+
+  BRLCADBrepHandler::~BRLCADBrepHandler() {
+    if (!_written) delete _brep;
+    // can only call delete here if write wasn't called!
+    ON::End();
+  }
+
+  void
+  BRLCADBrepHandler::write(const string& filename) {
+    _written = true;
+    outfp = wdb_fopen(filename.c_str());
+    mk_id(outfp, id_name.c_str());
+
+    ON_TextLog tl;
+    // XXX - join trims? iterate and call CloseTrimGap
+    for (int faces = 0; faces < _brep->m_F.Count(); ++faces) {
+      ON_BrepFace* face = _brep->Face(faces);
+      for (int i = 0; i < face->LoopCount(); i++) {
+	ON_BrepLoop* loop = face->Loop(i);
+	int trimCount = loop->TrimCount();
+	for (int j = 0; j < trimCount; j++) {
+	  ON_BrepTrim* trimA = loop->Trim(j);
+	  ON_BrepTrim* trimB = loop->Trim((j+1) % trimCount);
+	  int curveAIndex = trimA->TrimCurveIndexOf();
+	  int curveBIndex = trimB->TrimCurveIndexOf();
+
+	  ON_Curve* curveA = _brep->m_C2[curveAIndex];
+	  ON_Curve* curveB = _brep->m_C2[curveBIndex];
+
+	  debug("CURVE A");
+	  curveA->Dump(tl);
+	  debug("CURVE B");
+	  curveB->Dump(tl);
+
+	  if (curveA->PointAtEnd().DistanceTo(curveB->PointAtStart()) < 1e-5) {
+	    curveB->SetStartPoint(curveA->PointAtEnd());
+	  } else {
+	    assert(false);
+	  }
+	}
+      }
+    }
+
+    string sol = geom_name+".s";
+    string reg = geom_name+".r";
+    if (_brep_flip) _brep->Flip();
+    mk_brep(outfp, sol.c_str(), _brep);
+    unsigned char rgb[] = {200,180,180};
+    mk_region1(outfp, reg.c_str(), sol.c_str(), "plastic", "", rgb);
+    wdb_close(outfp);
+  }
+
+  int
+  BRLCADBrepHandler::handleShell(bool isVoid, bool orient) {
+    _brep_flip = !orient;
+    _brep = ON_Brep::New();
+    _objects.push_back(_brep);
+    return _objects.size()-1;
+  }
+
+  int
+  BRLCADBrepHandler::handleFace(bool orient, int surfIndex) {
+    ON_BrepFace& face = _brep->NewFace(_topology[surfIndex]);
+    face.m_bRev = !orient;
+
+    _face = face.m_face_index;
+    _topology.push_back(_face);
+    return _topology.size()-1;
+  }
+
+
+  int
+  BRLCADBrepHandler::handleLoop(bool isOuter, int faceIndex) {
+    debug("handleLoop");
+    ON_BrepLoop::TYPE type = (isOuter) ? ON_BrepLoop::outer : ON_BrepLoop::inner;
+    ON_BrepLoop& loop = _brep->NewLoop(type, face());
+
+    _loop = loop.m_loop_index;
+    _topology.push_back(_loop);
+    return _topology.size()-1;
+  }
+
+  int
+  BRLCADBrepHandler::handleEdge(int curve, int initVert, int termVert) {
+    debug("handleEdge");
+    debug("curve: " << curve);
+    debug("init : " << initVert);
+    debug("term : " << termVert);
+
+    ON_BrepVertex& from = vertex(initVert);
+    ON_BrepVertex& to   = vertex(termVert);
+    ON_Curve* c = ON_Curve::Cast(_objects[curve]);
+    int curveIndex = _brep->AddEdgeCurve(c);
+    ON_BrepEdge& edge = _brep->NewEdge(from, to, curveIndex);
+    edge.m_tolerance = 1e-3; // XXX - look into it
+    _edge = edge.m_edge_index;
+
+    _topology.push_back(_edge);
+    return _topology.size()-1;
+  }
+
+  int
+  BRLCADBrepHandler::handleEdgeUse(int edgeIndex, bool orientWithCurve) {
+    ON_TextLog tl;
+
+    debug("handleEdgeUse: edge  : " << edgeIndex);
+    debug("handleEdgeUse: orient: " << orientWithCurve);
+
+    ON_BrepEdge& e = edge(edgeIndex);
+
+    debug("handleEdgeUse: " << e.m_vi[0] << " --> " << e.m_vi[1]);
+
+    // grab the curve for this edge
+    const ON_Curve* c = e.EdgeCurveOf();
+    // grab the surface for the face
+    const ON_Surface* s = face().SurfaceOf();
+
+    // get a 2d parameter-space curve that lies on the surface for this edge
+    // hopefully this works!
+    ON_Curve* c2d = pullback_curve(&face(), c);
+    if (!orientWithCurve) {
+      c2d->Reverse();
+    }
+
+    int trimCurve = _brep->m_C2.Count();
+    _brep->m_C2.Append(c2d);
+
+    ON_BrepTrim& trim = _brep->NewTrim(e, !orientWithCurve, loop(), trimCurve);
+    debug("handleEdgeUse: trim " << (orientWithCurve ? "is not " : "is ") << "reversed");
+    trim.m_type = ON_BrepTrim::mated; // closed solids!
+    trim.m_tolerance[0] = 1e-3; // XXX: tolerance?
+    trim.m_tolerance[1] = 1e-3;
+    ON_Interval PD = trim.ProxyCurveDomain();
+    trim.m_iso = s->IsIsoparametric(*c2d, &PD);
+
+    trim.IsValid(&tl);
+
+    _trim = trim.m_trim_index;
+    _topology.push_back(_trim);
+    return _topology.size()-1;
+  }
+
+  int
+  BRLCADBrepHandler::handleVertex(point_t pt) {
+    debug("handleVertex");
+    debug("handleVertex point: " << PT(pt));
+    int vi = _brep->m_V.Count();
+    ON_BrepVertex& b = _brep->NewVertex(ON_3dPoint(pt));
+    b.m_tolerance = 1e-3; // XXX use exact tolerance?
+
+    _topology.push_back(b.m_vertex_index);
+    return _topology.size()-1;
+  }
+
+  int
+  BRLCADBrepHandler::handlePoint(double x, double y, double z) {
+    // XXX may be deprecated
+    return 0;
+  }
+
+  int
+  BRLCADBrepHandler::handleParametricSplineSurface() { return 0; }
+
+  int
+  BRLCADBrepHandler::handleRuledSurface() { return 0; }
+
+  int
+  BRLCADBrepHandler::handleSurfaceOfRevolution(int lineIndex, int curveIndex, double startAngle, double endAngle) {
+    debug("handleSurfaceOfRevolution");
+    debug("line  : " << lineIndex);
+    debug("curve : " << curveIndex);
+    debug("start : " << startAngle);
+    debug("end   : " << endAngle);
+
+    // get the line and curve
+    ON_Line& line = ((ON_LineCurve*)_objects[lineIndex])->m_line;
+    ON_Curve* curve = (ON_Curve*)_objects[curveIndex];
+
+    ON_RevSurface* rev = ON_RevSurface::New();
+    rev->m_curve = curve;
+    rev->m_axis = line;
+    rev->SetAngleRadians(startAngle, endAngle);
+
+    int sid = _brep->AddSurface(rev);
+    assert(sid != -1);
+    _topology.push_back(sid);
+    return _topology.size()-1;
+  }
+
+  int
+  BRLCADBrepHandler::handleTabulatedCylinder() { return 0; }
+
+  int
+  BRLCADBrepHandler::handleRationalBSplineSurface(int num_control[2],
+						  int degree[2],
+						  bool u_closed,
+						  bool v_closed,
+						  bool rational,
+						  bool u_periodic,
+						  bool v_periodic,
+						  int u_num_knots,
+						  int v_num_knots,
+						  double u_knots[],
+						  double v_knots[],
+						  double weights[],
+						  double* ctl_points) {
+    debug("handleRationalBSplineSurface()");
+    debug("u controls: " << num_control[0]);
+    debug("v controls: " << num_control[1]);
+    debug("u degree  : " << degree[0]);
+    debug("v degree  : " << degree[1]);
+
+    ON_NurbsSurface* surf = ON_NurbsSurface::New(3, rational, degree[0]+1, degree[1]+1, num_control[0], num_control[1]);
+
+    debug("Num u knots: " << surf->KnotCount(0));
+    debug("Num v knots: " << surf->KnotCount(1));
+    debug("Mult u knots: " << surf->KnotMultiplicity(0,0) << "," << surf->KnotMultiplicity(0,1));
+    debug("Mult v knots: " << surf->KnotMultiplicity(1,0) << "," << surf->KnotMultiplicity(1,1));
+
+    // openNURBS handles the knots differently (than most other APIs
+    // I've seen, which is admittedly not many)
+    //
+    // it implicitly represents multiplicities based on a "base" knot
+    // vector. IOW, if you had a degree 3 surface, then you'd have a
+    // multiplicity of 3 for the first and last knots if it was
+    // clamped... (most I've seen are...) Well, openNURBS let's you
+    // specify the SINGLE knot value and then you tell it the
+    // multiplicity is 3. IGES on the other hand (and Pro/E as well),
+    // represent the multiplicities explicitly, i.e. they have 3 of
+    // the same value (which means I need to handle the conversion
+    // here!)
+
+//     int u_offset = degree[0];
+//     int u_count  = u_num_knots - 2*degree[0];
+
+//     int v_offset = degree[1];
+//     int v_count  = v_num_knots - 2*degree[1];
+
+    for (int i = 0; i < (u_num_knots-2); i++) {
+      surf->SetKnot(0, i, u_knots[i+1]);
+      //surf->SetKnot(0, i, u_knots[i]);
+    }
+    for (int i = 0; i < (v_num_knots-2); i++) {
+      surf->SetKnot(1, i, v_knots[i+1]);
+      //surf->SetKnot(1, i, v_knots[i]);
+    }
+
+    //surf->ClampEnd(0,2);
+    //surf->ClampEnd(1,2);
+
+    debug("Num u knots: " << surf->KnotCount(0));
+    debug("Num v knots: " << surf->KnotCount(1));
+    debug("Mult u knots: " << surf->KnotMultiplicity(0,0) << "," << surf->KnotMultiplicity(0,1));
+    debug("Mult v knots: " << surf->KnotMultiplicity(1,0) << "," << surf->KnotMultiplicity(1,1));
+
+    for (int u = 0; u < num_control[0]; u++) {
+      for (int v = 0; v < num_control[1]; v++) {
+	int index = v*num_control[0]*3 + u*3;
+	if (rational)
+	  surf->SetCV(u,v,ON_4dPoint(ctl_points[index+0],
+				     ctl_points[index+1],
+				     ctl_points[index+2],
+				     weights[v*num_control[0]+u]));
+	else {
+	  surf->SetCV(u,v,ON_3dPoint(ctl_points[index+0],
+				     ctl_points[index+1],
+				     ctl_points[index+2]));
+	  double* p = &ctl_points[index];
+	  debug("ctl: " << PT(p));
+	}
+      }
+    }
+
+    ON_Interval u = surf->Domain(0);
+    ON_Interval v = surf->Domain(1);
+    debug("u: [" << u[0] << "," << u[1] << "]");
+    debug("v: [" << v[0] << "," << v[1] << "]");
+
+    int sid = _brep->AddSurface(surf);
+    assert(sid != -1);
+    _topology.push_back(sid);
+    return _topology.size()-1;
+  }
+
+  int
+  BRLCADBrepHandler::handleOffsetSurface() { return 0; }
+
+  int
+  BRLCADBrepHandler::handlePlaneSurface() { return 0; }
+
+  int
+  BRLCADBrepHandler::handleRightCircularCylindricalSurface() { return 0; }
+
+  int
+  BRLCADBrepHandler::handleRightCircularConicalSurface() { return 0; }
+
+  int
+  BRLCADBrepHandler::handleSphericalSurface() { return 0; }
+
+  int
+  BRLCADBrepHandler::handleToroidalSurface() { return 0; }
+
+  int
+  BRLCADBrepHandler::handleCircularArc(double radius,
+				       point_t center,
+				       vect_t normal,
+				       point_t start,
+				       point_t end) {
+    debug("handleCircularArc");
+    debug("radius: " << radius);
+    debug("center: " << PT(center));
+    debug("start : " << PT(start));
+    debug("end   : " << PT(end));
+    debug("normal: " << PT(normal));
+
+    ON_Plane plane = ON_Plane(ON_3dPoint(center), ON_3dVector(normal));
+    ON_Circle circle = ON_Circle(plane, ON_3dPoint(center), radius);
+    double a, b;
+    circle.ClosestPointTo(start, &a); // !
+    circle.ClosestPointTo(end, &b);   // !
+    debug("a = " << a);
+    debug("b = " << b);
+    if (b < a) {
+      b = 2*PI+b;
+    }
+    ON_Arc arc(circle, ON_Interval(a, b));
+
+    ON_TextLog tl;
+    arc.Dump(tl);
+    debug("arc valid: " << arc.IsValid());
+    ON_ArcCurve* curve = new ON_ArcCurve(arc, arc.Domain().Min(), arc.Domain().Max());
+    curve->IsValid(&tl);
+
+    _objects.push_back(curve);
+
+    return _objects.size()-1;
+  }
+
+  int
+  BRLCADBrepHandler::handleCompositeCurve() { return 0; }
+
+  int
+  BRLCADBrepHandler::handleConicArc() { return 0; }
+
+  int
+  BRLCADBrepHandler::handle2DPath() { return 0; }
+
+  int
+  BRLCADBrepHandler::handle3DPath() { return 0; }
+
+  int
+  BRLCADBrepHandler::handleSimpleClosedPlanarCurve() { return 0; }
+
+  int
+  BRLCADBrepHandler::handleLine(point_t start, point_t end) {
+    debug("handleLine");
+    debug("start: " << PT(start));
+    debug("end  : " << PT(end));
+
+    ON_LineCurve* line = new ON_LineCurve(ON_3dPoint(start),ON_3dPoint(end));
+    _objects.push_back(line);
+    return _objects.size()-1;
+  }
+
+  int
+  BRLCADBrepHandler::handleParametricSplineCurve() { return 0; }
+
+  int
+  BRLCADBrepHandler::handleRationalBSplineCurve(int degree,
+						double tmin,
+						double tmax,
+						bool planar,
+						vect_t unit_normal,
+						bool closed,
+						bool rational,
+						bool periodic,
+						int num_knots,
+						double* knots,
+						int num_control_points,
+						double* weights,
+						double* ctl_points) {
+    debug("handleRationalBSplineCurve");
+    debug("degree: " << degree);
+    debug("domain: " << tmin << " --> " << tmax);
+    debug("planar: " << planar);
+    debug("# ctls: " << num_control_points);
+
+    ON_NurbsCurve* c = ON_NurbsCurve::New(3,
+					  rational,
+					  degree+1,
+					  num_control_points);
+    //c->ReserveKnotCapacity(num_knots);
+    for (int i = 0; i < num_knots-2; i++) {
+      c->m_knot[i] = knots[i+1];
+    }
+
+    int stride = c->m_cv_stride;
+    for (int i = 0; i < num_control_points; i++) {
+      c->m_cv[i*stride] = ctl_points[i*stride];
+      c->m_cv[i*stride+1] = ctl_points[i*stride+1];
+      c->m_cv[i*stride+2] = ctl_points[i*stride+2];
+      if (rational) c->m_cv[i*stride+3] = weights[i];
+    }
+
+    _objects.push_back(c);
+    return _objects.size()-1;
+  }
+
+  int
+  BRLCADBrepHandler::handleOffsetCurve() { return 0; }
+
+}
+@
+
+
+1.28
+log
+@handle trim loop wrapping, i.e. need to close the loop
+@
+text
+@d13 1
+a13 1
+  }  
+d17 1
+a17 1
+    // can only call delete here if write wasn't called! 
+d58 1
+a58 1
+    string reg = geom_name+".r";    
+d62 1
+a62 1
+    mk_region1(outfp, reg.c_str(), sol.c_str(), "plastic", "", rgb);    
+d66 1
+a66 1
+  int 
+d74 2
+a75 2
+  int 
+  BRLCADBrepHandler::handleFace(bool orient, int surfIndex) {    
+d85 1
+a85 1
+  int 
+d90 1
+a90 1
+    
+d96 2
+a97 2
+  int 
+  BRLCADBrepHandler::handleEdge(int curve, int initVert, int termVert) {    
+a120 2
+    
+    ON_BrepEdge& e = edge(edgeIndex);    
+d122 3
+a124 1
+    debug("handleEdgeUse: " << e.m_vi[0] << " --> " << e.m_vi[1]);    
+d130 1
+a130 1
+    
+d142 1
+a142 1
+    debug("handleEdgeUse: trim " << (orientWithCurve ? "is not " : "is ") << "reversed"); 
+d168 1
+a168 1
+  int 
+d181 1
+a181 1
+  BRLCADBrepHandler::handleSurfaceOfRevolution(int lineIndex, int curveIndex, double startAngle, double endAngle) { 
+d207 7
+a213 7
+  BRLCADBrepHandler::handleRationalBSplineSurface(int num_control[2], 
+						  int degree[2], 
+						  bool u_closed, 
+						  bool v_closed, 
+						  bool rational, 
+						  bool u_periodic, 
+						  bool v_periodic, 
+d219 1
+a219 1
+						  double* ctl_points) { 
+d227 1
+a227 1
+    
+d234 2
+a235 2
+    // I've seen, which is admittedly not many) 
+    // 
+d272 1
+a272 1
+	if (rational) 
+d284 1
+a284 1
+      } 
+d291 1
+a291 1
+    
+d314 1
+a314 1
+  BRLCADBrepHandler::handleToroidalSurface() { return 0; }    
+d321 1
+a321 1
+				       point_t end) { 
+d341 1
+a341 1
+    ON_TextLog tl;        
+d349 1
+a349 1
+    return _objects.size()-1; 
+d372 1
+a372 1
+    
+d381 1
+a381 1
+  int 
+d409 1
+a409 1
+    
+d423 1
+a423 1
+  BRLCADBrepHandler::handleOffsetCurve() { return 0; }    
+@
+
+
+1.27
+log
+@add preliminary code to join trims (need to handle the trim wrap around)
+@
+text
+@d33 2
+a34 1
+	for (int j = 0; j < loop->TrimCount()-1; j++) {
+d36 1
+a36 1
+	  ON_BrepTrim* trimB = loop->Trim(j+1);
+@
+
+
+1.26
+log
+@add note
+@
+text
+@d4 1
+d27 1
+d29 26
+@
+
+
+1.25
+log
+@fix bug with brep surface orientation; fix bug with destructor (don't free already freed memory); fix bug with face orientation
+@
+text
+@d26 2
+@
+
+
+1.24
+log
+@fix memory leak on converter deletion
+@
+text
+@d11 1
+d15 2
+a16 3
+    for (vector<ON_Geometry*>::iterator i = _objects.begin(); i != _objects.end(); ++i) {
+      delete *i;
+    }
+d22 1
+d27 2
+a28 1
+    string reg = geom_name+".r";
+d37 1
+d46 1
+a46 1
+    face.m_bRev = orient;
+@
+
+
+1.23
+log
+@fix yet another (hopefully final) knot-related bug
+@
+text
+@d14 3
+@
+
+
+1.22
+log
+@fix another knot issue with openNURBS; adjust brep tolerances (this needs to be looked at in more depth)
+@
+text
+@a207 2
+    int u_offset = degree[0];
+    int u_count  = u_num_knots - 2*degree[0];
+d209 2
+a210 2
+    int v_offset = degree[1];
+    int v_count  = v_num_knots - 2*degree[1];
+d212 5
+a216 2
+    for (int i = 0; i < u_count; i++) {
+      surf->SetKnot(0, i, u_knots[i+u_offset]);
+d219 2
+a220 2
+    for (int i = 0; i < v_count; i++) {
+      surf->SetKnot(1, i, v_knots[i+v_offset]);
+d224 2
+a225 2
+    surf->ClampEnd(0,2);
+    surf->ClampEnd(1,2);
+@
+
+
+1.21
+log
+@fix arc generation bug: openNURBS does not interpret "wrapping" angles
+@
+text
+@d71 1
+a71 1
+    edge.m_tolerance = 0.0; // exact!?
+d107 2
+a108 2
+    trim.m_tolerance[0] = 0.0; // XXX: tolerance?
+    trim.m_tolerance[1] = 0.0;
+d125 1
+a125 1
+    b.m_tolerance = 0.0; // XXX use exact tolerance?
+d367 3
+a369 3
+    c->ReserveKnotCapacity(num_knots);
+    for (int i = 0; i < num_knots; i++) {
+      c->m_knot[i] = knots[i];
+@
+
+
+1.20
+log
+@remove hard-coded output filename
+@
+text
+@d287 3
+d296 6
+a301 1
+    ON_TextLog tl;
+d303 2
+a304 1
+    ON_Arc arc(circle, ON_Interval(a, b));    
+@
+
+
+1.19
+log
+@to avoid trying to build a plane from a line, pass the origin and a normal instead
+@
+text
+@d18 2
+a19 2
+  BRLCADBrepHandler::write() {
+    outfp = wdb_fopen("piston.g");
+@
+
+
+1.18
+log
+@missing required header (assert.h)
+@
+text
+@d281 1
+d288 1
+a288 1
+    ON_Plane plane = ON_Plane(ON_3dPoint(center), ON_3dPoint(start), ON_3dPoint(end));
+d291 4
+a294 2
+    circle.ClosestPointTo(start, &a);
+    circle.ClosestPointTo(end, &b);
+d296 4
+a299 1
+    ON_ArcCurve* curve = new ON_ArcCurve(arc);
+@
+
+
+1.17
+log
+@Add more debug statements... fix trim curve orientation issue (openNURBS trims must be properly oriented whether or not the model-space curve is) and fix isoparametric flag issue
+@
+text
+@d1 1
+@
+
+
+1.16
+log
+@Debug IGES parsing/handling and openNURBS extensions. Still not building a simple B-Rep correctly (trim vertices not agreeing)
+@
+text
+@d49 1
+d79 4
+a82 3
+    debug("************* handleEdgeUse *************");
+    debug("edge  : " << edgeIndex);
+    debug("orient: " << orientWithCurve);
+d84 4
+a87 1
+    ON_BrepEdge& e = edge(edgeIndex);
+d96 3
+d104 1
+d108 2
+a109 1
+    trim.m_iso = ON_Surface::not_iso;
+a110 1
+    ON_TextLog tl;
+d121 1
+a121 1
+    debug("point: " << PT(pt));
+d160 1
+d254 1
+@
+
+
+1.15
+log
+@Use recommended (by openNURBS) method of accessing topology using indices instead of references/pointers. Also fix nurbssurface storage into opennurbs data structures (knots handled differently)
+@
+text
+@a3 2
+#define PT(p) p[0] << "," << p[1] << "," << p[2]
+
+d49 1
+a49 1
+    ON_BrepLoop::TYPE type = (isOuter) ? ON_BrepLoop::outer : ON_BrepLoop::unknown;
+d65 1
+a65 1
+    ON_BrepVertex& to   = vertex(initVert);
+d78 1
+a78 1
+    debug("handleEdgeUse");
+d92 2
+a93 1
+    int trimCurve = _brep->AddTrimCurve(c2d);
+d95 1
+a95 1
+    ON_BrepTrim& trim = _brep->NewTrim(e, orientWithCurve, loop(), trimCurve);
+d99 4
+@
+
+
+1.14
+log
+@Simplify call to pullback_curve during testing
+@
+text
+@d40 2
+a41 2
+    ON_Surface* surf = ON_Surface::Cast(_objects[surfIndex]);
+    int sid = _brep->AddSurface(surf);
+d43 3
+a45 4
+    _face = &_brep->NewFace(sid);
+    _face->m_bRev = orient;
+    _objects.push_back(_face);
+    return _objects.size()-1;
+a50 2
+
+    ON_BrepFace* face = ON_BrepFace::Cast(_objects[faceIndex]);    
+d52 1
+a52 1
+    ON_BrepLoop& loop = _brep->NewLoop(type, *face);
+d54 3
+a56 3
+    _loop = &loop;
+    _objects.push_back(_loop);
+    return _objects.size()-1;
+d66 2
+a67 2
+    ON_BrepVertex& from = _brep->m_V[_vertices[initVert]];
+    ON_BrepVertex& to   = _brep->m_V[_vertices[termVert]];
+d72 4
+a75 3
+    
+    _objects.push_back(&edge);
+    return _objects.size()-1;
+d79 1
+a79 1
+  BRLCADBrepHandler::handleEdgeUse(int edge, bool orientWithCurve) {
+d81 1
+a81 1
+    debug("edge  : " << edge);
+d83 2
+a84 2
+
+    ON_BrepEdge* e = ON_BrepEdge::Cast(_objects[edge]);
+d86 1
+a86 1
+    const ON_Curve* c = e->EdgeCurveOf();
+d88 1
+a88 1
+    const ON_Surface* s = _face->SurfaceOf();
+d92 1
+a92 1
+    ON_Curve* c2d = pullback_curve(_face, c);
+d96 8
+a103 7
+    ON_BrepTrim* trim = &_brep->NewTrim(*e, orientWithCurve, *_loop, trimCurve);
+    trim->m_type = ON_BrepTrim::mated; // closed solids!
+    trim->m_tolerance[0] = 0.0; // XXX: tolerance?
+    trim->m_tolerance[1] = 0.0;
+
+    _objects.push_back(trim);
+    return _objects.size()-1;
+d114 2
+a115 2
+    _vertices.push_back(b.m_vertex_index);
+    return _vertices.size()-1;
+d147 3
+a149 2
+    _objects.push_back(rev);
+    return _objects.size()-1;
+d177 26
+a202 2
+    for (int i = 0; i < u_num_knots; i++) {
+      surf->m_knot[0][i] = u_knots[i];
+d204 3
+a206 2
+    for (int i = 0; i < v_num_knots; i++) {
+      surf->m_knot[1][i] = v_knots[i];
+d209 8
+d219 1
+d221 3
+a223 3
+	  surf->SetCV(u,v,ON_4dPoint(ctl_points[CPI(u,v,0)],
+				     ctl_points[CPI(u,v,1)],
+				     ctl_points[CPI(u,v,2)],
+d225 7
+a231 4
+	else 
+	  surf->SetCV(u,v,ON_3dPoint(ctl_points[CPI(u,v,0)],
+				     ctl_points[CPI(u,v,1)],
+				     ctl_points[CPI(u,v,2)]));
+d234 5
+d240 3
+a242 2
+    _objects.push_back(surf);
+    return _objects.size()-1;
+@
+
+
+1.13
+log
+@Remove the old pullback curve header
+@
+text
+@d94 1
+a94 1
+    ON_Curve* c2d = pullback_curve(s, c, 1.0e-4, 1.0e-3);
+@
+
+
+1.12
+log
+@add debugging output and modify to call new pullback_curve routine. discovered openNURBS does not implement GetClosestPoint!!!
+@
+text
+@a2 1
+#include "PullbackCurve.h"
+@
+
+
+1.11
+log
+@"finish" the topology handling code and write out a test .g file. currently has a bug in the trim curve handling.
+@
+text
+@d3 1
+a3 1
+
+d95 1
+a95 1
+    ON_Curve* c2d = s->Pullback(*c, 0.000001); // XXX: picked this tolerance out of my %ss
+@
+
+
+1.10
+log
+@implement handlers for rational b-spline surfaces and surfaces of revolution
+@
+text
+@a2 1
+#include "bn.h"
+d4 2
+a5 1
+#define PT(p) p[X] << "," << p[Y] << "," << p[Z]
+d10 7
+d19 11
+a29 1
+  BRLCADBrepHandler::~BRLCADBrepHandler() {
+d41 5
+a45 1
+    _face = &_brep->NewFace(surfIndex);
+d53 4
+d58 3
+a60 1
+    return 0;
+d69 10
+a78 1
+    return 0;
+d86 20
+a105 1
+    return 0;
+d112 6
+a117 4
+    _vertex = &_brep->NewVertex(ON_3dPoint(pt));
+    _vertex->m_tolerance = 0.0; // XXX use exact tolerance?
+    _objects.push_back(_vertex);
+    return _objects.size()-1;
+@
+
+
+1.9
+log
+@Begin implementation of brlcad brep handling (i.e. opennurbs creation). rational b-spline, line, and arc curves done.
+@
+text
+@d82 12
+a93 1
+    return 0; 
+d118 26
+a143 1
+    return 0; 
+@
+
+
+1.8
+log
+@implement extraction of edges and vertices, finish loop and edge use handling calls. there remains a bug in the vertex extractor at this point.
+@
+text
+@d3 1
+a9 1
+
+a12 1
+
+d15 1
+a15 1
+  void 
+d17 3
+a19 1
+    
+d23 4
+a26 2
+  BRLCADBrepHandler::handleFace(bool orient, int surfIndex) {
+    return 0;
+d32 1
+d57 4
+a60 1
+    return 0;
+d65 1
+a65 1
+    // return index
+d136 11
+a146 1
+    return 0; 
+d167 6
+a172 3
+    debug("start: " << start[0] << "," << start[1] << "," << start[2]);
+    debug("end  : " << end[0] << "," << end[1] << "," << end[2]);    
+    return 0; 
+d197 20
+a216 1
+    return 0;
+@
+
+
+1.7
+log
+@implement extraction routine for rational b-spline curves
+@
+text
+@d33 14
+a46 2
+  BRLCADBrepHandler::handleEdge(int edgeIndex) {
+    
+d50 3
+a52 1
+  BRLCADBrepHandler::handleVertex(int pointIndex) {
+@
+
+
+1.6
+log
+@implement extraction routine for circular arcs
+@
+text
+@d144 21
+a164 2
+  int
+  BRLCADBrepHandler::handleRationalBSplineCurve() { return 0; }
+@
+
+
+1.5
+log
+@Implement extract routine for surfaces of revolution.
+@
+text
+@d4 2
+d108 9
+a116 1
+  BRLCADBrepHandler::handleCircularArc() { return 0; }
+@
+
+
+1.4
+log
+@Add specific curve and surface handlers. Implement rational b-spline extraction routine.
+@
+text
+@d53 8
+a60 1
+  BRLCADBrepHandler::handleSurfaceOfRevolution() { return 0; }
+d124 6
+a129 1
+  BRLCADBrepHandler::handleLine() { return 0; }
+@
+
+
+1.3
+log
+@ws
+@
+text
+@d59 20
+a78 1
+  BRLCADBrepHandler::handleRationalBSplineSurface() { return 0; }
+@
+
+
+1.2
+log
+@fix return types and make signatures match
+@
+text
+@a24 17
+  // surftype should be:
+  //   parametric spline surface
+  //   ruled surface
+  //   surface of revolution
+  //   tabulated cylinder
+  //   rational b-spline surface
+  //   offset surface
+  //   plane surface
+  //   rccyl surface
+  //   rccone surface
+  //   spherical surface
+  //   toroidal surface
+  int BRLCADBrepHandler::handleSurface(IGESEntity surfType, 
+				       const ParameterData& data) {
+    return 0;
+  }
+
+d30 1
+a30 1
+  void 
+a34 5
+  int 
+  BRLCADBrepHandler::handleCurve() {
+    return 0;
+  }
+
+d46 63
+@
+
+
+1.1
+log
+@add brlcad iges brep handler
+@
+text
+@d16 1
+a16 1
+
+d21 1
+a21 1
+
+d37 3
+a39 4
+  void BRLCADBrepHandler::handleSurface(int surfIndex, 
+					IGESEntity surfType, 
+					const ParameterData& data) {
+
+d44 1
+a44 1
+
+d49 1
+a49 1
+
+@
+

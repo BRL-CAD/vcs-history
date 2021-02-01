@@ -1,0 +1,1150 @@
+head	1.15;
+access;
+symbols
+	rel-7-10-4:1.12
+	STABLE:1.12.0.2
+	rel-7-10-2:1.12
+	rel-7-10-0:1.10
+	rel-7-8-4:1.6
+	rel-7-8-2:1.6
+	rel-7-8-0:1.6
+	trimnurbs-branch:1.6.0.2
+	help:1.6
+	temp_tag:1.2
+	postmerge-20051223-bobWinPort:1.2
+	premerge-20051223-bobWinPort:1.2
+	rel-7-6-6:1.2
+	rel-7-6-branch:1.2.0.2
+	rel-7-6-4:1.2;
+locks; strict;
+comment	@ * @;
+
+
+1.15
+date	2007.10.22.17.42.35;	author brlcad;	state Exp;
+branches;
+next	1.14;
+
+1.14
+date	2007.10.14.22.15.54;	author brlcad;	state Exp;
+branches;
+next	1.13;
+
+1.13
+date	2007.09.15.16.23.05;	author brlcad;	state Exp;
+branches;
+next	1.12;
+
+1.12
+date	2007.07.26.01.13.52;	author brlcad;	state Exp;
+branches;
+next	1.11;
+
+1.11
+date	2007.05.18.04.13.47;	author brlcad;	state Exp;
+branches;
+next	1.10;
+
+1.10
+date	2007.01.31.21.39.26;	author brlcad;	state Exp;
+branches;
+next	1.9;
+
+1.9
+date	2007.01.27.01.41.33;	author brlcad;	state Exp;
+branches;
+next	1.8;
+
+1.8
+date	2007.01.23.01.13.26;	author brlcad;	state Exp;
+branches;
+next	1.7;
+
+1.7
+date	2007.01.20.14.36.47;	author brlcad;	state Exp;
+branches;
+next	1.6;
+
+1.6
+date	2006.02.27.05.52.23;	author brlcad;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	2006.01.29.01.39.53;	author brlcad;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	2006.01.23.02.56.59;	author brlcad;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2006.01.18.06.46.14;	author brlcad;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2005.10.29.04.20.53;	author brlcad;	state Exp;
+branches
+	1.2.2.1;
+next	1.1;
+
+1.1
+date	2005.10.27.03.36.04;	author brlcad;	state Exp;
+branches;
+next	;
+
+1.2.2.1
+date	2005.10.29.04.20.53;	author brlcad;	state dead;
+branches;
+next	1.2.2.2;
+
+1.2.2.2
+date	2005.11.13.17.45.00;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.15
+log
+@whoosh, another 10% complete on the bu_bomb to bu_exit conversion review.  also includes a slew of custom exit() calls that can use bu_exit() as well as toning down a slew of overzealous exclamation point use.  (20% complete overall)
+@
+text
+@/*                        J A C K - G . C
+ * BRL-CAD
+ *
+ * Copyright (c) 2004-2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@file jack-g.c
+ *
+ *  Program to convert JACK Psurf file into a BRL-CAD NMG object.
+ *
+ *  Author -
+ *	Michael John Markowski
+ *
+ */
+#ifndef lint
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/conv/jack/jack-g.c,v 1.14 2007/10/14 22:15:54 brlcad Exp $ (BRL)";
+#endif
+
+#include "common.h"
+
+#include <stdlib.h>
+#include <stdio.h>
+#include <math.h>
+#include <string.h>
+
+#ifdef HAVE_UNISTD_H
+#  include <unistd.h>
+#endif
+
+#include "machine.h"
+#include "bu.h"
+#include "vmath.h"
+#include "bn.h"
+#include "nmg.h"
+#include "raytrace.h"
+#include "rtgeom.h"
+#include "wdb.h"
+
+#include "../../librt/debug.h"
+
+
+#define		MAX_NUM_PTS	15360
+
+struct vlist {
+	fastf_t		pt[3*MAX_NUM_PTS];
+	struct vertex	*vt[MAX_NUM_PTS];
+};
+
+static struct bn_tol	tol;
+
+static const char usage[] = "Usage: %s [-r region] [-g group] [jack_db] [brlcad_db]\n";
+
+BU_EXTERN( fastf_t nmg_loop_plane_area, (const struct loopuse *lu, plane_t pl ) );
+
+int	psurf_to_nmg(struct model *m, FILE *fp, char *jfile);
+int	create_brlcad_db(struct rt_wdb *fpout, struct model *m, char *reg_name, char *grp_name);
+void	jack_to_brlcad(FILE *fpin, struct rt_wdb *fpout, char *reg_name, char *grp_name, char *jfile, char *bfile);
+
+
+int
+main(int argc, char **argv)
+{
+	char		*base, *bfile, *grp_name, *jfile, *reg_name;
+	FILE		*fpin;
+	struct rt_wdb	*fpout;
+	int		doti;
+	register int	c;
+
+	grp_name = reg_name = NULL;
+
+	/* Get command line arguments. */
+	while ((c = bu_getopt(argc, argv, "g:r:")) != EOF) {
+		switch (c) {
+		case 'g':
+			grp_name = bu_optarg;
+			/* BRL-CAD group to add psurf to. */
+			break;
+		case 'r':
+			/* BRL-CAD region name for psurf. */
+			reg_name = bu_optarg;
+			break;
+		default:
+			bu_exit(1, usage, argv[0]);
+			break;
+		}
+	}
+
+	/* Get Jack psurf input file name. */
+	if (bu_optind >= argc) {
+		jfile = "-";
+		fpin = stdin;
+	} else {
+		jfile = argv[bu_optind];
+		if ((fpin = fopen(jfile, "r")) == NULL) {
+		    bu_exit(1, "%s: cannot open %s for reading\n",
+			    argv[0], jfile);
+		}
+	}
+
+	/* Get BRL-CAD output data base name. */
+	bu_optind++;
+	if (bu_optind >= argc) {
+		bfile = "-";
+		bu_exit(1, usage, argv[0]);
+	} else {
+		bfile = argv[bu_optind];
+		if ((fpout = wdb_fopen(bfile)) == NULL) {
+		    bu_exit(1, "%s: cannot open %s for writing\n",
+			    argv[0], bfile);
+		}
+	}
+
+	/* Output BRL-CAD database header.  No problem if more than one. */
+	mk_id(fpout, jfile);
+
+	/* Make default region name if none given. */
+	if (!reg_name) {
+		/* Ignore leading path info. */
+		base = strrchr(argv[1], '/');
+		if (!base)
+			base = argv[1];
+		else
+			base++;
+		reg_name = bu_malloc(sizeof(base)+1, "reg_name");
+		strncpy(reg_name, base, sizeof(base));
+		/* Ignore .pss extension if it's there. */
+		doti = strlen(reg_name) - 4;
+		if (doti > 0 && !strcmp(".pss", reg_name+doti))
+			reg_name[doti] = '\0';
+	}
+
+	jack_to_brlcad(fpin, fpout, reg_name, grp_name, jfile, bfile);
+	fclose(fpin);
+	wdb_close(fpout);
+	return 0;
+}
+
+/*
+ *	J A C K _ T O _ B R L C A D
+ *
+ *	Convert a UPenn Jack data base into a BRL-CAD data base.
+ */
+void
+jack_to_brlcad(FILE *fpin, struct rt_wdb *fpout, char *reg_name, char *grp_name, char *jfile, char *bfile)
+{
+	struct model	*m;
+
+	m = nmg_mm();			/* Make nmg model. */
+	psurf_to_nmg(m, fpin, jfile);	/* Convert psurf model to nmg. */
+	create_brlcad_db(fpout, m, reg_name, grp_name);	/* Put in db. */
+	nmg_km(m);			/* Destroy the nmg model. */
+}
+
+/*
+ *	R E A D _ P S U R F _ V E R T I C E S
+ *
+ *	Read in vertices from a psurf file and store them in an
+ *	array of nmg vertex structures.
+ *
+ *	Fix this!  Only allows set max of points and assumes
+ *	no errors during reading...
+ */
+int
+read_psurf_vertices(FILE *fp, struct vlist *vert)
+			/* Psurf file pointer. */
+			/* Array of read in vertices. */
+{
+	fastf_t	x, y, z;
+	int	i;
+	int	bomb=0;
+
+	/* Read vertices. */
+	for (i = 0; fscanf(fp, "%lf %lf %lf", &x, &y, &z) == 3; i++) {
+		if( i >= MAX_NUM_PTS )
+			bomb = 1;
+		else
+		{
+			vert->pt[3*i+0] = x * 10.;	/* Convert cm to mm. */
+			vert->pt[3*i+1] = y * 10.;
+			vert->pt[3*i+2] = z * 10.;
+			vert->vt[i] = (struct vertex *)0;
+		}
+		fscanf(fp, "%*[^\n]");
+	}
+	fscanf(fp, ";;");
+
+	if( bomb )
+	{
+		bu_exit(1, "ERROR: Dataset contains %d data points, code is dimensioned for %d\n", i, MAX_NUM_PTS );
+	}
+
+	return(i);
+}
+
+/*
+ *	R E A D _ P S U R F _ F A C E
+ *
+ *	Read in the vertexes describing a face of a psurf.
+ */
+int
+read_psurf_face(FILE *fp, int *lst)
+{
+	int	i, n;
+
+	for (i = 0; fscanf(fp, "%d", &n) == 1; i++)
+		lst[i] = n;
+	fscanf(fp, "%*[^\n]");
+	return(i);
+}
+
+/*
+ *	P S U R F _ T O _ N M G
+ *
+ */
+int
+psurf_to_nmg(struct model *m, FILE *fp, char *jfile)
+			/* Input/output, nmg model. */
+			/* Input, pointer to psurf data file. */
+			/* Name of Jack data base file. */
+{
+	int		face, fail, i, lst[MAX_NUM_PTS], nf, nv;
+	struct faceuse	*outfaceuses[MAX_NUM_PTS];
+	struct nmgregion *r;
+	struct shell	*s;
+	struct vertex	*vertlist[MAX_NUM_PTS];
+	struct vlist	vert;
+
+	/* Copied from proc-db/nmgmodel.c */
+	tol.magic = BN_TOL_MAGIC;
+	tol.dist = 0.01;
+	tol.dist_sq = tol.dist * tol.dist;
+	tol.perp = 0.001;
+	tol.para = 0.999;
+
+	face = 0;
+	r = nmg_mrsv(m);	/* Make region, empty shell, vertex. */
+	s = BU_LIST_FIRST(shell, &r->s_hd);
+
+	while ( (nv = read_psurf_vertices(fp, &vert)) != 0 ) {
+		while ( (nf = read_psurf_face(fp, lst)) != 0 ) {
+
+			/* Make face out of vertices in lst (ccw ordered). */
+			for (i = 0; i < nf; i++)
+				vertlist[i] = vert.vt[lst[i]-1];
+			outfaceuses[face] = nmg_cface(s, vertlist, nf);
+			face++;
+
+			/* Save (possibly) newly created vertex structs. */
+			for (i = 0; i < nf; i++)
+				vert.vt[lst[i]-1] = vertlist[i];
+		}
+		fscanf(fp, ";;");
+
+		/* Associate the vertex geometry, ccw. */
+		for (i = 0; i < nv; i++)
+			if (vert.vt[i])
+				nmg_vertex_gv(vert.vt[i], &vert.pt[3*i]);
+			else
+				fprintf(stderr, "%s, vertex %d is unused\n",
+					jfile, i+1);
+	}
+
+	nmg_model_vertex_fuse( m, &tol );
+
+	/* Associate the face geometry. */
+	for (i = 0, fail = 0; i < face; i++)
+	{
+		struct loopuse *lu;
+		plane_t pl;
+
+		lu = BU_LIST_FIRST( loopuse , &outfaceuses[i]->lu_hd );
+		if( nmg_loop_plane_area( lu , pl ) < 0.0 )
+		{
+			fail = 1;
+			nmg_kfu( outfaceuses[i] );
+		}
+		else
+			nmg_face_g( outfaceuses[i] , pl );
+	}
+	if (fail)
+		return(-1);
+
+	if( face )
+	{
+		nmg_kill_zero_length_edgeuses( m );
+
+		/* Compute "geometry" for region and shell */
+		nmg_region_a(r, &tol);
+
+		nmg_model_break_e_on_v( m, &tol );
+		nmg_kill_zero_length_edgeuses( m );
+
+		/* Glue edges of outward pointing face uses together. */
+		nmg_model_edge_fuse( m, &tol );
+	}
+
+	return(0);
+}
+
+/*
+ *	C R E A T E _ B R L C A D _ D B
+ *
+ *	Write the nmg to a BRL-CAD style data base.
+ */
+int
+create_brlcad_db(struct rt_wdb *fpout, struct model *m, char *reg_name, char *grp_name)
+{
+	char	*rname, *sname;
+	struct shell *s;
+	struct nmgregion *r;
+
+	rname = bu_malloc(sizeof(reg_name) + 3, "rname");	/* Region name. */
+	sname = bu_malloc(sizeof(reg_name) + 3, "sname");	/* Solid name. */
+
+	snprintf(sname, sizeof(reg_name) + 2, "s.%s", reg_name);
+	nmg_kill_zero_length_edgeuses( m );
+	nmg_rebound( m, &tol );
+	r = BU_LIST_FIRST( nmgregion, &m->r_hd);
+	s = BU_LIST_FIRST( shell, &r->s_hd );
+	mk_bot_from_nmg(fpout, sname,  s);		/* Make BOT object. */
+	snprintf(rname, sizeof(reg_name) + 2, "r.%s", reg_name);
+	mk_comb1(fpout, rname, sname, 1);	/* Put object in a region. */
+	if (grp_name) {
+		mk_comb1(fpout, grp_name, rname, 1);	/* Region in group. */
+	}
+	return 0;
+}
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+1.14
+log
+@more level 4 flawfinder issues.  mostly string length clampages.
+@
+text
+@d29 1
+a29 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/conv/jack/jack-g.c,v 1.13 2007/09/15 16:23:05 brlcad Exp $ (BRL)";
+d96 1
+a96 2
+			fprintf(stderr, usage, argv[0]);
+			return 1;
+d108 2
+a109 4
+			fprintf(stderr,
+				"%s: cannot open %s for reading\n",
+				argv[0], jfile);
+			return 1;
+d117 1
+a117 2
+		fprintf(stderr, usage, argv[0]);
+		return 1;
+d121 2
+a122 4
+			fprintf(stderr,
+				"%s: cannot open %s for writing\n",
+				argv[0], bfile);
+			return 1;
+d202 1
+a202 2
+		bu_log( "Dataset contains %d data points, code is dimensioned for %d\n", i, MAX_NUM_PTS );
+		bu_bomb( "jack-g\n" );
+@
+
+
+1.13
+log
+@more c89 embracing.  c89 provides string.h for all of the various str*() and mem*() functions, so remove the check for its presence.  there is still likely to be work required for strict c89 conformance for the various bsd strings.h functions that may be in use.
+@
+text
+@d29 1
+a29 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/conv/jack/jack-g.c,v 1.12 2007/07/26 01:13:52 brlcad Exp $ (BRL)";
+d64 1
+a64 1
+static char	usage[] = "Usage: %s [-r region] [-g group] [jack_db] [brlcad_db]\n";
+d144 1
+a144 1
+		strcpy(reg_name, base);
+d335 1
+a335 1
+	sprintf(sname, "s.%s", reg_name);
+d341 1
+a341 1
+	sprintf(rname, "r.%s", reg_name);
+@
+
+
+1.12
+log
+@remove ephemeral data like phone numbers and addresses, including the misleading 'source' statements on code that is continually evolving and receiving contributions from many many sources
+@
+text
+@d29 1
+a29 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/conv/jack/jack-g.c,v 1.11 2007/05/18 04:13:47 brlcad Exp $ (BRL)";
+a33 3
+#ifdef HAVE_UNISTD_H
+#  include <unistd.h>
+#endif
+d37 4
+a40 4
+#ifdef HAVE_STRING_H
+#  include <string.h>
+#else
+#  include <strings.h>
+@
+
+
+1.11
+log
+@rt_bomb() has been deprecated since before 7.0, but even our sources weren't properly updated to reflect this change.  update all of our sources to use bu_bomb() now.
+@
+text
+@a26 4
+ *  Source -
+ *	The U. S. Army Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005-5066
+ *
+d29 1
+a29 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/conv/jack/jack-g.c,v 1.10 2007/01/31 21:39:26 brlcad Exp $ (BRL)";
+@
+
+
+1.10
+log
+@use libbu getopt
+@
+text
+@d33 1
+a33 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/conv/jack/jack-g.c,v 1.9 2007/01/27 01:41:33 brlcad Exp $ (BRL)";
+d216 1
+a216 1
+		rt_bomb( "jack-g\n" );
+@
+
+
+1.9
+log
+@ws. lots and lots of ws.  see sh/ws.sh for details (cases 'abcdeg').
+@
+text
+@d33 1
+a33 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/conv/jack/jack-g.c,v 1.8 2007/01/23 01:13:26 brlcad Exp $ (BRL)";
+d92 1
+a92 1
+	while ((c = getopt(argc, argv, "g:r:")) != EOF) {
+d95 1
+a95 1
+			grp_name = optarg;
+d100 1
+a100 1
+			reg_name = optarg;
+d110 1
+a110 1
+	if (optind >= argc) {
+d114 1
+a114 1
+		jfile = argv[optind];
+d124 2
+a125 2
+	optind++;
+	if (optind >= argc) {
+d130 1
+a130 1
+		bfile = argv[optind];
+@
+
+
+1.8
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@d33 1
+a33 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/conv/jack/jack-g.c,v 1.7 2007/01/20 14:36:47 brlcad Exp $ (BRL)";
+d191 2
+a192 2
+    		    	/* Psurf file pointer. */
+            	      	/* Array of read in vertices. */
+d244 3
+a246 3
+            	   	/* Input/output, nmg model. */
+    		    	/* Input, pointer to psurf data file. */
+    		       	/* Name of Jack data base file. */
+@
+
+
+1.7
+log
+@update copyright to 2007
+@
+text
+@d8 2
+a9 3
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+d14 1
+a14 1
+ * General Public License for more details.
+d16 2
+a17 2
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+d33 1
+a33 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/conv/jack/jack-g.c,v 1.6 2006/02/27 05:52:23 brlcad Exp $ (BRL)";
+@
+
+
+1.6
+log
+@quell warnings, missing stdlib.h, calls to exit with a negative, ws.
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 2004-2006 United States Government as represented by
+d34 1
+a34 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/conv/jack/jack-g.c,v 1.5 2006/01/29 01:39:53 brlcad Exp $ (BRL)";
+@
+
+
+1.5
+log
+@update converters to the API changes, avoiding the deprecated calls
+@
+text
+@d34 1
+a34 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/conv/jack/jack-g.c,v 1.4 2006/01/23 02:56:59 brlcad Exp $ (BRL)";
+d42 1
+a42 1
+
+d105 1
+a105 1
+			exit(1);
+d120 1
+a120 1
+			exit(1);
+d129 1
+a129 1
+		exit(1);
+d136 1
+a136 1
+			exit(1);
+@
+
+
+1.4
+log
+@convert to libbu memory management
+@
+text
+@d34 1
+a34 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/conv/jack/jack-g.c,v 1.3 2006/01/18 06:46:14 brlcad Exp $ (BRL)";
+d70 1
+a70 1
+static struct rt_tol	tol;
+d216 1
+a216 1
+		rt_log( "Dataset contains %d data points, code is dimensioned for %d\n", i, MAX_NUM_PTS );
+d257 1
+a257 1
+	tol.magic = RT_TOL_MAGIC;
+d265 1
+a265 1
+	s = RT_LIST_FIRST(shell, &r->s_hd);
+d299 1
+a299 1
+		lu = RT_LIST_FIRST( loopuse , &outfaceuses[i]->lu_hd );
+@
+
+
+1.3
+log
+@update copyright to 2006
+@
+text
+@d34 1
+a34 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/conv/jack/jack-g.c,v 1.2 2005/10/29 04:20:53 brlcad Exp $ (BRL)";
+d151 1
+a151 1
+		reg_name = malloc(sizeof(base)+1);
+d340 2
+a341 2
+	rname = malloc(sizeof(reg_name) + 3);	/* Region name. */
+	sname = malloc(sizeof(reg_name) + 3);	/* Solid name. */
+@
+
+
+1.2
+log
+@fix relative include paths after the move to src/conv (thanks dtr)
+@
+text
+@d4 1
+a4 1
+ * Copyright (C) 2004-2005 United States Government as represented by
+d34 1
+a34 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/conv/jack/jack-g.c,v 1.1 2005/10/27 03:36:04 brlcad Exp $ (BRL)";
+@
+
+
+1.2.2.1
+log
+@file jack-g.c was added on branch rel-7-6-branch on 2005-11-13 17:45:00 +0000
+@
+text
+@d1 365
+@
+
+
+1.2.2.2
+log
+@more merging changes from HEAD aka rel-7-6-4 to the rel-7-6-branch, adding the items that were moved and resolving rcs keyword conflicts
+@
+text
+@a0 365
+/*                        J A C K - G . C
+ * BRL-CAD
+ *
+ * Copyright (C) 2004-2005 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@file jack-g.c
+ *
+ *  Program to convert JACK Psurf file into a BRL-CAD NMG object.
+ *
+ *  Author -
+ *	Michael John Markowski
+ *
+ *  Source -
+ *	The U. S. Army Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005-5066
+ *
+ */
+#ifndef lint
+static const char RCSid[] = "@@(#)$Header$ (BRL)";
+#endif
+
+#include "common.h"
+
+#ifdef HAVE_UNISTD_H
+#  include <unistd.h>
+#endif
+
+#include <stdio.h>
+#include <math.h>
+#ifdef HAVE_STRING_H
+#  include <string.h>
+#else
+#  include <strings.h>
+#endif
+
+#include "machine.h"
+#include "bu.h"
+#include "vmath.h"
+#include "bn.h"
+#include "nmg.h"
+#include "raytrace.h"
+#include "rtgeom.h"
+#include "wdb.h"
+
+#include "../../librt/debug.h"
+
+
+#define		MAX_NUM_PTS	15360
+
+struct vlist {
+	fastf_t		pt[3*MAX_NUM_PTS];
+	struct vertex	*vt[MAX_NUM_PTS];
+};
+
+static struct rt_tol	tol;
+
+static char	usage[] = "Usage: %s [-r region] [-g group] [jack_db] [brlcad_db]\n";
+
+BU_EXTERN( fastf_t nmg_loop_plane_area, (const struct loopuse *lu, plane_t pl ) );
+
+int	psurf_to_nmg(struct model *m, FILE *fp, char *jfile);
+int	create_brlcad_db(struct rt_wdb *fpout, struct model *m, char *reg_name, char *grp_name);
+void	jack_to_brlcad(FILE *fpin, struct rt_wdb *fpout, char *reg_name, char *grp_name, char *jfile, char *bfile);
+
+
+int
+main(int argc, char **argv)
+{
+	char		*base, *bfile, *grp_name, *jfile, *reg_name;
+	FILE		*fpin;
+	struct rt_wdb	*fpout;
+	int		doti;
+	register int	c;
+
+	grp_name = reg_name = NULL;
+
+	/* Get command line arguments. */
+	while ((c = getopt(argc, argv, "g:r:")) != EOF) {
+		switch (c) {
+		case 'g':
+			grp_name = optarg;
+			/* BRL-CAD group to add psurf to. */
+			break;
+		case 'r':
+			/* BRL-CAD region name for psurf. */
+			reg_name = optarg;
+			break;
+		default:
+			fprintf(stderr, usage, argv[0]);
+			exit(1);
+			break;
+		}
+	}
+
+	/* Get Jack psurf input file name. */
+	if (optind >= argc) {
+		jfile = "-";
+		fpin = stdin;
+	} else {
+		jfile = argv[optind];
+		if ((fpin = fopen(jfile, "r")) == NULL) {
+			fprintf(stderr,
+				"%s: cannot open %s for reading\n",
+				argv[0], jfile);
+			exit(1);
+		}
+	}
+
+	/* Get BRL-CAD output data base name. */
+	optind++;
+	if (optind >= argc) {
+		bfile = "-";
+		fprintf(stderr, usage, argv[0]);
+		exit(1);
+	} else {
+		bfile = argv[optind];
+		if ((fpout = wdb_fopen(bfile)) == NULL) {
+			fprintf(stderr,
+				"%s: cannot open %s for writing\n",
+				argv[0], bfile);
+			exit(1);
+		}
+	}
+
+	/* Output BRL-CAD database header.  No problem if more than one. */
+	mk_id(fpout, jfile);
+
+	/* Make default region name if none given. */
+	if (!reg_name) {
+		/* Ignore leading path info. */
+		base = strrchr(argv[1], '/');
+		if (!base)
+			base = argv[1];
+		else
+			base++;
+		reg_name = malloc(sizeof(base)+1);
+		strcpy(reg_name, base);
+		/* Ignore .pss extension if it's there. */
+		doti = strlen(reg_name) - 4;
+		if (doti > 0 && !strcmp(".pss", reg_name+doti))
+			reg_name[doti] = '\0';
+	}
+
+	jack_to_brlcad(fpin, fpout, reg_name, grp_name, jfile, bfile);
+	fclose(fpin);
+	wdb_close(fpout);
+	return 0;
+}
+
+/*
+ *	J A C K _ T O _ B R L C A D
+ *
+ *	Convert a UPenn Jack data base into a BRL-CAD data base.
+ */
+void
+jack_to_brlcad(FILE *fpin, struct rt_wdb *fpout, char *reg_name, char *grp_name, char *jfile, char *bfile)
+{
+	struct model	*m;
+
+	m = nmg_mm();			/* Make nmg model. */
+	psurf_to_nmg(m, fpin, jfile);	/* Convert psurf model to nmg. */
+	create_brlcad_db(fpout, m, reg_name, grp_name);	/* Put in db. */
+	nmg_km(m);			/* Destroy the nmg model. */
+}
+
+/*
+ *	R E A D _ P S U R F _ V E R T I C E S
+ *
+ *	Read in vertices from a psurf file and store them in an
+ *	array of nmg vertex structures.
+ *
+ *	Fix this!  Only allows set max of points and assumes
+ *	no errors during reading...
+ */
+int
+read_psurf_vertices(FILE *fp, struct vlist *vert)
+    		    	/* Psurf file pointer. */
+            	      	/* Array of read in vertices. */
+{
+	fastf_t	x, y, z;
+	int	i;
+	int	bomb=0;
+
+	/* Read vertices. */
+	for (i = 0; fscanf(fp, "%lf %lf %lf", &x, &y, &z) == 3; i++) {
+		if( i >= MAX_NUM_PTS )
+			bomb = 1;
+		else
+		{
+			vert->pt[3*i+0] = x * 10.;	/* Convert cm to mm. */
+			vert->pt[3*i+1] = y * 10.;
+			vert->pt[3*i+2] = z * 10.;
+			vert->vt[i] = (struct vertex *)0;
+		}
+		fscanf(fp, "%*[^\n]");
+	}
+	fscanf(fp, ";;");
+
+	if( bomb )
+	{
+		rt_log( "Dataset contains %d data points, code is dimensioned for %d\n", i, MAX_NUM_PTS );
+		rt_bomb( "jack-g\n" );
+	}
+
+	return(i);
+}
+
+/*
+ *	R E A D _ P S U R F _ F A C E
+ *
+ *	Read in the vertexes describing a face of a psurf.
+ */
+int
+read_psurf_face(FILE *fp, int *lst)
+{
+	int	i, n;
+
+	for (i = 0; fscanf(fp, "%d", &n) == 1; i++)
+		lst[i] = n;
+	fscanf(fp, "%*[^\n]");
+	return(i);
+}
+
+/*
+ *	P S U R F _ T O _ N M G
+ *
+ */
+int
+psurf_to_nmg(struct model *m, FILE *fp, char *jfile)
+            	   	/* Input/output, nmg model. */
+    		    	/* Input, pointer to psurf data file. */
+    		       	/* Name of Jack data base file. */
+{
+	int		face, fail, i, lst[MAX_NUM_PTS], nf, nv;
+	struct faceuse	*outfaceuses[MAX_NUM_PTS];
+	struct nmgregion *r;
+	struct shell	*s;
+	struct vertex	*vertlist[MAX_NUM_PTS];
+	struct vlist	vert;
+
+	/* Copied from proc-db/nmgmodel.c */
+	tol.magic = RT_TOL_MAGIC;
+	tol.dist = 0.01;
+	tol.dist_sq = tol.dist * tol.dist;
+	tol.perp = 0.001;
+	tol.para = 0.999;
+
+	face = 0;
+	r = nmg_mrsv(m);	/* Make region, empty shell, vertex. */
+	s = RT_LIST_FIRST(shell, &r->s_hd);
+
+	while ( (nv = read_psurf_vertices(fp, &vert)) != 0 ) {
+		while ( (nf = read_psurf_face(fp, lst)) != 0 ) {
+
+			/* Make face out of vertices in lst (ccw ordered). */
+			for (i = 0; i < nf; i++)
+				vertlist[i] = vert.vt[lst[i]-1];
+			outfaceuses[face] = nmg_cface(s, vertlist, nf);
+			face++;
+
+			/* Save (possibly) newly created vertex structs. */
+			for (i = 0; i < nf; i++)
+				vert.vt[lst[i]-1] = vertlist[i];
+		}
+		fscanf(fp, ";;");
+
+		/* Associate the vertex geometry, ccw. */
+		for (i = 0; i < nv; i++)
+			if (vert.vt[i])
+				nmg_vertex_gv(vert.vt[i], &vert.pt[3*i]);
+			else
+				fprintf(stderr, "%s, vertex %d is unused\n",
+					jfile, i+1);
+	}
+
+	nmg_model_vertex_fuse( m, &tol );
+
+	/* Associate the face geometry. */
+	for (i = 0, fail = 0; i < face; i++)
+	{
+		struct loopuse *lu;
+		plane_t pl;
+
+		lu = RT_LIST_FIRST( loopuse , &outfaceuses[i]->lu_hd );
+		if( nmg_loop_plane_area( lu , pl ) < 0.0 )
+		{
+			fail = 1;
+			nmg_kfu( outfaceuses[i] );
+		}
+		else
+			nmg_face_g( outfaceuses[i] , pl );
+	}
+	if (fail)
+		return(-1);
+
+	if( face )
+	{
+		nmg_kill_zero_length_edgeuses( m );
+
+		/* Compute "geometry" for region and shell */
+		nmg_region_a(r, &tol);
+
+		nmg_model_break_e_on_v( m, &tol );
+		nmg_kill_zero_length_edgeuses( m );
+
+		/* Glue edges of outward pointing face uses together. */
+		nmg_model_edge_fuse( m, &tol );
+	}
+
+	return(0);
+}
+
+/*
+ *	C R E A T E _ B R L C A D _ D B
+ *
+ *	Write the nmg to a BRL-CAD style data base.
+ */
+int
+create_brlcad_db(struct rt_wdb *fpout, struct model *m, char *reg_name, char *grp_name)
+{
+	char	*rname, *sname;
+	struct shell *s;
+	struct nmgregion *r;
+
+	rname = malloc(sizeof(reg_name) + 3);	/* Region name. */
+	sname = malloc(sizeof(reg_name) + 3);	/* Solid name. */
+
+	sprintf(sname, "s.%s", reg_name);
+	nmg_kill_zero_length_edgeuses( m );
+	nmg_rebound( m, &tol );
+	r = BU_LIST_FIRST( nmgregion, &m->r_hd);
+	s = BU_LIST_FIRST( shell, &r->s_hd );
+	mk_bot_from_nmg(fpout, sname,  s);		/* Make BOT object. */
+	sprintf(rname, "r.%s", reg_name);
+	mk_comb1(fpout, rname, sname, 1);	/* Put object in a region. */
+	if (grp_name) {
+		mk_comb1(fpout, grp_name, rname, 1);	/* Region in group. */
+	}
+	return 0;
+}
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+1.1
+log
+@moved all the geometry converter directories from src/. to src/conv/.
+@
+text
+@d34 1
+a34 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/jack/jack-g.c,v 14.7 2005/10/23 04:44:31 brlcad Exp $ (BRL)";
+d60 1
+a60 1
+#include "../librt/debug.h"
+@
+

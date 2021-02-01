@@ -1,0 +1,384 @@
+head	14.10;
+access;
+symbols
+	rel-7-10-4:14.8
+	STABLE:14.8.0.2
+	stable-branch:14.3
+	rel-7-10-2:14.8
+	rel-7-10-0:14.8
+	rel-7-8-4:14.5
+	rel-7-8-2:14.5
+	rel-7-8-0:14.5
+	trimnurbs-branch:14.5.0.2
+	help:14.5
+	temp_tag:14.3
+	bobWinPort-20051223-freeze:14.3
+	postmerge-20051223-bobWinPort:14.3
+	premerge-20051223-bobWinPort:14.3
+	rel-7-6-6:14.3
+	rel-7-6-4:14.3
+	rel-7-6-2:14.3
+	rel-7-6-branch:14.3.0.6
+	rel-7-6-0:14.3
+	rel-7-4-2:14.3
+	rel-7-4-branch:14.3.0.4
+	bobWinPort:14.3.0.2
+	rel-7-4-0:14.3
+	rel-7-2-6:14.3
+	rel-7-2-4:14.3
+	rel-7-2-2:14.3
+	rel-7-2-0:14.3
+	rel-7-0-4:14.2
+	rel-7-0-2:14.2
+	rel-7-0-1:14.2
+	opensource-post:14.2
+	opensource-pre:1.3
+	rel-7-0-branch:1.3.0.2
+	rel-7-0:1.3;
+locks; strict;
+comment	@ * @;
+
+
+14.10
+date	2007.12.02.22.34.24;	author brlcad;	state Exp;
+branches;
+next	14.9;
+
+14.9
+date	2007.09.15.16.23.20;	author brlcad;	state Exp;
+branches;
+next	14.8;
+
+14.8
+date	2007.02.20.08.19.50;	author brlcad;	state Exp;
+branches;
+next	14.7;
+
+14.7
+date	2007.01.23.01.13.46;	author brlcad;	state Exp;
+branches;
+next	14.6;
+
+14.6
+date	2007.01.20.14.37.00;	author brlcad;	state Exp;
+branches;
+next	14.5;
+
+14.5
+date	2006.01.28.00.36.29;	author brlcad;	state Exp;
+branches;
+next	14.4;
+
+14.4
+date	2006.01.18.06.46.24;	author brlcad;	state Exp;
+branches;
+next	14.3;
+
+14.3
+date	2005.01.30.20.31.12;	author brlcad;	state Exp;
+branches;
+next	14.2;
+
+14.2
+date	2004.12.21.03.11.57;	author morrison;	state Exp;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.31;	author morrison;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2004.09.03.23.30.59;	author morrison;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2004.08.02.23.01.52;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.15.20.51;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.10
+log
+@woo hoo, finally got through most of the flawfinder level 4 issues related to string buffer limits (leaving issues that can probably/mostly be ignored).  these changes mostly invovlved using the n-variants of the various string processing functions so that the buffers being written to are properly clamped.
+@
+text
+@/*                           A - D . C
+ * BRL-CAD
+ *
+ * Copyright (c) 2004-2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@file a-d.c
+ *
+ * Ascii to double.
+ */
+
+#include "common.h"
+
+#include <stdlib.h>
+#include <stdio.h>
+#include <math.h>
+#include <ctype.h>
+#include <unistd.h>
+#include <string.h>
+
+#include "machine.h"
+#include "bu.h"
+
+
+#define	COMMENT_CHAR	'#'
+
+static const char usage[] = "\
+Usage: a-d [values] < ascii > doubles\n";
+
+int main(int argc, char **argv)
+{
+	double	d;
+	int	i;
+
+	if( isatty(fileno(stdout)) ) {
+		bu_exit(1, "%s", usage );
+	}
+
+	if( argc > 1 ) {
+		/* get them from the command line */
+		for( i = 1; i < argc; i++ ) {
+			d = atof( argv[i] );
+			fwrite( &d, sizeof(d), 1, stdout );
+		}
+	} else {
+		/* get them from stdin */
+#if 0
+		char	s[80];
+		while( bu_fgets(s, 80, stdin) != NULL ) {
+			d = atof( s );
+#else
+		/* XXX This one is slower but allows more than 1 per line */
+		while (1) {
+		    int	ch;
+
+		    while (isspace(ch = getchar()))
+			;
+		    if (ch == COMMENT_CHAR) {
+			while (((ch = getchar()) != '\n') && (ch != EOF))
+			    ;
+		    }
+		    if (ch == EOF)
+			exit (0);
+		    else
+			ungetc(ch, stdin);
+
+		    if ( scanf("%lf", &d) == 1 ) {
+#endif
+			fwrite( &d, sizeof(d), 1, stdout );
+		    }
+		    else if (feof(stdin))
+			exit (0);
+		    else {
+			bu_log("Error in input stream\n");
+			exit (1);
+		    }
+		}
+	}
+	return 0;
+}
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+14.9
+log
+@more c89 embracing.  c89 provides string.h for all of the various str*() and mem*() functions, so remove the check for its presence.  there is still likely to be work required for strict c89 conformance for the various bsd strings.h functions that may be in use.
+@
+text
+@d40 1
+a40 1
+static char usage[] = "\
+d49 1
+a49 2
+		fprintf( stderr, usage );
+		exit( 1 );
+@
+
+
+14.8
+log
+@update all usages of fgets() to instead use john's swanktastic bu_fgets() that behaves as one would generally want regardless of the line ending type of the compilation platform or of the input files.  bu_fgets() responds to input files that use CR (usually old mac), LF (usually unix, new mac), or CR/LF (usually windows) for the line ending so now these file do too effectivley squashing buggish/bad behavior.
+@
+text
+@d32 1
+a32 5
+#ifdef HAVE_STRING_H
+#  include <string.h>
+#else
+#  include <strings.h>
+#endif
+@
+
+
+14.7
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@d67 1
+a67 1
+		while( fgets(s, 80, stdin) != NULL ) {
+@
+
+
+14.6
+log
+@update copyright to 2007
+@
+text
+@d8 2
+a9 3
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+d14 1
+a14 1
+ * General Public License for more details.
+d16 2
+a17 2
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+@
+
+
+14.5
+log
+@header cleanup, atof() requires stdlib.h on altix/posix, fix 64-bitness
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 2004-2006 United States Government as represented by
+@
+
+
+14.4
+log
+@update copyright to 2006
+@
+text
+@d28 5
+a38 4
+#include <stdio.h>
+#include <math.h>
+#include <ctype.h>
+#include <unistd.h>
+d42 1
+@
+
+
+14.3
+log
+@update copyright to 2005
+@
+text
+@d4 1
+a4 1
+ * Copyright (C) 2004-2005 United States Government as represented by
+@
+
+
+14.2
+log
+@assign copyright and GPL
+@
+text
+@d4 2
+a5 2
+ * Copyright (c) 2004 United States Government as represented by the
+ * U.S. Army Research Laboratory.
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@d1 25
+a25 1
+/* Ascii to double */
+a27 2
+
+
+d29 1
+a29 1
+#include <string.h>
+d31 1
+a31 1
+#include <strings.h>
+@
+
+
+1.3
+log
+@USE_STRING_H is no more.. it's HAVE_STRING_H
+@
+text
+@d76 10
+@
+
+
+1.2
+log
+@replace the wrapped config.h block with common.h
+@
+text
+@d6 1
+a6 1
+#ifdef USE_STRING_H
+@
+
+
+1.1
+log
+@Vast reorganization begins.  Sources moved from top-level directories into src/.
+@
+text
+@d2 1
+a2 3
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+@
+

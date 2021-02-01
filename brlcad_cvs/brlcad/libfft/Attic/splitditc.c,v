@@ -1,0 +1,463 @@
+head	11.8;
+access;
+symbols
+	ansi-20040405-merged:11.5.2.1
+	postmerge-20040405-ansi:11.6
+	premerge-20040404-ansi:11.5
+	postmerge-autoconf:11.5
+	autoconf-freeze:11.5
+	premerge-autoconf:11.5
+	ansi-20040316-freeze:11.5.2.1
+	postmerge-20040315-windows:11.5
+	premerge-20040315-windows:11.5
+	windows-20040315-freeze:11.5
+	autoconf-20031203:11.5
+	autoconf-20031202:11.5
+	autoconf-branch:11.5.0.10
+	phong-branch:11.5.0.8
+	photonmap-branch:11.5.0.6
+	rel-6-1-DP:11.5
+	windows-branch:11.5.0.4
+	rel-6-0-2:11.3
+	ansi-branch:11.5.0.2
+	rel-6-0-1-branch:11.3.0.2
+	hartley-6-0-post:11.4
+	hartley-6-0-pre:11.3
+	rel-6-0-1:11.3
+	rel-6-0:11.3
+	rel-5-4:11.2
+	offsite-5-3-pre:11.3
+	rel-5-3:11.2
+	rel-5-2:11.2
+	rel-5-1-branch:11.2.0.2
+	rel-5-1:11.2
+	rel-5-0:11.2
+	rel-5-0-beta:11.2
+	rel-4-5:11.2
+	ctj-4-5-post:11.2
+	ctj-4-5-pre:11.2
+	rel-4-4:11.1
+	rel-4-0:10.1;
+locks; strict;
+comment	@ * @;
+
+
+11.8
+date	2004.05.21.18.07.26;	author morrison;	state dead;
+branches;
+next	11.7;
+
+11.7
+date	2004.05.10.15.30.45;	author erikg;	state Exp;
+branches;
+next	11.6;
+
+11.6
+date	2004.04.05.07.44.18;	author morrison;	state Exp;
+branches;
+next	11.5;
+
+11.5
+date	2002.08.20.17.07.49;	author jra;	state Exp;
+branches
+	11.5.2.1;
+next	11.4;
+
+11.4
+date	2002.08.15.20.55.02;	author hartley;	state Exp;
+branches;
+next	11.3;
+
+11.3
+date	2000.08.24.22.29.45;	author mike;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	96.07.15.15.37.57;	author jra;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	95.01.04.10.05.45;	author mike;	state Rel4_4;
+branches;
+next	10.2;
+
+10.2
+date	94.11.04.23.54.20;	author mike;	state Exp;
+branches;
+next	10.1;
+
+10.1
+date	91.10.12.06.38.57;	author mike;	state Rel4_0;
+branches;
+next	1.2;
+
+1.2
+date	91.07.06.05.10.37;	author mike;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	91.07.02.01.26.04;	author mike;	state Exp;
+branches;
+next	;
+
+11.5.2.1
+date	2002.09.19.18.01.23;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@libfft module
+@
+
+
+11.8
+log
+@moved to src/
+@
+text
+@/*
+ *  Real valued, split-radix, decimation in time FFT code generator.
+ *
+ *  Author -
+ *	Phil Dykstra
+ *  
+ *  Source -
+ *	The U. S. Army Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005-5068  USA
+ *  
+ *  Distribution Status -
+ *	Public Domain, Distribution Unlimited.
+ */
+#ifndef lint
+static const char RCSid[] = "@@(#)$Header: /n/xoff/cvs/brlcad/libfft/splitditc.c,v 11.7 2004/05/10 15:30:45 erikg Exp $ (ARL)";
+#endif
+
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+
+#include <stdio.h>
+#include <math.h>
+
+#include "./complex.h"	/* for TWOPI */
+#define	INVSQ2	0.70710678118654752440
+
+int	rfft_adds, rfft_mults;
+
+void
+splitdit(double *X, int N, int M)
+{
+	int	i0, i1, i2, i3;
+	int	a0, a1, a2, a3, b0, b1, b2, b3;
+	int	s, d;
+	double	a, aa3, e;
+	double	cc1, ss1, cc3, ss3;
+	int	i, j, k, ni;
+	int	n2, n4;
+rfft_adds = rfft_mults = 0;
+
+printf("/* Machine Generated Real Split Radix Decimation in Time FFT */\n" );
+printf("#define	INVSQ2	0.70710678118654752440\n" );
+printf("void\n" );
+printf("rfft%d(X)\n", N );
+printf("register double X[];\n\
+{\n\
+	register double	t0, t1, c3, d3, c2, d2;\n\
+	register int	i;\
+\n" );
+
+	/* bit reverse counter */
+printf("/* bit reverse */\n");
+	j = 1;
+	ni = N - 1;
+	for( i = 1; i <= ni; i++ ) {
+		if( i < j ) {
+printf("t0 = X[%d];\n", j-1 );
+printf("X[%d] = X[%d];\n", j-1, i-1 );
+printf("X[%d] = t0;\n", i-1 );
+		}
+		k = N/2;
+		while( k < j ) {
+			j -= k;
+			k /= 2;
+		}
+		j += k;
+	}
+
+	/* length two transforms */
+printf("/* length two xforms */\n");
+	for( s = 1, d = 4; s < N; s = 2*d-1, d *= 4 ) {
+		for( i0 = s; i0 <= N; i0 += d ) {
+			i1 = i0 + 1;
+printf("t0 = X[%d];\n", i0-1 );
+printf("X[%d] += X[%d];\n", i0-1, i1-1 );
+printf("X[%d] = t0 - X[%d];\n", i1-1, i1-1 );
+rfft_adds += 2;
+		}
+	}
+
+	/* other butterflies */
+printf("/* other butterflies */\n");
+	n2 = 2;
+	for( k = 2; k <= M; k++ ) {
+		n2 *= 2;
+		n4 = n2/4;
+
+		/* without mult */
+		for( s = 1, d = 2*n2; s < N; s = 2*d-n2+1, d *= 4 ) {
+			for( i0 = s; i0 < N; i0 += d ) {
+				i1 = i0 + n4;
+				i2 = i1 + n4;
+				i3 = i2 + n4;
+printf("t0 = X[%d] + X[%d];\n", i3-1, i2-1 );
+printf("X[%d] = X[%d] - X[%d];\n", i3-1, i2-1, i3-1 );
+printf("X[%d] = X[%d] - t0;\n", i2-1, i0-1 );
+printf("X[%d] += t0;\n", i0-1 );
+rfft_adds += 4;
+			}
+		}
+		if( n4 < 2 ) continue;
+		/* with 2 real mult */
+		for( s = n4/2+1, d = 2*n2; s < N; s = 2*d-n2+n4/2+1, d *= 4 ) {
+			for( i0 = s; i0 < N; i0 += d ) {
+				i1 = i0 + n4;
+				i2 = i1 + n4;
+				i3 = i2 + n4;
+printf("t0 = (X[%d]-X[%d])*INVSQ2;\n", i2-1, i3-1 );
+printf("t1 = (X[%d]+X[%d])*INVSQ2;\n", i2-1, i3-1 );
+printf("X[%d] = t1 - X[%d];\n", i2-1, i1-1 );
+printf("X[%d] = t1 + X[%d];\n", i3-1, i1-1 );
+printf("X[%d] = X[%d] - t0;\n", i1-1, i0-1 );
+printf("X[%d] += t0;\n", i0-1 );
+rfft_mults += 2; rfft_adds += 6;
+			}
+		}
+		e = TWOPI/n2;
+		a = e;
+		if( n4 < 4 ) continue;
+		for( j = 2; j <= n4/2; j++ ) {
+			aa3 = 3*a;
+			cc1 = cos(a);
+			ss1 = sin(a);
+			cc3 = cos(aa3);
+			ss3 = sin(aa3);
+			a = j * e;
+			/* with 6 real mult */
+			for( s = j, d = 2*n2; s < N; s = 2*d-n2+j, d *= 4 ) {
+				for( a0 = s; a0 < N; a0 += d ) {
+					b1 = a0 + n4;
+					a1 = b1-j-j+2;
+					b0 = a1 + n4;
+					a2 = b1 + n4;
+					a3 = a2 + n4;
+					b2 = b0 + n4;
+					b3 = b2 + n4;
+printf("c2 = X[%d]*%.24g - X[%d]*%.24g;\n", a2-1, cc1, b2-1, ss1 );
+printf("d2 = -(X[%d]*%.24g + X[%d]*%.24g);\n", a2-1, ss1, b2-1, cc1 );
+printf("c3 = X[%d]*%.24g - X[%d]*%.24g;\n", a3-1, cc3, b3-1, ss3 );
+printf("d3 = -(X[%d]*%.24g + X[%d]*%.24g);\n", a3-1, ss3, b3-1, cc3 );
+rfft_mults += 8; rfft_adds += 4;
+printf("t0 = c2 + c3;\n" );
+printf("c3 = c2 - c3;\n" );
+printf("t1 = d2 - d3;\n" );
+printf("d3 += d2;\n" );
+printf("X[%d] = -X[%d] - d3;\n", a2-1, b0-1 );
+printf("X[%d] = -X[%d] + c3;\n", b2-1, b1-1 );
+printf("X[%d] = X[%d] + c3;\n", a3-1, b1-1 );
+printf("X[%d] = X[%d] - d3;\n", b3-1, b0-1 );
+printf("X[%d] = X[%d] + t1;\n", b1-1, a1-1 );
+printf("X[%d] = X[%d] - t0;\n", b0-1, a0-1 );
+printf("X[%d] += t0;\n", a0-1 );
+printf("X[%d] -= t1;\n", a1-1 );
+rfft_adds += 12;
+				}
+			}
+		}
+	}
+
+/* For some reason the Imag part is comming out with the wrong
+ * sign, so we reverse it here!  We need to figure this out!
+ */
+printf("/* reverse Imag part! */\n");
+printf("for( i = %d/2+1; i < %d; i++ )\n", N, N);
+printf("	X[i] = -X[i];\n");
+
+printf("}\n");
+}
+@
+
+
+11.7
+log
+@change conf.h to a wrapped config.h
+@
+text
+@d15 1
+a15 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/libfft/splitditc.c,v 11.6 2004/04/05 07:44:18 morrison Exp $ (ARL)";
+@
+
+
+11.6
+log
+@merge of ansi-6-0-branch into HEAD
+@
+text
+@d15 1
+a15 1
+static const char RCSid[] = "@@(#)$Header$ (ARL)";
+d18 5
+a22 1
+#include "conf.h"
+@
+
+
+11.5
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d15 1
+a15 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/libfft/splitditc.c,v 11.3 2000/08/24 22:29:45 mike Exp $ (ARL)";
+d29 1
+a29 3
+splitdit( X, N, M )
+double	X[];
+int	N, M;
+@
+
+
+11.5.2.1
+log
+@Initial ANSIfication
+@
+text
+@d15 1
+a15 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/libfft/splitditc.c,v 11.5 2002/08/20 17:07:49 jra Exp $ (ARL)";
+d29 3
+a31 1
+splitdit(double *X, int N, int M)
+@
+
+
+11.4
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d29 3
+a31 1
+splitdit(double *X, int N, int M)
+@
+
+
+11.3
+log
+@
+Lint
+@
+text
+@d15 1
+a15 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/libfft/splitditc.c,v 11.2 1996/07/15 15:37:57 jra Exp $ (ARL)";
+d29 1
+a29 3
+splitdit( X, N, M )
+double	X[];
+int	N, M;
+@
+
+
+11.2
+log
+@Minor Mods for IRIX 6.2
+@
+text
+@d15 1
+a15 1
+static char RCSid[] = "@@(#)$Header: /m/cad/libfft/RCS/splitditc.c,v 11.1 1995/01/04 10:05:45 mike Rel4_4 jra $ (ARL)";
+@
+
+
+11.1
+log
+@Release_4.4
+@
+text
+@d15 1
+a15 1
+static char RCSid[] = "@@(#)$Header: /m/cad/libfft/RCS/splitditc.c,v 10.2 94/11/04 23:54:20 mike Exp $ (ARL)";
+d28 1
+d44 1
+@
+
+
+10.2
+log
+@Irix 6
+@
+text
+@d15 1
+a15 1
+static char RCSid[] = "@@(#)$Header$ (ARL)";
+@
+
+
+10.1
+log
+@Release_4.0
+@
+text
+@d3 10
+d14 7
+d22 1
+d35 2
+a36 2
+	double	t0, t1, t2, r1, a, aa3, e, c2, c3, d2, d3;
+	double	cc1, ss1, cc3, ss3, xt;
+@
+
+
+1.2
+log
+@Put prefix on add/mult counters
+@
+text
+@@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d8 1
+a8 1
+int	adds, mults;
+d21 1
+a21 1
+adds = mults = 0;
+d58 1
+a58 1
+adds += 2;
+d79 1
+a79 1
+adds += 4;
+d95 1
+a95 1
+mults += 2; adds += 6;
+d122 1
+a122 1
+mults += 8; adds += 4;
+d135 1
+a135 1
+adds += 12;
+@

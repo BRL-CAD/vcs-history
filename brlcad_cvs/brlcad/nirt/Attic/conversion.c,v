@@ -1,0 +1,403 @@
+head	11.7;
+access;
+symbols
+	ansi-20040405-merged:11.4.2.1
+	postmerge-20040405-ansi:11.5
+	premerge-20040404-ansi:11.4
+	postmerge-autoconf:11.4
+	autoconf-freeze:11.4
+	premerge-autoconf:11.4
+	postmerge-20040315-windows:11.4
+	premerge-20040315-windows:11.4
+	windows-20040315-freeze:11.4
+	autoconf-20031203:11.4
+	autoconf-20031202:11.4
+	autoconf-branch:11.4.0.10
+	phong-branch:11.4.0.8
+	photonmap-branch:11.4.0.6
+	rel-6-1-DP:11.4
+	windows-branch:11.4.0.4
+	rel-6-0-2:11.2
+	ansi-branch:11.4.0.2
+	rel-6-0-1-branch:11.2.0.2
+	hartley-6-0-post:11.3
+	hartley-6-0-pre:11.2
+	rel-6-0-1:11.2
+	rel-6-0:11.2
+	rel-5-4:11.1
+	offsite-5-3-pre:11.2
+	rel-5-3:11.1
+	rel-5-2:11.1
+	rel-5-1-branch:11.1.0.2
+	rel-5-1:11.1
+	rel-5-0:11.1
+	rel-5-0-beta:11.1
+	rel-4-5:11.1
+	ctj-4-5-post:11.1
+	ctj-4-5-pre:11.1
+	rel-4-4:11.1
+	rel-4-0:10.1;
+locks; strict;
+comment	@ * @;
+
+
+11.7
+date	2004.05.21.17.47.07;	author morrison;	state dead;
+branches;
+next	11.6;
+
+11.6
+date	2004.05.10.15.30.49;	author erikg;	state Exp;
+branches;
+next	11.5;
+
+11.5
+date	2004.04.05.07.39.41;	author morrison;	state Exp;
+branches;
+next	11.4;
+
+11.4
+date	2002.08.20.17.08.29;	author jra;	state Exp;
+branches
+	11.4.2.1;
+next	11.3;
+
+11.3
+date	2002.08.15.20.55.43;	author hartley;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	2000.08.24.23.10.00;	author mike;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	95.01.04.10.22.14;	author mike;	state Rel4_4;
+branches;
+next	10.2;
+
+10.2
+date	94.08.24.14.06.03;	author gdurf;	state Exp;
+branches;
+next	10.1;
+
+10.1
+date	91.10.12.06.53.29;	author mike;	state Rel4_0;
+branches;
+next	1.4;
+
+1.4
+date	91.04.08.10.33.03;	author pjt;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	91.02.15.16.02.27;	author mike;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	91.02.14.09.16.49;	author pjt;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	91.02.11.09.55.46;	author pjt;	state Exp;
+branches;
+next	;
+
+11.4.2.1
+date	2002.09.19.18.02.09;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+11.7
+log
+@moved to src/nirt/
+@
+text
+@/*      CONVERSION.C    */
+#ifndef lint
+static const char RCSid[] = "$Header: /n/xoff/cvs/brlcad/nirt/conversion.c,v 11.6 2004/05/10 15:30:49 erikg Exp $";
+#endif
+
+/*	INCLUDES	*/
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+
+#include <stdio.h>
+#include <math.h>
+
+#include "machine.h"
+#include "vmath.h"
+#include "./nirt.h"
+#include "./usrfmt.h"
+
+extern outval	ValTab[];
+
+void dir2ae(void)
+{
+	azimuth() = ((direct(Y) == 0) && (direct(X) == 0)) ? 0.0 :
+			atan2 ( -(direct(Y)), -(direct(X)) ) / deg2rad;
+	elevation() = atan2 ( -(direct(Z)), 
+		sqrt(direct(X) * direct(X) + direct(Y) * direct(Y))) / deg2rad;
+}
+
+void grid2targ(void)
+{
+    double	ar = azimuth() * deg2rad;
+    double	er = elevation() * deg2rad;
+
+    target(X) = - grid(HORZ) * sin(ar)
+		      - grid(VERT) * cos(ar) * sin(er)
+		      + grid(DIST) * cos(ar) * cos(er);
+    target(Y) =   grid(HORZ) * cos(ar)
+		      - grid(VERT) * sin(ar) * sin(er)
+		      + grid(DIST) * sin(ar) * cos(er);
+    target(Z) =   grid(VERT) * cos(er)
+		      + grid(DIST) * sin(er);
+}
+
+void targ2grid(void)
+{
+    double	ar = azimuth() * deg2rad;
+    double	er = elevation() * deg2rad;
+
+    grid(HORZ) = - target(X) * sin(ar)
+		       + target(Y) * cos(ar);
+    grid(VERT) = - target(X) * cos(ar) * sin(er)
+		       - target(Y) * sin(er) * sin(ar)
+		       + target(Z) * cos(er);
+    grid(DIST) =   target(X) * cos(er) * cos(ar)
+		       + target(Y) * cos(er) * sin(ar)
+		       + target(Z) * sin(er);
+}
+
+void ae2dir(void)
+{
+    double	ar = azimuth() * deg2rad;
+    double	er = elevation() * deg2rad;
+
+    int		i;
+    vect_t	dir;
+
+    dir[X] = -cos(ar) * cos(er);
+    dir[Y] = -sin(ar) * cos(er);
+    dir[Z] = -sin(er);
+    VUNITIZE( dir );
+    for (i = 0; i < 3; ++i)
+	direct(i) = dir[i];
+}
+@
+
+
+11.6
+log
+@change conf.h to a wrapped config.h
+@
+text
+@d3 1
+a3 1
+static const char RCSid[] = "$Header: /cvs/brlcad/nirt/conversion.c,v 11.5 2004/04/05 07:39:41 morrison Exp $";
+@
+
+
+11.5
+log
+@merge of ansi-6-0-branch into HEAD
+@
+text
+@d3 1
+a3 1
+static const char RCSid[] = "$Header$";
+d7 5
+a11 1
+#include "conf.h"
+@
+
+
+11.4
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d3 1
+a3 1
+static const char RCSid[] = "$Header: /c/CVS/brlcad/nirt/conversion.c,v 11.2 2000/08/24 23:10:00 mike Exp $";
+d19 1
+a19 1
+void dir2ae()
+d27 1
+a27 1
+void grid2targ()
+d42 1
+a42 1
+void targ2grid()
+d57 1
+a57 1
+void ae2dir()
+@
+
+
+11.4.2.1
+log
+@Initial ANSIfication
+@
+text
+@d3 1
+a3 1
+static const char RCSid[] = "$Header: /c/CVS/brlcad/nirt/conversion.c,v 11.4 2002/08/20 17:08:29 jra Exp $";
+d19 1
+a19 1
+void dir2ae(void)
+d27 1
+a27 1
+void grid2targ(void)
+d42 1
+a42 1
+void targ2grid(void)
+d57 1
+a57 1
+void ae2dir(void)
+@
+
+
+11.3
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d19 1
+a19 1
+void dir2ae(void)
+d27 1
+a27 1
+void grid2targ(void)
+d42 1
+a42 1
+void targ2grid(void)
+d57 1
+a57 1
+void ae2dir(void)
+@
+
+
+11.2
+log
+@
+lint
+@
+text
+@d3 1
+a3 1
+static const char RCSid[] = "$Header: /c/CVS/brlcad/nirt/conversion.c,v 11.1 1995/01/04 10:22:14 mike Rel4_4 $";
+d19 1
+a19 1
+void dir2ae()
+d27 1
+a27 1
+void grid2targ()
+d42 1
+a42 1
+void targ2grid()
+d57 1
+a57 1
+void ae2dir()
+@
+
+
+11.1
+log
+@Release_4.4
+@
+text
+@d3 1
+a3 1
+static char RCSid[] = "$Header: /m/cad/nirt/RCS/conversion.c,v 10.2 94/08/24 14:06:03 gdurf Exp $";
+@
+
+
+10.2
+log
+@Added include of conf.h
+@
+text
+@d3 1
+a3 1
+static char RCSid[] = "$Header: /m/cad/nirt/RCS/conversion.c,v 10.1 1991/10/12 06:53:29 mike Rel4_0 gdurf $";
+@
+
+
+10.1
+log
+@Release_4.0
+@
+text
+@d3 1
+a3 1
+static char RCSid[] = "$Header: /m/cad/nirt/RCS/conversion.c,v 1.4 91/04/08 10:33:03 pjt Exp $";
+d7 2
+a9 2
+#include <machine.h>
+#include <vmath.h>
+d11 3
+@
+
+
+1.4
+log
+@Added check in dir2ae() to set azimuth to 0.0 when
+direction[X] == direction[Y] == 0.0
+@
+text
+@d3 1
+a3 1
+static char RCSid[] = "$Header: /m/cad/nirt/RCS/conversion.c,v 1.3 91/02/15 16:02:27 mike Exp $";
+@
+
+
+1.3
+log
+@Converted to Cake
+@
+text
+@d3 1
+a3 1
+static char RCSid[] = "$Header: /m/cad/nirt/RCS/conversion.c,v 1.2 91/02/14 09:16:49 pjt Exp $";
+d18 2
+a19 1
+	azimuth() = atan2 ( -(direct(Y)), -(direct(X)) ) / deg2rad;
+@
+
+
+1.2
+log
+@Attempt to add $Header$ to file
+@
+text
+@d3 1
+a3 1
+static char RCSid[] = "$Header$";
+d11 2
+a12 2
+#include "nirt.h"
+#include "usrfmt.h"
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d2 3
+@

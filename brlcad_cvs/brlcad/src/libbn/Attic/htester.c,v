@@ -1,0 +1,492 @@
+head	14.11;
+access;
+symbols
+	stable-branch:14.6
+	rel-7-8-2:14.9
+	rel-7-8-0:14.9
+	trimnurbs-branch:14.9.0.2
+	help:14.9
+	temp_tag:14.8
+	bobWinPort-20051223-freeze:14.7
+	postmerge-20051223-bobWinPort:14.8
+	premerge-20051223-bobWinPort:14.8
+	rel-7-6-6:14.8
+	rel-7-6-4:14.8
+	rel-7-6-2:14.7
+	rel-7-6-branch:14.7.0.4
+	rel-7-6-0:14.7
+	rel-7-4-2:14.6
+	rel-7-4-branch:14.6.0.2
+	bobWinPort:14.7.0.2
+	rel-7-4-0:14.6
+	rel-7-2-6:14.6
+	rel-7-2-4:14.6
+	rel-7-2-2:14.6
+	rel-7-2-0:14.6
+	rel-7-0-4:14.5
+	rel-7-0-2:14.5
+	rel-7-0-1:14.5
+	opensource-post:14.5
+	opensource-pre:1.2
+	rel-7-0-branch:1.2.0.2
+	rel-7-0:1.2;
+locks; strict;
+comment	@ * @;
+
+
+14.11
+date	2006.09.15.04.17.18;	author brlcad;	state dead;
+branches;
+next	14.10;
+
+14.10
+date	2006.09.02.14.02.15;	author lbutler;	state Exp;
+branches;
+next	14.9;
+
+14.9
+date	2006.01.18.06.46.16;	author brlcad;	state Exp;
+branches;
+next	14.8;
+
+14.8
+date	2005.10.23.04.44.31;	author brlcad;	state Exp;
+branches;
+next	14.7;
+
+14.7
+date	2005.08.12.22.28.35;	author lbutler;	state Exp;
+branches
+	14.7.4.1;
+next	14.6;
+
+14.6
+date	2005.01.30.20.30.44;	author brlcad;	state Exp;
+branches;
+next	14.5;
+
+14.5
+date	2004.12.21.07.18.57;	author morrison;	state Exp;
+branches;
+next	14.4;
+
+14.4
+date	2004.12.21.06.18.43;	author morrison;	state Exp;
+branches;
+next	14.3;
+
+14.3
+date	2004.12.21.05.45.20;	author morrison;	state Exp;
+branches;
+next	14.2;
+
+14.2
+date	2004.12.21.01.52.15;	author morrison;	state Exp;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.13;	author morrison;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2004.08.02.23.01.48;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.15.19.28;	author morrison;	state Exp;
+branches;
+next	;
+
+14.7.4.1
+date	2005.11.13.13.46.15;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.11
+log
+@do as the comment suggests and move the htester.c test application that exercises the host to network floating point functions from libbn to libbu
+@
+text
+@/*                       H T E S T E R . C
+ * BRL-CAD
+ *
+ * Copyright (c) 2004-2006 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * as published by the Free Software Foundation; either version 2 of
+ * the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Library General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ */
+
+/** \addtogroup hton */
+/*@@{*/
+
+/** @@file htester.c
+ * @@brief
+ *  Test network float conversion.
+ * 
+ * XXX This probably belongs in libbu with htonf.c
+ *  Expected to be used in pipes, or with TTCP links to other machines,
+ *  or with files RCP'ed between machines.
+ *
+ *  @@author
+ *	Michael John Muuss
+ *
+ *  @@par Source -
+ *	SECAD/VLD Computing Consortium, Bldg 394
+ *@@n	The U. S. Army Ballistic Research Laboratory
+ *@@n	Aberdeen Proving Ground, Maryland  21005-5066
+ */
+/*@@}*/
+
+#ifndef lint
+static char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/libbn/htester.c,v 14.10 2006/09/02 14:02:15 lbutler Exp $ (BRL)";
+#endif
+
+#include "common.h"
+#include <stdio.h>
+
+#define	NUM	3000
+double	orig[NUM], after[NUM];
+
+char	buf[NUM*8];
+
+main(int argc, char **argv)
+{
+	register int i;
+	register int nbytes;
+
+	if( argc != 2 || argv[1][0] != '-' )  {
+		fprintf(stderr,"Usage:  htester [-i|-o]\n");
+		exit(1);
+	}
+
+	/* First stage, generate the reference pattern */
+	for( i=0; i<1000; i++ )  {
+		orig[i] = ((double)i)/(7*16);
+	}
+	for( i=1000; i<2000; i++ )  {
+		orig[i] = -1.0/(i-1000+1);
+	}
+	orig[2000] = -1;
+	for( i=2001; i<2035; i++ )  {
+		orig[i] = orig[i-1] * -0.1;
+	}
+	for( i=2035; i<3000; i++ )  {
+		orig[i] = orig[i-1000] + (i&1)?(-1):1;
+	}
+
+	/* Second stage, write out, or read and compare */
+	if( argv[1][1] == 'o' )  {
+		/* Write out */
+		htond( buf, (char *)orig, NUM );
+		fwrite( buf, 8, NUM, stdout );
+		exit(0);
+	}
+
+	/* Read and compare */
+	if( sizeof(double) >= 8 )
+		nbytes = 6;
+	else
+		nbytes = 4;
+	fread( buf, 8, NUM, stdin );
+/*	ntohd( (char *)after, buf, NUM );	/* bulk conversion */
+	for( i=0; i<NUM; i++ )  {
+		ntohd( (char *)&after[i], &buf[i*8], 1 );	/* incremental */
+		/* Floating point compare */
+		if( orig[i] == after[i] )  continue;
+
+		/* Byte-for-byte compare */
+		if( ckbytes( &orig[i], &after[i], nbytes ) == 0 )
+			continue;
+
+		/* Wrong */
+		printf("%4d: calc ", i);
+		flpr( &orig[i] );
+		printf(" %g\n", orig[i]);
+		printf("      aftr ");
+		flpr( &after[i] );
+		printf(" %g\n", after[i] );
+		printf("      buf  ");
+		flpr( &buf[i*8] );
+		printf("\n");
+	}
+	exit(0);
+}
+
+flpr(register unsigned char *cp)
+{
+	register int i;
+	for( i=0; i<sizeof(double); i++ )  {
+		putchar("0123456789ABCDEFx"[*cp>>4]);
+		putchar("0123456789ABCDEFx"[*cp&0xF]);
+		cp++;
+	}
+}
+
+ckbytes(register unsigned char *a, register unsigned char *b, register int n)
+{
+#ifndef vax
+	while( n-- > 0 )  {
+		if( *a++ != *b++ )
+			return(-1);	/* BAD */
+	}
+	return(0);			/* OK */
+#else
+	/* VAX floating point has bytes swapped, vis-a-vis normal VAX order */
+	register int i;
+	for( i=0; i<n; i++ )  {
+		if( a[i^1] != b[i^1] )
+			return(-1);	/* BAD */
+	}
+	return(0);			/* OK */
+#endif
+}
+/*@@}*/
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+14.10
+log
+@Doxygen comments
+@
+text
+@d44 1
+a44 1
+static char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/libbn/htester.c,v 14.9 2006/01/18 06:46:16 brlcad Exp $ (BRL)";
+@
+
+
+14.9
+log
+@update copyright to 2006
+@
+text
+@d22 1
+a22 1
+/** \addtogroup libbn */
+d26 1
+d28 2
+d33 1
+a33 1
+ *  Author -
+d36 1
+a36 1
+ *  Source -
+d38 2
+a39 3
+ *	The U. S. Army Ballistic Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005-5066
+ *
+d44 1
+a44 1
+static char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/libbn/htester.c,v 14.8 2005/10/23 04:44:31 brlcad Exp $ (BRL)";
+a47 7
+
+
+
+#include "common.h"
+
+
+
+d146 1
+a146 1
+
+@
+
+
+14.8
+log
+@trailing ws
+@
+text
+@d4 1
+a4 1
+ * Copyright (C) 2004-2005 United States Government as represented by
+d42 1
+a42 1
+static char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/libbn/htester.c,v 14.7 2005/08/12 22:28:35 lbutler Exp $ (BRL)";
+@
+
+
+14.7
+log
+@Doxygen changes
+@
+text
+@d32 1
+a32 1
+ *  
+d37 1
+a37 1
+ *  
+d42 1
+a42 1
+static char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/libbn/htester.c,v 14.6 2005/01/30 20:30:44 brlcad Exp $ (BRL)";
+@
+
+
+14.7.4.1
+log
+@merge changes from HEAD aka rel-7-6-4 to the rel-7-6-branch just in case someone peeks a gander or tries to continue/build the branch
+@
+text
+@d32 1
+a32 1
+ *
+d37 1
+a37 1
+ *
+d42 1
+a42 1
+static char RCSid[] = "@@(#)$Header$ (BRL)";
+@
+
+
+14.6
+log
+@update copyright to 2005
+@
+text
+@d21 4
+a25 2
+ *			H T E S T E R  . C
+ *
+d39 2
+d42 1
+a42 1
+static char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/libbn/htester.c,v 14.5 2004/12/21 07:18:57 morrison Exp $ (BRL)";
+@
+
+
+14.5
+log
+@the significantly modified pd files are incorporated as new works and assigned copyright, so remove the old statement.
+@
+text
+@d4 2
+a5 2
+ * Copyright (c) 2004 United States Government as represented by the
+ * U.S. Army Research Laboratory.
+d38 1
+a38 1
+static char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/libbn/htester.c,v 14.4 2004/12/21 06:18:43 morrison Exp $ (BRL)";
+@
+
+
+14.4
+log
+@they should have received a copy of the LGPL with LGPL'd files
+@
+text
+@a35 2
+ *  Distribution Status -
+ *	Public Domain, Distribution Unlimitied.
+d38 1
+a38 1
+static char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/libbn/htester.c,v 14.3 2004/12/21 05:45:20 morrison Exp $ (BRL)";
+@
+
+
+14.3
+log
+@s/GNU Library General/GNU Lesser General/g
+@
+text
+@d17 2
+a18 2
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+d40 1
+a40 1
+static char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/libbn/htester.c,v 14.2 2004/12/21 01:52:15 morrison Exp $ (BRL)";
+@
+
+
+14.2
+log
+@assign copyright and LGPL
+@
+text
+@d8 1
+a8 1
+ * modify it under the terms of the GNU Library General Public License
+d40 1
+a40 1
+static char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/libbn/htester.c,v 14.1 2004/11/16 19:42:13 morrison Exp $ (BRL)";
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@d1 21
+a21 1
+/*
+d40 1
+a40 1
+static char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/libbn/htester.c,v 1.2 2004/08/02 23:01:48 morrison Exp $ (BRL)";
+@
+
+
+1.2
+log
+@replace the wrapped config.h block with common.h
+@
+text
+@d20 1
+a20 1
+static char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/libbn/htester.c,v 1.1 2004/05/20 15:19:28 morrison Exp $ (BRL)";
+d129 10
+@
+
+
+1.1
+log
+@Vast reorganization begins.  Sources moved from top-level directories into src/.
+@
+text
+@d20 1
+a20 1
+static char RCSid[] = "@@(#)$Header: /cvs/brlcad/libbn/htester.c,v 11.5 2004/05/10 15:30:43 erikg Exp $ (BRL)";
+d23 1
+a23 3
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+d27 1
+a27 3
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+@
+

@@ -1,0 +1,1619 @@
+head	11.17;
+access;
+symbols
+	ansi-20040405-merged:11.11.2.2
+	postmerge-20040405-ansi:11.15
+	premerge-20040404-ansi:11.14
+	postmerge-autoconf:11.14
+	autoconf-freeze:11.13.6.2
+	premerge-autoconf:11.14
+	ansi-20040316-freeze:11.11.2.1
+	postmerge-20040315-windows:11.14
+	premerge-20040315-windows:11.14
+	windows-20040315-freeze:11.11.4.1
+	autoconf-20031203:11.13
+	autoconf-20031202:11.13
+	autoconf-branch:11.13.0.6
+	phong-branch:11.13.0.4
+	photonmap-branch:11.13.0.2
+	rel-6-1-DP:11.11
+	windows-branch:11.11.0.4
+	rel-6-0-2:11.9
+	ansi-branch:11.11.0.2
+	rel-6-0-1-branch:11.9.0.2
+	hartley-6-0-post:11.10
+	hartley-6-0-pre:11.9
+	rel-6-0-1:11.9
+	rel-6-0:11.7;
+locks; strict;
+comment	@ * @;
+
+
+11.17
+date	2004.05.24.04.16.11;	author morrison;	state dead;
+branches;
+next	11.16;
+
+11.16
+date	2004.05.10.15.30.41;	author erikg;	state Exp;
+branches;
+next	11.15;
+
+11.15
+date	2004.04.05.07.49.36;	author morrison;	state Exp;
+branches;
+next	11.14;
+
+11.14
+date	2004.02.02.17.39.00;	author morrison;	state Exp;
+branches;
+next	11.13;
+
+11.13
+date	2002.11.01.18.03.39;	author jra;	state Exp;
+branches
+	11.13.6.1;
+next	11.12;
+
+11.12
+date	2002.11.01.16.22.36;	author jra;	state Exp;
+branches;
+next	11.11;
+
+11.11
+date	2002.08.20.17.07.21;	author jra;	state Exp;
+branches
+	11.11.2.1
+	11.11.4.1;
+next	11.10;
+
+11.10
+date	2002.08.15.20.54.33;	author hartley;	state Exp;
+branches;
+next	11.9;
+
+11.9
+date	2002.07.03.12.25.53;	author jra;	state Exp;
+branches;
+next	11.8;
+
+11.8
+date	2002.05.17.12.48.56;	author morrison;	state Exp;
+branches;
+next	11.7;
+
+11.7
+date	2002.02.15.16.12.10;	author jra;	state Exp;
+branches;
+next	11.6;
+
+11.6
+date	2002.02.15.15.22.02;	author jra;	state Exp;
+branches;
+next	11.5;
+
+11.5
+date	2002.01.24.14.39.10;	author jra;	state Exp;
+branches;
+next	11.4;
+
+11.4
+date	2002.01.16.21.04.33;	author jra;	state Exp;
+branches;
+next	11.3;
+
+11.3
+date	2002.01.15.20.13.33;	author jra;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	2002.01.09.20.27.07;	author jra;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	2001.12.17.18.36.46;	author jra;	state Exp;
+branches;
+next	;
+
+11.11.2.1
+date	2002.09.19.18.00.35;	author morrison;	state Exp;
+branches;
+next	11.11.2.2;
+
+11.11.2.2
+date	2004.03.17.21.15.55;	author morrison;	state Exp;
+branches;
+next	;
+
+11.11.4.1
+date	2004.03.11.23.40.29;	author morrison;	state Exp;
+branches;
+next	;
+
+11.13.6.1
+date	2004.02.12.19.24.23;	author erikg;	state Exp;
+branches;
+next	11.13.6.2;
+
+11.13.6.2
+date	2004.03.15.14.06.07;	author erikg;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+11.17
+log
+@moved to src/conv/
+@
+text
+@/*
+ *                      E N F - G
+ *
+ *  Program to convert the tessellated Elysium Neutral File format to BRL-CAD.
+ *
+ *  Author -
+ *      John R. Anderson
+ *  
+ *  Source -
+ *	The U. S. Army Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005-5068  USA
+ *  
+ *  Distribution Notice -
+ *	Re-distribution of this software is restricted, as described in
+ *	your "Statement of Terms and Conditions for the Release of
+ *	The BRL-CAD Pacakge" agreement.
+ *
+ *  Copyright Notice -
+ *	This software is Copyright (C) 2001-2004 by the United States Army
+ *	in all countries except the USA.  All rights reserved.
+ */
+
+#ifndef lint
+static const char RCSid[] = "$Header: /n/xoff/cvs/brlcad/conv/enf-g.c,v 11.16 2004/05/10 15:30:41 erikg Exp $";
+#endif
+
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+
+#include <stdio.h>
+#include <math.h>
+#ifdef USE_STRING_H
+#include <string.h>
+#else
+#include <strings.h>
+#endif
+#include <ctype.h>
+#include <errno.h>
+
+#include "machine.h"
+#include "externs.h"
+#include "db.h"
+#include "vmath.h"
+#include "nmg.h"
+#include "rtgeom.h"
+#include "raytrace.h"
+#include "wdb.h"
+#include "plot3.h"
+#include "../librt/debug.h"
+
+#define MAX_LINE_LEN	256
+
+static	FILE *fd_in;
+static	struct rt_wdb *fd_out;
+static	char line[MAX_LINE_LEN];
+static	fastf_t local_tol;
+static	fastf_t local_tol_sq;
+static	int ident;
+static	char *part_name_file=NULL;
+static	int use_part_name_hash=0;
+static	int max_name_len=0;
+static	Tcl_HashTable htbl;
+static	int name_not_converted=0;
+static	int indent_level=0;
+static	int indent_delta=4;
+
+static struct vert_root *tree_root;
+
+#define DO_INDENT	{ int _i; \
+				for( _i=0 ; _i<indent_level ; _i++ ) {\
+					bu_log( " " ); \
+				} \
+			} 
+
+static int verbose=0;
+
+extern char *optarg;
+extern int optind, opterr, optopt;
+
+struct obj_info {
+	char obj_type;			/* type of this object (from defines below) */
+	char *obj_name;			/* name of this object */
+	char *brlcad_comb;		/* unique BRL-CAD name for this region or assembly */
+	char *brlcad_solid;		/* unique BRL-CAD name for the solid if this is a region */
+	int obj_id;			/* id number (from ENF file) */
+	int part_count;			/* number of members (for assembly), number of faces (for part) */
+	struct obj_info **members;	/* pointer to array of member objects (only valid for assemblies) */
+};
+
+/* object types */
+#define UNKNOWN_TYPE	0
+#define PART_TYPE	1
+#define ASSEMBLY_TYPE	2
+
+static int *part_tris=NULL;		/* list of triangles for current part */
+static int max_tri=0;			/* number of triangles currently malloced */
+static int curr_tri=0;			/* number of triangles currently being used */
+
+#define TRI_BLOCK 512			/* number of triangles to malloc per call */
+
+void
+lower_case( char *name )
+{
+	unsigned char *c;
+
+	c = (unsigned char *)name;
+	while( *c ) {
+		(*c) = tolower( *c );
+		c++;
+	}
+}
+
+void
+create_name_hash( FILE *fd )
+{
+	char line[MAX_LINE_LEN];
+	Tcl_HashEntry *hash_entry=NULL;
+	int new_entry=0;
+
+	Tcl_InitHashTable( &htbl, TCL_STRING_KEYS );
+
+	while( fgets( line, MAX_LINE_LEN, fd ) ) {
+		char *part_no, *desc, *ptr;
+
+		ptr = strtok( line, " \t\n" );
+		if( !ptr ) {
+			bu_log( "*****Error processing part name file at line:\n" );
+			bu_log( "\t%s\n", line );
+			exit( 1 );
+		}
+		part_no = bu_strdup( ptr );
+		lower_case( part_no );
+		ptr = strtok( (char *)NULL, " \t\n" );
+		if( !ptr ) {
+			bu_log( "*****Error processing part name file at line:\n" );
+			bu_log( "\t%s\n", line );
+			exit( 1 );
+		}
+		desc = bu_strdup( ptr );
+		lower_case( desc );
+
+		hash_entry = Tcl_CreateHashEntry( &htbl, part_no, &new_entry );
+		if( new_entry ) {
+			Tcl_SetHashValue( hash_entry, desc );
+		} else {
+			bu_free( (char *)part_no, "part_no" );
+			bu_free( (char *)desc, "desc" );
+		}
+	}
+}
+
+/* routine to check for bad triangles
+ * only checks for triangles with duplicate vertices
+ */
+int
+bad_triangle( int v[3], fastf_t *vertices )
+{
+	fastf_t dist;
+	fastf_t coord;
+	int i;
+
+	if( v[0] == v[1] || v[1] == v[2] || v[0] == v[2] )
+		return( 1 );
+
+	dist = 0;
+	for( i=0 ; i<3 ; i++ ) {
+		coord = vertices[v[0]*3+i] - vertices[v[1]*3+i];
+		dist += coord * coord;
+	}
+	dist = sqrt( dist );
+	if( dist < local_tol ) {
+		return( 1 );
+	}
+
+	dist = 0;
+	for( i=0 ; i<3 ; i++ ) {
+		coord = vertices[v[1]*3+i] - vertices[v[2]*3+i];
+		dist += coord * coord;
+	}
+	dist = sqrt( dist );
+	if( dist < local_tol ) {
+		return( 1 );
+	}
+
+	dist = 0;
+	for( i=0 ; i<3 ; i++ ) {
+		coord = vertices[v[0]*3+i] - vertices[v[2]*3+i];
+		dist += coord * coord;
+	}
+	dist = sqrt( dist );
+	if( dist < local_tol ) {
+		return( 1 );
+	}
+
+	return( 0 );
+}
+
+
+/* routine to add a new triangle to the current part */
+void
+add_triangle( int v[3] )
+{
+	if( curr_tri >= max_tri ) {
+		/* allocate more memory for triangles */
+		max_tri += TRI_BLOCK;
+		part_tris = (int *)bu_realloc( part_tris, sizeof( int ) * max_tri * 3, "part_tris" );
+	}
+
+	/* fill in triangle info */
+	VMOVE( &part_tris[curr_tri*3], v );
+
+	/* increment count */
+	curr_tri++;
+}
+
+
+void
+List_assem( struct obj_info *assem )
+{
+	int i;
+
+	if( assem->obj_type != ASSEMBLY_TYPE ) {
+		bu_log( "ERROR: List_assem called for non-assembly\n" );
+	}
+	bu_log( "Assembly: %s (id=%d)\n", assem->obj_name, assem->obj_id );
+	bu_log( "\t%d members\n", assem->part_count );
+	for( i=0 ; i<assem->part_count ; i++ ) {
+		bu_log( "\t\ty %s\n", assem->members[i]->obj_name );
+	}
+}
+
+void
+Usage(void)
+{
+	bu_log( "Usage:\n\tenf-g [-i starting_ident] [-t tolerance] [-l name_length_limit] [-n part_number_to_name_list] input_facets_file output_brlcad_file.g\n" );
+}
+
+void
+Make_brlcad_names( struct obj_info *part )
+{
+	struct bu_vls vls;
+	int count=0;
+	char *tmp_name, *ptr;
+	Tcl_HashEntry *hash_entry=NULL;
+
+	bu_vls_init( &vls );
+
+	if( use_part_name_hash ) {
+		hash_entry = Tcl_FindHashEntry( &htbl, part->obj_name );
+		if( !hash_entry ) {
+			/* try without any name extension */
+			if( (ptr=strrchr( part->obj_name, '_' )) != NULL ) {
+				bu_vls_strncpy( &vls, part->obj_name, (ptr - part->obj_name) );
+				hash_entry = Tcl_FindHashEntry( &htbl, bu_vls_addr( &vls ) );
+			}
+		}
+
+		if( !hash_entry ) {
+			/* try without any name extension */
+			if( (ptr=strchr( part->obj_name, '_' )) != NULL ) {
+				bu_vls_strncpy( &vls, part->obj_name, (ptr - part->obj_name) );
+				hash_entry = Tcl_FindHashEntry( &htbl, bu_vls_addr( &vls ) );
+			}
+		}
+
+		if( !hash_entry ) {
+			/* try adding "-011" */
+			if( (ptr=strchr( part->obj_name, '-' ))  != NULL ) {
+				bu_vls_strncpy( &vls, part->obj_name, (ptr - part->obj_name) );
+				bu_vls_strcat( &vls, "-011" );
+				hash_entry = Tcl_FindHashEntry( &htbl, bu_vls_addr( &vls ) );
+			}
+		}
+
+		if( !hash_entry ) {
+			name_not_converted++;
+		}
+	}
+
+	bu_vls_free( &vls );
+	if( hash_entry ) {
+		tmp_name = bu_strdup( (char *)Tcl_GetHashValue( hash_entry ) );
+	} else {
+		if( use_part_name_hash ) {
+			bu_log( "\tWarning: no name found for part %s\n", part->obj_name );
+		}
+		/* make a copy of object name, then make it a legal BRL-CAD name */
+		if( strlen( part->obj_name ) < 1 ) {
+			tmp_name = bu_strdup( "s.1" );
+		} else {
+			tmp_name = bu_strdup( part->obj_name );
+			ptr = tmp_name;
+			while( *ptr != '\0' ) {
+				if( !(isalnum( *ptr ) || *ptr == '-')) {
+					*ptr = '_';
+				}
+				ptr++;
+			}
+		}
+	}
+
+	if( part->obj_type == PART_TYPE ) {
+		/* find a unique solid name */
+		bu_vls_printf( &vls, "s.%s", tmp_name );
+		if( max_name_len ) {
+			bu_vls_trunc( &vls, max_name_len );
+		}
+		while( db_lookup( fd_out->dbip, bu_vls_addr( &vls ), LOOKUP_QUIET ) != DIR_NULL) {
+			int digits, val=10;
+
+			count++;
+			if( max_name_len ) {
+				digits = 1;
+				while( count >= val ) {
+					digits++;
+					val *= 10;
+				}
+				bu_vls_trunc( &vls, 0 );
+				bu_vls_printf( &vls, "s.%s", tmp_name );
+				bu_vls_trunc( &vls, max_name_len - digits - 1 );
+				bu_vls_printf( &vls, ".%d", count );
+			} else {
+				bu_vls_trunc( &vls, 0 );
+				bu_vls_printf( &vls, "s.%s.%d", tmp_name, count );
+			}
+		}
+		part->brlcad_solid = bu_vls_strgrab( &vls );
+	} else {
+		part->brlcad_solid = NULL;
+	}
+
+	/* find a unique non-primitive name */
+	bu_vls_printf( &vls, "%s", tmp_name );
+	if( max_name_len ) {
+		bu_vls_trunc( &vls, max_name_len );
+	}
+	while( db_lookup( fd_out->dbip, bu_vls_addr( &vls ), LOOKUP_QUIET) != DIR_NULL ) {
+		int digits, val=10;
+
+		count++;
+		if( max_name_len ) {
+			digits = 1;
+			while( count >= val ) {
+				digits++;
+				val *= 10;
+			}
+			bu_vls_trunc( &vls, 0 );
+			bu_vls_printf( &vls, "%s", tmp_name );
+			bu_vls_trunc( &vls, max_name_len - digits - 1 );
+			bu_vls_printf( &vls, ".%d", count );
+		} else {
+			bu_vls_trunc( &vls, 0 );
+			bu_vls_printf( &vls, "%s.%d", tmp_name, count );
+		}
+	}
+	part->brlcad_comb = bu_vls_strgrab( &vls );
+
+	switch( part->obj_type ) {
+		case UNKNOWN_TYPE:
+			bu_log( "ERROR: Unknown object type for %s\n", part->obj_name );
+			break;
+		case PART_TYPE:
+			if( use_part_name_hash ) {
+				DO_INDENT
+				bu_log( "part %s changed name to (%s)\n",
+					part->obj_name,
+					part->brlcad_comb );
+			} else {
+				DO_INDENT
+				bu_log( "part %s\n", part->brlcad_comb );
+			}
+			break;
+		case ASSEMBLY_TYPE:
+			if( use_part_name_hash ) {
+				DO_INDENT
+				bu_log( "assembly %s changed name to (%s)\n",
+					part->obj_name,
+					part->brlcad_comb );
+			} else {
+				DO_INDENT
+				bu_log( "assembly %s\n", part->brlcad_comb );
+			}
+			break;
+	}
+
+	bu_free( tmp_name, "tmp_name" );
+}
+
+
+struct obj_info *
+Part_import( int id_start )
+{
+	struct obj_info *part;
+	struct wmember reg_head;
+	unsigned char rgb[3];
+	int surf_count=0;
+	int id_end;
+	int last_surf=0;
+	int i;
+	int tri[3];
+	int corner_index=-1;
+
+	clean_vert_tree( tree_root );
+
+	VSETALL( rgb, 128 );
+
+	part = (struct obj_info *)bu_calloc( 1, sizeof( struct obj_info ), "part" );
+	part->obj_type = PART_TYPE;
+	part->obj_id = id_start;
+	while( fgets( line, MAX_LINE_LEN, fd_in ) ) {
+		if( !strncmp( line, "PartName", 8 ) ) {
+			line[strlen( line ) - 1] = '\0';
+			part->obj_name = bu_strdup( &line[9] );
+			lower_case( part->obj_name );
+			Make_brlcad_names( part );
+		} else if( !strncmp( line, "FaceCount", 9 ) ) {
+			surf_count = atoi( &line[10] );
+			if( surf_count == 0 ) {
+				last_surf = 1;
+			}
+		} else if( !strncmp( line, "EndPartId", 9 ) ) {
+			/* found end of part, check id */
+			id_end = atoi( &line[10] );
+			if( id_end != id_start ) {
+				bu_log( "ERROR: found end of part id %d while processing part %d\n",
+					id_end, id_start );
+				exit( 1 );
+			}
+			if( last_surf ) {
+				break;
+			}
+		} else if( !strncmp( line, "FaceRGB", 7 ) ) {
+			/* get face color */
+			char *ptr;
+
+			i = 8;
+			ptr = strtok( &line[i], " \t" );
+			for( i=0 ; i<3 && ptr ; i++ ) {
+				rgb[i] = atof( ptr );
+				ptr = strtok( (char *)NULL, " \t" );
+			}
+		} else if( !strncmp( line, "Facet", 5 ) ) {
+			/* read a triangle */
+			VSETALL( tri, -1 );
+			corner_index = -1;
+		} else if( !strncmp( line, "Face", 4 ) ) {
+			/* start of a surface */
+			int surf_no;
+
+			surf_no = atoi( &line[5] );
+			if( surf_no == surf_count ) {
+				last_surf = 1;
+			}
+		} else if( !strncmp( line, "TriangleCount", 13 ) ) {
+			/* get number of triangles for this surface */
+		} else if( !strncmp( line, "Verticies", 9 ) ) {
+			/* get vertex list for this triangle */
+		} else if( !strncmp( line, "Vertex", 6 ) ) {
+			/* get a vertex */
+			char *ptr;
+			double v[3];
+
+			i = 7;
+			while( !isspace( line[i] ) && line[i] != '\0' )
+				i++;
+			ptr = strtok( &line[i], " \t" );
+			for( i=0 ; i<3 && ptr ; i++ ) {
+				v[i] = atof( ptr );
+				ptr = strtok( (char *)NULL, " \t" );
+			}
+			tri[++corner_index] = Add_vert( V3ARGS( v ), tree_root, local_tol_sq );
+			if( corner_index == 2 ) {
+				if( !bad_triangle( tri, tree_root->the_array ) ) {
+					add_triangle( tri );
+				}
+			}
+		} else if( !strncmp( line, "Normal", 6 ) ) {
+			/* get a vertex normal */
+		} else if( !strncmp( line, "PointCount", 10 ) ) {
+			/* get number of vertices for this surface */
+		} else {
+			bu_log( "ERROR: unrecognized line encountered while processing part id %d:\n",
+				id_start );
+			bu_log( "%s\n", line );
+			exit( 1 );
+		}
+	}
+
+	if( curr_tri == 0 ) {
+		/* no facets in this part, so ignore it */
+		bu_free( (char *)part, "part" );
+		part = (struct obj_info *)NULL;
+	} else {
+
+		/* write this part to database, first make a primitive solid */
+		if( mk_bot( fd_out, part->brlcad_solid, RT_BOT_SOLID, RT_BOT_UNORIENTED, 0,
+			    tree_root->curr_vert, curr_tri, tree_root->the_array, part_tris, NULL, NULL ) ) {
+			bu_log( "Failed to write primitive %s (%s) to database\n",
+				part->brlcad_solid, part->obj_name );
+			exit( 1 );
+		}
+		if( verbose ) {
+			DO_INDENT;
+			bu_log( "Wrote BOT %s\n", part->brlcad_solid );
+		}
+
+		/* then a region */
+		BU_LIST_INIT( &reg_head.l );
+		if( mk_addmember( part->brlcad_solid, &reg_head.l, NULL, WMOP_UNION ) == WMEMBER_NULL ) {
+			bu_log( "ERROR: Failed to add solid (%s), to region (%s)\n",
+				part->brlcad_solid, part->brlcad_comb );
+			exit( 1 );
+		}
+		if( mk_comb( fd_out, part->brlcad_comb, &reg_head.l, 1, NULL, NULL, rgb, ident++,
+			     0, 1, 100, 0, 0, 0 ) ) {
+			bu_log( "Failed to write region %s (%s) to database\n",
+				part->brlcad_comb, part->obj_name );
+			exit( 1 );
+		}
+		if( verbose ) {
+			DO_INDENT;
+			bu_log( "Wrote region %s\n", part->brlcad_comb );
+		}
+
+		if( use_part_name_hash ) {
+			if( db5_update_attribute( part->brlcad_comb, "Part_No",
+						  part->obj_name, fd_out->dbip ) ) {
+				bu_log( "Failed to assign Part_no attribute to %s\n",
+					part->brlcad_comb );
+			}
+		}
+	}
+
+	/* free some memory */
+	if( part_tris ) {
+		bu_free( (char *)part_tris, "part_tris" );
+	}
+	max_tri = 0;
+	curr_tri = 0;
+	part_tris = NULL;
+
+	return( part );
+}
+
+struct obj_info *
+Assembly_import( int id_start )
+{
+	struct obj_info *this_assem, *member;
+	struct wmember assem_head;
+	int id_end, member_id;
+	int i;
+
+	this_assem = (struct obj_info *)bu_calloc( 1, sizeof( struct obj_info ),
+						   "this_assem" );
+	this_assem->obj_type = ASSEMBLY_TYPE;
+	this_assem->obj_id = id_start;
+	this_assem->part_count = 0;
+	this_assem->members = NULL;
+	while( fgets( line, MAX_LINE_LEN, fd_in ) ) {
+		if( !strncmp( line, "AssemblyName", 12 ) ) {
+			line[strlen( line ) - 1] = '\0';
+			this_assem->obj_name = bu_strdup( &line[13] );
+			lower_case( this_assem->obj_name );
+			DO_INDENT;
+			bu_log( "Start of assembly %s (id = %d)\n", this_assem->obj_name, id_start );
+			indent_level += indent_delta;
+		} else if( !strncmp( line, "PartId", 6 ) ) {
+			/* found a member part */
+			member_id = atoi( &line[7] );
+			member = Part_import( member_id );
+			if( !member )
+				continue;
+			this_assem->part_count++;
+			this_assem->members = (struct obj_info **)bu_realloc(
+			      this_assem->members,
+			      this_assem->part_count * sizeof( struct obj_info *),
+			      "this_assem->members" );
+			this_assem->members[this_assem->part_count-1] = member;
+		} else if( !strncmp( line, "AssemblyId", 10 ) ) {
+			/* found a member assembly */
+			member_id = atoi( &line[11] );
+			member = Assembly_import( member_id );
+			this_assem->part_count++;
+			this_assem->members = (struct obj_info **)bu_realloc(
+			      this_assem->members,
+			      this_assem->part_count * sizeof( struct obj_info *),
+			      "this_assem->members" );
+			this_assem->members[this_assem->part_count-1] = member;
+		} else if( !strncmp( line, "EndAssemblyId", 13 ) ) {
+			/* found end of assembly, make sure it is this one */
+			id_end = atoi( &line[14] );
+			if( id_end != id_start ) {
+				bu_log( "ERROR: found end of assembly id %d while processing id %d\n",
+					id_end, id_start );
+				exit( 1 );
+			}
+			indent_level -= indent_delta;
+			DO_INDENT;
+			bu_log( "Found end of assembly %s (id = %d)\n",  this_assem->obj_name, id_start );
+			break;
+		} else {
+			bu_log( "Unrecognized line encountered while processing assembly id %d:\n",
+				id_start );
+			bu_log( "%s\n", line );
+			exit( 1 );
+		}
+	}
+
+	Make_brlcad_names( this_assem );
+
+	/* write this assembly to the database */
+	BU_LIST_INIT( &assem_head.l );
+
+	for( i=0 ; i<this_assem->part_count ; i++ ) {
+		if( mk_addmember( this_assem->members[i]->brlcad_comb,
+				  &assem_head.l, NULL, WMOP_UNION ) == WMEMBER_NULL ) {
+				bu_log( "ERROR: Failed to add region %s to assembly %s\n",
+					this_assem->members[i]->brlcad_comb,
+					this_assem->brlcad_comb );
+				exit( 1 );
+		}
+	}
+
+	if( mk_comb( fd_out, this_assem->brlcad_comb, &assem_head.l, 0, NULL, NULL, NULL,
+		     0, 0, 0, 0, 0, 0, 0 ) ) {
+		bu_log( "ERROR: Failed to write combination (%s) to database\n",
+			this_assem->brlcad_comb );
+		exit( 1 );
+	}
+	if( use_part_name_hash ) {
+		if( db5_update_attribute( this_assem->brlcad_comb, "Part_No",
+					  this_assem->obj_name, fd_out->dbip ) ) {
+			bu_log( "Failed to assign Part_no attribute to %s\n",
+				this_assem->brlcad_comb );
+		}
+	}
+
+	return( this_assem );
+}
+
+int
+main( int argc, char *argv[] )
+{
+	char *input_file, *output_file;
+	FILE *fd_parts;
+	struct obj_info **top_level_assems=NULL;
+	int top_level_assem_count=0;
+	int curr_top_level=-1;
+	fastf_t tmp;
+	int id;
+	int c;
+
+	local_tol = 0.005;
+	local_tol_sq = local_tol * local_tol;
+	ident = 1000;
+
+	while( (c=getopt( argc, argv, "vi:t:n:l:" ) ) != EOF ) {
+		switch( c ) {
+			case 'v':	/* verbose */
+				verbose = 1;
+				break;
+			case 'i':	/* starting ident number */
+				ident = atoi( optarg );
+				break;
+			case 't':	/* tolerance */
+				tmp = atof( optarg );
+				if( tmp <= 0.0 ) {
+					bu_log( "Illegal tolerance (%g), musy be > 0.0\n",
+						tmp );
+					exit( 1 );
+				}
+				break;
+			case 'n':	/* part name list */
+				part_name_file = optarg;
+				use_part_name_hash = 1;
+				break;
+			case 'l':	/* max name length */
+				max_name_len = atoi( optarg );
+				if( max_name_len < 5 ) {
+					bu_log( "Unreasonable name length limitation\n" );
+					exit( 1 );
+				}
+				break;
+			default:
+				bu_log( "Unrecognized option %c\n", c );
+				Usage();
+				exit( 1 );
+		}
+	}
+
+	if( argc - optind != 2 ) {
+		bu_log( "Not enough arguments!!\n" );
+		Usage();
+		exit( 1 );
+	}
+
+	input_file = bu_strdup( argv[optind] );
+	output_file = bu_strdup( argv[optind+1] );
+
+	if( (fd_in=fopen( input_file, "r" )) == NULL ) {
+		bu_log( "Cannot open %s for reading\n", input_file );
+		perror( argv[0] );
+		exit( 1 );
+	}
+
+	if( (fd_out=wdb_fopen( output_file )) == NULL ) {
+		bu_log( "Cannot open %s for writing\n", output_file );
+		perror( argv[0] );
+		exit( 1 );
+	}
+
+	if( use_part_name_hash ) {
+		if( (fd_parts=fopen( part_name_file, "r" )) == NULL ) {
+			bu_log( "Cannot open part name file (%s)\n", part_name_file );
+			perror( argv[0] );
+			exit( 1 );
+		}
+		create_name_hash( fd_parts );
+	}
+
+	tree_root = create_vert_tree();
+
+	/* finally, start processing the input */
+	while( fgets( line, MAX_LINE_LEN, fd_in ) ) {
+		if( !strncmp( line, "FileName", 8 ) ) {
+			bu_log( "Converting facets originally from %s",
+				&line[9] );
+		} else if( !strncmp( line, "TopAssemblies", 13 ) ) {
+			bu_log( "Top level assemblies: %s", &line[14] );
+			top_level_assem_count = atoi( &line[14] );
+			if( top_level_assem_count < 1 ) {
+				top_level_assems = (struct obj_info **)NULL;
+			} else {
+				top_level_assems = (struct obj_info **)bu_calloc( top_level_assem_count,
+									 sizeof( struct obj_info * ),
+									 "top_level_assems" );
+			}
+		} else if( !strncmp( line, "PartCount", 9 ) ) {
+			bu_log( "Part count: %s", &line[10] );
+		} else if( !strncmp( line, "AssemblyId", 10 ) ) {
+			id = atoi( &line[11] );
+			curr_top_level++;
+			if( curr_top_level >= top_level_assem_count ) {
+				bu_log( "Warning: too many top level assemblies\n" );
+				bu_log( "\texpected %d, this os number %d\n",
+					top_level_assem_count, curr_top_level+1 );
+				top_level_assem_count = curr_top_level+1;
+				top_level_assems = (struct obj_info **)bu_realloc( top_level_assems,
+									  top_level_assem_count *
+									 sizeof( struct obj_info * ),
+									 "top_level_assems" );
+			}
+			top_level_assems[curr_top_level] = Assembly_import( id );
+		} else if( !strncmp( line, "PartId", 6 ) ) {
+			/* found a top-level part */
+			id = atoi( &line[7] );
+			(void)Part_import( id );
+		}
+	}
+
+	if( name_not_converted ) {
+		bu_log( "Warning %d objects were not found in the part number to name mapping,\n",
+			name_not_converted );
+		bu_log( "\ttheir names remain as part numbers.\n" );
+	}
+
+	return( 0 );
+}
+@
+
+
+11.16
+log
+@change conf.h to a wrapped config.h
+@
+text
+@d24 1
+a24 1
+static const char RCSid[] = "$Header: /cvs/brlcad/conv/enf-g.c,v 11.15 2004/04/05 07:49:36 morrison Exp $";
+@
+
+
+11.15
+log
+@merge of ansi-6-0-branch into HEAD
+@
+text
+@d24 1
+a24 1
+static const char RCSid[] = "$Header$";
+d27 5
+a31 1
+#include "conf.h"
+@
+
+
+11.14
+log
+@update copyright to include span through 2003
+@
+text
+@d24 1
+a24 1
+static const char RCSid[] = "$Header: /c/CVS/brlcad/conv/enf-g.c,v 11.13 2002/11/01 18:03:39 jra Exp $";
+d232 1
+a232 1
+Usage()
+@
+
+
+11.13
+log
+@Add_vert() now requires doubles instead of floats
+@
+text
+@d19 1
+a19 1
+ *	This software is Copyright (C) 2001 by the United States Army
+d24 1
+a24 1
+static const char RCSid[] = "$Header: /c/CVS/brlcad/conv/enf-g.c,v 11.12 2002/11/01 16:22:36 jra Exp $";
+@
+
+
+11.13.6.1
+log
+@merge from HEAD
+@
+text
+@d19 1
+a19 1
+ *	This software is Copyright (C) 2001-2004 by the United States Army
+d24 1
+a24 1
+static const char RCSid[] = "$Header: /c/CVS/brlcad/conv/enf-g.c,v 11.14 2004/02/02 17:39:00 morrison Exp $";
+@
+
+
+11.13.6.2
+log
+@merge from head
+@
+text
+@d24 1
+a24 1
+static const char RCSid[] = "$Header: /c/CVS/brlcad/conv/enf-g.c,v 11.13.6.1 2004/02/12 19:24:23 erikg Exp $";
+@
+
+
+11.12
+log
+@Now use libbn binary search trees of vertices
+@
+text
+@d24 1
+a24 1
+static const char RCSid[] = "$Header: /c/CVS/brlcad/conv/enf-g.c,v 11.11 2002/08/20 17:07:21 jra Exp $";
+d460 1
+a460 1
+			float v[3];
+@
+
+
+11.11
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d24 1
+a24 1
+static const char RCSid[] = "$Header: /c/CVS/brlcad/conv/enf-g.c,v 11.9 2002/07/03 12:25:53 jra Exp $";
+d66 2
+a93 6
+static fastf_t *part_verts=NULL;	/* list of vertices for current part */
+static int max_vert=0;			/* number of vertices currently malloced */
+static int curr_vert=0;			/* number of vertices currently being used */
+
+#define VERT_BLOCK 512			/* numer of vertices to malloc per call */
+
+a99 26
+/* structure to make vertex searching fast
+ * Each leaf represents a vertex, and has an index into the
+ * part_verts array.
+ * Each node is a cutting plane at the "cut_val" on the "coord" (0, 1, or 2) axis.
+ * All vertices with "coord" value less than the "cut_val" are in the "lower"
+ * subtree, others are in the "higher".
+ */
+union vert_tree {
+	char type;
+	struct vert_leaf {
+		char type;
+		int index;
+	} vleaf;
+	struct vert_node {
+		char type;
+		double cut_val;
+		int coord;
+		union vert_tree *higher, *lower;
+	} vnode;
+} *vert_root=NULL;
+
+/* types for the above "vert_tree" */
+#define VERT_LEAF	'l'
+#define VERT_NODE	'n'
+
+
+a214 128
+/* routine to free the "vert_tree"
+ * called after each part is output
+ */
+void
+free_vert_tree( union vert_tree *ptr )
+{
+	if( !ptr )
+		return;
+
+	if( ptr->type == VERT_NODE ) {
+		free_vert_tree( ptr->vnode.higher );
+		free_vert_tree( ptr->vnode.lower );
+	}
+
+	bu_free( (char *)ptr, "vert_tree" );
+}
+
+
+/* routine to add a vertex to the current list of part vertices */
+int
+Add_vert( point_t vertex )
+{
+	union vert_tree *ptr, *prev=NULL, *new_leaf, *new_node;
+	vect_t diff;
+
+	/* look for this vertex already in the list */
+	ptr = vert_root;
+	while( ptr ) {
+		if( ptr->type == VERT_NODE ) {
+			prev = ptr;
+			if( vertex[ptr->vnode.coord] >= ptr->vnode.cut_val ) {
+				ptr = ptr->vnode.higher;
+			} else {
+				ptr = ptr->vnode.lower;
+			}
+		} else {
+			int ij;
+
+			ij = ptr->vleaf.index*3;
+			diff[0] = fabs( vertex[0] - part_verts[ij] ); 
+			diff[1] = fabs( vertex[1] - part_verts[ij+1] ); 
+			diff[2] = fabs( vertex[2] - part_verts[ij+2] ); 
+			if( (diff[0]*diff[0] + diff[1]*diff[1] + diff[2]*diff[2]) <= local_tol_sq ) {
+				/* close enough, use this vertex again */
+				return( ptr->vleaf.index );
+			}
+			break;
+		}
+	}
+
+	/* add this vertex to the list */
+	if( curr_vert >= max_vert ) {
+		/* allocate more memory for vertices */
+		max_vert += VERT_BLOCK;
+
+		part_verts = (fastf_t *)bu_realloc( part_verts, sizeof( fastf_t ) * max_vert * 3,
+						    "part_verts" );
+	}
+
+	VMOVE( &part_verts[curr_vert*3], vertex );
+
+	/* add to the tree also */
+	new_leaf = (union vert_tree *)bu_malloc( sizeof( union vert_tree ), "new_leaf" );
+	new_leaf->vleaf.type = VERT_LEAF;
+	new_leaf->vleaf.index = curr_vert++;
+	if( !vert_root ) {
+		/* first vertex, it becomes the root */
+		vert_root = new_leaf;
+	} else if( ptr && ptr->type == VERT_LEAF ) {
+		/* search above ended at a leaf, need to add a node above this leaf and the new leaf */
+		new_node = (union vert_tree *)bu_malloc( sizeof( union vert_tree ), "new_node" );
+		new_node->vnode.type = VERT_NODE;
+
+		/* select the cutting coord based on the biggest difference */
+		if( diff[0] >= diff[1] && diff[0] >= diff[2] ) {
+			new_node->vnode.coord = 0;
+		} else if( diff[1] >= diff[2] && diff[1] >= diff[0] ) {
+			new_node->vnode.coord = 1;
+		} else if( diff[2] >= diff[1] && diff[2] >= diff[0] ) {
+			new_node->vnode.coord = 2;
+		}
+
+		/* set the cut value to the mid value between the two vertices */
+		new_node->vnode.cut_val = (vertex[new_node->vnode.coord] +
+					   part_verts[ptr->vleaf.index * 3 + new_node->vnode.coord]) * 0.5;
+
+		/* set the node "lower" nad "higher" pointers */
+		if( vertex[new_node->vnode.coord] >= 
+		    part_verts[ptr->vleaf.index * 3 + new_node->vnode.coord] ) {
+			new_node->vnode.higher = new_leaf;
+			new_node->vnode.lower = ptr;
+		} else {
+			new_node->vnode.higher = ptr;
+			new_node->vnode.lower = new_leaf;
+		}
+
+		if( ptr == vert_root ) {
+			/* if the above search ended at the root, redefine the root */
+			vert_root =  new_node;
+		} else {
+			/* set the previous node to point to our new one */
+			if( prev->vnode.higher == ptr ) {
+				prev->vnode.higher = new_node;
+			} else {
+				prev->vnode.lower = new_node;
+			}
+		}
+	} else if( ptr && ptr->type == VERT_NODE ) {
+		/* above search ended at a node, just add the new leaf */
+		prev = ptr;
+		if( vertex[prev->vnode.coord] >= prev->vnode.cut_val ) {
+			if( prev->vnode.higher ) {
+				exit(1);
+			}
+			prev->vnode.higher = new_leaf;
+		} else {
+			if( prev->vnode.lower ) {
+				exit(1);
+			}
+			prev->vnode.lower = new_leaf;
+		}
+	} else {
+		fprintf( stderr, "*********ERROR********\n" );
+	}
+
+	/* return the index into the vertex array */
+	return( new_leaf->vleaf.index );
+}
+a240 1
+	struct directory *dp;
+d307 1
+a307 1
+		while( (dp=db_lookup( fd_out->dbip, bu_vls_addr( &vls ), LOOKUP_QUIET )) != DIR_NULL) {
+d336 1
+a336 1
+	while( (dp=db_lookup( fd_out->dbip, bu_vls_addr( &vls ), LOOKUP_QUIET) ) != DIR_NULL ) {
+d402 2
+d460 1
+a460 1
+			point_t v;
+d470 1
+a470 1
+			tri[++corner_index] = Add_vert( v );
+d472 1
+a472 1
+				if( !bad_triangle( tri, part_verts ) ) {
+d496 1
+a496 1
+			    curr_vert, curr_tri, part_verts, part_tris, NULL, NULL ) ) {
+a533 2
+	free_vert_tree( vert_root );
+	vert_root = NULL;
+a539 6
+	if( part_verts ) {
+		bu_free( (char *)part_verts, "part_verts" );
+	}
+	max_vert = 0;
+	curr_vert = 0;
+	part_verts = NULL;
+d720 2
+a754 2
+			struct obj_info *top_level_part;
+
+d756 1
+a756 1
+			top_level_part = Part_import( id );
+@
+
+
+11.11.4.1
+log
+@sync to HEAD...
+@
+text
+@d19 1
+a19 1
+ *	This software is Copyright (C) 2001-2004 by the United States Army
+d24 1
+a24 1
+static const char RCSid[] = "$Header: /n/cad/c/CVS/brlcad/conv/enf-g.c,v 11.14 2004/02/02 17:39:00 morrison Exp $";
+a65 2
+static struct vert_root *tree_root;
+
+d92 6
+d104 26
+d245 128
+d399 1
+d466 1
+a466 1
+		while( db_lookup( fd_out->dbip, bu_vls_addr( &vls ), LOOKUP_QUIET ) != DIR_NULL) {
+d495 1
+a495 1
+	while( db_lookup( fd_out->dbip, bu_vls_addr( &vls ), LOOKUP_QUIET) != DIR_NULL ) {
+a560 2
+	clean_vert_tree( tree_root );
+
+d617 1
+a617 1
+			double v[3];
+d627 1
+a627 1
+			tri[++corner_index] = Add_vert( V3ARGS( v ), tree_root, local_tol_sq );
+d629 1
+a629 1
+				if( !bad_triangle( tri, tree_root->the_array ) ) {
+d653 1
+a653 1
+			    tree_root->curr_vert, curr_tri, tree_root->the_array, part_tris, NULL, NULL ) ) {
+d691 2
+d699 6
+a884 2
+	tree_root = create_vert_tree();
+
+d918 2
+d921 1
+a921 1
+			(void)Part_import( id );
+@
+
+
+11.11.2.1
+log
+@Initial ANSIfication
+@
+text
+@d24 1
+a24 1
+static const char RCSid[] = "$Header: /c/CVS/brlcad/conv/enf-g.c,v 11.11 2002/08/20 17:07:21 jra Exp $";
+d390 1
+a390 1
+Usage(void)
+@
+
+
+11.11.2.2
+log
+@sync branch with HEAD
+@
+text
+@d19 1
+a19 1
+ *	This software is Copyright (C) 2001-2004 by the United States Army
+d24 1
+a24 1
+static const char RCSid[] = "$Header$";
+a65 2
+static struct vert_root *tree_root;
+
+d92 6
+d104 26
+d245 128
+d399 1
+d466 1
+a466 1
+		while( db_lookup( fd_out->dbip, bu_vls_addr( &vls ), LOOKUP_QUIET ) != DIR_NULL) {
+d495 1
+a495 1
+	while( db_lookup( fd_out->dbip, bu_vls_addr( &vls ), LOOKUP_QUIET) != DIR_NULL ) {
+a560 2
+	clean_vert_tree( tree_root );
+
+d617 1
+a617 1
+			double v[3];
+d627 1
+a627 1
+			tri[++corner_index] = Add_vert( V3ARGS( v ), tree_root, local_tol_sq );
+d629 1
+a629 1
+				if( !bad_triangle( tri, tree_root->the_array ) ) {
+d653 1
+a653 1
+			    tree_root->curr_vert, curr_tri, tree_root->the_array, part_tris, NULL, NULL ) ) {
+d691 2
+d699 6
+a884 2
+	tree_root = create_vert_tree();
+
+d918 2
+d921 1
+a921 1
+			(void)Part_import( id );
+@
+
+
+11.10
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d390 1
+a390 1
+Usage(void)
+@
+
+
+11.9
+log
+@Added indentation to logging. additional schemes for finding part names
+@
+text
+@d24 1
+a24 1
+static const char RCSid[] = "$Header: /c/CVS/brlcad/conv/enf-g.c,v 11.8 2002/05/17 12:48:56 morrison Exp $";
+d390 1
+a390 1
+Usage()
+@
+
+
+11.8
+log
+@added matrix parameter to mk_addmember()
+@
+text
+@d24 1
+a24 1
+static const char RCSid[] = "$Header: /c/CVS/brlcad/conv/enf-g.c,v 11.7 2002/02/15 16:12:10 jra Exp $";
+d63 8
+d131 12
+d154 1
+a154 1
+		ptr = strtok( line, "\t\n" );
+d156 1
+a156 1
+			bu_log( "Error processing part name file at line:\n" );
+d161 2
+a162 1
+		ptr = strtok( (char *)NULL, "\t\n" );
+d164 1
+a164 1
+			bu_log( "Error processing part name file at line:\n" );
+d169 1
+a180 13
+void
+lower_case( char *name )
+{
+	unsigned char *c;
+
+	c = (unsigned char *)name;
+	while( *c ) {
+		(*c) = tolower( *c );
+		c++;
+	}
+}
+
+
+d417 17
+d522 2
+a523 1
+				bu_log( "Found part %s changed name to (%s)\n",
+d527 2
+a528 1
+				bu_log( "Found part %s\n", part->brlcad_comb );
+d533 2
+a534 1
+				bu_log( "Found assembly %s changed name to (%s)\n",
+d538 2
+a539 1
+				bu_log( "Found assembly %s\n", part->brlcad_comb );
+d658 4
+d676 5
+d728 3
+d761 3
+@
+
+
+11.7
+log
+@Now creates regions with material_id = 1 and los = 100
+@
+text
+@d24 1
+a24 1
+static const char RCSid[] = "$Header: /c/CVS/brlcad/conv/enf-g.c,v 11.6 2002/02/15 15:22:02 jra Exp $";
+d631 1
+a631 1
+		if( mk_addmember( part->brlcad_solid, &reg_head.l, WMOP_UNION ) == WMEMBER_NULL ) {
+d735 1
+a735 1
+				  &assem_head.l, WMOP_UNION ) == WMEMBER_NULL ) {
+@
+
+
+11.6
+log
+@Added capability to use a part number vs part name lookup
+also added capability to limit resulting name lengths
+@
+text
+@d24 1
+a24 1
+static const char RCSid[] = "$Header: /c/CVS/brlcad/conv/enf-g.c,v 11.5 2002/01/24 14:39:10 jra Exp $";
+d637 1
+a637 1
+			     0, 0, 0, 0, 0, 0 ) ) {
+@
+
+
+11.5
+log
+@Mods to be compatible with Elysium's latesty bug fixes
+@
+text
+@d24 1
+a24 1
+static const char RCSid[] = "$Header: /c/CVS/brlcad/conv/enf-g.c,v 11.4 2002/01/16 21:04:33 jra Exp $";
+d58 5
+d122 49
+d383 1
+a383 1
+	bu_log( "Usage:\n\tenf-g [-i starting_ident] [-t tolerance] input_facets_file output_brlcad_file.g\n" );
+d393 1
+d397 18
+a414 3
+	/* make a copy of object name, then make it a legal BRL-CAD name */
+	if( strlen( part->obj_name ) < 1 ) {
+		tmp_name = bu_strdup( "s.1" );
+d416 14
+a429 5
+		tmp_name = bu_strdup( part->obj_name );
+		ptr = tmp_name;
+		while( *ptr != '\0' ) {
+			if( !isalnum( *ptr ) ) {
+				*ptr = '_';
+a430 1
+			ptr++;
+d437 3
+d441 2
+d444 14
+a457 2
+			bu_vls_trunc( &vls, 0 );
+			bu_vls_printf( &vls, "s.%s.%d", tmp_name, count );
+d466 3
+d470 2
+d473 14
+a486 2
+		bu_vls_trunc( &vls, 0 );
+		bu_vls_printf( &vls, "%s.%d", tmp_name, count );
+d490 24
+d540 1
+a541 1
+			bu_log( "Found Part %s\n", part->obj_name );
+d642 7
+d688 1
+a688 1
+			bu_log( "Found assembly %s\n", this_assem->obj_name );
+d749 7
+d764 1
+d776 1
+a776 1
+	while( (c=getopt( argc, argv, "vi:t:" ) ) != EOF ) {
+d792 11
+d831 9
+d878 6
+@
+
+
+11.4
+log
+@Was not using bu_malloc() and bu_free()!!!
+@
+text
+@d24 1
+a24 1
+static const char RCSid[] = "$Header: /c/CVS/brlcad/conv/enf-g.c,v 11.3 2002/01/15 20:13:33 jra Exp $";
+d409 1
+a409 3
+				/* bug in the Elysium tessellator when no faces */
+				bu_free( (char *)part, "part" );
+				return( (struct obj_info *) NULL );
+d479 9
+a487 3
+	/* write this part to database, first make a primitive solid */
+	if( mk_bot( fd_out, part->brlcad_solid, RT_BOT_SOLID, RT_BOT_UNORIENTED, 0,
+		curr_vert, curr_tri, part_verts, part_tris, NULL, NULL ) ) {
+d491 1
+a491 1
+	}
+d493 13
+a505 12
+	/* then a region */
+	BU_LIST_INIT( &reg_head.l );
+	if( mk_addmember( part->brlcad_solid, &reg_head.l, WMOP_UNION ) == WMEMBER_NULL ) {
+		bu_log( "ERROR: Failed to add solid (%s), to region (%s)\n",
+			part->brlcad_solid, part->brlcad_comb );
+		exit( 1 );
+	}
+	if( mk_comb( fd_out, part->brlcad_comb, &reg_head.l, 1, NULL, NULL, rgb, ident++,
+		     0, 0, 0, 0, 0, 0 ) ) {
+		bu_log( "Failed to write region %s (%s) to database\n",
+			part->brlcad_comb, part->obj_name );
+		exit( 1 );
+d511 3
+a513 1
+	bu_free( (char *)part_tris, "part_tris" );
+d517 3
+a519 1
+	bu_free( (char *)part_verts, "part_verts" );
+@
+
+
+11.3
+log
+@Now handles files with no assemblies and parts with no name
+@
+text
+@d24 1
+a24 1
+static const char RCSid[] = "$Header: /c/CVS/brlcad/conv/enf-g.c,v 11.2 2002/01/09 20:27:07 jra Exp $";
+d196 1
+a196 1
+	free( (char *)ptr );
+d252 1
+a252 1
+		new_node = (union vert_tree *)malloc( sizeof( union vert_tree ) );
+@
+
+
+11.2
+log
+@Mod to handle Elysium bug (no "EndpartId" if part has no faces)
+@
+text
+@d24 1
+a24 1
+static const char RCSid[] = "$Header: /c/CVS/brlcad/conv/enf-g.c,v 11.1 2001/12/17 18:36:46 jra Exp $";
+d343 10
+a352 5
+	tmp_name = bu_strdup( part->obj_name );
+	ptr = tmp_name;
+	while( *ptr != '\0' ) {
+		if( !isalnum( *ptr ) ) {
+			*ptr = '_';
+a353 1
+		ptr++;
+d668 4
+a671 1
+			top_level_assems = (struct obj_info **)bu_calloc( top_level_assem_count,
+d674 1
+@
+
+
+11.1
+log
+@Initial version of Elysium to BRL-CAD converter
+@
+text
+@d24 1
+a24 1
+static const char RCSid[] = "$Header: /c/CVS/brlcad/conv/fast4-g.c,v 11.72 2001/09/11 12:32:25 jra Exp $";
+d404 5
+d537 2
+@
+

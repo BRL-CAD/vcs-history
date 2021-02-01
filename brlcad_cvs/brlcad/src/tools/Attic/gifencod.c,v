@@ -1,0 +1,373 @@
+head	14.2;
+access;
+symbols
+	opensource-pre:1.3
+	rel-7-0-branch:1.3.0.2
+	rel-7-0:1.3;
+locks; strict;
+comment	@ * @;
+
+
+14.2
+date	2004.12.21.03.32.05;	author morrison;	state dead;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.32;	author morrison;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2004.08.02.23.01.52;	author morrison;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2004.06.08.22.04.38;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.15.21.28;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.2
+log
+@moved src/tools/ to src/other/URToolkit/ as the entire Utah Raster Toolkit is not ours but, rather, University of Utah codeage.
+@
+text
+@
+/*****************************************************************************
+ *
+ * GIFENCODE.C    - GIF Image compression interface
+ * 
+ * GIFEncode( FName, GHeight, GWidth, GInterlace, Background,
+ *	      BitsPerPixel, Red, Green, Blue, GetPixel )
+ *
+ * Modified for use with RLE interface, Spencer W. Thomas, June, 1990.
+ * (replaced fopen with rle_open_f).
+ *
+ *****************************************************************************/
+
+#include "common.h"
+
+
+
+#include <stdio.h>
+
+#include "machine.h"
+#include "rle.h"
+#include "./rletogif.h"
+
+#ifndef TRUE
+#define TRUE 1
+#endif
+#ifndef FALSE
+#define FALSE 0
+#endif
+
+static int Width, Height;
+static int curx, cury;
+static long CountDown;
+static int Pass = 0;
+static int Interlace;
+
+void	Putword(int w, FILE *fp);
+
+/*
+ * Bump the 'curx' and 'cury' to point to the next pixel
+ */
+static void
+BumpPixel(void)
+{
+	/*
+	 * Bump the current X position
+	 */
+	curx++;
+
+	/*
+	 * If we are at the end of a scan line, set curx back to the beginning
+	 * If we are interlaced, bump the cury to the appropriate spot,
+	 * otherwise, just increment it.
+	 */
+	if( curx == Width ) {
+		curx = 0;
+
+	        if( !Interlace ) 
+			cury++;
+		else {
+		     switch( Pass ) {
+	     
+	               case 0:
+        	          cury += 8;
+                	  if( cury >= Height ) {
+		  		Pass++;
+				cury = 4;
+		  	  }
+                          break;
+		  
+	               case 1:
+        	          cury += 8;
+                	  if( cury >= Height ) {
+		  		Pass++;
+				cury = 2;
+		  	  }
+			  break;
+
+	               case 2:
+	                  cury += 4;
+	                  if( cury >= Height ) {
+	                     Pass++;
+	                     cury = 1;
+	                  }
+	                  break;
+			  
+	               case 3:
+	                  cury += 2;
+	                  break;
+			}
+		}
+	}
+}
+
+
+/*
+ * Return the next pixel from the image
+ */
+int
+GIFNextPixel(ifunptr getpixel)
+{
+	int r;
+
+	if( CountDown == 0 )
+		return EOF;
+
+	CountDown--;
+
+	r = ( * getpixel )( curx, cury );
+
+	BumpPixel();
+
+	return r;
+}
+
+/* public */
+void
+GIFEncode(char *FName, int GWidth, int GHeight, int GInterlace, int Background, int BitsPerPixel, unsigned short int *Red, unsigned short int *Green, unsigned short int *Blue, ifunptr GetPixel)
+{
+	FILE *fp;
+	int B;
+	int RWidth, RHeight;
+	int LeftOfs, TopOfs;
+	int Resolution;
+	int ColorMapSize;
+	int InitCodeSize;
+	int i;
+
+    /* doesn't support interlace yet */
+    if (GInterlace) error("no support for interlace yet");
+	Interlace = GInterlace;
+	
+	ColorMapSize = 1 << BitsPerPixel;
+	
+	RWidth = Width = GWidth;
+	RHeight = Height = GHeight;
+	LeftOfs = TopOfs = 0;
+	
+	Resolution = BitsPerPixel;
+
+	/*
+	 * Calculate number of bits we are expecting
+	 */
+	CountDown = (long)Width * (long)Height;
+
+	/*
+	 * Indicate which pass we are on (if interlace)
+	 */
+	Pass = 0;
+
+	/*
+	 * The initial code size
+	 */
+	if( BitsPerPixel <= 1 )
+		InitCodeSize = 2;
+	else
+		InitCodeSize = BitsPerPixel;
+
+	/*
+	 * Set up the current x and y position
+	 */
+	curx = cury = 0;
+
+	/*
+	 * Open the GIF file for binary write
+	 */
+	fp = rle_open_f( MY_NAME, FName, "w" );
+
+	/*
+	 * Write the Magic header
+	 */
+	fwrite( "GIF87a", 1, 6, fp );
+
+	/*
+	 * Write out the screen width and height
+	 */
+	Putword( RWidth, fp );
+	Putword( RHeight, fp );
+
+	/*
+	 * Indicate that there is a global colour map
+	 */
+	B = 0x80;	/* Yes, there is a color map */
+	/*
+	 * OR in the resolution
+	 */
+	B |= (Resolution - 1) << 5;
+
+	/*
+	 * OR in the Bits per Pixel
+	 */
+	B |= (BitsPerPixel - 1);
+
+	/*
+	 * Write it out
+	 */
+	fputc( B, fp );
+
+	/*
+	 * Write out the Background colour
+	 */
+	fputc( Background, fp );
+
+	/*
+	 * Byte of 0's (future expansion)
+	 */
+	fputc( 0, fp );
+
+	/*
+	 * Write out the Global Colour Map
+	*/
+     	for( i=0; i<ColorMapSize; i++ ) {
+            fputc( Red[i]>>8, fp );
+            fputc( Green[i]>>8, fp );
+            fputc( Blue[i]>>8, fp );
+        }
+	/*
+	 * Write an Image separator
+	 */
+	fputc( ',', fp );
+
+	/*
+	 * Write the Image header
+	 */
+
+	Putword( LeftOfs, fp );
+	Putword( TopOfs, fp );
+	Putword( Width, fp );
+	Putword( Height, fp );
+
+	/*
+	 * Write out whether or not the image is interlaced
+	 */
+
+	if( Interlace )
+		fputc( 0x40, fp );
+	else
+		fputc( 0x00, fp );
+
+	/*
+	 * Write out the initial code size
+	 */
+    fputc( InitCodeSize, fp );
+
+	/*
+	 * Go and actually compress the data
+	 */
+    compgif( InitCodeSize + 1, fp, getpixel );
+	/*
+	 * Write out a Zero-length packet (to end the series)
+	 */
+	fputc( 0, fp );
+
+	/*
+	 * Write the GIF file terminator
+	 */
+	fputc( ';', fp );
+
+	/*
+	 * And close the file
+	 */
+	fclose( fp );
+	
+}
+
+/*
+ * Write out a word to the GIF file
+ */
+void
+Putword(int w, FILE *fp)
+{
+	fputc( w & 0xff, fp );
+    fputc( (w >> 8) & 0xff, fp );
+}
+
+
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@@
+
+
+1.3
+log
+@replace the wrapped config.h block with common.h
+@
+text
+@d277 10
+@
+
+
+1.2
+log
+@obliterate externs.h
+@
+text
+@d14 1
+a14 3
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+@
+
+
+1.1
+log
+@Vast reorganization begins.  Sources moved from top-level directories into src/.
+@
+text
+@a22 1
+#include "externs.h"
+@
+

@@ -1,0 +1,373 @@
+head	11.6;
+access;
+symbols
+	ansi-20040405-merged:11.3.2.1
+	postmerge-20040405-ansi:11.4
+	premerge-20040404-ansi:11.3
+	postmerge-autoconf:11.3
+	autoconf-freeze:11.3
+	premerge-autoconf:11.3
+	postmerge-20040315-windows:11.3
+	premerge-20040315-windows:11.3
+	windows-20040315-freeze:11.3
+	autoconf-20031203:11.3
+	autoconf-20031202:11.3
+	autoconf-branch:11.3.0.10
+	phong-branch:11.3.0.8
+	photonmap-branch:11.3.0.6
+	rel-6-1-DP:11.3
+	windows-branch:11.3.0.4
+	rel-6-0-2:11.1
+	ansi-branch:11.3.0.2
+	rel-6-0-1-branch:11.1.0.4
+	hartley-6-0-post:11.2
+	hartley-6-0-pre:11.1
+	rel-6-0-1:11.1
+	rel-6-0:11.1
+	rel-5-4:11.1
+	offsite-5-3-pre:11.1
+	rel-5-3:11.1
+	rel-5-2:11.1
+	rel-5-1-branch:11.1.0.2
+	rel-5-1:11.1
+	rel-5-0:11.1
+	rel-5-0-beta:11.1
+	rel-4-5:11.1
+	ctj-4-5-post:11.1
+	ctj-4-5-pre:11.1
+	rel-4-4:11.1
+	rel-4-0:10.1;
+locks; strict;
+comment	@ * @;
+
+
+11.6
+date	2004.05.21.17.59.49;	author morrison;	state dead;
+branches;
+next	11.5;
+
+11.5
+date	2004.05.10.15.30.47;	author erikg;	state Exp;
+branches;
+next	11.4;
+
+11.4
+date	2004.04.05.07.40.44;	author morrison;	state Exp;
+branches;
+next	11.3;
+
+11.3
+date	2002.08.20.17.08.19;	author jra;	state Exp;
+branches
+	11.3.2.1;
+next	11.2;
+
+11.2
+date	2002.08.15.20.55.29;	author hartley;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	95.01.04.10.05.30;	author mike;	state Rel4_4;
+branches;
+next	10.2;
+
+10.2
+date	94.08.10.23.20.32;	author gdurf;	state Exp;
+branches;
+next	10.1;
+
+10.1
+date	91.10.12.06.38.45;	author mike;	state Rel4_0;
+branches;
+next	1.2;
+
+1.2
+date	91.01.09.03.32.34;	author butler;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	91.01.03.17.31.04;	author butler;	state Exp;
+branches;
+next	;
+
+11.3.2.1
+date	2002.09.19.18.01.56;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@Dist 3.0 patchlevel 2 installation
+@
+
+
+11.6
+log
+@moved from top-level to src/other/.
+@
+text
+@/*
+ * This software is copyrighted as noted below.  It may be freely copied,
+ * modified, and redistributed, provided that the copyright notice is 
+ * preserved on all copies.
+ * 
+ * There is no warranty or other guarantee of fitness for this software,
+ * it is provided solely "as is".  Bug reports or fixes may be sent
+ * to the author, who may or may not act on them as he desires.
+ *
+ * You may not include this software in a program or other software product
+ * without supplying the source, or without informing the end-user that the 
+ * source is available for no extra charge.
+ *
+ * If you modify this software, you should include a notice giving the
+ * name of the person performing the modification, the date of modification,
+ * and the reason for such modification.
+ *
+ *  Modified at BRL 16-May-88 by Mike Muuss to avoid Alliant STDC desire
+ *  to have all "void" functions so declared.
+ */
+/* 
+ * rle_row_alc.c - Allocate buffers for rle_getrow/rle_putrow.
+ * 
+ * Author:	Spencer W. Thomas
+ * 		Computer Science Dept.
+ * 		University of Utah
+ * Date:	Fri Nov 14 1986
+ * Copyright (c) 1986, Spencer W. Thomas
+ */
+
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+
+#include <stdio.h>
+
+#include "machine.h"
+#include "externs.h"
+#include "rle.h"
+
+/*****************************************************************
+ * TAG( rle_row_alloc )
+ * 
+ * Allocate buffer space for use by rle_getrow and rle_putrow.
+ * Inputs:
+ * 	the_hdr:	Header structure for RLE file to be read or
+ *			written.
+ * Outputs:
+ *	scanp:		Pointer to pointer to created scanline buffer.
+ *			This pointer is adjusted for the alpha channel,
+ *			if present.
+ *	Returns 0 for success, -1 if malloc failed.
+ * Assumptions:
+ * 	No input scanline will extend beyond the declared xmax endpoint.
+ * Algorithm:
+ *	Count number of channels actually used (check bitmap).
+ * 	Allocate nchan*rowlength pixels, allocate a buffer
+ *	to hold ncolors+alpha pointers, and give each channel
+ *	rowlength pixels.  Rowlength is xmax + 1, to allow for rle_getrow
+ *	usage.
+ */
+int
+rle_row_alloc(rle_hdr *the_hdr, rle_pixel ***scanp)
+{
+    rle_pixel ** scanbuf, * pixbuf;
+    int rowlen, nchan = 0, i, ncol;
+
+    rowlen = the_hdr->xmax + 1;
+    if ( the_hdr->alpha && RLE_BIT( *the_hdr, RLE_ALPHA ) )
+	nchan++;
+    for ( i = 0; i < the_hdr->ncolors; i++ )
+	if ( RLE_BIT( *the_hdr, i ) )
+	     nchan++;
+
+    ncol = the_hdr->ncolors + the_hdr->alpha;
+
+    if ( (scanbuf = (rle_pixel **)malloc( ncol * sizeof(rle_pixel *) )) == 0 )
+	return -1;
+    if ( (pixbuf = (rle_pixel *)malloc( nchan * rowlen *
+				       sizeof(rle_pixel) )) == 0 )
+    {
+	free( scanbuf );
+	return -1;
+    }
+
+    if ( the_hdr->alpha )
+	scanbuf++;
+
+    for ( i = -the_hdr->alpha; i < the_hdr->ncolors; i++ )
+	if ( RLE_BIT( *the_hdr, i ) )
+	{
+	    scanbuf[i] = pixbuf;
+	    pixbuf += rowlen;
+	}
+	else
+	    scanbuf[i] = 0;
+    *scanp = scanbuf;
+
+    return 0;
+}
+
+
+/*****************************************************************
+ * TAG( rle_row_free )
+ * 
+ * Free storage allocated by rle_row_alloc().
+ * Inputs:
+ * 	the_hdr:	Header structure as above.
+ *	scanp:		Pointer to scanbuf above.
+ * Outputs:
+ * 	Frees storage referenced by scanp and nrawp.
+ * Assumptions:
+ * 	Storage was allocated by rle_row_alloc, or by use of same
+ *	algorithm, at least.
+ * Algorithm:
+ * 	free scanp[0] and scanp.
+ */
+void
+rle_row_free(rle_hdr *the_hdr, rle_pixel **scanp)
+{
+    int i;
+
+    if ( the_hdr->alpha )
+	scanp--;
+    for ( i = 0; i < the_hdr->ncolors + the_hdr->alpha; i++ )
+	if ( scanp[i] != 0 )
+	{
+	    free( (char *)scanp[i] );
+	    break;
+	}
+    free( (char *)scanp );
+}
+@
+
+
+11.5
+log
+@change conf.h to a wrapped config.h
+@
+text
+@@
+
+
+11.4
+log
+@merge of ansi-6-0-branch into HEAD
+@
+text
+@d31 5
+a35 1
+#include "conf.h"
+@
+
+
+11.3
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d61 1
+a61 3
+rle_row_alloc( the_hdr, scanp )
+rle_hdr *the_hdr;
+rle_pixel ***scanp;
+d117 1
+a117 3
+rle_row_free( the_hdr, scanp )
+rle_hdr *the_hdr;
+rle_pixel **scanp;
+@
+
+
+11.3.2.1
+log
+@Initial ANSIfication
+@
+text
+@d61 3
+a63 1
+rle_row_alloc(rle_hdr *the_hdr, rle_pixel ***scanp)
+d119 3
+a121 1
+rle_row_free(rle_hdr *the_hdr, rle_pixel **scanp)
+@
+
+
+11.2
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d61 3
+a63 1
+rle_row_alloc(rle_hdr *the_hdr, rle_pixel ***scanp)
+d119 3
+a121 1
+rle_row_free(rle_hdr *the_hdr, rle_pixel **scanp)
+@
+
+
+11.1
+log
+@Release_4.4
+@
+text
+@d61 1
+a61 3
+rle_row_alloc( the_hdr, scanp )
+rle_hdr *the_hdr;
+rle_pixel ***scanp;
+d117 1
+a117 3
+rle_row_free( the_hdr, scanp )
+rle_hdr *the_hdr;
+rle_pixel **scanp;
+@
+
+
+10.2
+log
+@Altered #defines and #includes to conform to BRL-CAD standards
+@
+text
+@@
+
+
+10.1
+log
+@Release_4.0
+@
+text
+@d31 2
+d34 3
+a37 7
+
+#ifndef VOID_STAR
+extern char * malloc();
+#else
+extern void *malloc();
+#endif
+extern void free();
+@
+
+
+1.2
+log
+@changed include of rle*.h files to use quotes instead of <>
+@
+text
+@@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d32 1
+a32 1
+#include <rle.h>
+@

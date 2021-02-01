@@ -1,0 +1,2842 @@
+head	1.11;
+access;
+symbols
+	rel-7-10-4:1.10
+	STABLE:1.10.0.2
+	rel-7-10-2:1.10
+	rel-7-10-0:1.10
+	rel-7-8-4:1.7
+	rel-7-8-2:1.6
+	rel-7-8-0:1.5
+	trimnurbs-branch:1.5.0.2
+	help:1.5
+	temp_tag:1.2
+	bobWinPort-20051223-freeze:1.1.2.4
+	postmerge-20051223-bobWinPort:1.2
+	bobWinPort:1.1.0.2;
+locks; strict;
+comment	@# @;
+
+
+1.11
+date	2007.10.17.16.25.31;	author bob1961;	state Exp;
+branches;
+next	1.10;
+
+1.10
+date	2007.01.27.01.41.52;	author brlcad;	state Exp;
+branches;
+next	1.9;
+
+1.9
+date	2007.01.23.01.13.52;	author brlcad;	state Exp;
+branches;
+next	1.8;
+
+1.8
+date	2007.01.20.14.37.05;	author brlcad;	state Exp;
+branches;
+next	1.7;
+
+1.7
+date	2006.10.13.14.56.16;	author bob1961;	state Exp;
+branches;
+next	1.6;
+
+1.6
+date	2006.05.01.17.17.55;	author bob1961;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	2006.02.14.18.01.04;	author bob1961;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	2006.01.31.02.08.24;	author brlcad;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2006.01.04.21.34.07;	author bob1961;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2005.12.23.21.26.49;	author bob1961;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2005.09.14.14.17.20;	author bob1961;	state dead;
+branches
+	1.1.2.1;
+next	;
+
+1.1.2.1
+date	2005.09.14.14.17.20;	author bob1961;	state Exp;
+branches;
+next	1.1.2.2;
+
+1.1.2.2
+date	2005.09.29.15.49.21;	author bob1961;	state Exp;
+branches;
+next	1.1.2.3;
+
+1.1.2.3
+date	2005.10.19.12.16.59;	author bob1961;	state Exp;
+branches;
+next	1.1.2.4;
+
+1.1.2.4
+date	2005.11.17.17.24.36;	author bob1961;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.11
+log
+@Added an optional doDraw parameter to the insert method.
+@
+text
+@#                        T R E E . I T K
+# BRL-CAD
+#
+# Copyright (c) 2006-2007 United States Government as represented by
+# the U.S. Army Research Laboratory.
+#
+# This library is free software; you can redistribute it and/or
+# modify it under the terms of the GNU Lesser General Public License
+# version 2.1 as published by the Free Software Foundation.
+#
+# This library is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public
+# License along with this file; see the file named COPYING for more
+# information.
+#
+###
+#
+# Description:
+#    Standard tree control.
+#
+##############################################################
+
+itcl::class swidgets::Treenode {
+    constructor {par} {}
+    destructor {}
+
+    public {
+	variable level -1
+
+	method get {option}
+	method setvar {option args}
+	method addchild {node index}
+	method removechild {node}
+	method open {{state ""}}
+    }
+
+    private {
+	variable text ""
+	variable parent ""
+	variable subnodes ""
+	variable nodetype ""
+	variable font {SystemWindowText 8}; # "courier 10"
+	variable color "black"
+	variable open 0
+	variable clientData ""
+	variable state "normal"
+    }
+}
+
+#
+# Provide a lowercased access method for the Treenode class.
+#
+proc ::swidgets::treenode {parent args} {
+    uplevel ::swidgets::Treenode $parent $args
+}
+
+::itcl::body swidgets::Treenode::constructor {par} {
+    set parent $par
+}
+
+::itcl::body swidgets::Treenode::destructor {} {
+    unset subnodes
+}
+
+::itcl::body swidgets::Treenode::get {option} {
+    switch -- $option {
+	"-text"     {return $text}
+	"-parent"   {return $parent}
+	"-children" {return $subnodes}
+	"-open"     {return $open}
+	"-font"     {return $font}
+	"-color"    {return $color}
+	"-type"     {
+	    if {$nodetype != ""} {return $nodetype}
+
+	    if {[llength $subnodes]} {return "branch"}
+	    return "leaf"
+	}
+	"-clientData"    {return $clientData}
+	"-state"    {return $state}
+    }
+}
+
+::itcl::body swidgets::Treenode::setvar {option value} {
+    switch -- $option {
+	"-text"     {set text $value}
+	"-open"     {set open $value}
+	"-font"     {set font $value}
+	"-color"    {set color $value}
+	"-type"     {set nodetype $value}
+	"-clientData" {set clientData $value}
+	"-state"    {
+	    switch -- $value {
+		"normal" -
+		"on"     -
+		"true"   -
+		"1"      {
+		    set state "normal"
+		}
+		"disabled" -
+		"off"    -
+		"false"  -
+		"0"      {
+		    set state "disabled"
+		}
+	    }
+	}
+    }
+}
+
+::itcl::body swidgets::Treenode::addchild {node index} {
+    if {[string equal $index "end"]} {
+	lappend subnodes $node
+    } else {
+	set subnodes [linsert $subnodes $index $node]
+    }
+}
+
+::itcl::body swidgets::Treenode::removechild {node} {
+    if {[set idx [lsearch -exact $subnodes $node]] != -1} {
+	set subnodes [lreplace $subnodes $idx $idx]
+	return $node
+    }
+
+    return $idx
+}
+
+::itcl::body swidgets::Treenode::open {{state ""}} {
+    if {$state == ""} {return [get -open]}
+
+    switch -- $state {
+	"0" -
+	"false" {set open 0}
+	"1" -
+	"true"  {set open 1}
+	default {error "bad state \"$state\""}
+    }
+}
+
+itcl::class swidgets::Tree {
+    inherit itk::Widget
+
+    constructor {args} {}
+    destructor {}
+
+    itk_option define -indent indent Indent 10
+    itk_option define -nodeheight nodeHeight Height 15
+    itk_option define -nodepad nodePad Height 2
+    itk_option define -showlines showlines Showline 1
+    itk_option define -linefill lineFill LineFill black
+    itk_option define -linestipple lineStipple LineStipple ""
+    itk_option define -selectfill selectFill Boolean 0
+    itk_option define -background background Background "white"
+    itk_option define -sortmode sortMode SortMode "none"
+
+    itk_option define -openimage openImage Image ""
+    itk_option define -disabledopenimage disabledOpenImage Image ""
+    itk_option define -closeimage closeImage Image ""
+    itk_option define -disabledcloseimage disabledCloseImage Image ""
+    itk_option define -nodeimage nodeImage Image ""
+    itk_option define -disablednodeimage disabledNodeImage Image ""
+
+    itk_option define -querycmd queryCmd Command {}
+    itk_option define -selectmode selectMode Mode "single"
+    itk_option define -selectcmd selectCmd Command {}
+    itk_option define -dblselectcmd dblSelectCmd Command {}
+    itk_option define -textmenuloadcommand textMenuLoadCommand Command {}
+
+    public {
+	method component {{name ""}}
+	method insert {index parent text {type ""} {color ""} {clientData ""} {doDraw 1}}
+	method find {text {parent "root"} {firstOnly 1}}
+	method remove {node {redraw 1}}
+	method removeall {}
+	method redraw {} {_redraw_tree}
+	method expand {node} {$node setvar -open 1}
+	method selection {cmd {node ""}}
+	method toggle {node}
+	method query {option {node ""}}
+	method alternode {node option value}
+	method children {node}
+	method opennodes {node}
+
+	method xview {args}
+	method yview {args}
+    }
+
+    private {
+	common c_minusbmp  [file join $::swidgets::library "images" "minus.xbm"]
+	common c_plusbmp   [file join $::swidgets::library "images" "plus.xbm"]
+	common c_closedimg [image create photo -file \
+		[file join $::swidgets::library "images" closed.gif]]
+	common c_openimg   [image create photo -file \
+		[file join $::swidgets::library "images" open.gif]]
+	common c_leafimg   [image create photo -file \
+		[file join $::swidgets::library "images" leaf.gif]]
+	variable treeheight 0
+	variable root
+	variable selnode {}
+	variable selectBox ""
+	variable saveFill ""
+	variable idle ""
+	variable inSelectCmd 0
+	variable selectState "single"
+
+	method _cleanup_node {node}
+	method _get_node_name {{item current} {tagindex end-1}}
+
+	method _bind_text  {event script}
+	method _bind_image {event script}
+	method _bind_cross {event script}
+
+	method _call_selectcmd {tag}
+	method _call_multiselectcmd {type tag}
+	method _call_dblselectcmd {tag}
+
+	method _draw_node {node x y}
+	method _draw_subnodes {node x y}
+	method _draw_tree {}
+	method _redraw_tree {}
+	method _redraw_idle {}
+
+	method _item_popup {node x y}
+    }
+}
+
+#
+# Provide a lowercased access method for the Treenode class.
+#
+proc ::swidgets::tree {args} {
+    uplevel ::swidgets::Tree $args
+}
+
+# ------------------------------------------------------------
+#                      CONSTRUCTOR
+# ------------------------------------------------------------
+::itcl::body swidgets::Tree::constructor {args} {
+    # create root node
+    set root [swidgets::Treenode \#auto ""]
+    $root open "true"
+
+    # bounding frame
+    set frame [::frame $itk_interior.frame -borderwidth 2 -relief sunken]
+    itk_component add canvas {
+	::iwidgets::scrolledcanvas $frame.canvas \
+		-scrollmargin 0 \
+		-hscrollmode static \
+		-vscrollmode static \
+		-autoresize 0 \
+		-borderwidth 0
+    } {
+	keep -xscrollincrement
+	keep -xscrollincrement
+	#keep -background
+	#keep -highlightbackground -highlightcolor
+	keep -selectbackground -selectforeground
+	keep -width -height
+    }
+
+    pack $itk_component(canvas) -padx 0 -pady 0 -expand yes -fill both
+    pack $frame -padx 0 -pady 0 -expand yes -fill both
+
+    itk_component add popupmenu {
+	menu $itk_component(canvas).popupmenu -tearoff 0
+    } {
+	usual
+	ignore -tearoff
+	rename -cursor -menucursor menuCursor Cursor
+	keep -activebackground -activeforeground -activeborderwidth
+	keep -foreground -background
+    }
+
+    #
+    # Initialize the widget based on the command line options
+    #
+    eval itk_initialize $args
+
+    _bind_text  <Button-1> [list eval [::itcl::code $this _call_selectcmd]]
+    _bind_image <Button-1> [list eval [::itcl::code $this _call_selectcmd]]
+    _bind_text  <Double-Button-1> [list eval [::itcl::code $this _call_dblselectcmd]]
+    _bind_image <Double-Button-1> [list eval [::itcl::code $this _call_dblselectcmd]]
+    _bind_text  <Control-Button-1> [list eval [::itcl::code $this _call_multiselectcmd "control"]]
+    _bind_image <Control-Button-1> [list eval [::itcl::code $this _call_multiselectcmd "control"]]
+    _bind_text  <Shift-Button-1> [list eval [::itcl::code $this _call_multiselectcmd "shift"]]
+    _bind_image <Shift-Button-1> [list eval [::itcl::code $this _call_multiselectcmd "shift"]]
+
+    _bind_text  <Button-3> [list eval [::itcl::code $this _item_popup]]
+    _bind_image <Button-3> [list eval [::itcl::code $this _item_popup]]
+}
+
+::itcl::body swidgets::Tree::destructor {} {
+    _cleanup_node "root"
+}
+
+# ------------------------------------------------------------
+#                        OPTIONS
+# ------------------------------------------------------------
+::itcl::configbody swidgets::Tree::querycmd {}
+::itcl::configbody swidgets::Tree::selectmode {
+    switch -- $itk_option(-selectmode) {
+	"single" -
+	"multiple" {}
+	default {
+	    error "Tree::selectmode option must be 'single' or 'multiple'."
+	}
+    }
+}
+::itcl::configbody swidgets::Tree::selectcmd {}
+::itcl::configbody swidgets::Tree::dblselectcmd {}
+::itcl::configbody swidgets::Tree::textmenuloadcommand {}
+::itcl::configbody swidgets::Tree::background {
+    [$itk_component(canvas) component canvas] configure -background $itk_option(-background)
+}
+::itcl::configbody swidgets::Tree::sortmode {
+    switch -- $itk_option(-sortmode) {
+	"windows" -
+	"mac"     -
+	"none"    {}
+	default   {
+	    error "Tree::sortmode option must be 'windows', 'mac' or 'none'."
+	}
+    }
+}
+::itcl::configbody swidgets::Tree::openimage {}
+::itcl::configbody swidgets::Tree::disabledopenimage {}
+::itcl::configbody swidgets::Tree::closeimage {}
+::itcl::configbody swidgets::Tree::disabledcloseimage {}
+::itcl::configbody swidgets::Tree::nodeimage {}
+::itcl::configbody swidgets::Tree::disablednodeimage {}
+
+# ------------------------------------------------------------
+#                        METHODS
+# ------------------------------------------------------------
+::itcl::body swidgets::Tree::_cleanup_node {node} {
+    if { [string equal $node "root"] } {
+	set node $root
+    }
+    set children [$node get -children]
+
+    if {$children != ""} {
+	foreach kid $children {
+	    _cleanup_node $kid
+	}
+    }
+
+    ::itcl::delete object $node
+}
+
+::itcl::body swidgets::Tree::_get_node_name {{item current} {tagindex end-1}} {
+    return [string range [lindex [$itk_component(canvas) gettags $item] $tagindex] 2 end]
+}
+
+::itcl::body swidgets::Tree::_bind_text {event script} {
+    if {[string length $script]} {
+	append script " n:\[eval [::itcl::code $this _get_node_name current 1]]"
+    }
+
+    switch -- $event {
+	"<Button-3>" -
+	"<ButtonPress-3>" {append script " %x %y"}
+    }
+
+    $itk_component(canvas) bind "node" $event $script
+    if {$itk_option(-selectfill)} {
+	$itk_component(canvas) bind "box" $event $script
+    } else {
+	$itk_component(canvas) bind "box" $event {}
+    }
+}
+
+::itcl::body swidgets::Tree::_bind_image {event script} {
+    if {[string length $script]} {
+	append script " n:\[eval [::itcl::code $this _get_node_name current 1]]"
+    }
+
+    switch -- $event {
+	"<Button-3>" -
+	"<ButtonPress-3>" {append script " %x %y"}
+    }
+
+    $itk_component(canvas) bind "img" $event $script
+    if {$itk_option(-selectfill)} {
+	$itk_component(canvas) bind "box" $event $script
+    } else {
+	$itk_component(canvas) bind "box" $event {}
+    }
+}
+
+::itcl::body swidgets::Tree::_bind_cross {event script} {
+    if {[string length $script]} {
+	append script " n:\[eval [::itcl::code $this _get_node_name current 1]]"
+    }
+    $itk_component(canvas) bind "cross" $event $script
+}
+
+::itcl::body swidgets::Tree::_call_selectcmd {tag} {
+    if {$inSelectCmd} {
+	return
+    }
+    set inSelectCmd 1
+
+    set selectState "single"
+    selection clear
+    selection set $tag
+
+    # execute user defined select command
+    if {$itk_option(-selectcmd) != {}} {
+	# execute user defined select command
+	set cmd $itk_option(-selectcmd)
+	regsub -all {%n} $cmd [list $tag] cmd
+
+	uplevel #0 $cmd
+
+	#eval $itk_option(-selectcmd)
+    }
+
+    set inSelectCmd 0
+}
+
+::itcl::body swidgets::Tree::_call_multiselectcmd {type tag} {
+    if {$inSelectCmd} {
+	return
+    }
+    set inSelectCmd 1
+
+    set selectState "multiple"
+    switch -- $type {
+	"control" {
+	    selection set $tag
+	}
+	"shift" {
+	    selection to $tag
+	}
+    }
+
+    selection show
+    set selectState "single"
+    set inSelectCmd 0
+}
+
+::itcl::body swidgets::Tree::_call_dblselectcmd {tag} {
+    # highlighting will be done on first select
+
+    # execute user defined select command
+    if {$itk_option(-dblselectcmd) != {}} {
+	set cmd $itk_option(-dblselectcmd)
+	regsub -all {%n} $cmd [list $tag] cmd
+
+	uplevel #0 $cmd
+    }
+}
+
+::itcl::body swidgets::Tree::_draw_node {node x y} {
+    # draw this node
+    set x1 [expr {$x+$itk_option(-indent)+5}]
+    set y1 $y
+    if {$itk_option(-showlines)} {
+	$itk_component(canvas) create line $x $y $x1 $y \
+	    -fill    $itk_option(-linefill) \
+	    -stipple $itk_option(-linestipple) \
+	    -tags    line
+    }
+
+    $itk_component(canvas) create text [expr {$x1+20}] $y \
+	-text   [$node get -text] \
+	-fill   [$node get -color] \
+	-font   [$node get -font] \
+	-anchor w \
+	-tags   [list node n:$node]
+
+    # set node height plus padding
+    set nodeheight [expr $itk_option(-nodeheight) + $itk_option(-nodepad)]
+
+    # increment tree height
+    incr treeheight $nodeheight
+
+    set children [$node get -children]
+    set state [$node open]
+
+    # if open, draw children
+    if {[llength $children] && $state} {
+	set y1 [_draw_subnodes $node [expr {$x+$itk_option(-indent)}] $y]
+    }
+
+    set type [$node get -type]
+
+    if {$type != "leaf"} {
+	# determine cross
+	if {$state} {
+	    set bmp $c_minusbmp
+	} else {
+	    set bmp $c_plusbmp
+	}
+	# draw cross
+	$itk_component(canvas) create bitmap $x $y \
+		-bitmap     @@$bmp \
+		-background $itk_option(-background) \
+		-foreground black -anchor c \
+		-tags       [list cross c:$node]
+	_bind_cross <Button-1> [list eval [::itcl::code $this toggle]]
+    }
+
+    # determine image
+    set dimg ""
+    switch -- $type {
+	"branch" {
+	    if {$state} {
+		if {$itk_option(-openimage) != ""} {
+		    set img $itk_option(-openimage)
+		} else {
+		    set img $c_openimg
+		}
+
+		if {$itk_option(-disabledopenimage) != ""} {
+		    set dimg $itk_option(-disabledopenimage)
+		}
+	    } else {
+		if {$itk_option(-closeimage) != ""} {
+		    set img $itk_option(-closeimage)
+		} else {
+		    set img $c_closedimg
+		}
+
+		if {$itk_option(-disabledcloseimage) != ""} {
+		    set dimg $itk_option(-disabledcloseimage)
+		}
+	    }
+	}
+	"leaf"   -
+	default  {
+	    if {$itk_option(-nodeimage) != ""} {
+		set img $itk_option(-nodeimage)
+	    } else {
+		set img $c_leafimg
+	    }
+
+	    if {$itk_option(-disablednodeimage) != ""} {
+		set dimg $itk_option(-disablednodeimage)
+	    }
+	}
+    }
+
+    # draw image
+    if {$dimg != ""} {
+	$itk_component(canvas) create image $x1 $y \
+		-image $img \
+		-disabledimage $dimg \
+		-anchor w \
+		-tags [list img i:$node]
+    } else {
+	$itk_component(canvas) create image $x1 $y -image $img \
+		-anchor w \
+		-tags [list img i:$node]
+    }
+
+    if {[$node get -type] != "leaf"} {
+	if {$state} {
+	    set bmp $c_minusbmp
+	} else {
+	    set bmp $c_plusbmp
+	}
+
+	# draw cross
+	$itk_component(canvas) create bitmap $x $y \
+		-bitmap     @@$bmp \
+		-background $itk_option(-background) \
+		-foreground black -anchor c \
+		-tags       [list cross c:$node]
+	_bind_cross <Button-1> [list eval [::itcl::code $this toggle]]
+    } else {
+    }
+
+    #set box [$itk_component(canvas) bbox n:$node i:$node]
+    set box [$itk_component(canvas) bbox n:$node]
+    set id [$itk_component(canvas) create rect 0 [lindex $box 1] \
+		[winfo screenwidth .] [lindex $box 3] \
+		-tags [list box b:$node] \
+		-fill {} -outline {}]
+    $itk_component(canvas) lower $id
+
+    # set state
+    $itk_component(canvas) itemconfigure "i:$node" -state [$node get -state]
+
+    return $y1
+}
+
+::itcl::body swidgets::Tree::_draw_subnodes {node x y} {
+    set children [$node get -children]
+    if {$children == ""} {return ""}
+
+    # put children into ordered list
+    set childlist ""
+    switch -- $itk_option(-sortmode) {
+	"windows" {
+	    foreach kid $children {
+		if {[$kid get -type] == "leaf"} {
+		    set leafarray([$kid get -text]) $kid
+		} else {
+		    set brancharray([$kid get -text]) $kid
+		}
+	    }
+
+	    if [info exists brancharray] {
+		foreach kid [lsort -dictionary [array names brancharray]] {
+		    lappend childlist $brancharray($kid)
+		}
+	    }
+	    if [info exists leafarray] {
+		foreach kid [lsort -dictionary [array names leafarray]] {
+		    lappend childlist $leafarray($kid)
+		}
+	    }
+	}
+	"mac"     {
+	    foreach kid $children {
+		set childarray([$kid get -text]) $kid
+	    }
+	    foreach kid [lsort -dictionary [array names childarray]] {
+		lappend childlist $childarray($kid)
+	    }
+	}
+	"none"    {
+	    set childlist $children
+	}
+    }
+
+    # set node height plus padding
+    if {$y < 0} {set y 0}
+    set nodeheight [expr $itk_option(-nodeheight) + $itk_option(-nodepad)]
+
+    set y1 $y
+    if {$node == $root} {set y1 [expr $y1 - ($nodeheight/2)]}
+    foreach kid $childlist {
+	set yp $y1
+	set y1 [_draw_node $kid $x [expr $y1+$nodeheight]]
+    }
+
+    if {[llength $node] && $itk_option(-showlines)} {
+	set id [$itk_component(canvas) create line $x $y $x \
+		[expr $yp+$nodeheight] \
+		-fill    $itk_option(-linefill) \
+		-stipple $itk_option(-linestipple) \
+		-tags    line]
+
+	$itk_component(canvas) lower $id
+    }
+
+    return $y1
+}
+
+::itcl::body swidgets::Tree::_draw_tree {} {
+    $itk_component(canvas) delete all
+    set cursor [$itk_component(canvas) cget -cursor]
+    $itk_component(canvas) configure -cursor watch
+
+    # set node height plus padding
+    set nodeheight [expr $itk_option(-nodeheight) + $itk_option(-nodepad)]
+
+    set treeheight 0
+
+    # draw subnodes
+    _draw_subnodes $root 8 [expr {$nodeheight/2} * -1]
+
+    $itk_component(canvas) configure -cursor $cursor
+    set idle ""
+    update idletasks
+
+    set bbox [[$itk_component(canvas) component canvas] bbox all]
+    for {set i 0} {$i < [llength $bbox]} {incr i} {
+	if {[lindex $bbox $i] < 0} {
+	    set bbox [lreplace $bbox $i $i 0]
+	}
+    }
+    [$itk_component(canvas) component canvas] configure -scrollregion $bbox
+}
+
+::itcl::body swidgets::Tree::_redraw_tree {} {
+    _draw_tree
+    set selectBox ""
+
+    if {$selnode != {}} {
+	if [catch {selection set $selnode} err] {
+	    set selnode {}
+	    set saveFill ""
+	    set selectBox ""
+	}
+    } else {
+	set saveFill ""
+    }
+}
+
+::itcl::body swidgets::Tree::_redraw_idle {} {
+    if {$idle == ""} {
+	set idle [after idle eval [::itcl::code $this _redraw_tree]]
+    }
+}
+
+::itcl::body swidgets::Tree::_item_popup {node x y} {
+    if {[selection includes $node] == 0} {
+	selection set $node
+    }
+
+    set rx [expr [winfo rootx $itk_component(canvas)]+$x]
+    set ry [expr [winfo rooty $itk_component(canvas)]+$y]
+
+    if {$itk_option(-textmenuloadcommand) != {}} {
+	eval $itk_option(-textmenuloadcommand) $itk_component(popupmenu) $node
+    }
+
+    tk_popup $itk_component(popupmenu) $rx $ry
+}
+
+::itcl::body swidgets::Tree::component {{name ""}} {
+    switch -- $name {
+	""          {
+	    # this was put here to keep the itk::Widget destructor from barfing
+	}
+	"canvas"    {return $itk_component(canvas)}
+	"popupmenu" {return $itk_component(popupmenu)}
+	default     {
+	    error "bad component name \"$name\""
+	}
+    }
+}
+
+::itcl::body swidgets::Tree::insert {index parent text {type ""} {color ""} {clientData ""} {doDraw 1}} {
+    # create node
+    if { [string equal $parent "root"] } {
+	set parent $root
+    }
+    set newnode [swidgets::Treenode \#auto $parent]
+    $newnode setvar -text $text
+    $newnode setvar -type $type
+    if {$color != ""} {$newnode setvar -color $color}
+
+    if {$clientData != ""} {
+	$newnode setvar -clientData $clientData
+    }
+
+    # add this node to parent
+    $parent addchild $newnode $index
+    $newnode configure -level [expr [$parent cget -level] + 1]
+
+    if {$doDraw} {
+	if { [string equal $parent "root"] } {
+	    _redraw_idle
+	} else {
+	    if {[$parent open]} {
+		# ...and opened -> redraw whole
+		_redraw_idle
+	    } else {
+		# ...and closed -> redraw cross
+		_redraw_idle
+	    }
+	}
+    }
+
+    return $newnode
+}
+
+::itcl::body swidgets::Tree::find {text {parent "root"} {firstOnly 1}} {
+    if {$firstOnly} {
+	if {$text == "root"} {
+	    return $root
+	}
+
+	if {$parent == "root"} {
+	    set parent $root
+	}
+
+	# check parent
+	if {[$parent get -text] == $text} {
+	    return $parent
+	}
+
+	# check children
+	set result ""
+	foreach node [$parent get -children] {
+	    set result [find $text $node $firstOnly]
+	    if {$result != ""} {
+		break
+	    }
+	}
+
+	return $result
+    } else {
+	set result ""
+
+	if {$parent == "root"} {
+	    set parent $root
+	}
+
+	# check parent
+	if {[$parent get -text] == $text} {
+	    lappend result $parent
+	}
+
+	# check children
+	foreach node [$parent get -children] {
+	    set tmp [find $text $node $firstOnly]
+	    if {$tmp != ""} {
+		eval lappend result $tmp
+	    }
+	}
+
+	return $result
+    }
+}
+
+::itcl::body swidgets::Tree::remove {node {redraw 1}} {
+    set parent [$node get -parent]
+    if {[$parent removechild $node] != -1} {
+	set children [$node get -children]
+	foreach child $children {
+	    remove $child 0
+	}
+	_cleanup_node $node
+    }
+
+    if {$redraw} {
+	_redraw_idle
+    }
+}
+
+::itcl::body swidgets::Tree::removeall {} {
+    foreach child [$root get -children] {
+	remove $child 0
+    }
+
+    _redraw_idle
+}
+
+::itcl::body swidgets::Tree::selection {cmd {node ""}} {
+    switch -- $cmd {
+	set {
+	    if {$node == ""} {
+		return
+	    }
+
+	    if {[string first "n:" $node] == -1} {
+		set node "n:$node"
+	    }
+
+	    # clear selection list if in single select mode
+	    if {$selectState == "single"} {
+		selection clear
+	    }
+
+	    if {$selnode != {}} {
+		# check to see if node is already in select list ...
+		# if so, then remove ... if not add it
+		if [selection includes $node] {
+		    selection remove $node
+		    return
+		} else {
+		    # add to list
+		    lappend selnode $node
+		}
+	    } else {
+		# add to list
+		set selnode $node
+	    }
+
+	    if {$selectState == "single"} {
+		selection show
+	    }
+	}
+	to {
+	    if {$node == ""} {
+		return
+	    }
+
+	    if {[string first "n:" $node] == -1} {
+		set node "n:$node"
+	    }
+
+	    if {$itk_option(-selectmode) == "single" ||
+	    $selnode == {}} {
+		selection set $node
+		return
+	    }
+
+	    # getting bounding boxes of start and end stuff
+	    set start [lindex $selnode end]
+	    set startbox [$itk_component(canvas) bbox $start]
+	    set endbox [$itk_component(canvas) bbox $node]
+
+	    # get the biggest bounding box possible
+	    set coords ""
+	    if {[lindex $startbox 0] < [lindex $endbox 0]} {
+		lappend coords [lindex $startbox 0]
+	    } else {
+		lappend coords [lindex $endbox 0]
+	    }
+	    if {[lindex $startbox 1] < [lindex $endbox 1]} {
+		lappend coords [lindex $startbox 1]
+	    } else {
+		lappend coords [lindex $endbox 1]
+	    }
+	    if {[lindex $startbox 2] > [lindex $endbox 2]} {
+		lappend coords [lindex $startbox 2]
+	    } else {
+		lappend coords [lindex $endbox 2]
+	    }
+	    if {[lindex $startbox 3] > [lindex $endbox 3]} {
+		lappend coords [lindex $startbox 3]
+	    } else {
+		lappend coords [lindex $endbox 3]
+	    }
+
+	    # clear the current selection and select the desired nodes
+	    selection clear
+	    foreach id [eval $itk_component(canvas) find overlapping $coords] {
+		set tnode [lindex [split [lindex [$itk_component(canvas) gettags $id] 1] :] 1]
+		if {[selection includes $tnode] == 0} {
+		    selection set $tnode
+		}
+	    }
+	}
+	remove {
+	    if {$node == ""} {
+		return
+	    }
+
+	    if {[string first "n:" $node] == -1} {
+		set node "n:$node"
+	    }
+
+	    # remove from list
+	    set idx [lsearch -exact $selnode $node]
+	    if {$idx < 0} {return}
+
+	    set fill [lindex $saveFill $idx]
+
+	    set selnode [lreplace $selnode $idx $idx]
+	    set saveFill [lreplace $saveFill $idx $idx]
+	    if {$selnode == ""} {
+		set selnode {}
+	    }
+
+	    if {$fill == ""} {
+		set fill $itk_option(-foreground)
+	    }
+	    $itk_component(canvas) itemconfigure $selnode \
+		-fill $fill
+
+	    # remove hilight box
+	    $itk_component(canvas) delete selectBox_$node
+	    $itk_component(canvas) itemconfigure $node \
+		-fill $fill
+	}
+	clear {
+	    # Unhighlight selnode
+	    if {$selnode != {}} {
+		foreach node $selnode {
+		    selection remove $node
+		}
+	    }
+	}
+	get {
+	    set sel {}
+	    foreach node $selnode {
+		lappend sel [lindex [split $node :] 1]
+	    }
+	    return $sel
+	}
+	includes {
+	    if {$node == ""} {
+		return
+	    }
+
+	    if {[string first "n:" $node] == -1} {
+		set node "n:$node"
+	    }
+
+	    return [expr {[lsearch -exact $selnode $node] != -1}]
+	}
+	show {
+	    set saveFill ""
+
+	    foreach node $selnode {
+		catch {$itk_component(canvas) delete selectBox_$node}
+
+		# Create the selection box
+		set selectBox [$itk_component(canvas) create rectangle -10 -10 -10 -10 \
+			-tags selectBox_$node \
+			-fill $itk_option(-foreground) \
+			-outline $itk_option(-foreground)]
+
+		# Save the fill color
+		set snode [lindex [split $node :] 1]
+		lappend saveFill [$snode get -color]
+
+		# Highlight selnode
+		set coords [$itk_component(canvas) bbox $node]
+		eval $itk_component(canvas) coords selectBox_$node $coords
+		$itk_component(canvas) itemconfigure $node \
+			-fill $itk_option(-background)
+		$itk_component(canvas) lower selectBox_$node
+	    }
+	}
+	toggle -
+	default {return}
+    }
+}
+
+::itcl::body swidgets::Tree::toggle {node} {
+    # ensures only one selnode
+    selection clear
+    selection set $node
+
+    set node [lindex [split $selnode ":"] 1]
+
+    switch -- [$node open] {
+	"0" {
+	    $node open 1
+	    if {[$node get -children] == "" && $itk_option(-querycmd) != {}} {
+		set cmd $itk_option(-querycmd)
+		regsub -all {%n} $cmd $node cmd
+
+		uplevel \#0 $cmd
+		#eval $itk_option(-querycmd)
+	    }
+	}
+	"1" {$node open 0}
+    }
+    _redraw_idle
+    _call_selectcmd $selnode
+}
+
+::itcl::body swidgets::Tree::query {option {node ""}} {
+    switch -- $option {
+	"-selected" {
+	    if {$node == ""} {return [selection get]}
+	    return [selection includes $node]
+	}
+	"-nodetype" {return [$node get -type]}
+	"-text"     {return [$node get -text]}
+	"-parent"   {return [$node get -parent]}
+	"-children" {return [$node get -children]}
+	"-open"     {return [$node get -open]}
+	"-font"     {return [$node get -font]}
+	"-color"    {return [$node get -color]}
+	"-tglstate" {return [$node open]}
+	"-path"     {
+	    set parent [$node get -parent]
+	    set path [$node get -text]
+	    while {[$parent get -text] != ""} {
+		set path [file join [$parent get -text] $path]
+		set parent [$parent get -parent]
+	    }
+	    return $path
+	}
+	"-clientData"    {return [$node get -clientData]}
+	default     {return ""}
+    }
+}
+
+::itcl::body swidgets::Tree::alternode {node option value} {
+    $node setvar $option $value
+    _redraw_idle
+}
+
+::itcl::body swidgets::Tree::children {node} {
+    return [$node get -children]
+}
+
+::itcl::body swidgets::Tree::opennodes {node} {
+    if {$node == "root"} {
+	set node $root
+	set open ""
+    } else {
+	# if this node isn't open stop looking
+	if {[$node get -open] == 0} {return ""}
+
+	# add this node to the open list
+	set open $node
+    }
+
+    # check to see if any of my children are open
+    foreach kid [$node get -children] {
+	foreach opennode [opennodes $kid] {
+	    lappend open $opennode
+	}
+    }
+
+    return $open
+}
+
+::itcl::body swidgets::Tree::xview {args} {
+    return [eval [list $itk_component(canvas) xview] $args]
+}
+
+::itcl::body swidgets::Tree::yview {args} {
+    return [eval [list $itk_component(canvas) yview] $args]
+}
+
+# Local Variables:
+# mode: Tcl
+# tab-width: 8
+# c-basic-offset: 4
+# tcl-indent-level: 4
+# indent-tabs-mode: t
+# End:
+# ex: shiftwidth=4 tabstop=8
+@
+
+
+1.10
+log
+@ws. lots and lots of ws.  see sh/ws.sh for details (cases 'abcdeg').
+@
+text
+@d175 1
+a175 1
+	method insert {index parent text {type ""} {color ""} {clientData ""}}
+d730 1
+a730 1
+::itcl::body swidgets::Tree::insert {index parent text {type ""} {color ""} {clientData ""}} {
+d748 2
+a749 6
+    # set
+    if { [string equal $parent "root"] } {
+	_redraw_idle
+    } else {
+	if {[$parent open]} {
+	    # ...and opened -> redraw whole
+d752 7
+a758 2
+	    # ...and closed -> redraw cross
+	    _redraw_idle
+@
+
+
+1.9
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@d117 1
+a117 1
+        lappend subnodes $node
+d119 1
+a119 1
+        set subnodes [linsert $subnodes $index $node]
+d151 2
+a152 2
+    itk_option define -nodeheight nodeHeight Height 15 
+    itk_option define -nodepad nodePad Height 2 
+d276 1
+a276 1
+    
+d298 1
+a298 1
+ 
+d452 1
+a452 1
+    
+d462 4
+a465 4
+        $itk_component(canvas) create line $x $y $x1 $y \
+            -fill    $itk_option(-linefill) \
+            -stipple $itk_option(-linestipple) \
+            -tags    line
+d469 4
+a472 4
+        -text   [$node get -text] \
+        -fill   [$node get -color] \
+        -font   [$node get -font] \
+        -anchor w \
+d503 1
+a503 1
+		-tags       [list cross c:$node] 
+d517 1
+a517 1
+		
+d527 1
+a527 1
+		
+d540 1
+a540 1
+	    
+d572 1
+a572 1
+		-tags       [list cross c:$node] 
+d643 1
+a643 1
+        set id [$itk_component(canvas) create line $x $y $x \
+d649 1
+a649 1
+        $itk_component(canvas) lower $id
+d667 1
+a667 1
+    
+d709 1
+a709 1
+    
+d735 1
+a735 1
+    set newnode [swidgets::Treenode \#auto $parent] 
+d748 1
+a748 1
+    # set 
+d750 1
+a750 1
+        _redraw_idle
+d753 6
+a758 6
+            # ...and opened -> redraw whole
+            _redraw_idle
+        } else {
+            # ...and closed -> redraw cross
+            _redraw_idle
+        }
+d774 1
+a774 1
+	# check parent 
+d796 1
+a796 1
+	# check parent 
+d875 1
+a875 1
+	    
+d879 1
+a879 1
+    
+d927 1
+a927 1
+	    
+d931 1
+a931 1
+    
+d949 1
+a949 1
+	    
+d974 1
+a974 1
+	    
+d978 1
+a978 1
+    
+d992 1
+a992 1
+		
+d996 1
+a996 1
+		
+@
+
+
+1.8
+log
+@update copyright to 2007
+@
+text
+@d9 1
+a9 2
+# as published by the Free Software Foundation; either version 2 of
+# the License, or (at your option) any later version.
+@
+
+
+1.7
+log
+@Check-in for Doug Howard. These mods are for handling bigger trees.
+@
+text
+@d4 1
+a4 1
+# Copyright (c) 2006 United States Government as represented by
+@
+
+
+1.6
+log
+@Check-in for Doug Howard. Mods to support multi-select and cut-n-paste.
+@
+text
+@d248 4
+a251 3
+    itk_component add frame {
+	iwidgets::scrolledframe $itk_interior.sframe \
+		-relief sunken \
+d254 2
+a255 12
+		-borderwidth 2
+    } {
+	rename -width -framewidth frameWidth Width
+	rename -height -frameheight frameheight Height
+    }
+
+    set childsite [$itk_component(frame) childsite]
+    itk_component add canvas {
+	::canvas $childsite.canvas \
+		-borderwidth 0 \
+		-relief sunken \
+		-highlightthickness 0
+d257 1
+d260 1
+a260 1
+	keep -highlightbackground -highlightcolor
+d264 1
+a264 1
+    
+d266 1
+a266 1
+    pack $itk_component(frame) -padx 0 -pady 0 -expand yes -fill both
+d317 1
+a317 2
+    [$itk_component(frame) component canvas] configure -background $itk_option(-background)
+    $itk_component(canvas) configure -background $itk_option(-background)
+d502 1
+a502 1
+		-background [$itk_component(canvas) cget -background] \
+d510 12
+a521 14
+    if {$type != "leaf"} {
+	if {$state} {
+	    if {$itk_option(-openimage) != ""} {
+		set img $itk_option(-openimage)
+	    } else {
+		set img $c_openimg
+	    }
+	    
+	    if {$itk_option(-disabledopenimage) != ""} {
+		set dimg $itk_option(-disabledopenimage)
+	    }
+	} else {
+	    if {$itk_option(-closeimage) != ""} {
+		set img $itk_option(-closeimage)
+a522 10
+		set img $c_closedimg
+	    }
+	    
+	    if {$itk_option(-disabledcloseimage) != ""} {
+		set dimg $itk_option(-disabledcloseimage)
+	    }
+	}
+    } else {
+	switch -- $type {
+	    "branch" {
+d528 1
+a528 1
+	    
+d533 8
+a540 7
+	    "leaf"   -
+	    default  {
+		if {$itk_option(-nodeimage) != ""} {
+		    set img $itk_option(-nodeimage)
+		} else {
+		    set img $c_leafimg
+		}
+d542 2
+a543 3
+		if {$itk_option(-disablednodeimage) != ""} {
+		    set dimg $itk_option(-disablednodeimage)
+		}
+d547 1
+d571 1
+a571 1
+		-background [$itk_component(canvas) cget -background] \
+d633 1
+d637 1
+d668 2
+a669 3
+
+    $itk_component(canvas) configure -height $treeheight -cursor $cursor
+
+d672 8
+a723 1
+	"frame"     {return $itk_component(frame)}
+d1024 1
+a1024 1
+		
+d1095 1
+a1095 1
+    return [eval [list $itk_component(frame) xview] $args]
+d1099 1
+a1099 1
+    return [eval [list $itk_component(frame) yview] $args]
+@
+
+
+1.5
+log
+@Check-in for Doug Howard. Added a -sortmode option.
+@
+text
+@d51 1
+d85 1
+d97 16
+d162 1
+d164 1
+d166 1
+d209 1
+d339 1
+d341 1
+d343 1
+d416 1
+d440 1
+d450 2
+d518 1
+d526 4
+d536 4
+d549 4
+d561 4
+d569 11
+a579 2
+    $itk_component(canvas) create image $x1 $y -image $img -anchor w \
+	    -tags [list img i:$node]
+d606 3
+d715 4
+a718 1
+    selection set $node
+d861 1
+a861 1
+	    if {$itk_option(-selectmode) == "single"} {
+d880 3
+a882 16
+	    # Create the selection box
+	    set selectBox [$itk_component(canvas) create rectangle -10 -10 -10 -10 \
+		    -tags selectBox_$node \
+		    -fill $itk_option(-foreground) \
+		    -outline $itk_option(-foreground)]
+
+	    # Save the fill color
+	    set snode [lindex [split $node :] 1]
+	    set saveFill [$snode get -color]
+
+	    # Highlight selnode
+	    set coords [$itk_component(canvas) bbox $node]
+	    eval $itk_component(canvas) coords selectBox_$node $coords
+	    $itk_component(canvas) itemconfigure $node \
+		-fill $itk_option(-background)
+	    $itk_component(canvas) lower selectBox_$node
+d930 4
+a933 2
+		set tnode [lindex [$itk_component(canvas) gettags $id] 1]
+		selection set $tnode
+d949 2
+d952 1
+d957 1
+a957 1
+	    if {$saveFill == ""} {
+a958 2
+	    } else {
+		set fill $saveFill
+a966 2
+
+	    set saveFill ""
+d977 5
+a981 1
+	    return $selnode
+d994 24
+@
+
+
+1.4
+log
+@to quote Bob's commit to src/archer/archer "All of archer including the tclscripts is assigned to u.s. government and should be under the LGPL" so add the boilerplate legal header.  the COPYING file requires this regardless for all commits whether implicit or explicit.  also add the boilerplate variables footer while we're at it.
+@
+text
+@d141 1
+d306 10
+d558 36
+d598 1
+a598 1
+    foreach kid $children {
+@
+
+
+1.3
+log
+@Check-in for Doug Howard.
+@
+text
+@d1 15
+a15 2
+# TYPE: tcltk
+##############################################################
+d17 3
+a19 1
+# tree.itk
+d21 1
+a21 1
+##############################################################
+d989 9
+@
+
+
+1.2
+log
+@Merge of bobWinPort
+@
+text
+@d138 1
+a138 1
+	method component {name}
+d606 1
+a606 1
+::itcl::body swidgets::Tree::component {name} {
+d608 3
+d732 1
+a732 1
+	    
+a741 3
+	    set snode [lindex [split $node :] 1]
+	    set color [$snode get -color]
+
+a750 1
+		    lappend saveFill $color
+a754 1
+		set saveFill $color
+a756 3
+
+	    # deal with drawing selection box
+
+d763 3
+a836 6
+	    if {[lindex $saveFill $idx] == ""} {
+		set fill $itk_option(-foreground)
+	    } else {
+		set fill [lindex $saveFill $idx]
+	    }
+
+a837 1
+	    set saveFill [lreplace $saveFill $idx $idx]
+a839 1
+		set saveFill ""
+d842 8
+d854 2
+@
+
+
+1.1
+log
+@file tree.itk was initially added on branch bobWinPort.
+@
+text
+@d1 973
+@
+
+
+1.1.2.1
+log
+@Initial check-in
+@
+text
+@a0 802
+# TYPE: tcltk
+##############################################################
+#
+# tree.itk
+#
+##############################################################
+#
+# Description:
+#    Standard tree control.
+#
+##############################################################
+
+itcl::class swidgets::Treenode {
+    constructor {par} {}
+    destructor {}
+
+    public {
+	variable level -1
+
+	method get {option}
+	method setvar {option args}
+	method addchild {node index}
+	method removechild {node}
+	method open {{state ""}}
+    }
+
+    private {
+	variable text ""
+	variable parent ""
+	variable subnodes ""
+	variable nodetype ""
+	variable font {SystemWindowText 8}; # "courier 10"
+	variable color "black"
+	variable open 0
+	variable clientData ""
+    }
+}
+
+#
+# Provide a lowercased access method for the Treenode class.
+#
+proc ::swidgets::treenode {parent args} {
+    uplevel ::swidgets::Treenode $parent $args
+}
+
+::itcl::body swidgets::Treenode::constructor {par} {
+    set parent $par
+}
+
+::itcl::body swidgets::Treenode::destructor {} {
+    unset subnodes
+}
+
+::itcl::body swidgets::Treenode::get {option} {
+    switch -- $option {
+	"-text"     {return $text}
+	"-parent"   {return $parent}
+	"-children" {return $subnodes}
+	"-open"     {return $open}
+	"-font"     {return $font}
+	"-color"    {return $color}
+	"-type"     {
+	    if {$nodetype != ""} {return $nodetype}
+
+	    if {[llength $subnodes]} {return "branch"}
+	    return "leaf"
+	}
+	"-clientData"    {return $clientData}
+    }
+}
+
+::itcl::body swidgets::Treenode::setvar {option value} {
+    switch -- $option {
+	"-text"     {set text $value}
+	"-open"     {set open $value}
+	"-font"     {set font $value}
+	"-color"    {set color $value}
+	"-type"     {set nodetype $value}
+	"-clientData" {set clientData $value}
+    }
+}
+
+::itcl::body swidgets::Treenode::addchild {node index} {
+    if {[string equal $index "end"]} {
+        lappend subnodes $node
+    } else {
+        set subnodes [linsert $subnodes $index $node]
+    }
+}
+
+::itcl::body swidgets::Treenode::removechild {node} {
+    if {[set idx [lsearch -exact $subnodes $node]] != -1} {
+	set subnodes [lreplace $subnodes $idx $idx]
+	return $node
+    }
+
+    return $idx
+}
+
+::itcl::body swidgets::Treenode::open {{state ""}} {
+    if {$state == ""} {return [get -open]}
+
+    switch -- $state {
+	"0" -
+	"false" {set open 0}
+	"1" -
+	"true"  {set open 1}
+	default {error "bad state \"$state\""}
+    }
+}
+
+itcl::class swidgets::Tree {
+    inherit itk::Widget
+
+    constructor {args} {}
+    destructor {}
+
+    itk_option define -indent indent Indent 10
+    itk_option define -nodeheight nodeHeight Height 15 
+    itk_option define -nodepad nodePad Height 2 
+    itk_option define -showlines showlines Showline 1
+    itk_option define -linefill lineFill LineFill black
+    itk_option define -linestipple lineStipple LineStipple ""
+    itk_option define -selectfill selectFill Boolean 0
+    itk_option define -background background Background "white"
+
+    itk_option define -openimage openImage Image ""
+    itk_option define -closeimage closeImage Image ""
+    itk_option define -nodeimage nodeImage Image ""
+
+    itk_option define -querycmd queryCmd Command {}
+    itk_option define -selectcmd selectCmd Command {}
+    itk_option define -dblselectcmd dblSelectCmd Command {}
+    itk_option define -textmenuloadcommand textMenuLoadCommand Command {}
+
+    public {
+	method component {name}
+	method insert {index parent text {type ""} {color ""} {clientData ""}}
+	method find {text {parent "root"} {firstOnly 1}}
+	method remove {node}
+	method removeall {}
+	method redraw {} {_redraw_tree}
+	method expand {node} {$node setvar -open 1}
+	method selection {cmd {node ""}}
+	method toggle {node}
+	method query {option {node ""}}
+	method alternode {node option value}
+	method children {node}
+	method opennodes {node}
+
+	method xview {args}
+	method yview {args}
+    }
+
+    private {
+	common c_minusbmp  [file join $::swidgets::library "images" "minus.xbm"]
+	common c_plusbmp   [file join $::swidgets::library "images" "plus.xbm"]
+	common c_closedimg [image create photo -file \
+		[file join $::swidgets::library "images" closed.gif]]
+	common c_openimg   [image create photo -file \
+		[file join $::swidgets::library "images" open.gif]]
+	common c_leafimg   [image create photo -file \
+		[file join $::swidgets::library "images" leaf.gif]]
+	variable treeheight 0
+	variable root
+	variable selnode {}
+	variable idle ""
+
+	method _cleanup_node {node}
+	method _get_node_name {{item current} {tagindex end-1}}
+
+	method _bind_text  {event script}
+	method _bind_image {event script}
+	method _bind_cross {event script}
+
+	method _call_selectcmd {tag}
+	method _call_dblselectcmd {tag}
+
+	method _draw_node {node x y}
+	method _draw_subnodes {node x y}
+	method _draw_tree {}
+	method _redraw_tree {}
+	method _redraw_idle {}
+
+	method _item_popup {node x y}
+    }
+}
+
+#
+# Provide a lowercased access method for the Treenode class.
+#
+proc ::swidgets::tree {args} {
+    uplevel ::swidgets::Tree $args
+}
+
+# ------------------------------------------------------------
+#                      CONSTRUCTOR
+# ------------------------------------------------------------
+::itcl::body swidgets::Tree::constructor {args} {
+    # create root node
+    set root [swidgets::Treenode #auto ""]
+    $root open "true"
+
+    # bounding frame
+    itk_component add frame {
+	iwidgets::scrolledframe $itk_interior.sframe \
+		-relief sunken \
+		-hscrollmode static \
+		-vscrollmode static \
+		-borderwidth 2
+    } {
+	rename -width -framewidth frameWidth Width
+	rename -height -frameheight frameheight Height
+    }
+
+    set childsite [$itk_component(frame) childsite]
+    itk_component add canvas {
+	::canvas $childsite.canvas \
+		-borderwidth 0 \
+		-relief sunken \
+		-highlightthickness 0
+    } {
+	keep -xscrollincrement
+	#keep -background
+	keep -highlightbackground -highlightcolor
+	keep -selectbackground -selectforeground
+	keep -width -height
+    }
+    
+    pack $itk_component(canvas) -padx 0 -pady 0 -expand yes -fill both
+    pack $itk_component(frame) -padx 0 -pady 0 -expand yes -fill both
+
+    itk_component add popupmenu {
+	menu $itk_component(canvas).popupmenu -tearoff 0
+    } {
+	usual
+	ignore -tearoff
+	rename -cursor -menucursor menuCursor Cursor
+	keep -activebackground -activeforeground -activeborderwidth
+	keep -foreground -background
+    }
+    
+    #
+    # Initialize the widget based on the command line options
+    #
+    eval itk_initialize $args
+
+    _bind_text  <Button-1> [list eval [::itcl::code $this _call_selectcmd]]
+    _bind_image <Button-1> [list eval [::itcl::code $this _call_selectcmd]]
+    _bind_text  <Double-Button-1> [list eval [::itcl::code $this _call_dblselectcmd]]
+    _bind_image <Double-Button-1> [list eval [::itcl::code $this _call_dblselectcmd]]
+
+    _bind_text  <Button-3> [list eval [::itcl::code $this _item_popup]]
+    _bind_image <Button-3> [list eval [::itcl::code $this _item_popup]]
+}
+
+::itcl::body swidgets::Tree::destructor {} {
+    _cleanup_node "root"
+}
+ 
+# ------------------------------------------------------------
+#                        OPTIONS
+# ------------------------------------------------------------
+::itcl::configbody swidgets::Tree::querycmd {}
+::itcl::configbody swidgets::Tree::selectcmd {}
+::itcl::configbody swidgets::Tree::dblselectcmd {}
+::itcl::configbody swidgets::Tree::textmenuloadcommand {}
+::itcl::configbody swidgets::Tree::background {
+    [$itk_component(frame) component canvas] configure -background $itk_option(-background)
+    $itk_component(canvas) configure -background $itk_option(-background)
+}
+::itcl::configbody swidgets::Tree::openimage {}
+::itcl::configbody swidgets::Tree::closeimage {}
+::itcl::configbody swidgets::Tree::nodeimage {}
+
+# ------------------------------------------------------------
+#                        METHODS
+# ------------------------------------------------------------
+::itcl::body swidgets::Tree::_cleanup_node {node} {
+    if { [string equal $node "root"] } {
+	set node $root
+    }
+    set children [$node get -children]
+
+    if {$children != ""} {
+	foreach kid $children {
+	    _cleanup_node $kid
+	}
+    }
+
+    ::itcl::delete object $node
+}
+
+::itcl::body swidgets::Tree::_get_node_name {{item current} {tagindex end-1}} {
+    return [string range [lindex [$itk_component(canvas) gettags $item] $tagindex] 2 end]
+}
+
+::itcl::body swidgets::Tree::_bind_text {event script} {
+    if {[string length $script]} {
+	append script " n:\[eval [::itcl::code $this _get_node_name current 1]]"
+    }
+
+    switch -- $event {
+	"<Button-3>" -
+	"<ButtonPress-3>" {append script " %x %y"}
+    }
+
+    $itk_component(canvas) bind "node" $event $script
+    if {$itk_option(-selectfill)} {
+	$itk_component(canvas) bind "box" $event $script
+    } else {
+	$itk_component(canvas) bind "box" $event {}
+    }
+}
+
+::itcl::body swidgets::Tree::_bind_image {event script} {
+    if {[string length $script]} {
+	append script " n:\[eval [::itcl::code $this _get_node_name current 1]]"
+    }
+
+    switch -- $event {
+	"<Button-3>" -
+	"<ButtonPress-3>" {append script " %x %y"}
+    }
+
+    $itk_component(canvas) bind "img" $event $script
+    if {$itk_option(-selectfill)} {
+	$itk_component(canvas) bind "box" $event $script
+    } else {
+	$itk_component(canvas) bind "box" $event {}
+    }
+}
+
+::itcl::body swidgets::Tree::_bind_cross {event script} {
+    if {[string length $script]} {
+	append script " n:\[eval [::itcl::code $this _get_node_name current 1]]"
+    }
+    $itk_component(canvas) bind "cross" $event $script
+}
+
+::itcl::body swidgets::Tree::_call_selectcmd {tag} {
+    selection set $tag
+
+    # execute user defined select command
+    if {$itk_option(-selectcmd) != {}} {
+	# execute user defined select command
+	set cmd $itk_option(-selectcmd)
+	regsub -all {%n} $cmd [list $tag] cmd
+
+	uplevel #0 $cmd
+
+	#eval $itk_option(-selectcmd)
+    }
+}
+
+::itcl::body swidgets::Tree::_call_dblselectcmd {tag} {
+    # highlighting will be done on first select
+
+    # execute user defined select command
+    if {$itk_option(-dblselectcmd) != {}} {
+	set cmd $itk_option(-dblselectcmd)
+	regsub -all {%n} $cmd [list $tag] cmd
+    
+	uplevel #0 $cmd
+    }
+}
+
+::itcl::body swidgets::Tree::_draw_node {node x y} {
+    # draw this node
+    set x1 [expr {$x+$itk_option(-indent)+5}]
+    set y1 $y
+    if {$itk_option(-showlines)} {
+        $itk_component(canvas) create line $x $y $x1 $y \
+            -fill    $itk_option(-linefill) \
+            -stipple $itk_option(-linestipple) \
+            -tags    line
+    }
+
+    $itk_component(canvas) create text [expr {$x1+20}] $y \
+        -text   [$node get -text] \
+        -fill   [$node get -color] \
+        -font   [$node get -font] \
+        -anchor w \
+	-tags   [list node n:$node]
+
+    # set node height plus padding
+    set nodeheight [expr $itk_option(-nodeheight) + $itk_option(-nodepad)]
+
+    # increment tree height
+    incr treeheight $nodeheight
+
+    set children [$node get -children]
+    set state [$node open]
+
+    # if open, draw children
+    if {[llength $children] && $state} {
+	set y1 [_draw_subnodes $node [expr {$x+$itk_option(-indent)}] $y]
+    }
+
+    set type [$node get -type]
+
+    if {$type != "leaf"} {
+	# determine cross
+	if {$state} {
+	    set bmp $c_minusbmp
+	} else {
+	    set bmp $c_plusbmp
+	}
+	# draw cross
+	$itk_component(canvas) create bitmap $x $y \
+		-bitmap     @@$bmp \
+		-background [$itk_component(canvas) cget -background] \
+		-foreground black -anchor c \
+		-tags       [list cross c:$node] 
+	_bind_cross <Button-1> [list eval [::itcl::code $this toggle]]
+    }
+
+    # determine image
+    if {$type != "leaf"} {
+	if {$state} {
+	    if {$itk_option(-openimage) != ""} {
+		set img $itk_option(-openimage)
+	    } else {
+		set img $c_openimg
+	    }
+	} else {
+	    if {$itk_option(-closeimage) != ""} {
+		set img $itk_option(-closeimage)
+	    } else {
+		set img $c_closedimg
+	    }
+	}
+    } else {
+	switch -- $type {
+	    "branch" {
+		if {$itk_option(-closeimage) != ""} {
+		    set img $itk_option(-closeimage)
+		} else {
+		    set img $c_closedimg
+		}
+	    }
+	    "leaf"   -
+	    default  {
+		if {$itk_option(-nodeimage) != ""} {
+		    set img $itk_option(-nodeimage)
+		} else {
+		    set img $c_leafimg
+		}
+	    }
+	}
+    }
+    # draw image
+    $itk_component(canvas) create image $x1 $y -image $img -anchor w \
+	    -tags [list img i:$node]
+
+    if {[$node get -type] != "leaf"} {
+	if {$state} {
+	    set bmp $c_minusbmp
+	} else {
+	    set bmp $c_plusbmp
+	}
+
+	# draw cross
+	$itk_component(canvas) create bitmap $x $y \
+		-bitmap     @@$bmp \
+		-background [$itk_component(canvas) cget -background] \
+		-foreground black -anchor c \
+		-tags       [list cross c:$node] 
+	_bind_cross <Button-1> [list eval [::itcl::code $this toggle]]
+    } else {
+    }
+
+    #set box [$itk_component(canvas) bbox n:$node i:$node]
+    set box [$itk_component(canvas) bbox n:$node]
+    set id [$itk_component(canvas) create rect 0 [lindex $box 1] \
+		[winfo screenwidth .] [lindex $box 3] \
+		-tags [list box b:$node] \
+		-fill {} -outline {}]
+    $itk_component(canvas) lower $id
+
+    return $y1
+}
+
+::itcl::body swidgets::Tree::_draw_subnodes {node x y} {
+    set children [$node get -children]
+    if {$children == ""} {return ""}
+
+    # set node height plus padding
+    set nodeheight [expr $itk_option(-nodeheight) + $itk_option(-nodepad)]
+
+    set y1 $y
+    foreach kid $children {
+	set yp $y1
+	set y1 [_draw_node $kid $x [expr $y1+$nodeheight]]
+    }
+
+    if {[llength $node] && $itk_option(-showlines)} {
+        set id [$itk_component(canvas) create line $x $y $x \
+		[expr $yp+$nodeheight] \
+		-fill    $itk_option(-linefill) \
+		-stipple $itk_option(-linestipple) \
+		-tags    line]
+
+        $itk_component(canvas) lower $id
+    }
+
+    return $y1
+}
+
+::itcl::body swidgets::Tree::_draw_tree {} {
+    $itk_component(canvas) delete all
+    set cursor [$itk_component(canvas) cget -cursor]
+    $itk_component(canvas) configure -cursor watch
+
+    # set node height plus padding
+    set nodeheight [expr $itk_option(-nodeheight) + $itk_option(-nodepad)]
+
+    set treeheight 0
+
+    # draw subnodes
+    _draw_subnodes $root 8 [expr {$nodeheight/2} * -1]
+
+    $itk_component(canvas) configure -height $treeheight -cursor $cursor
+
+    set idle ""
+    update idletasks
+}
+
+::itcl::body swidgets::Tree::_redraw_tree {} {
+    _draw_tree
+    if {$selnode != {}} {
+	if [catch {selection set $selnode} err] {
+	    set selnode {}
+	}
+    }
+}
+
+::itcl::body swidgets::Tree::_redraw_idle {} {
+    if {$idle == ""} {
+	set idle [after idle eval [::itcl::code $this _redraw_tree]]
+    }
+}
+
+::itcl::body swidgets::Tree::_item_popup {node x y} {
+    selection set $node
+
+    if {0} {
+	set rx [expr [winfo rootx $itk_component(frame)]+$x]
+	set ry [expr [winfo rooty $itk_component(frame)]+$y]
+    } else {
+	set rx [expr [winfo rootx $itk_component(canvas)]+$x]
+	set ry [expr [winfo rooty $itk_component(canvas)]+$y]
+    }
+    
+    if {$itk_option(-textmenuloadcommand) != {}} {
+	eval $itk_option(-textmenuloadcommand) $itk_component(popupmenu) $node
+    }
+
+    tk_popup $itk_component(popupmenu) $rx $ry
+}
+
+::itcl::body swidgets::Tree::component {name} {
+    switch -- $name {
+	"canvas"    {return $itk_component(canvas)}
+	"frame"     {return $itk_component(frame)}
+	"popupmenu" {return $itk_component(popupmenu)}
+	default     {
+	    error "bad component name \"$name\""
+	}
+    }
+}
+
+::itcl::body swidgets::Tree::insert {index parent text {type ""} {color ""} {clientData ""}} {
+    # create node
+    if { [string equal $parent "root"] } {
+	set parent $root
+    }
+    set newnode [swidgets::Treenode \#auto $parent] 
+    $newnode setvar -text $text
+    $newnode setvar -type $type
+    if {$color != ""} {$newnode setvar -color $color}
+
+    if {$clientData != ""} {
+	$newnode setvar -clientData $clientData
+    }
+
+    # add this node to parent
+    $parent addchild $newnode $index
+    $newnode configure -level [expr [$parent cget -level] + 1]
+
+    # set 
+    if { [string equal $parent "root"] } {
+        _redraw_idle
+    } else {
+	if {[$parent open]} {
+            # ...and opened -> redraw whole
+            _redraw_idle
+        } else {
+            # ...and closed -> redraw cross
+            _redraw_idle
+        }
+    }
+
+    return $newnode
+}
+
+::itcl::body swidgets::Tree::find {text {parent "root"} {firstOnly 1}} {
+    if {$firstOnly} {
+	if {$text == "root"} {
+	    return $root
+	}
+
+	if {$parent == "root"} {
+	    set parent $root
+	}
+
+	# check parent 
+	if {[$parent get -text] == $text} {
+	    return $parent
+	}
+
+	# check children
+	set result ""
+	foreach node [$parent get -children] {
+	    set result [find $text $node $firstOnly]
+	    if {$result != ""} {
+		break
+	    }
+	}
+
+	return $result
+    } else {
+	set result ""
+
+	if {$parent == "root"} {
+	    set parent $root
+	}
+
+	# check parent 
+	if {[$parent get -text] == $text} {
+	    lappend result $parent
+	}
+
+	# check children
+	foreach node [$parent get -children] {
+	    set tmp [find $text $node $firstOnly]
+	    if {$tmp != ""} {
+		eval lappend result $tmp
+	    }
+	}
+
+	return $result
+    }
+}
+
+::itcl::body swidgets::Tree::remove {node} {
+    set parent [$node get -parent]
+    if {[$parent removechild $node] != -1} {
+	set children [$node get -children]
+	foreach child $children {
+	    remove $child
+	}
+	_cleanup_node $node
+    }
+
+    _redraw_idle
+}
+
+::itcl::body swidgets::Tree::removeall {} {
+    foreach child [$root get -children] {
+	remove $child
+    }
+}
+
+::itcl::body swidgets::Tree::selection {cmd {node ""}} {
+    switch -- $cmd {
+	toggle {
+	    if {$node == ""} {return}
+	    if {[selection includes $node]} {
+		selection remove $node
+	    } else {
+		selection add $node
+	    }
+	}
+	set {
+	    if {$node == ""} {return}
+	    if {[string first "n:" $node] == -1} {
+		set selnode "n:$node"
+	    } else {
+		set selnode $node
+	    }
+
+	    # try to highlight here
+	    $itk_component(canvas) select from $selnode 0
+	    $itk_component(canvas) select to $selnode end
+	}
+	clear {
+	    $itk_component(canvas) select clear
+	    set selnode {}
+	}
+	get {
+	    return $selnode
+	}
+	includes {
+	    if {$node == ""} {return}
+	    return [expr {[lsearch -exact $selnode $node] != -1}]
+	}
+	default {return}
+    }
+}
+
+::itcl::body swidgets::Tree::toggle {node} {
+    if {[string first "n:" $node] == -1} {
+	set selnode "n:$node"
+    } else {
+	set selnode $node
+    }
+    set node [lindex [split $selnode ":"] 1]
+
+    switch -- [$node open] {
+	"0" {
+	    $node open 1
+	    if {[$node get -children] == "" && $itk_option(-querycmd) != {}} {
+		set cmd $itk_option(-querycmd)
+		regsub -all {%n} $cmd $node cmd
+		
+		uplevel \#0 $cmd
+		#eval $itk_option(-querycmd)
+	    }
+	}
+	"1" {$node open 0}
+    }
+    _redraw_idle
+    _call_selectcmd $selnode
+}
+
+::itcl::body swidgets::Tree::query {option {node ""}} {
+    switch -- $option {
+	"-selected" {
+	    if {$node == ""} {return [selection get]}
+	    return [selection includes $node]
+	}
+	"-nodetype" {return [$node get -type]}
+	"-text"     {return [$node get -text]}
+	"-parent"   {return [$node get -parent]}
+	"-children" {return [$node get -children]}
+	"-open"     {return [$node get -open]}
+	"-font"     {return [$node get -font]}
+	"-color"    {return [$node get -color]}
+	"-tglstate" {return [$node open]}
+	"-path"     {
+	    set parent [$node get -parent]
+	    set path [$node get -text]
+	    while {[$parent get -text] != ""} {
+		set path [file join [$parent get -text] $path]
+		set parent [$parent get -parent]
+	    }
+	    return $path
+	}
+	"-clientData"    {return [$node get -clientData]}
+	default     {return ""}
+    }
+}
+
+::itcl::body swidgets::Tree::alternode {node option value} {
+    $node setvar $option $value
+    _redraw_idle
+}
+
+::itcl::body swidgets::Tree::children {node} {
+    return [$node get -children]
+}
+
+::itcl::body swidgets::Tree::opennodes {node} {
+    if {$node == "root"} {
+	set node $root
+	set open ""
+    } else {
+	# if this node isn't open stop looking
+	if {[$node get -open] == 0} {return ""}
+
+	# add this node to the open list
+	set open $node
+    }
+
+    # check to see if any of my children are open
+    foreach kid [$node get -children] {
+	foreach opennode [opennodes $kid] {
+	    lappend open $opennode
+	}
+    }
+
+    return $open
+}
+
+::itcl::body swidgets::Tree::xview {args} {
+    return [eval [list $itk_component(frame) xview] $args]
+}
+
+::itcl::body swidgets::Tree::yview {args} {
+    return [eval [list $itk_component(frame) yview] $args]
+}
+@
+
+
+1.1.2.2
+log
+@Modified the tree widget to not use the canvas' selection mechanism
+@
+text
+@a166 2
+	variable selectBox ""
+	variable saveFill ""
+d201 1
+a201 1
+    set root [swidgets::Treenode \#auto ""]
+a254 6
+
+    # Create the selection box
+    #$itk_component(canvas) create rectangle 0 0 0 0 \
+	-tags selectBox \
+	-fill black \
+	-outline black
+a510 5
+    # First, save selectBox's coords
+    if {$selectBox != ""} {
+	set coords [$itk_component(canvas) coords selectBox]
+    }
+
+a524 10
+    if {$selectBox != ""} {
+	set saveFill [$itk_component(canvas) itemcget $selnode -fill]
+
+	# Recreate the selection box
+	set selectBox [eval $itk_component(canvas) create rectangle $coords \
+			   -tags selectBox \
+			   -fill $itk_option(-foreground) \
+			   -outline $itk_option(-foreground)]
+    }
+
+a533 1
+	    set saveFill ""
+a675 8
+    if {$selectBox == ""} {
+	# Create the selection box
+	set selectBox [$itk_component(canvas) create rectangle -10 -10 -10 -10 \
+			   -tags selectBox \
+			   -fill $itk_option(-foreground) \
+			   -outline $itk_option(-foreground)]
+    }
+
+d677 8
+d686 1
+a686 6
+	    if {$node == ""} {
+		return
+	    }
+
+	    set oldSelNode $selnode
+
+d693 3
+a695 30
+	    if {$oldSelNode != $selnode} {
+		# Unhighlight oldSelNode
+		if {$oldSelNode != {}} {
+		    if {$saveFill == ""} {
+			set fill $itk_option(-foreground)
+		    } else {
+			set fill $saveFill
+		    }
+		    $itk_component(canvas) itemconfigure $oldSelNode\
+			-fill $fill
+		}
+
+		# Save the fill color
+		set saveFill [$itk_component(canvas) itemcget $selnode -fill]
+	    }
+
+	    # Save the fill color
+	    if {$saveFill == ""} {
+		set saveFill [$itk_component(canvas) itemcget $selnode -fill]
+	    }
+
+	    # Highlight selnode
+	    set coords [$itk_component(canvas) bbox $selnode]
+	    eval $itk_component(canvas) coords selectBox $coords
+	    $itk_component(canvas) itemconfigure $selnode \
+		-fill $itk_option(-background)
+	    $itk_component(canvas) itemconfigure selectBox \
+		-fill $itk_option(-foreground) \
+		-outline $itk_option(-foreground)
+	    $itk_component(canvas) lower selectBox
+d698 1
+a698 16
+	    # Unhighlight selnode
+	    if {$selnode != {}} {
+		if {$saveFill == ""} {
+		    set fill $itk_option(-foreground)
+		} else {
+		    set fill $saveFill
+		}
+		$itk_component(canvas) itemconfigure $selnode\
+		    -fill $fill
+	    }
+
+	    $itk_component(canvas) itemconfigure selectBox \
+		-fill $itk_option(-background) \
+		-outline $itk_option(-background)
+	    $itk_component(canvas) lower selectBox
+
+a699 1
+	    set saveFill ""
+d702 1
+a702 1
+	    return [lindex $selnode 0]
+d705 1
+a705 3
+	    if {$node == ""} {
+		return
+	    }
+a707 1
+	toggle -
+a717 1
+    selection set $selnode
+@
+
+
+1.1.2.3
+log
+@Mods to prevent the selectcmd from being called recursively. Mods to limit the number of redraws from the "remove" method
+@
+text
+@d140 1
+a140 1
+	method remove {node {redraw 1}}
+a169 1
+	variable inSelectCmd 0
+d257 6
+a349 5
+    if {$inSelectCmd} {
+	return
+    }
+    set inSelectCmd 1
+
+a361 2
+
+    set inSelectCmd 0
+d519 5
+d538 10
+a553 2
+    set selectBox ""
+
+a557 1
+	    set selectBox ""
+d570 8
+a577 2
+    set rx [expr [winfo rootx $itk_component(canvas)]+$x]
+    set ry [expr [winfo rooty $itk_component(canvas)]+$y]
+d680 1
+a680 1
+::itcl::body swidgets::Tree::remove {node {redraw 1}} {
+d685 1
+a685 1
+	    remove $child 0
+d690 1
+a690 3
+    if {$redraw} {
+	_redraw_idle
+    }
+d695 1
+a695 1
+	remove $child 0
+a696 2
+
+    _redraw_idle
+@
+
+
+1.1.2.4
+log
+@Check-in for Doug: Mods for multiple selection
+@
+text
+@a131 1
+    itk_option define -selectmode selectMode Mode "single"
+a179 1
+	method _call_multiselectcmd {type tag}
+a254 4
+    _bind_text  <Control-Button-1> [list eval [::itcl::code $this _call_multiselectcmd "control"]]
+    _bind_image <Control-Button-1> [list eval [::itcl::code $this _call_multiselectcmd "control"]]
+    _bind_text  <Shift-Button-1> [list eval [::itcl::code $this _call_multiselectcmd "shift"]]
+    _bind_image <Shift-Button-1> [list eval [::itcl::code $this _call_multiselectcmd "shift"]]
+a267 9
+::itcl::configbody swidgets::Tree::selectmode {
+    switch -- $itk_option(-selectmode) {
+	"single" -
+	"multiple" {}
+	default {
+	    error "Tree::selectmode option must be 'single' or 'multiple'."
+	}
+    }
+}
+a349 1
+    selection clear
+a365 18
+::itcl::body swidgets::Tree::_call_multiselectcmd {type tag} {
+    if {$inSelectCmd} {
+	return
+    }
+    set inSelectCmd 1
+
+    switch -- $type {
+	"control" {
+	    selection set $tag
+	}
+	"shift" {
+	    selection to $tag
+	}
+    }
+
+    set inSelectCmd 0
+}
+
+a548 2
+    } else {
+	set saveFill ""
+d688 8
+a700 4
+	    
+	    if {[string first "n:" $node] == -1} {
+		set node "n:$node"
+	    }
+d702 1
+a702 4
+	    # clear selection list if in single select mode
+	    if {$itk_option(-selectmode) == "single"} {
+		selection clear
+	    }
+d704 2
+a705 14
+	    set snode [lindex [split $node :] 1]
+	    set color [$snode get -color]
+
+	    if {$selnode != {}} {
+		# check to see if node is already in select list ...
+		# if so, then remove ... if not add it
+		if [selection includes $node] {
+		    selection remove $node
+		    return
+		} else {
+		    # add to list
+		    lappend selnode $node
+		    lappend saveFill $color
+		}
+a706 1
+		# add to list
+a707 1
+		set saveFill $color
+d710 11
+d722 3
+a724 7
+	    # deal with drawing selection box
+
+	    # Create the selection box
+	    set selectBox [$itk_component(canvas) create rectangle -10 -10 -10 -10 \
+		    -tags selectBox_$node \
+		    -fill $itk_option(-foreground) \
+		    -outline $itk_option(-foreground)]
+d726 4
+d732 3
+a734 3
+	    set coords [$itk_component(canvas) bbox $node]
+	    eval $itk_component(canvas) coords selectBox_$node $coords
+	    $itk_component(canvas) itemconfigure $node \
+d736 4
+a739 82
+	    $itk_component(canvas) lower selectBox_$node
+	}
+	to {
+	    if {$node == ""} {
+		return
+	    }
+	    
+	    if {[string first "n:" $node] == -1} {
+		set node "n:$node"
+	    }
+    
+	    if {$itk_option(-selectmode) == "single" ||
+	    $selnode == {}} {
+		selection set $node
+		return
+	    }
+
+	    # getting bounding boxes of start and end stuff
+	    set start [lindex $selnode end]
+	    set startbox [$itk_component(canvas) bbox $start]
+	    set endbox [$itk_component(canvas) bbox $node]
+
+	    # get the biggest bounding box possible
+	    set coords ""
+	    if {[lindex $startbox 0] < [lindex $endbox 0]} {
+		lappend coords [lindex $startbox 0]
+	    } else {
+		lappend coords [lindex $endbox 0]
+	    }
+	    if {[lindex $startbox 1] < [lindex $endbox 1]} {
+		lappend coords [lindex $startbox 1]
+	    } else {
+		lappend coords [lindex $endbox 1]
+	    }
+	    if {[lindex $startbox 2] > [lindex $endbox 2]} {
+		lappend coords [lindex $startbox 2]
+	    } else {
+		lappend coords [lindex $endbox 2]
+	    }
+	    if {[lindex $startbox 3] > [lindex $endbox 3]} {
+		lappend coords [lindex $startbox 3]
+	    } else {
+		lappend coords [lindex $endbox 3]
+	    }
+
+	    # clear the current selection and select the desired nodes
+	    selection clear
+	    foreach id [eval $itk_component(canvas) find overlapping $coords] {
+		set tnode [lindex [$itk_component(canvas) gettags $id] 1]
+		selection set $tnode
+	    }
+	}
+	remove {
+	    if {$node == ""} {
+		return
+	    }
+	    
+	    if {[string first "n:" $node] == -1} {
+		set node "n:$node"
+	    }
+    
+	    # remove from list
+	    set idx [lsearch -exact $selnode $node]
+	    if {$idx < 0} {return}
+
+	    if {[lindex $saveFill $idx] == ""} {
+		set fill $itk_option(-foreground)
+	    } else {
+		set fill [lindex $saveFill $idx]
+	    }
+
+	    set selnode [lreplace $selnode $idx $idx]
+	    set saveFill [lreplace $saveFill $idx $idx]
+	    if {$selnode == ""} {
+		set selnode {}
+		set saveFill ""
+	    }
+
+	    # remove hilight box
+	    $itk_component(canvas) delete selectBox_$node
+	    $itk_component(canvas) itemconfigure $node \
+		-fill $fill
+d744 4
+a747 2
+		foreach node $selnode {
+		    selection remove $node
+d749 2
+d752 8
+d762 1
+a762 1
+	    return $selnode
+a767 5
+	    
+	    if {[string first "n:" $node] == -1} {
+		set node "n:$node"
+	    }
+    
+d776 6
+a781 4
+    # ensures only one selnode
+    selection clear
+    selection set $node
+
+@
+
+

@@ -1,0 +1,544 @@
+head	11.11;
+access;
+symbols
+	ansi-20040405-merged:11.7.2.2
+	postmerge-20040405-ansi:11.9
+	premerge-20040404-ansi:11.8
+	postmerge-autoconf:11.8
+	autoconf-freeze:11.7.10.1
+	premerge-autoconf:11.8
+	ansi-20040316-freeze:11.7.2.1
+	postmerge-20040315-windows:11.8
+	premerge-20040315-windows:11.8
+	windows-20040315-freeze:11.7.4.1
+	autoconf-20031203:11.7
+	autoconf-20031202:11.7
+	autoconf-branch:11.7.0.10
+	phong-branch:11.7.0.8
+	photonmap-branch:11.7.0.6
+	rel-6-1-DP:11.7
+	windows-branch:11.7.0.4
+	rel-6-0-2:11.5
+	ansi-branch:11.7.0.2
+	rel-6-0-1-branch:11.5.0.2
+	hartley-6-0-post:11.6
+	hartley-6-0-pre:11.5
+	rel-6-0-1:11.5
+	rel-6-0:11.5
+	rel-5-4:11.4
+	offsite-5-3-pre:11.4
+	rel-5-3:11.4
+	rel-5-2:11.4
+	rel-5-1-branch:11.4.0.2
+	rel-5-1:11.4
+	rel-5-0:11.4
+	rel-5-0-beta:11.4
+	rel-4-5:11.4
+	ctj-4-5-post:11.3
+	ctj-4-5-pre:11.3
+	rel-4-4:11.1;
+locks; strict;
+comment	@ * @;
+
+
+11.11
+date	2004.05.24.04.17.00;	author morrison;	state dead;
+branches;
+next	11.10;
+
+11.10
+date	2004.05.10.15.30.41;	author erikg;	state Exp;
+branches;
+next	11.9;
+
+11.9
+date	2004.04.05.07.50.19;	author morrison;	state Exp;
+branches;
+next	11.8;
+
+11.8
+date	2004.02.02.17.38.57;	author morrison;	state Exp;
+branches;
+next	11.7;
+
+11.7
+date	2002.08.20.17.07.18;	author jra;	state Exp;
+branches
+	11.7.2.1
+	11.7.4.1
+	11.7.10.1;
+next	11.6;
+
+11.6
+date	2002.08.15.20.54.05;	author hartley;	state Exp;
+branches;
+next	11.5;
+
+11.5
+date	2001.08.21.18.57.53;	author jra;	state Exp;
+branches;
+next	11.4;
+
+11.4
+date	97.08.22.22.48.24;	author mike;	state Exp;
+branches;
+next	11.3;
+
+11.3
+date	96.07.30.21.12.41;	author cnuzman;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	95.07.10.23.34.43;	author cnuzman;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	95.01.04.10.34.01;	author mike;	state Rel4_4;
+branches;
+next	1.2;
+
+1.2
+date	94.08.25.11.02.49;	author cnuzman;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	94.08.04.20.19.03;	author cnuzman;	state Exp;
+branches;
+next	;
+
+11.7.2.1
+date	2002.09.19.18.00.31;	author morrison;	state Exp;
+branches;
+next	11.7.2.2;
+
+11.7.2.2
+date	2004.03.17.21.15.47;	author morrison;	state Exp;
+branches;
+next	;
+
+11.7.4.1
+date	2004.03.11.23.40.24;	author morrison;	state Exp;
+branches;
+next	;
+
+11.7.10.1
+date	2004.02.12.19.40.40;	author erikg;	state Exp;
+branches;
+next	;
+
+
+desc
+@convert mged kframes to a format which can be interpolated
+@
+
+
+11.11
+log
+@moved to src/anim/
+@
+text
+@/*                         A N I M _ K E Y R E A D . C
+ *
+ *	Convert an list of mged-style 'savekey' keyframes into an 
+ *  animation table
+ *
+ *  The output table specifies the orientation in one of three ways:
+ *
+ *	default	 - quaternions in the order x, y, z, w.
+ *
+ *	-z option - Eulers angles, in the order xyz. The model axes are 
+ *		considered to be rotated about the camera's z, y, and 
+ *		x axes (in that order).
+ *	
+ *	-y option - Eulers angles in the form yaw, pitch, roll.
+ *
+ *  This is more or less a special case of anim_orient.c
+ *
+ *  Author -
+ *	Carl J. Nuzman
+ *  
+ *  Source -
+ *      The U. S. Army Research Laboratory
+ *      Aberdeen Proving Ground, Maryland  21005-5068  USA
+ *  
+ *  Distribution Notice -
+ *      Re-distribution of this software is restricted, as described in
+ *      your "Statement of Terms and Conditions for the Release of
+ *      The BRL-CAD Pacakge" agreement.
+ *
+ *  Copyright Notice -
+ *      This software is Copyright (C) 1993-2004 by the United States Army
+ *      in all countries except the USA.  All rights reserved.
+ */
+
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+#include <stdio.h>
+#include <math.h>
+#include "machine.h"
+#include "vmath.h"
+#include "bu.h"
+
+#ifndef M_PI
+#define M_PI	3.14159265358979323846
+#endif
+
+#define YPR		0
+#define XYZ		1
+#define QUATERNION	2
+ 
+#define DEGREES		0
+#define RADIANS		1
+
+#define NORMAL		0
+#define ERROR1		1
+#define ERROR2		2
+
+#define DTOR    M_PI/180.0
+#define RTOD    180.0/M_PI
+
+int mode; 
+int units;
+
+extern int bu_optind;
+extern char *bu_optarg;
+
+int get_args(int argc, char **argv);
+extern void anim_v_unpermute(fastf_t *);
+
+int
+main(int argc, char **argv)
+{
+	int c;
+	fastf_t time, viewsize;
+
+	fastf_t eyept[3], viewrot[16], angle[3], quat[4];
+	int anim_mat2ypr(fastf_t *, fastf_t *), anim_mat2zyx(const fastf_t *, fastf_t *), anim_mat2quat(fastf_t *, const fastf_t *);
+
+	if (!get_args(argc,argv))
+		fprintf(stderr,"anim_keyread: get_args error");
+
+	while (!feof(stdin)){  /* read one keyframe */
+		scanf("%lf", &time);
+		scanf("%lf", &viewsize);
+		scanf("%lf %lf %lf", eyept, eyept+1, eyept+2);
+		/* read in transposed matrix */
+		scanf("%lf %lf %lf %lf", viewrot+0, viewrot+4, viewrot+8, viewrot+12);
+		scanf("%lf %lf %lf %lf", viewrot+1, viewrot+5, viewrot+9, viewrot+13);
+		scanf("%lf %lf %lf %lf", viewrot+2, viewrot+6, viewrot+10, viewrot+14);
+		scanf("%lf %lf %lf %lf", viewrot+3, viewrot+7, viewrot+11, viewrot+15);
+
+		if (feof(stdin)) break;
+
+		printf("%.10g\t%.10g\t%.10g\t%.10g\t%.10g\t", time, viewsize,
+					 eyept[0], eyept[1], eyept[2]);
+
+
+		if (mode==YPR) {
+			anim_v_unpermute(viewrot);
+			c = anim_mat2ypr(angle,viewrot);
+			if (c==ERROR1)
+				fprintf(stderr,"Warning: yaw and roll arbitrarily defined at time = %f.\n",time);
+			else if (c==ERROR2)
+				fprintf(stderr,"Keyread: can't interpret matrix at time = %f.\n",time);
+			if (units == DEGREES)
+				VSCALE(angle,angle,RTOD);
+			printf("%.10g\t%.10g\t%.10g\n",angle[0],angle[1],angle[2]);
+		}
+		else if (mode==XYZ) {
+			c = anim_mat2zyx(angle,viewrot);
+			if (c==ERROR1)
+				fprintf(stderr,"Warning: x and z rotations arbitrarily defined at time = %f.\n",time);
+			else if (c==ERROR2)
+				fprintf(stderr,"Keyread: can't interpret matrix at time = %f\n.",time);
+			if (units == DEGREES)
+				VSCALE(angle,angle,RTOD);
+			printf("%.10g\t%.10g\t%.10g\n",angle[X],angle[Y],angle[Z]);
+		}
+		else if (mode==QUATERNION){
+			anim_mat2quat(quat,viewrot);
+			printf("%.10g\t%.10g\t%.10g\t%.10g\n",quat[X],quat[Y],quat[Z],quat[W]);
+		}
+	}
+	return( 0 );
+}
+
+
+#define OPT_STR "yzqr"
+
+int get_args(int argc, char **argv)
+{
+
+	int c;
+
+	mode = QUATERNION; /* default */
+	units = DEGREES;
+
+	while ( (c=bu_getopt(argc,argv,OPT_STR)) != EOF) {
+		switch(c){
+		case 'y':
+			mode = YPR;
+			break;
+		case 'z':
+			mode = XYZ;
+			break;
+		case 'q':
+			mode = QUATERNION;
+			break;
+		case 'r':
+			units = RADIANS;
+			break;
+		default:
+			fprintf(stderr,"Unknown option: -%c\n",c);
+			return(0);
+		}
+	}
+	return(1);
+}
+
+@
+
+
+11.10
+log
+@change conf.h to a wrapped config.h
+@
+text
+@@
+
+
+11.9
+log
+@merge of ansi-6-0-branch into HEAD
+@
+text
+@d35 5
+a39 1
+#include "conf.h"
+@
+
+
+11.8
+log
+@update copyright to include span through 2003
+@
+text
+@d66 2
+a67 2
+int get_args();
+extern void anim_v_unpermute();
+d70 1
+a70 3
+main(argc,argv)
+int argc;
+char **argv;
+d76 1
+a76 1
+	int anim_mat2ypr(), anim_mat2zyx(), anim_mat2quat();
+d129 1
+a129 3
+int get_args(argc,argv)
+int argc;
+char **argv;
+@
+
+
+11.7
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d31 1
+a31 1
+ *      This software is Copyright (C) 1993 by the United States Army
+@
+
+
+11.7.4.1
+log
+@sync to HEAD...
+@
+text
+@d31 1
+a31 1
+ *      This software is Copyright (C) 1993-2004 by the United States Army
+@
+
+
+11.7.10.1
+log
+@merge from HEAD
+@
+text
+@d31 1
+a31 1
+ *      This software is Copyright (C) 1993-2004 by the United States Army
+@
+
+
+11.7.2.1
+log
+@Initial ANSIfication
+@
+text
+@d66 2
+a67 2
+int get_args(int argc, char **argv);
+extern void anim_v_unpermute(fastf_t *);
+d70 3
+a72 1
+main(int argc, char **argv)
+d78 1
+a78 1
+	int anim_mat2ypr(fastf_t *, fastf_t *), anim_mat2zyx(const fastf_t *, fastf_t *), anim_mat2quat(fastf_t *, const fastf_t *);
+d131 3
+a133 1
+int get_args(int argc, char **argv)
+@
+
+
+11.7.2.2
+log
+@sync branch with HEAD
+@
+text
+@d31 1
+a31 1
+ *      This software is Copyright (C) 1993-2004 by the United States Army
+@
+
+
+11.6
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d66 2
+a67 2
+int get_args(int argc, char **argv);
+extern void anim_v_unpermute(fastf_t *);
+d70 3
+a72 1
+main(int argc, char **argv)
+d78 1
+a78 1
+	int anim_mat2ypr(fastf_t *, fastf_t *), anim_mat2zyx(const fastf_t *, fastf_t *), anim_mat2quat(fastf_t *, const fastf_t *);
+d131 3
+a133 1
+int get_args(int argc, char **argv)
+@
+
+
+11.5
+log
+@lint
+@
+text
+@d66 2
+a67 2
+int get_args();
+extern void anim_v_unpermute();
+d70 1
+a70 3
+main(argc,argv)
+int argc;
+char **argv;
+d76 1
+a76 1
+	int anim_mat2ypr(), anim_mat2zyx(), anim_mat2quat();
+d129 1
+a129 3
+int get_args(argc,argv)
+int argc;
+char **argv;
+@
+
+
+11.4
+log
+@Made dependence on bu_getopt() explicit.
+@
+text
+@d40 1
+d66 4
+d125 1
+@
+
+
+11.3
+log
+@output formatting
+@
+text
+@d62 2
+a63 2
+extern int optind;
+extern char *optarg;
+d135 1
+a135 1
+	while ( (c=getopt(argc,argv,OPT_STR)) != EOF) {
+@
+
+
+11.2
+log
+@updated anim.c routine names
+@
+text
+@d90 1
+a90 1
+		printf("%f\t%f\t%f\t%f\t%f\t", time, viewsize,
+d103 1
+a103 1
+			printf("%f\t%f\t%f\n",angle[0],angle[1],angle[2]);
+d113 1
+a113 1
+			printf("%f\t%f\t%f\n",angle[X],angle[Y],angle[Z]);
+d117 1
+a117 1
+			printf("%f\t%f\t%f\t%f\n",quat[X],quat[Y],quat[Z],quat[W]);
+@
+
+
+11.1
+log
+@Release_4.4
+@
+text
+@d73 1
+a73 1
+	int mat2ypr(), mat2zyx(), mat2quat();
+d95 2
+a96 2
+			un_v_permute(viewrot);
+			c = mat2ypr(angle,viewrot);
+d106 1
+a106 1
+			c = mat2zyx(angle,viewrot);
+d116 1
+a116 1
+			mat2quat(quat,viewrot);
+@
+
+
+1.2
+log
+@included conf.h
+@
+text
+@@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d35 1
+@

@@ -1,0 +1,729 @@
+head	14.14;
+access;
+symbols
+	rel-7-10-4:14.14
+	STABLE:14.14.0.2
+	stable-branch:14.6
+	rel-7-10-2:14.14
+	rel-7-10-0:14.14
+	rel-7-8-4:14.10
+	rel-7-8-2:14.9
+	rel-7-8-0:14.9
+	trimnurbs-branch:14.9.0.2
+	help:14.9
+	temp_tag:14.8
+	bobWinPort-20051223-freeze:14.7
+	postmerge-20051223-bobWinPort:14.8
+	premerge-20051223-bobWinPort:14.8
+	rel-7-6-6:14.8
+	rel-7-6-4:14.8
+	rel-7-6-2:14.7
+	rel-7-6-branch:14.7.0.4
+	rel-7-6-0:14.7
+	rel-7-4-2:14.6
+	rel-7-4-branch:14.6.0.2
+	bobWinPort:14.7.0.2
+	rel-7-4-0:14.6
+	rel-7-2-6:14.6
+	rel-7-2-4:14.6
+	rel-7-2-2:14.6
+	rel-7-2-0:14.6
+	rel-7-0-4:14.5
+	rel-7-0-2:14.5
+	rel-7-0-1:14.5
+	opensource-post:14.5
+	opensource-pre:1.3
+	rel-7-0-branch:1.3.0.2
+	rel-7-0:1.3;
+locks; strict;
+comment	@ * @;
+
+
+14.14
+date	2007.01.27.01.41.36;	author brlcad;	state Exp;
+branches;
+next	14.13;
+
+14.13
+date	2007.01.23.01.13.34;	author brlcad;	state Exp;
+branches;
+next	14.12;
+
+14.12
+date	2007.01.21.04.45.42;	author brlcad;	state Exp;
+branches;
+next	14.11;
+
+14.11
+date	2007.01.20.14.36.51;	author brlcad;	state Exp;
+branches;
+next	14.10;
+
+14.10
+date	2006.08.31.23.16.38;	author lbutler;	state Exp;
+branches;
+next	14.9;
+
+14.9
+date	2006.01.18.06.46.16;	author brlcad;	state Exp;
+branches;
+next	14.8;
+
+14.8
+date	2005.10.23.04.44.32;	author brlcad;	state Exp;
+branches;
+next	14.7;
+
+14.7
+date	2005.08.12.22.29.23;	author lbutler;	state Exp;
+branches
+	14.7.4.1;
+next	14.6;
+
+14.6
+date	2005.01.30.20.30.45;	author brlcad;	state Exp;
+branches;
+next	14.5;
+
+14.5
+date	2004.12.21.07.18.57;	author morrison;	state Exp;
+branches;
+next	14.4;
+
+14.4
+date	2004.12.21.06.18.43;	author morrison;	state Exp;
+branches;
+next	14.3;
+
+14.3
+date	2004.12.21.05.45.21;	author morrison;	state Exp;
+branches;
+next	14.2;
+
+14.2
+date	2004.12.21.03.49.00;	author morrison;	state Exp;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.14;	author morrison;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2004.08.02.23.01.48;	author morrison;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2004.06.08.19.28.50;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.15.19.33;	author morrison;	state Exp;
+branches;
+next	;
+
+14.7.4.1
+date	2005.11.13.13.46.15;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.14
+log
+@ws. lots and lots of ws.  see sh/ws.sh for details (cases 'abcdeg').
+@
+text
+@/*                           L E X . C
+ * BRL-CAD
+ *
+ * Copyright (c) 2004-2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This library is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@addtogroup bu_log */
+/** @@{ */
+/** @@file lex.c
+ *
+ *  @@author
+ *	Christopher T. Johnson
+ *
+ *  @@par Source
+ *	Geometric Solutions, Inc.
+ */
+/** @@} */
+
+#ifndef lint
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/libbu/lex.c,v 14.13 2007/01/23 01:13:34 brlcad Exp $ (ARL)";
+#endif
+
+#include "common.h"
+
+
+#include <stdio.h>
+#include <ctype.h>
+#include <string.h>
+#include "machine.h"
+#include "bu.h"
+
+static int bu_lex_reading_comment = 0;
+
+/**
+ *			B U _ L E X _ G E T O N E
+ */
+static char *
+bu_lex_getone(int *used, struct bu_vls *rtstr)
+{
+	register char *cp;
+	register char *sp;
+	register char *unit;
+	int	number;
+
+	number = 1;
+	*used = 0;
+
+	BU_CK_VLS(rtstr);
+	cp = bu_vls_addr(rtstr);
+top:
+	if (bu_lex_reading_comment) {
+		for(;;) {
+			register char tc;
+			tc = *cp; cp++;
+			if (!tc) {
+				return 0;
+			}
+			if (tc != '*') continue;
+			if (*cp != '/') continue;
+			cp++;	/* Skip the '/' */
+			break;
+		}
+		bu_lex_reading_comment = 0;
+	}
+
+	/*
+	 * skip leading blanks
+	 */
+	for (; *cp && isspace(*cp); cp++);
+	/*
+	 * Is this a comment?  '#' to end of line is.
+	 */
+	if (!*cp || *cp == '#') {
+		return 0;
+	}
+	/*
+	 * Is this a 'C' multi-line comment?
+	 */
+	if (*cp == '/' && *(cp+1)=='*') {
+		cp += 2;
+		bu_lex_reading_comment = 1;
+		goto top;
+	}
+	/*
+	 * cp points to the first non-blank character.
+	 */
+	sp = cp;		/* start pointer */
+	while (*cp) {
+		register char tc;
+
+		tc = *cp; cp++;
+		/*
+		 * Numbers come in the following forms
+		 *	[0-9]*
+		 *	[0-9]*.[0-9][0-9]*
+		 *	[0-9]*.[0-9][0-9]*{e|E}{+|-}[0-9][0-9]*
+		 */
+		if (number) {
+			/*
+			 * We have not seen anything to make this NOT
+			 * a number.
+			 */
+			if (isdigit(tc)) {
+				if (number == 5 || number == 6) number = 7;
+				if (number == 3) number = 4;
+				if (number == 1) number = 2;
+				continue;
+			}
+			if (number==2 && tc == '.') {
+				/*
+				 * [0-9][0-9]*.
+				 */
+				number = 3;
+				continue;
+			}
+			if (number == 4 && (tc == 'e' || tc == 'E')) {
+				/*
+				 * [0-9][0-9]*.[0-9][0-9]*{e|E}
+				 */
+				number = 5;
+				continue;
+			}
+			if (number == 5 && (tc == '+' || tc == '-')) {
+				/*
+				 * [0-9][0-9]*.[0-9][0-9]*{e|E}{+|-}
+				 */
+				number = 6;
+				continue;
+			}
+			if (number == 3) break;
+			number = 0;
+		}
+		if (!isalnum(tc) && tc != '.' && tc != '_') break;
+	}
+	if (number ==  6) --cp;	/* subtract off the + or - */
+	if (number == 3) --cp;  /* subtract off the . */
+	/*
+	 * All spaces have been skipped. (sp)
+	 * if we had NUMBER. or NUMBERe{+|-} that has be replaced (cp)
+	 */
+	*used = cp - sp -1;
+	if (*used == 0) *used = 1;
+	unit = (char *)bu_malloc(*used+1, "unit token");
+	strncpy(unit,sp,*used);
+	unit[*used] = '\0';
+	*used = sp-bu_vls_addr(rtstr) + *used;
+	if (*used == 0) *used = 1;
+	return unit;
+}
+
+/**
+ *			B U _ L E X
+ */
+int
+bu_lex(
+	union bu_lex_token *token,
+	struct bu_vls *rtstr,
+	struct bu_lex_key *keywords,
+	struct bu_lex_key *symbols)
+{
+	char *unit;
+	char *cp;
+	int used;
+
+	/*
+	 * get a unit of information from rtstr.
+	 */
+	used = 0;
+	unit = bu_lex_getone(&used, rtstr);
+
+	/*
+	 * Was line empty or commented out.
+	 */
+	if (!unit) {
+		if (used) bu_bomb("bu_lex: Null unit, and something used.\n");
+		return BU_LEX_NEED_MORE;
+	}
+
+	/*
+	 * Decide if this unit is a symbol, number or identifier.
+	 */
+	if (isdigit(*unit)) {
+		/*
+		 * Humm, this could be a number.
+		 * 	octal -- 0[0-7]*
+		 *	hex   -- 0x[0-9a-f]*
+		 *	dec   -- [0-9][0-9]*
+		 *	dbl   -- [0-9][0-9]*.[0-9]*{{E|e}{+|-}[0-9][0-9]*}
+		 */
+		if (*unit == '0') { 	/* any of the above */
+			/*
+			 * 	octal -- 0[0-7]*
+			 */
+			for (cp=unit; *cp && *cp>='0' && *cp <='7'; cp++);
+			if (!*cp) {	/* We have an octal value */
+				token->type = BU_LEX_INT;
+				sscanf(unit,"%o", (unsigned int *)&token->t_int.value);
+				bu_free(unit,"unit token");
+				return used;
+			}
+			/*
+			 * if it is not an octal number, maybe it is
+			 * a hex number?"
+			 *	hex   -- 0x[0-9a-f]*
+			 */
+			cp=unit+1;
+			if (*cp == 'x' || *cp == 'X') {
+				for(;*cp && isxdigit(*cp);cp++);
+				if (!*cp) {
+					token->type = BU_LEX_INT;
+					sscanf(unit,"%x",(unsigned int *)&token->t_int.value);
+					bu_free(unit, "unit token");
+					return used;
+				}
+			}
+		}
+		/*
+		 * This could be a decimal number, a double or an identifier.
+		 *	dec   -- [0-9][0-9]*
+		 */
+		for (cp=unit; *cp && isdigit(*cp); cp++);
+		if (!*cp) {
+			token->type = BU_LEX_INT;
+			sscanf(unit,"%d", &token->t_int.value);
+			bu_free(unit, "unit token");
+			return used;
+		}
+		/*
+		 * if we are here, then this is either a double or
+		 * an identifier.
+		 *	dbl   -- [0-9][0-9]*.[0-9]*{{E|e}{+|-}[0-9][0-9]*}
+		 *
+		 * *cp should be a '.'
+		 */
+		if (*cp == '.') {
+			for(cp++;*cp &&isdigit(*cp);cp++);
+			if (*cp == 'e' || *cp == 'E') cp++;
+			if (*cp == '+' || *cp == '-') cp++;
+			for(;*cp &&isdigit(*cp);cp++);
+			if (!*cp) {
+				token->type = BU_LEX_DOUBLE;
+				sscanf(unit, "%lg", &token->t_dbl.value);
+				bu_free(unit, "unit token");
+				return used;
+			}
+		}
+		/*
+		 * Oh well, I guess it was not a number.  That means it
+		 * must be something else.
+		 */
+	}
+	/*
+	 * We either have an identifier, keyword, or symbol.
+	 */
+	if (symbols) {
+		if (!*(unit+1) ) {	/* single character, good choice for a symbol. */
+			register struct bu_lex_key *sp;
+			for (sp=symbols;sp->tok_val;sp++) {
+				if (*sp->string == *unit) {
+					token->type = BU_LEX_SYMBOL;
+					token->t_key.value = sp->tok_val;
+					bu_free(unit, "unit token");
+					return used;
+				}
+			}
+		}
+	}
+	if (keywords) {
+		register struct bu_lex_key *kp;
+		for (kp=keywords;kp->tok_val; kp++) {
+			if (strcmp(kp->string, unit) == 0) {
+				token->type = BU_LEX_KEYWORD;
+				token->t_key.value = kp->tok_val;
+				bu_free(unit, "unit token");
+				return used;
+			}
+		}
+	}
+	token->type = BU_LEX_IDENT;
+	token->t_id.value = unit;
+	return used;
+}
+
+/** @@} */
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+14.13
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@d33 1
+a33 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/libbu/lex.c,v 14.12 2007/01/21 04:45:42 brlcad Exp $ (ARL)";
+a38 1
+
+@
+
+
+14.12
+log
+@ugh, what tedium.  put some effort towards cleaning up the doxygen labels and making the headers more consistent.  also exclusively using @@ for doxygen instead of \ to try to keep things more consistent.
+@
+text
+@d9 1
+a9 2
+ * as published by the Free Software Foundation; either version 2 of
+ * the License, or (at your option) any later version.
+d14 1
+a14 1
+ * Library General Public License for more details.
+d33 1
+a33 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/libbu/lex.c,v 14.11 2007/01/20 14:36:51 brlcad Exp $ (ARL)";
+@
+
+
+14.11
+log
+@update copyright to 2007
+@
+text
+@d21 2
+a22 3
+
+/** \addtogroup bu_log */
+/*@@{*/
+d24 1
+d31 1
+a31 1
+/*@@}*/
+d34 1
+a34 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/libbu/lex.c,v 14.10 2006/08/31 23:16:38 lbutler Exp $ (ARL)";
+d299 1
+a299 1
+/*@@}*/
+@
+
+
+14.10
+log
+@Doxygen comments
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 2004-2006 United States Government as represented by
+d34 1
+a34 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/libbu/lex.c,v 14.9 2006/01/18 06:46:16 brlcad Exp $ (ARL)";
+@
+
+
+14.9
+log
+@update copyright to 2006
+@
+text
+@d22 1
+a22 1
+/** \addtogroup libbu */
+d25 1
+a25 1
+ *  Author -
+d28 1
+a28 1
+ *  Source -
+a29 1
+ *
+d34 1
+a34 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/libbu/lex.c,v 14.8 2005/10/23 04:44:32 brlcad Exp $ (ARL)";
+d49 1
+a49 1
+/*
+d166 1
+a166 1
+/*
+d299 2
+@
+
+
+14.8
+log
+@trailing ws
+@
+text
+@d4 1
+a4 1
+ * Copyright (C) 2004-2005 United States Government as represented by
+d35 1
+a35 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/libbu/lex.c,v 14.7 2005/08/12 22:29:23 lbutler Exp $ (ARL)";
+@
+
+
+14.7
+log
+@Doxygen changes
+@
+text
+@d27 1
+a27 1
+ *  
+d30 1
+a30 1
+ *  
+d35 1
+a35 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/libbu/lex.c,v 14.6 2005/01/30 20:30:45 brlcad Exp $ (ARL)";
+d81 1
+a81 1
+		
+@
+
+
+14.7.4.1
+log
+@merge changes from HEAD aka rel-7-6-4 to the rel-7-6-branch just in case someone peeks a gander or tries to continue/build the branch
+@
+text
+@d27 1
+a27 1
+ *
+d30 1
+a30 1
+ *
+d35 1
+a35 1
+static const char RCSid[] = "@@(#)$Header$ (ARL)";
+d81 1
+a81 1
+
+@
+
+
+14.6
+log
+@update copyright to 2005
+@
+text
+@d21 3
+d32 2
+d35 1
+a35 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/libbu/lex.c,v 14.5 2004/12/21 07:18:57 morrison Exp $ (ARL)";
+@
+
+
+14.5
+log
+@the significantly modified pd files are incorporated as new works and assigned copyright, so remove the old statement.
+@
+text
+@d4 2
+a5 2
+ * Copyright (c) 2004 United States Government as represented by the
+ * U.S. Army Research Laboratory.
+d30 1
+a30 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/libbu/lex.c,v 14.4 2004/12/21 06:18:43 morrison Exp $ (ARL)";
+@
+
+
+14.4
+log
+@they should have received a copy of the LGPL with LGPL'd files
+@
+text
+@a27 2
+ *  Distribution Status -
+ *	Public Domain, Distribution Unlimited.
+d30 1
+a30 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/libbu/lex.c,v 14.3 2004/12/21 05:45:21 morrison Exp $ (ARL)";
+@
+
+
+14.3
+log
+@s/GNU Library General/GNU Lesser General/g
+@
+text
+@d17 2
+a18 2
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+d32 1
+a32 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/libbu/lex.c,v 14.2 2004/12/21 03:49:00 morrison Exp $ (ARL)";
+@
+
+
+14.2
+log
+@assign copyright and LGPL
+@
+text
+@d8 1
+a8 1
+ * modify it under the terms of the GNU Library General Public License
+d32 1
+a32 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/libbu/lex.c,v 14.1 2004/11/16 19:42:14 morrison Exp $ (ARL)";
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@d1 2
+a2 1
+/*		R T L E X . C
+d4 18
+d32 1
+a32 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/libbu/lex.c,v 1.3 2004/08/02 23:01:48 morrison Exp $ (ARL)";
+@
+
+
+1.3
+log
+@replace the wrapped config.h block with common.h
+@
+text
+@d13 1
+a13 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/libbu/lex.c,v 1.2 2004/06/08 19:28:50 morrison Exp $ (ARL)";
+d277 10
+@
+
+
+1.2
+log
+@poof goes the silly externs.h
+@
+text
+@d13 1
+a13 1
+static const char RCSid[] = "@@(#)$Header$ (ARL)";
+d16 1
+a16 3
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+@
+
+
+1.1
+log
+@Vast reorganization begins.  Sources moved from top-level directories into src/.
+@
+text
+@d13 1
+a13 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/libbu/lex.c,v 11.13 2004/05/10 15:30:44 erikg Exp $ (ARL)";
+a25 1
+#include "externs.h"
+@
+

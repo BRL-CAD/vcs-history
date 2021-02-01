@@ -1,0 +1,463 @@
+head	11.7;
+access;
+symbols
+	ansi-20040405-merged:11.4.2.1
+	postmerge-20040405-ansi:11.5
+	premerge-20040404-ansi:11.4
+	postmerge-autoconf:11.4
+	autoconf-freeze:11.4
+	premerge-autoconf:11.4
+	postmerge-20040315-windows:11.4
+	premerge-20040315-windows:11.4
+	windows-20040315-freeze:11.4
+	autoconf-20031203:11.4
+	autoconf-20031202:11.4
+	autoconf-branch:11.4.0.10
+	phong-branch:11.4.0.8
+	photonmap-branch:11.4.0.6
+	rel-6-1-DP:11.4
+	windows-branch:11.4.0.4
+	rel-6-0-2:11.2
+	ansi-branch:11.4.0.2
+	rel-6-0-1-branch:11.2.0.2
+	hartley-6-0-post:11.3
+	hartley-6-0-pre:11.2
+	rel-6-0-1:11.2
+	rel-6-0:11.2
+	rel-5-4:11.1
+	offsite-5-3-pre:11.2
+	rel-5-3:11.1
+	rel-5-2:11.1
+	rel-5-1-branch:11.1.0.2
+	rel-5-1:11.1
+	rel-5-0:11.1
+	rel-5-0-beta:11.1
+	rel-4-5:11.1
+	ctj-4-5-post:11.1
+	ctj-4-5-pre:11.1
+	rel-4-4:11.1
+	rel-4-0:10.1;
+locks; strict;
+comment	@ * @;
+
+
+11.7
+date	2004.05.21.16.38.53;	author morrison;	state dead;
+branches;
+next	11.6;
+
+11.6
+date	2004.05.10.15.30.50;	author erikg;	state Exp;
+branches;
+next	11.5;
+
+11.5
+date	2004.04.05.05.46.00;	author morrison;	state Exp;
+branches;
+next	11.4;
+
+11.4
+date	2002.08.20.17.08.49;	author jra;	state Exp;
+branches
+	11.4.2.1;
+next	11.3;
+
+11.3
+date	2002.08.15.20.56.01;	author hartley;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	2000.08.24.22.46.21;	author mike;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	95.01.04.10.20.59;	author mike;	state Rel4_4;
+branches;
+next	10.2;
+
+10.2
+date	94.08.11.20.09.04;	author gdurf;	state Exp;
+branches;
+next	10.1;
+
+10.1
+date	91.10.12.06.52.38;	author mike;	state Rel4_0;
+branches;
+next	1.1;
+
+1.1
+date	91.01.03.20.45.23;	author butler;	state Exp;
+branches;
+next	;
+
+11.4.2.1
+date	2002.09.19.18.02.29;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@dist
+@
+
+
+11.7
+log
+@moved to src/tools/
+@
+text
+@/* 
+ * rlehisto.c - Create histogram image of an RLE file.
+ *
+ * Author:	Gregg Townsend
+ *		Department of Computer Science
+ *		University of Arizona
+ * Date:	June 23, 1990
+ * 
+ * Original version:
+ * Author:	Rod Bogart
+ * 		Computer Science Dept.
+ * 		University of Utah
+ * Date:	Thu Nov  6 1986
+ * Copyright (c) 1986 Rod Bogart
+ * 
+ * Flags:
+ *    -b	Don't count background color values for scaling.
+ *    		Ineffective when -c specified.
+ *    -c	Output cumulative values instead of discrete values.
+ *    -t	Print totals of each value in each channel.
+ *    -h npix	Set height of image.
+ *    -o fname	Direct output to file.
+ */
+#ifndef lint
+static const char rcs_ident[] = "$Id: rlehisto.c,v 11.6 2004/05/10 15:30:50 erikg Exp $";
+#endif
+
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+
+#include <stdio.h>
+
+#include "machine.h"
+#include "externs.h"		/* For malloc, calloc, and free */
+
+#include "rle.h"
+
+#define MAXCHAN 10
+
+int
+main(int argc, char **argv)
+{
+    FILE *outfile = stdout;
+    int i, j, bflag=0, cflag=0, tflag=0, oflag=0;
+    int hist_height = 256;
+    rle_hdr in_hdr;
+    rle_pixel ** rows, ** rowsout;
+    rle_pixel *pixptr;
+    long *pixelcount[256];
+    long maxcount;
+    long n;
+    int	chan, nchan;
+    int rle_cnt, rle_err;
+    char *infname = NULL, *outfname = NULL;
+
+    if ( scanargs( argc, argv,
+		   "% b%- c%- t%- h%-height!d o%-outfile!s infile%s",
+		   &bflag, &cflag, &tflag,
+		   &i, &hist_height,
+		   &oflag, &outfname, &infname ) == 0 )
+	exit( 1 );
+
+    in_hdr.rle_file  = rle_open_f("rlehisto", infname, "r");
+
+    for ( rle_cnt = 0;
+	  (rle_err = rle_get_setup( &in_hdr )) == RLE_SUCCESS;
+	  rle_cnt++ )
+    {
+	if ( rle_cnt == 0 )
+	    outfile = rle_open_f(cmd_name( argv ), outfname, "w");
+
+	/* Only pay attention to bflag if background color is defined. */
+	bflag = (bflag && in_hdr.bg_color != NULL);
+
+	in_hdr.xmax -= in_hdr.xmin;
+	in_hdr.xmin = 0;
+
+	rle_dflt_hdr = in_hdr;
+	rle_dflt_hdr.cmap = (rle_map *)NULL;
+	rle_dflt_hdr.ncmap = 0;
+	rle_dflt_hdr.cmaplen = 0;
+	rle_dflt_hdr.background = 2;
+	rle_dflt_hdr.bg_color = (int *)calloc( in_hdr.ncolors, sizeof(int) );
+	rle_dflt_hdr.alpha = 0;
+	rle_dflt_hdr.comments = in_hdr.comments;
+	rle_dflt_hdr.xmin = 0;
+	rle_dflt_hdr.xmax = 255;
+	rle_dflt_hdr.ymin = 0;
+	rle_dflt_hdr.ymax = hist_height - 1;
+	rle_dflt_hdr.rle_file = outfile;
+
+	nchan = in_hdr.ncolors;
+
+	if (!tflag)
+	{
+	    rle_addhist( argv, &in_hdr, &rle_dflt_hdr );
+	    rle_put_setup( &rle_dflt_hdr );
+	}
+
+	if ( (rle_row_alloc( &rle_dflt_hdr, &rowsout )) ||
+	     (rle_row_alloc( &in_hdr, &rows ) ))
+	{
+	    fprintf( stderr, "rlehisto: malloc failed\n" );
+	    exit( -2 );
+	}
+
+	for ( j = 0; j < 256; j++)
+	{
+	    if ( rle_cnt == 0 )
+		pixelcount[j] = (long *) malloc(sizeof(long) * nchan);
+	    for (chan=0; chan < nchan; chan++)
+	    {
+		pixelcount[j][chan] = 0;
+	    }
+	}
+	maxcount = 0;
+
+	for (j=in_hdr.ymin; j <= in_hdr.ymax; j++)
+	{
+	    rle_getrow(&in_hdr, rows);
+	    for (chan=0; chan < nchan; chan++)
+	    {
+		pixptr = rows[chan];
+		for (i=0; i < in_hdr.xmax + 1; i++)
+		    pixelcount[ *pixptr++ ][ chan ] += 1;
+	    }
+	}
+
+	/* create cumulative figures if those are wanted. */
+	if (cflag)
+	{
+	    for (chan = 0; chan < nchan; chan++)
+	    {
+		for (j = 1; j < 256; j++)
+		    pixelcount[j][chan] += pixelcount[j-1][chan];
+		if (pixelcount[255][chan] > maxcount)
+		    maxcount = pixelcount[255][chan];
+	    }
+	}
+	else
+	    for ( chan = 0; chan < nchan; chan++ )
+		for ( j = 0; j < 256; j++ )
+		    if ( bflag && j == in_hdr.bg_color[chan] )
+			continue;
+		    else
+			if ( pixelcount[j][chan] > maxcount )
+			    maxcount = pixelcount[j][chan];
+
+	/* after entire image has been read in, output the histogram */
+
+	if (tflag)
+	{
+	    if ( rle_cnt > 0 )
+		fprintf( outfile, "\n\n" );
+	    for (j = 0; j < 256; j++)
+	    {
+		for (chan = 0; chan < nchan; chan++)
+		    if (j > 0 && cflag) {
+			if (pixelcount[j][chan] != pixelcount[j-1][chan])
+			    break;
+		    } else {
+			if (pixelcount[j][chan] != 0)
+			    break;
+		    }
+		if (chan == nchan)     /* if all entries zero, suppress line */
+		    continue;
+		fprintf(outfile, "%3d.", j);
+		for (chan = 0; chan < nchan; chan++)
+		    fprintf(outfile, "\t%ld", pixelcount[j][chan]);
+		fprintf(outfile, "\n");
+	    }
+	}
+	else
+	{
+	    for (i = 0; i < hist_height; i++)
+	    {
+		n = (maxcount * i) / (hist_height - 2);
+		for (chan = 0; chan < nchan; chan++)
+		{
+		    for (j = 0; j < 256; j++)
+		    {
+			if (pixelcount[j][chan] > n)
+			    rowsout[chan][j] = 255;
+			else
+			    rowsout[chan][j] = 0;
+		    }
+		}
+		rle_putrow( rowsout, 256, &rle_dflt_hdr);
+	    }
+	    rle_puteof( &rle_dflt_hdr );
+	}
+
+	/* Free memory. */
+	rle_row_free( &rle_dflt_hdr, rowsout );
+	rle_row_free( &in_hdr, rows );
+    }
+    /* Check for an error.  EOF or EMPTY is ok if at least one image
+     * has been read.  Otherwise, print an error message.
+     */
+    if ( rle_cnt == 0 || (rle_err != RLE_EOF && rle_err != RLE_EMPTY) )
+	 rle_get_error( rle_err, cmd_name( argv ), infname );
+
+    exit( 0 );
+}
+@
+
+
+11.6
+log
+@change conf.h to a wrapped config.h
+@
+text
+@d25 1
+a25 1
+static const char rcs_ident[] = "$Id: rlehisto.c,v 11.5 2004/04/05 05:46:00 morrison Exp $";
+@
+
+
+11.5
+log
+@merge of ansi-6-0-branch into head
+@
+text
+@d25 1
+a25 1
+static const char rcs_ident[] = "$Id$";
+d28 5
+a32 1
+#include "conf.h"
+@
+
+
+11.4
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d25 1
+a25 1
+static const char rcs_ident[] = "$Id: rlehisto.c,v 11.2 2000/08/24 22:46:21 mike Exp $";
+d40 1
+a40 3
+main(argc, argv)
+int	argc;
+char	*argv[];
+@
+
+
+11.4.2.1
+log
+@Initial ANSIfication
+@
+text
+@d25 1
+a25 1
+static const char rcs_ident[] = "$Id: rlehisto.c,v 11.4 2002/08/20 17:08:49 jra Exp $";
+d40 3
+a42 1
+main(int argc, char **argv)
+@
+
+
+11.3
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d40 3
+a42 1
+main(int argc, char **argv)
+@
+
+
+11.2
+log
+@
+lint
+@
+text
+@d25 1
+a25 1
+static const char rcs_ident[] = "$Id: rlehisto.c,v 11.1 1995/01/04 10:20:59 mike Rel4_4 $";
+d40 1
+a40 3
+main(argc, argv)
+int	argc;
+char	*argv[];
+@
+
+
+11.1
+log
+@Release_4.4
+@
+text
+@d25 1
+a25 1
+static char rcs_ident[] = "$Id: rlehisto.c,v 10.2 94/08/11 20:09:04 gdurf Exp $";
+d39 1
+a39 1
+void
+@
+
+
+10.2
+log
+@Altered #defines and #includes to conform to BRL-CAD standards
+@
+text
+@d25 1
+a25 1
+static char rcs_ident[] = "$Id: rlehisto.c,v 10.1 1991/10/12 06:52:38 mike Rel4_0 gdurf $";
+@
+
+
+10.1
+log
+@Release_4.0
+@
+text
+@d25 1
+a25 1
+static char rcs_ident[] = "$Id: rlehisto.c,v 3.0 90/08/03 15:23:01 spencer Exp $";
+d28 2
+a30 5
+#include <rle.h>
+
+#ifdef USE_STDLIB_H
+#include <stdlib.h>
+#else
+d32 2
+a33 6
+#ifdef VOID_STAR
+extern void *malloc(), *calloc();
+#else
+extern char *malloc(), *calloc();
+#endif
+extern void free();
+d35 1
+a35 1
+#endif /* USE_STDLIB_H */
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@@

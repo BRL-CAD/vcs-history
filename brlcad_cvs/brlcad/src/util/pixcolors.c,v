@@ -1,0 +1,564 @@
+head	14.13;
+access;
+symbols
+	rel-7-10-4:14.11
+	STABLE:14.11.0.2
+	rel-7-10-2:14.11
+	rel-7-10-0:14.11
+	rel-7-8-4:14.8
+	rel-7-8-2:14.8
+	rel-7-8-0:14.8
+	trimnurbs-branch:14.8.0.2
+	help:14.8
+	temp_tag:14.7
+	bobWinPort-20051223-freeze:14.4
+	postmerge-20051223-bobWinPort:14.7
+	premerge-20051223-bobWinPort:14.7
+	rel-7-6-6:14.7
+	rel-7-6-4:14.7
+	rel-7-6-2:14.4
+	rel-7-6-branch:14.4.0.6
+	rel-7-6-0:14.4
+	rel-7-4-2:14.4
+	rel-7-4-branch:14.4.0.4
+	bobWinPort:14.4.0.2
+	rel-7-4-0:14.4
+	rel-7-2-6:14.3
+	rel-7-2-4:14.3
+	rel-7-2-2:14.3
+	rel-7-2-0:14.3
+	rel-7-0-4:14.2
+	rel-7-0-2:14.2
+	rel-7-0-1:14.2
+	opensource-post:14.2
+	opensource-pre:1.4
+	rel-7-0-branch:1.4.0.2
+	rel-7-0:1.4;
+locks; strict;
+comment	@ * @;
+
+
+14.13
+date	2007.11.21.20.49.13;	author erikgreenwald;	state Exp;
+branches;
+next	14.12;
+
+14.12
+date	2007.11.21.18.55.37;	author erikgreenwald;	state Exp;
+branches;
+next	14.11;
+
+14.11
+date	2007.02.02.08.48.30;	author brlcad;	state Exp;
+branches;
+next	14.10;
+
+14.10
+date	2007.01.23.01.13.56;	author brlcad;	state Exp;
+branches;
+next	14.9;
+
+14.9
+date	2007.01.20.14.37.06;	author brlcad;	state Exp;
+branches;
+next	14.8;
+
+14.8
+date	2006.01.18.06.46.27;	author brlcad;	state Exp;
+branches;
+next	14.7;
+
+14.7
+date	2005.10.23.04.44.39;	author brlcad;	state Exp;
+branches;
+next	14.6;
+
+14.6
+date	2005.09.22.00.21.51;	author brlcad;	state Exp;
+branches;
+next	14.5;
+
+14.5
+date	2005.09.21.19.05.37;	author brlcad;	state Exp;
+branches;
+next	14.4;
+
+14.4
+date	2005.06.30.00.08.37;	author erikgreenwald;	state Exp;
+branches
+	14.4.6.1;
+next	14.3;
+
+14.3
+date	2005.01.30.20.31.33;	author brlcad;	state Exp;
+branches;
+next	14.2;
+
+14.2
+date	2004.12.21.03.45.41;	author butler;	state Exp;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.32;	author morrison;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	2004.08.02.23.01.53;	author morrison;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2004.06.09.18.21.39;	author erikg;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2004.06.08.22.04.45;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.15.21.51;	author morrison;	state Exp;
+branches;
+next	;
+
+14.4.6.1
+date	2005.11.13.13.46.20;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.13
+log
+@pass bu_exit a NULL instead of an empty string
+@
+text
+@/*                     P I X C O L O R S . C
+ * BRL-CAD
+ *
+ * Copyright (c) 2004-2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@file pixcolors.c
+ *	Count the number of different pixel values in a PIX format image.
+ *	If the "-v" option is selected, list each unique pixel value
+ *	to the standard output.
+ *
+ *	Author(s)
+ *	Lee A. Butler	butler@@stsci.edu
+ *
+ *	Options
+ *	v	list colors
+ */
+#include "common.h"
+
+#ifdef HAVE_UNISTD_H
+#  include <unistd.h>
+#endif
+#include <stdio.h>
+#include <stdlib.h>
+
+#include "machine.h"
+#include "bu.h"
+
+
+/* declarations to support use of bu_getopt() system call */
+char *options = "v";
+char verbose = 0;
+char *progname = "(noname)";
+
+#define PIXELS 1024
+unsigned char pixbuf[BUFSIZ*3];
+
+/* This grotesque array provides 1 bit for each of the 2^24 possible pixel
+ * values.
+ * The "NOBASE" comment below allows compilation on the Gould 9000 series
+ * of computers.
+ */
+/*NOBASE*/
+unsigned char vals[1L << (24-3)];
+
+/*
+ *	D O I T --- Main function of program
+ */
+void doit(FILE *fd)
+{
+	unsigned long pixel, count;
+	int bytes;
+	register int mask, i;
+	register unsigned long k;
+
+
+	count = 0;
+	while ((bytes=fread(pixbuf, 3, PIXELS, fd)) > 0) {
+		for (i=(bytes-1)*3 ; i >= 0 ; i -= 3) {
+			pixel = pixbuf[i] +
+				(pixbuf[i+1] << 8) +
+				(pixbuf[i+2] << 16);
+
+			if ( ! ( vals[k=(pixel >> 3)] &
+			    (mask=(1 << (pixel & 0x07))) ) ) {
+				vals[k] |= (unsigned char)mask;
+				++count;
+			}
+		}
+	}
+	(void) printf("%lu\n", count);
+	if (verbose)
+		for (i=0 ; i < 1<<24 ; ++i)
+			if ( (vals[i>>3] & (1<<(i & 0x07))) )
+				(void) printf("%3d %3d %3d\n",
+					i & 0x0ff,
+					(i >> 8) & 0x0ff,
+					(i >> 16) & 0x0ff);
+}
+
+void usage(void)
+{
+	(void) fprintf(stderr, "Usage: %s [ -v ] < PIXfile\n", progname);
+	bu_exit (1, NULL);
+}
+
+/*
+ *	M A I N
+ *
+ *	Perform miscelaneous tasks such as argument parsing and
+ *	I/O setup and then call "doit" to perform the task at hand
+ */
+int main(int ac, char **av)
+{
+	int  c, isatty(int);
+	progname = *av;
+
+	/* Get # of options & turn all the option flags off
+	 */
+
+	/* Turn off bu_getopt's error messages */
+	bu_opterr = 0;
+
+	/* get all the option flags from the command line
+	 */
+	while ((c=bu_getopt(ac,av,options)) != EOF) {
+		if ( c == 'v' ) verbose = ! verbose;
+		else usage();
+	}
+
+
+	if (bu_optind < ac-1) {
+		usage();
+	} else if (bu_optind == ac-1 ) {
+		FILE *fd;
+		if ((fd=fopen(av[bu_optind], "r")) == (FILE *)NULL) {
+			perror(av[bu_optind]);
+			bu_exit (1, NULL);
+		} else doit(fd);
+	} else if (bu_optind >= ac) {
+		if (isatty(fileno(stdin))) usage();
+		doit(stdin);
+	}
+
+	return(0);
+}
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+14.12
+log
+@exit->bu_exit where applicable
+@
+text
+@d97 1
+a97 1
+	bu_exit (1, "");
+d131 1
+a131 1
+			bu_exit (1, "");
+@
+
+
+14.11
+log
+@convert all of the lingering getopt calls to bu_getopt (as well as the related getopt globals optind, opterr, optarg) -- libbu's getopt has the benefit of being re-entrant and is portable to environments where getopt() may not be available.
+@
+text
+@d97 1
+a97 1
+	exit(1);
+d131 1
+a131 1
+			exit(-1);
+@
+
+
+14.10
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@d115 1
+a115 1
+	opterr = 0;
+@
+
+
+14.9
+log
+@update copyright to 2007
+@
+text
+@d8 2
+a9 3
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+d14 1
+a14 1
+ * General Public License for more details.
+d16 2
+a17 2
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+@
+
+
+14.8
+log
+@update copyright to 2006
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 2004-2006 United States Government as represented by
+@
+
+
+14.7
+log
+@trailing ws
+@
+text
+@d4 1
+a4 1
+ * Copyright (C) 2004-2005 United States Government as represented by
+@
+
+
+14.6
+log
+@add bu.h for bu_getopt stuff
+@
+text
+@d23 1
+a23 1
+ *	If the "-v" option is selected, list each unique pixel value 
+d74 1
+a74 1
+			pixel = pixbuf[i] + 
+d111 1
+a111 1
+	
+d138 1
+a138 1
+	
+@
+
+
+14.5
+log
+@needs bu.h for bu_getopt
+@
+text
+@d35 1
+a35 1
+# include <unistd.h>
+a36 2
+                                                                                                                                                                            
+
+d41 2
+@
+
+
+14.4
+log
+@added missing includes
+@
+text
+@d44 1
+a44 1
+/* declarations to support use of getopt() system call */
+d115 1
+a115 1
+	/* Turn off getopt's error messages */
+d120 1
+a120 1
+	while ((c=getopt(ac,av,options)) != EOF) {
+d126 1
+a126 1
+	if (optind < ac-1) {
+d128 1
+a128 1
+	} else if (optind == ac-1 ) {
+d130 2
+a131 2
+		if ((fd=fopen(av[optind], "r")) == (FILE *)NULL) {
+			perror(av[optind]);
+d134 1
+a134 1
+	} else if (optind >= ac) {
+@
+
+
+14.4.6.1
+log
+@merge changes from HEAD aka rel-7-6-4 to the rel-7-6-branch just in case someone peeks a gander or tries to continue/build the branch
+@
+text
+@d23 1
+a23 1
+ *	If the "-v" option is selected, list each unique pixel value
+d35 1
+a35 1
+#  include <unistd.h>
+d37 2
+a42 2
+#include "bu.h"
+
+d44 1
+a44 1
+/* declarations to support use of bu_getopt() system call */
+d74 1
+a74 1
+			pixel = pixbuf[i] +
+d111 1
+a111 1
+
+d115 1
+a115 1
+	/* Turn off bu_getopt's error messages */
+d120 1
+a120 1
+	while ((c=bu_getopt(ac,av,options)) != EOF) {
+d126 1
+a126 1
+	if (bu_optind < ac-1) {
+d128 1
+a128 1
+	} else if (bu_optind == ac-1 ) {
+d130 2
+a131 2
+		if ((fd=fopen(av[bu_optind], "r")) == (FILE *)NULL) {
+			perror(av[bu_optind]);
+d134 1
+a134 1
+	} else if (bu_optind >= ac) {
+d138 1
+a138 1
+
+@
+
+
+14.3
+log
+@update copyright to 2005
+@
+text
+@d40 1
+@
+
+
+14.2
+log
+@GPL license changes
+@
+text
+@d4 2
+a5 2
+ * Copyright (c) 2004 United States Government as represented by the
+ * U.S. Army Research Laboratory.
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@d1 2
+a2 1
+/*			P I X C O L O R S
+d4 18
+@
+
+
+1.4
+log
+@replace the wrapped config.h block with common.h
+@
+text
+@d121 10
+@
+
+
+1.3
+log
+@include unistd.h for getopt stuff
+@
+text
+@d13 1
+a13 3
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+@
+
+
+1.2
+log
+@obliterate externs.h
+@
+text
+@d17 5
+@
+
+
+1.1
+log
+@Vast reorganization begins.  Sources moved from top-level directories into src/.
+@
+text
+@a16 2
+
+
+a19 1
+#include "externs.h"		/* For getopt */
+@
+

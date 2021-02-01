@@ -1,0 +1,290 @@
+head	11.5;
+access;
+symbols
+	ansi-20040405-merged:11.3
+	postmerge-20040405-ansi:11.3
+	premerge-20040404-ansi:11.3
+	postmerge-autoconf:11.3
+	autoconf-freeze:11.3
+	premerge-autoconf:11.3
+	ansi-20040316-freeze:11.3
+	postmerge-20040315-windows:11.3
+	premerge-20040315-windows:11.3
+	windows-20040315-freeze:11.3
+	autoconf-20031203:11.3
+	autoconf-20031202:11.3
+	autoconf-branch:11.3.0.12
+	phong-branch:11.3.0.10
+	photonmap-branch:11.3.0.8
+	rel-6-1-DP:11.3
+	windows-branch:11.3.0.6
+	rel-6-0-2:11.3
+	ansi-branch:11.3.0.4
+	rel-6-0-1-branch:11.3.0.2
+	hartley-6-0-post:11.3
+	hartley-6-0-pre:11.3
+	rel-6-0-1:11.3
+	rel-6-0:11.3
+	rel-5-4:11.2
+	offsite-5-3-pre:11.3
+	rel-5-3:11.2
+	rel-5-2:11.2
+	rel-5-1-branch:11.2.0.2
+	rel-5-1:11.2
+	rel-5-0:11.2
+	rel-5-0-beta:11.2
+	rel-4-5:11.2
+	ctj-4-5-post:11.2
+	ctj-4-5-pre:11.2
+	rel-4-4:11.1;
+locks; strict;
+comment	@ * @;
+
+
+11.5
+date	2004.05.21.18.07.34;	author morrison;	state dead;
+branches;
+next	11.4;
+
+11.4
+date	2004.05.10.15.30.46;	author erikg;	state Exp;
+branches;
+next	11.3;
+
+11.3
+date	2000.07.10.23.01.46;	author mike;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	95.12.01.02.49.33;	author mike;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	95.01.04.09.53.41;	author mike;	state Rel4_4;
+branches
+	11.1.1.1;
+next	1.1;
+
+1.1
+date	94.11.08.03.53.05;	author mike;	state Exp;
+branches;
+next	;
+
+11.1.1.1
+date	98.01.29.06.43.38;	author mike;	state Rel4_5;
+branches;
+next	;
+
+
+desc
+@Spline example.
+@
+
+
+11.5
+log
+@moved to src/
+@
+text
+@/*
+ *			E X A M P L E . C
+ *
+ *  Author -
+ *	Paul R. Stay
+ *  
+ *  Source -
+ *	The U. S. Army Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005-5068  USA
+ *  
+ *  Distribution Status -
+ *	Public Domain, Distribution Unlimited.
+ */
+#ifndef lint
+static const char RCSid[] = "@@(#)$Header: /n/xoff/cvs/brlcad/librt/nurb_example.c,v 11.4 2004/05/10 15:30:46 erikg Exp $ (ARL)";
+#endif
+
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+
+#include <stdio.h>
+#include <math.h>
+#include "machine.h"
+#include "vmath.h"
+#include "raytrace.h"
+#include "nurb.h"
+
+fastf_t grid[10][10][3];
+fastf_t ngrid[10][10][3];
+
+main()
+{
+
+	fastf_t hscale;
+	fastf_t v;
+	int i, j;
+
+	hscale = 2.5;
+
+	/* generate a 10 x 10 grid of random height data */
+
+	pl_color(stdout,155, 55, 55);
+
+	for( i = 0; i < 10; i++)
+		for( j = 0; j < 10; j++)
+		{
+			v = hscale * drand48() + 10.0;
+			grid[i][j][0] = i;
+			grid[i][j][1] = j;
+			grid[i][j][2] = v;
+
+			pd_3move( stdout,
+			    grid[i][j][0],  grid[i][j][1], grid[i][j][2] - .14);
+			pd_3cont( stdout,
+			    grid[i][j][0], grid[i][j][1], grid[i][j][2] + .14);
+
+			pd_3move( stdout,
+			    grid[i][j][0] - .14, grid[i][j][1], grid[i][j][2]);
+			pd_3cont( stdout,
+			    grid[i][j][0] + .14, grid[i][j][1], grid[i][j][2] );
+
+			pd_3move( stdout,
+			    grid[i][j][0], grid[i][j][1]-.14, grid[i][j][2]);
+			pd_3cont( stdout,
+			    grid[i][j][0], grid[i][j][1]+.14, grid[i][j][2]);
+		}
+
+	interpolate_data();
+}
+
+/* Interpoate the data using b-splines */
+
+interpolate_data()
+{
+	struct face_g_snurb srf;
+	struct face_g_snurb *srf2, *srf3;
+	struct knot_vector new_kv;
+
+	rt_nurb_sinterp( &srf, 4, grid, 10, 10 );
+
+#if 0
+	/* Draw control mesh in blue */
+	pl_color( stdout, 145, 145, 255 );
+	rt_nurb_plot_snurb( stdout, &srf );
+#endif
+
+#if 0
+	rt_nurb_reverse_srf( &srf );
+	rt_nurb_kvnorm( &srf.u );
+	rt_nurb_kvnorm( &srf.v );
+#endif
+
+	/* lets take a look at it.  Refine to 100 points in both directions. */
+	rt_nurb_kvknot( &new_kv, srf.order[0], 0.0, 1.0, 100);
+	srf2 = (struct face_g_snurb *) rt_nurb_s_refine( &srf, 0, &new_kv);
+	srf3 = (struct face_g_snurb *) rt_nurb_s_refine( srf2, 1, &new_kv);
+
+	/* Draw refined mesh in yellow */
+	pl_color( stdout, 200, 200, 50 );
+	rt_nurb_plot_snurb( stdout, srf3 );
+}
+@
+
+
+11.4
+log
+@change conf.h to a wrapped config.h
+@
+text
+@d15 1
+a15 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/librt/nurb_example.c,v 11.3 2000/07/10 23:01:46 mike Exp $ (ARL)";
+@
+
+
+11.3
+log
+@
+Added "const" to RCSid string, to silence warnings of unused variable
+on GCC compilers
+@
+text
+@d15 1
+a15 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/librt/nurb_example.c,v 11.2 1995/12/01 02:49:33 mike Exp $ (ARL)";
+d18 5
+a22 1
+#include "conf.h"
+@
+
+
+11.2
+log
+@LIBNURB data structures have been fully merged withNMG data structures.
+@
+text
+@d15 1
+a15 1
+static char RCSid[] = "@@(#)$Header: /m/cad/libnurb/RCS/example.c,v 11.1 95/01/04 09:53:41 mike Rel4_4 $ (ARL)";
+@
+
+
+11.1
+log
+@Release_4.4
+@
+text
+@d15 1
+a15 1
+static char RCSid[] = "@@(#)$Header: /m/cad/libnurb/RCS/example.c,v 1.1 94/11/08 03:53:05 mike Exp $ (ARL)";
+d74 2
+a75 2
+	struct snurb srf;
+	struct snurb *srf2, *srf3;
+d88 2
+a89 2
+	rt_nurb_kvnorm( &srf.u_knots );
+	rt_nurb_kvnorm( &srf.v_knots );
+d94 2
+a95 2
+	srf2 = (struct snurb *) rt_nurb_s_refine( &srf, 0, &new_kv);
+	srf3 = (struct snurb *) rt_nurb_s_refine( srf2, 1, &new_kv);
+@
+
+
+11.1.1.1
+log
+@Release_4.5
+@
+text
+@d15 1
+a15 1
+static char RCSid[] = "@@(#)$Header: /m/cad4.5/RCS/nurb_example.c,v 11.2 1995/12/01 02:49:33 mike Exp $ (ARL)";
+d74 2
+a75 2
+	struct face_g_snurb srf;
+	struct face_g_snurb *srf2, *srf3;
+d88 2
+a89 2
+	rt_nurb_kvnorm( &srf.u );
+	rt_nurb_kvnorm( &srf.v );
+d94 2
+a95 2
+	srf2 = (struct face_g_snurb *) rt_nurb_s_refine( &srf, 0, &new_kv);
+	srf3 = (struct face_g_snurb *) rt_nurb_s_refine( srf2, 1, &new_kv);
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d15 1
+a15 1
+static char RCSid[] = "@@(#)$Header$ (ARL)";
+@

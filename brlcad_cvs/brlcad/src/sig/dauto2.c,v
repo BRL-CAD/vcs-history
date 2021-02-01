@@ -1,0 +1,383 @@
+head	14.10;
+access;
+symbols
+	rel-7-10-4:14.7
+	STABLE:14.7.0.2
+	stable-branch:14.3
+	rel-7-10-2:14.7
+	rel-7-10-0:14.7
+	rel-7-8-4:14.4
+	rel-7-8-2:14.4
+	rel-7-8-0:14.4
+	trimnurbs-branch:14.4.0.2
+	help:14.4
+	temp_tag:14.3
+	bobWinPort-20051223-freeze:14.3
+	postmerge-20051223-bobWinPort:14.3
+	premerge-20051223-bobWinPort:14.3
+	rel-7-6-6:14.3
+	rel-7-6-4:14.3
+	rel-7-6-2:14.3
+	rel-7-6-branch:14.3.0.6
+	rel-7-6-0:14.3
+	rel-7-4-2:14.3
+	rel-7-4-branch:14.3.0.4
+	bobWinPort:14.3.0.2
+	rel-7-4-0:14.3
+	rel-7-2-6:14.3
+	rel-7-2-4:14.3
+	rel-7-2-2:14.3
+	rel-7-2-0:14.3
+	rel-7-0-4:14.2
+	rel-7-0-2:14.2
+	rel-7-0-1:14.2
+	opensource-post:14.2
+	opensource-pre:1.3
+	rel-7-0-branch:1.3.0.2
+	rel-7-0:1.3;
+locks; strict;
+comment	@ * @;
+
+
+14.10
+date	2007.12.16.15.59.40;	author brlcad;	state Exp;
+branches;
+next	14.9;
+
+14.9
+date	2007.12.02.22.34.24;	author brlcad;	state Exp;
+branches;
+next	14.8;
+
+14.8
+date	2007.09.15.16.23.21;	author brlcad;	state Exp;
+branches;
+next	14.7;
+
+14.7
+date	2007.01.27.01.41.45;	author brlcad;	state Exp;
+branches;
+next	14.6;
+
+14.6
+date	2007.01.23.01.13.47;	author brlcad;	state Exp;
+branches;
+next	14.5;
+
+14.5
+date	2007.01.20.14.37.00;	author brlcad;	state Exp;
+branches;
+next	14.4;
+
+14.4
+date	2006.01.18.06.46.24;	author brlcad;	state Exp;
+branches;
+next	14.3;
+
+14.3
+date	2005.01.30.20.31.12;	author brlcad;	state Exp;
+branches;
+next	14.2;
+
+14.2
+date	2004.12.21.03.11.57;	author morrison;	state Exp;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.31;	author morrison;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2004.09.03.23.30.59;	author morrison;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2004.08.02.23.01.52;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.15.20.52;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.10
+log
+@convert all bzero calls to memset
+@
+text
+@/*                        D A U T O 2 . C
+ * BRL-CAD
+ *
+ * Copyright (c) 2004-2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@file dauto2.c
+ *		D A U T O . C
+ *
+ *  Compute the autocorrelation function of doubles.
+ */
+#include "common.h"
+
+
+#include <string.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <stdio.h>
+#include <math.h>
+
+#include "machine.h"
+
+#define	BSIZE	2048		/* Must be AT LEAST 2*Points in spectrum */
+double	data[BSIZE];		/* Input buffer */
+int	clip[BSIZE];		/* clipped buffer */
+int	out[BSIZE];
+double	r[BSIZE];
+
+static const char usage[] = "\
+Usage: dauto2 [window_size (512)] < doubles\n";
+
+int main(int argc, char **argv)
+{
+	int	i, j, n, L;
+	register int *dp1, *dp2;
+	double	max1, max2, m, m2;
+
+	if( isatty(fileno(stdin)) || isatty(fileno(stdout)) ) {
+		bu_exit(1, "%s", usage );
+	}
+
+	L = (argc > 1) ? atoi(argv[1]) : 512;
+
+	while( !feof( stdin ) ) {
+		n = fread( data, sizeof(*data), L, stdin );
+		if( n <= 0 )
+			break;
+		if( n < L )
+			memset((char *)&data[n], 0, (L-n)*sizeof(*data));
+
+		max1 = data[0];
+		for( i = 1; i < L/2; i++ ) {
+			m = data[i] >= 0 ? data[i] : - data[i];
+			if( m > max1 ) max1 = m;
+		}
+		max2 = data[2*L/3];
+		for( i = 2*L/3+1; i < L; i++ ) {
+			m = data[i] >= 0 ? data[i] : - data[i];
+			if( m > max2 ) max2 = m;
+		}
+		m = max1 > max2 ? max2 : max1;
+		m *= 0.6;
+		m2 = -m;
+		for( i = 0; i < L; i++ ) {
+			if( data[i] > m )
+				clip[i] = 1;
+			else if( data[i] < m2 )
+				clip[i] = -1;
+			else
+				clip[i] = 0;
+		}
+		for( i = 0; i < L; i++ ) {
+			out[i] = 0;
+			dp1 = &clip[0];
+			dp2 = &clip[i];
+			for( j = L-i; j > 0; j-- ) {
+				if( *dp1 == 0 || *dp2 == 0 )
+					continue;
+				else if( *dp1 == *dp2 )
+					out[i]++;
+				else
+					out[i]--;
+			}
+		}
+		for( i = 0; i < L; i++ ) {
+			r[i] = out[i];
+		}
+		fwrite( r, sizeof(*r), L, stdout );
+	}
+
+	return 0;
+}
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+14.9
+log
+@woo hoo, finally got through most of the flawfinder level 4 issues related to string buffer limits (leaving issues that can probably/mostly be ignored).  these changes mostly invovlved using the n-variants of the various string processing functions so that the buffers being written to are properly clamped.
+@
+text
+@d62 1
+a62 1
+			bzero( (char *)&data[n], (L-n)*sizeof(*data) );
+@
+
+
+14.8
+log
+@more c89 embracing.  c89 provides string.h for all of the various str*() and mem*() functions, so remove the check for its presence.  there is still likely to be work required for strict c89 conformance for the various bsd strings.h functions that may be in use.
+@
+text
+@d42 1
+a42 1
+static char usage[] = "\
+d52 1
+a52 2
+		fprintf( stderr, usage );
+		exit( 1 );
+@
+
+
+14.7
+log
+@ws. lots and lots of ws.  see sh/ws.sh for details (cases 'abcdeg').
+@
+text
+@a27 1
+#ifdef HAVE_STRING_H
+a28 4
+#else
+#include <strings.h>
+#endif
+
+d33 1
+@
+
+
+14.6
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@a27 1
+
+@
+
+
+14.5
+log
+@update copyright to 2007
+@
+text
+@d8 2
+a9 3
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+d14 1
+a14 1
+ * General Public License for more details.
+d16 2
+a17 2
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+@
+
+
+14.4
+log
+@update copyright to 2006
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 2004-2006 United States Government as represented by
+@
+
+
+14.3
+log
+@update copyright to 2005
+@
+text
+@d4 1
+a4 1
+ * Copyright (C) 2004-2005 United States Government as represented by
+@
+
+
+14.2
+log
+@assign copyright and GPL
+@
+text
+@d4 2
+a5 2
+ * Copyright (c) 2004 United States Government as represented by the
+ * U.S. Army Research Laboratory.
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@d1 21
+a21 1
+/*
+@
+
+
+1.3
+log
+@USE_STRING_H is no more.. it's HAVE_STRING_H
+@
+text
+@d93 10
+@
+
+
+1.2
+log
+@replace the wrapped config.h block with common.h
+@
+text
+@d10 1
+a10 1
+#ifdef USE_STRING_H
+@
+
+
+1.1
+log
+@Vast reorganization begins.  Sources moved from top-level directories into src/.
+@
+text
+@d6 1
+a6 3
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+@
+

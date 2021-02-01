@@ -1,0 +1,249 @@
+head	1.2;
+access;
+symbols
+	rel-7-10-4:1.1
+	STABLE:1.1.0.2
+	rel-7-10-2:1.1
+	rel-7-10-0:1.1;
+locks; strict;
+comment	@// @;
+
+
+1.2
+date	2007.09.14.15.21.45;	author erikgreenwald;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2007.01.05.15.20.37;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.2
+log
+@removed trailing whitespace
+@
+text
+@/* $Header: /cvsroot/brlcad/brlcad/src/other/openNURBS/opennurbs_sum.cpp,v 1.1 2007/01/05 15:20:37 brlcad Exp $ */
+/* $NoKeywords: $ */
+/*
+//
+// Copyright (c) 1993-2001 Robert McNeel & Associates. All rights reserved.
+// Rhinoceros is a registered trademark of Robert McNeel & Assoicates.
+//
+// THIS SOFTWARE IS PROVIDED "AS IS" WITHOUT EXPRESS OR IMPLIED WARRANTY.
+// ALL IMPLIED WARRANTIES OF FITNESS FOR ANY PARTICULAR PURPOSE AND OF
+// MERCHANTABILITY ARE HEREBY DISCLAIMED.
+//
+// For complete openNURBS copyright information see <http://www.opennurbs.org>.
+//
+////////////////////////////////////////////////////////////////
+*/
+
+#include "opennurbs.h"
+
+ON_Sum::ON_Sum()
+{
+  Begin(0.0);
+}
+
+int ON_Sum::SummandCount() const
+{
+  return m_pos_count + m_neg_count + m_zero_count;
+}
+
+void ON_Sum::Begin( double starting_value )
+{
+  m_sum_err = 0.0;
+  m_pos_sum = 0.0;
+  m_neg_sum = 0.0;
+  m_pos_sum1_count = 0;
+  m_pos_sum2_count = 0;
+  m_pos_sum3_count = 0;
+  m_neg_sum1_count = 0;
+  m_neg_sum2_count = 0;
+  m_neg_sum3_count = 0;
+  m_pos_count = 0;
+  m_neg_count = 0;
+  m_zero_count = 0;
+
+  if ( starting_value > 0.0 )
+  {
+    m_pos_sum = starting_value;
+  }
+  else if ( starting_value < 0.0 )
+  {
+    m_neg_sum = starting_value;
+  }
+}
+
+double ON_Sum::SortAndSum( int count, double* a )
+{
+  // note that the arrays passed to ON_Sum::SortAndSum() are all
+  // homogeneous in sign
+  double s = 0.0;
+  if ( count > 0 )
+  {
+    if ( count >= 2 )
+    {
+      ON_SortDoubleArray( ON::quick_sort, a, count );
+      //double a0 = fabs(a[0]);
+      //double a1 = fabs(a[count-1]);
+      m_sum_err += ON_EPSILON*( fabs(a[count-1]) + count*fabs(a[0]) );
+    }
+    if ( a[count] < 0.0 )
+    {
+      a += count-1;
+      while (count--)
+        s += *a--;
+    }
+    else
+    {
+      while (count--)
+        s += *a++;
+    }
+  }
+  return s;
+}
+
+void ON_Sum::Plus( double x )
+{
+  if (x > 0.0)
+  {
+    m_pos_count++;
+    m_pos_sum1[m_pos_sum1_count++] = x;
+    if ( m_pos_sum1_count == sum1_max_count )
+    {
+      m_pos_sum2[m_pos_sum2_count++] = SortAndSum( m_pos_sum1_count, m_pos_sum1 );
+      m_pos_sum1_count = 0;
+      if ( m_pos_sum2_count == sum2_max_count )
+      {
+        m_pos_sum3[m_pos_sum3_count++] = SortAndSum( m_pos_sum2_count, m_pos_sum2 );
+        m_pos_sum2_count = 0;
+        if ( m_pos_sum3_count == sum3_max_count )
+        {
+          x = SortAndSum( m_pos_sum3_count, m_pos_sum3 );
+          m_sum_err += ON_EPSILON*( fabs(x) + fabs(m_pos_sum) );
+          m_pos_sum += x;
+          m_pos_sum3_count = 0;
+        }
+      }
+    }
+  }
+  else if ( x < 0.0 )
+  {
+    m_neg_count++;
+    m_neg_sum1[m_neg_sum1_count++] = x;
+    if ( m_neg_sum1_count == sum1_max_count )
+    {
+      m_neg_sum2[m_neg_sum2_count++] = SortAndSum( m_neg_sum1_count, m_neg_sum1 );
+      m_neg_sum1_count = 0;
+      if ( m_neg_sum2_count == sum2_max_count )
+      {
+        m_neg_sum3[m_neg_sum3_count++] = SortAndSum( m_neg_sum2_count, m_neg_sum2 );
+        m_neg_sum2_count = 0;
+        if ( m_neg_sum3_count == sum3_max_count )
+        {
+          x = SortAndSum( m_neg_sum3_count, m_neg_sum3 );
+          m_sum_err += ON_EPSILON*( fabs(x) + fabs(m_neg_sum) );
+          m_neg_sum += x;
+          m_neg_sum3_count = 0;
+        }
+      }
+    }
+  }
+  else
+    m_zero_count++;
+}
+
+
+
+void ON_Sum::operator=(double x)
+{
+  Begin(x);
+}
+
+void ON_Sum::operator+=(double x)
+{
+  Plus(x);
+}
+
+void ON_Sum::operator-=(double x)
+{
+  Plus(-x);
+}
+
+
+
+double ON_Sum::Total( double* error_estimate )
+{
+  double x;
+  if ( m_pos_sum1_count > 0 )
+  {
+    m_pos_sum2[m_pos_sum2_count++] = SortAndSum( m_pos_sum1_count, m_pos_sum1 );
+    m_pos_sum1_count = 0;
+  }
+  if ( m_pos_sum2_count > 0 )
+  {
+    m_pos_sum3[m_pos_sum3_count++] = SortAndSum( m_pos_sum2_count, m_pos_sum2 );
+    m_pos_sum2_count = 0;
+  }
+  if ( m_pos_sum3_count > 0 )
+  {
+    x = SortAndSum( m_pos_sum3_count, m_pos_sum3 );
+    m_sum_err += ON_EPSILON*( fabs(x) + fabs(m_pos_sum) );
+    m_pos_sum += x;
+    m_pos_sum3_count = 0;
+  }
+
+  if ( m_neg_sum1_count > 0 )
+  {
+    m_neg_sum2[m_neg_sum2_count++] = SortAndSum( m_neg_sum1_count, m_neg_sum1 );
+    m_neg_sum1_count = 0;
+  }
+  if ( m_neg_sum2_count > 0 )
+  {
+    m_neg_sum3[m_neg_sum3_count++] = SortAndSum( m_neg_sum2_count, m_neg_sum2 );
+    m_neg_sum2_count = 0;
+  }
+  if ( m_neg_sum3_count > 0 )
+  {
+    x = SortAndSum( m_neg_sum3_count, m_neg_sum3 );
+    m_sum_err += ON_EPSILON*( fabs(x) + fabs(m_neg_sum) );
+    m_neg_sum += x;
+    m_neg_sum3_count = 0;
+  }
+
+  if ( error_estimate )
+  {
+    *error_estimate = m_sum_err + ON_EPSILON*(fabs(m_pos_sum) + fabs(m_neg_sum));
+  }
+
+  return m_pos_sum + m_neg_sum;
+}
+@
+
+
+1.1
+log
+@initial import of the openNURBS initiative's nurbs toolkit.  the toolkit consists of code for reading/writing .3dm files used by Rhino as well as nurbs evaluation and other geometry processing facilities.  the library is being evaluated for .3dm support as well as potentially gutting the existing nurbs primitive and using openNURBS evaluation routines instead (still probably need to implement ray shot evaluation).  this is version 200612050 (aka 4.0).
+
+this is also a C++ library, the first integration of an external C++ dependency into BRL-CAD.  additional support/infrastructure will be needed to support this in configure.  there's still, however, a policy/convention of "containment" so that C++ does not propagate into the existing BRL-CAD libraries.  any additions that utilize c++ still have to be entirely modular (and optional) for the time being.
+@
+text
+@d1 1
+a1 1
+/* $Header: /src3/opennurbs/opennurbs_sum.cpp 2     10/18/02 11:58a Dalelear $ */
+d11 1
+a11 1
+//				
+d56 1
+a56 1
+  // note that the arrays passed to ON_Sum::SortAndSum() are all 
+@
+

@@ -1,0 +1,1052 @@
+head	1.3;
+access;
+symbols
+	rel-5-2:1.2
+	rel-5-1-patches:1.2.0.2
+	rel-5-1:1.2
+	rel-5-0:1.1
+	rel-5-0beta:1.1;
+locks; strict;
+comment	@ * @;
+
+
+1.3
+date	2000.12.06.21.20.50;	author bparker;	state dead;
+branches;
+next	1.2;
+
+1.2
+date	99.10.19.19.36.26;	author jra;	state Exp;
+branches
+	1.2.2.1;
+next	1.1;
+
+1.1
+date	98.06.02.19.43.13;	author jra;	state Exp;
+branches;
+next	;
+
+1.2.2.1
+date	2000.12.06.21.26.11;	author bparker;	state dead;
+branches;
+next	;
+
+
+desc
+@Original
+@
+
+
+1.3
+log
+@Upgrading to newer version
+@
+text
+@/* 
+ * tclUnixFile.c --
+ *
+ *      This file contains wrappers around UNIX file handling functions.
+ *      These wrappers mask differences between Windows and UNIX.
+ *
+ * Copyright (c) 1995-1998 Sun Microsystems, Inc.
+ *
+ * See the file "license.terms" for information on usage and redistribution
+ * of this file, and for a DISCLAIMER OF ALL WARRANTIES.
+ *
+ * RCS: @@(#) $Id: tclUnixFile.c,v 1.2 1999/10/19 19:36:26 jra Exp $
+ */
+
+#include "tclInt.h"
+#include "tclPort.h"
+
+
+/*
+ *---------------------------------------------------------------------------
+ *
+ * TclpFindExecutable --
+ *
+ *	This procedure computes the absolute path name of the current
+ *	application, given its argv[0] value.
+ *
+ * Results:
+ *	A dirty UTF string that is the path to the executable.  At this
+ *	point we may not know the system encoding.  Convert the native
+ *	string value to UTF using the default encoding.  The assumption
+ *	is that we will still be able to parse the path given the path
+ *	name contains ASCII string and '/' chars do not conflict with
+ *	other UTF chars.
+ *
+ * Side effects:
+ *	The variable tclNativeExecutableName gets filled in with the file
+ *	name for the application, if we figured it out.  If we couldn't
+ *	figure it out, tclNativeExecutableName is set to NULL.
+ *
+ *---------------------------------------------------------------------------
+ */
+
+char *
+TclpFindExecutable(argv0)
+    CONST char *argv0;		/* The value of the application's argv[0]
+				 * (native). */
+{
+    CONST char *name, *p;
+    struct stat statBuf;
+    int length;
+    Tcl_DString buffer, nameString;
+
+    if (argv0 == NULL) {
+	return NULL;
+    }
+    if (tclNativeExecutableName != NULL) {
+	return tclNativeExecutableName;
+    }
+
+    Tcl_DStringInit(&buffer);
+
+    name = argv0;
+    for (p = name; *p != '\0'; p++) {
+	if (*p == '/') {
+	    /*
+	     * The name contains a slash, so use the name directly
+	     * without doing a path search.
+	     */
+
+	    goto gotName;
+	}
+    }
+
+    p = getenv("PATH");					/* INTL: Native. */
+    if (p == NULL) {
+	/*
+	 * There's no PATH environment variable; use the default that
+	 * is used by sh.
+	 */
+
+	p = ":/bin:/usr/bin";
+    } else if (*p == '\0') {
+	/*
+	 * An empty path is equivalent to ".".
+	 */
+
+	p = "./";
+    }
+
+    /*
+     * Search through all the directories named in the PATH variable
+     * to see if argv[0] is in one of them.  If so, use that file
+     * name.
+     */
+
+    while (1) {
+	while (isspace(UCHAR(*p))) {		/* INTL: BUG */
+	    p++;
+	}
+	name = p;
+	while ((*p != ':') && (*p != 0)) {
+	    p++;
+	}
+	Tcl_DStringSetLength(&buffer, 0);
+	if (p != name) {
+	    Tcl_DStringAppend(&buffer, name, p - name);
+	    if (p[-1] != '/') {
+		Tcl_DStringAppend(&buffer, "/", 1);
+	    }
+	}
+	name = Tcl_DStringAppend(&buffer, argv0, -1);
+
+	/*
+	 * INTL: The following calls to access() and stat() should not be
+	 * converted to Tclp routines because they need to operate on native
+	 * strings directly.
+	 */
+
+	if ((access(name, X_OK) == 0)		/* INTL: Native. */
+		&& (stat(name, &statBuf) == 0)	/* INTL: Native. */
+		&& S_ISREG(statBuf.st_mode)) {
+	    goto gotName;
+	}
+	if (*p == '\0') {
+	    break;
+	} else if (*(p+1) == 0) {
+	    p = "./";
+	} else {
+	    p++;
+	}
+    }
+    goto done;
+
+    /*
+     * If the name starts with "/" then just copy it to tclExecutableName.
+     */
+
+    gotName:
+    if (name[0] == '/')  {
+	Tcl_ExternalToUtfDString(NULL, name, -1, &nameString);
+	tclNativeExecutableName = (char *)
+		ckalloc((unsigned) (Tcl_DStringLength(&nameString) + 1));
+	strcpy(tclNativeExecutableName, Tcl_DStringValue(&nameString));
+	Tcl_DStringFree(&nameString);
+	goto done;
+    }
+
+    /*
+     * The name is relative to the current working directory.  First
+     * strip off a leading "./", if any, then add the full path name of
+     * the current working directory.
+     */
+
+    if ((name[0] == '.') && (name[1] == '/')) {
+	name += 2;
+    }
+
+    Tcl_ExternalToUtfDString(NULL, name, -1, &nameString);
+
+    Tcl_DStringFree(&buffer);
+    TclpGetCwd(NULL, &buffer);
+
+    length = Tcl_DStringLength(&buffer) + Tcl_DStringLength(&nameString) + 2;
+    tclNativeExecutableName = (char *) ckalloc((unsigned) length);
+    strcpy(tclNativeExecutableName, Tcl_DStringValue(&buffer));
+    tclNativeExecutableName[Tcl_DStringLength(&buffer)] = '/';
+    strcpy(tclNativeExecutableName + Tcl_DStringLength(&buffer) + 1,
+	    Tcl_DStringValue(&nameString));
+    Tcl_DStringFree(&nameString);
+    
+    done:
+    Tcl_DStringFree(&buffer);
+    return tclNativeExecutableName;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * TclpMatchFiles --
+ *
+ *	This routine is used by the globbing code to search a
+ *	directory for all files which match a given pattern.
+ *
+ * Results: 
+ *	If the tail argument is NULL, then the matching files are
+ *	added to the the interp's result.  Otherwise, TclDoGlob is called
+ *	recursively for each matching subdirectory.  The return value
+ *	is a standard Tcl result indicating whether an error occurred
+ *	in globbing.
+ *
+ * Side effects:
+ *	None.
+ *
+ *----------------------------------------------------------------------
+ */
+
+int
+TclpMatchFiles(interp, separators, dirPtr, pattern, tail)
+    Tcl_Interp *interp;		/* Interpreter to receive results. */
+    char *separators;		/* Path separators to pass to TclDoGlob. */
+    Tcl_DString *dirPtr;	/* Contains path to directory to search. */
+    char *pattern;		/* Pattern to match against. */
+    char *tail;			/* Pointer to end of pattern. Must not
+				 * refer to a static string. */
+{
+    char *native, *dirName, *patternEnd = tail;
+    char savedChar = 0;		/* lint. */
+    DIR *d;
+    Tcl_DString ds;
+    struct stat statBuf;
+    int matchHidden;
+    int result = TCL_OK;
+    int baseLength = Tcl_DStringLength(dirPtr);
+
+    /*
+     * Make sure that the directory part of the name really is a
+     * directory.  If the directory name is "", use the name "."
+     * instead, because some UNIX systems don't treat "" like "."
+     * automatically.  Keep the "" for use in generating file names,
+     * otherwise "glob foo.c" would return "./foo.c".
+     */
+
+    if (Tcl_DStringLength(dirPtr) == 0) {
+	dirName = ".";
+    } else {
+	dirName = Tcl_DStringValue(dirPtr);
+    }
+
+    if ((TclpStat(dirName, &statBuf) != 0)		/* INTL: UTF-8. */
+	    || !S_ISDIR(statBuf.st_mode)) {
+	return TCL_OK;
+    }
+
+    /*
+     * Check to see if the pattern needs to compare with hidden files.
+     */
+
+    if ((pattern[0] == '.')
+	    || ((pattern[0] == '\\') && (pattern[1] == '.'))) {
+	matchHidden = 1;
+    } else {
+	matchHidden = 0;
+    }
+
+    /*
+     * Now open the directory for reading and iterate over the contents.
+     */
+
+    native = Tcl_UtfToExternalDString(NULL, dirName, -1, &ds);
+    d = opendir(native);				/* INTL: Native. */
+    Tcl_DStringFree(&ds);
+    if (d == NULL) {
+	Tcl_ResetResult(interp);
+
+	/*
+	 * Strip off a trailing '/' if necessary, before reporting the error.
+	 */
+
+	if (baseLength > 0) {
+	    savedChar = (Tcl_DStringValue(dirPtr))[baseLength-1];
+	    if (savedChar == '/') {
+		(Tcl_DStringValue(dirPtr))[baseLength-1] = '\0';
+	    }
+	}
+	Tcl_AppendResult(interp, "couldn't read directory \"",
+		Tcl_DStringValue(dirPtr), "\": ",
+		Tcl_PosixError(interp), (char *) NULL);
+	if (baseLength > 0) {
+	    (Tcl_DStringValue(dirPtr))[baseLength-1] = savedChar;
+	}
+	return TCL_ERROR;
+    }
+
+    /*
+     * Clean up the end of the pattern and the tail pointer.  Leave
+     * the tail pointing to the first character after the path separator
+     * following the pattern, or NULL.  Also, ensure that the pattern
+     * is null-terminated.
+     */
+
+    if (*tail == '\\') {
+	tail++;
+    }
+    if (*tail == '\0') {
+	tail = NULL;
+    } else {
+	tail++;
+    }
+    savedChar = *patternEnd;
+    *patternEnd = '\0';
+
+    while (1) {
+	char *utf;
+	struct dirent *entryPtr;
+	
+	entryPtr = readdir(d);				/* INTL: Native. */
+	if (entryPtr == NULL) {
+	    break;
+	}
+
+	/*
+	 * Don't match names starting with "." unless the "." is
+	 * present in the pattern.
+	 */
+
+	if (!matchHidden && (*entryPtr->d_name == '.')) {
+	    continue;
+	}
+
+	/*
+	 * Now check to see if the file matches.  If there are more
+	 * characters to be processed, then ensure matching files are
+	 * directories before calling TclDoGlob. Otherwise, just add
+	 * the file to the result.
+	 */
+
+	utf = Tcl_ExternalToUtfDString(NULL, entryPtr->d_name, -1, &ds);
+	if (Tcl_StringMatch(utf, pattern) != 0) {
+	    Tcl_DStringSetLength(dirPtr, baseLength);
+	    Tcl_DStringAppend(dirPtr, utf, -1);
+	    if (tail == NULL) {
+		Tcl_AppendElement(interp, Tcl_DStringValue(dirPtr));
+	    } else if ((TclpStat(Tcl_DStringValue(dirPtr), &statBuf) == 0)
+		    && S_ISDIR(statBuf.st_mode)) {
+		Tcl_DStringAppend(dirPtr, "/", 1);
+		result = TclDoGlob(interp, separators, dirPtr, tail);
+		if (result != TCL_OK) {
+		    Tcl_DStringFree(&ds);
+		    break;
+		}
+	    }
+	}
+	Tcl_DStringFree(&ds);
+    }
+    *patternEnd = savedChar;
+
+    closedir(d);
+    return result;
+}
+
+/*
+ *---------------------------------------------------------------------------
+ *
+ * TclpGetUserHome --
+ *
+ *	This function takes the specified user name and finds their
+ *	home directory.
+ *
+ * Results:
+ *	The result is a pointer to a string specifying the user's home
+ *	directory, or NULL if the user's home directory could not be
+ *	determined.  Storage for the result string is allocated in
+ *	bufferPtr; the caller must call Tcl_DStringFree() when the result
+ *	is no longer needed.
+ *
+ * Side effects:
+ *	None.
+ *
+ *----------------------------------------------------------------------
+ */
+
+char *
+TclpGetUserHome(name, bufferPtr)
+    CONST char *name;		/* User name for desired home directory. */
+    Tcl_DString *bufferPtr;	/* Uninitialized or free DString filled
+				 * with name of user's home directory. */
+{
+    struct passwd *pwPtr;
+    Tcl_DString ds;
+    char *native;
+
+    native = Tcl_UtfToExternalDString(NULL, name, -1, &ds);
+    pwPtr = getpwnam(native);				/* INTL: Native. */
+    Tcl_DStringFree(&ds);
+    
+    if (pwPtr == NULL) {
+	endpwent();
+	return NULL;
+    }
+    Tcl_ExternalToUtfDString(NULL, pwPtr->pw_dir, -1, bufferPtr);
+    endpwent();
+    return Tcl_DStringValue(bufferPtr);
+}
+
+/*
+ *---------------------------------------------------------------------------
+ *
+ * TclpAccess --
+ *
+ *	This function replaces the library version of access().
+ *
+ * Results:
+ *	See access() documentation.
+ *
+ * Side effects:
+ *	See access() documentation.
+ *
+ *---------------------------------------------------------------------------
+ */
+
+int
+TclpAccess(path, mode)
+    CONST char *path;		/* Path of file to access (UTF-8). */
+    int mode;			/* Permission setting. */
+{
+    int result;
+    Tcl_DString ds;
+    char *native;
+    
+    native = Tcl_UtfToExternalDString(NULL, path, -1, &ds);
+    result = access(native, mode);			/* INTL: Native. */
+    Tcl_DStringFree(&ds);
+
+    return result;
+}
+
+/*
+ *---------------------------------------------------------------------------
+ *
+ * TclpChdir --
+ *
+ *	This function replaces the library version of chdir().
+ *
+ * Results:
+ *	See chdir() documentation.
+ *
+ * Side effects:
+ *	See chdir() documentation.  
+ *
+ *---------------------------------------------------------------------------
+ */
+
+int
+TclpChdir(dirName)
+    CONST char *dirName;     	/* Path to new working directory (UTF-8). */
+{
+    int result;
+    Tcl_DString ds;
+    char *native;
+
+    native = Tcl_UtfToExternalDString(NULL, dirName, -1, &ds);
+    result = chdir(native);				/* INTL: Native. */
+    Tcl_DStringFree(&ds);
+
+    return result;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * TclpLstat --
+ *
+ *	This function replaces the library version of lstat().
+ *
+ * Results:
+ *	See lstat() documentation.
+ *
+ * Side effects:
+ *	See lstat() documentation.
+ *
+ *----------------------------------------------------------------------
+ */
+
+int
+TclpLstat(path, bufPtr)
+    CONST char *path;		/* Path of file to stat (UTF-8). */
+    struct stat *bufPtr;	/* Filled with results of stat call. */
+{
+    int result;
+    Tcl_DString ds;
+    char *native;
+    
+    native = Tcl_UtfToExternalDString(NULL, path, -1, &ds);
+    result = lstat(native, bufPtr);			/* INTL: Native. */
+    Tcl_DStringFree(&ds);
+
+    return result;
+}
+
+/*
+ *---------------------------------------------------------------------------
+ *
+ * TclpGetCwd --
+ *
+ *	This function replaces the library version of getcwd().
+ *
+ * Results:
+ *	The result is a pointer to a string specifying the current
+ *	directory, or NULL if the current directory could not be
+ *	determined.  If NULL is returned, an error message is left in the
+ *	interp's result.  Storage for the result string is allocated in
+ *	bufferPtr; the caller must call Tcl_DStringFree() when the result
+ *	is no longer needed.
+ *
+ * Side effects:
+ *	None.
+ *
+ *----------------------------------------------------------------------
+ */
+
+char *
+TclpGetCwd(interp, bufferPtr)
+    Tcl_Interp *interp;		/* If non-NULL, used for error reporting. */
+    Tcl_DString *bufferPtr;	/* Uninitialized or free DString filled
+				 * with name of current directory. */
+{
+    char buffer[MAXPATHLEN+1];
+
+#ifdef USEGETWD
+    if (getwd(buffer) == NULL) {			/* INTL: Native. */
+#else
+    if (getcwd(buffer, MAXPATHLEN + 1) == NULL) {	/* INTL: Native. */
+#endif
+	if (interp != NULL) {
+	    Tcl_AppendResult(interp,
+		    "error getting working directory name: ",
+		    Tcl_PosixError(interp), (char *) NULL);
+	}
+	return NULL;
+    }
+    return Tcl_ExternalToUtfDString(NULL, buffer, -1, bufferPtr);
+}
+
+/*
+ *---------------------------------------------------------------------------
+ *
+ * TclpReadlink --
+ *
+ *	This function replaces the library version of readlink().
+ *
+ * Results:
+ *	The result is a pointer to a string specifying the contents
+ *	of the symbolic link given by 'path', or NULL if the symbolic
+ *	link could not be read.  Storage for the result string is
+ *	allocated in bufferPtr; the caller must call Tcl_DStringFree()
+ *	when the result is no longer needed.
+ *
+ * Side effects:
+ *	See readlink() documentation.
+ *
+ *---------------------------------------------------------------------------
+ */
+
+char *
+TclpReadlink(path, linkPtr)
+    CONST char *path;		/* Path of file to readlink (UTF-8). */
+    Tcl_DString *linkPtr;	/* Uninitialized or free DString filled
+				 * with contents of link (UTF-8). */
+{
+    char link[MAXPATHLEN];
+    int length;
+    char *native;
+    Tcl_DString ds;
+
+    native = Tcl_UtfToExternalDString(NULL, path, -1, &ds);
+    length = readlink(native, link, sizeof(link));	/* INTL: Native. */
+    Tcl_DStringFree(&ds);
+    
+    if (length < 0) {
+	return NULL;
+    }
+
+    Tcl_ExternalToUtfDString(NULL, link, length, linkPtr);
+    return Tcl_DStringValue(linkPtr);
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * TclpStat --
+ *
+ *	This function replaces the library version of stat().
+ *
+ * Results:
+ *	See stat() documentation.
+ *
+ * Side effects:
+ *	See stat() documentation.
+ *
+ *----------------------------------------------------------------------
+ */
+
+int
+TclpStat(path, bufPtr)
+    CONST char *path;		/* Path of file to stat (in UTF-8). */
+    struct stat *bufPtr;	/* Filled with results of stat call. */
+{
+    int result;
+    Tcl_DString ds;
+    char *native;
+    
+    native = Tcl_UtfToExternalDString(NULL, path, -1, &ds);
+    result = stat(native, bufPtr);			/* INTL: Native. */
+    Tcl_DStringFree(&ds);
+
+    return result;
+}
+
+@
+
+
+1.2
+log
+@TCL 8.2.1 update
+@
+text
+@d12 1
+a12 1
+ * RCS: @@(#) $Id: tclUnixFile.c,v 1.6 1999/04/16 00:48:05 stanton Exp $
+@
+
+
+1.2.2.1
+log
+@Upgrading to newer version
+@
+text
+@d12 1
+a12 1
+ * RCS: @@(#) $Id: tclUnixFile.c,v 1.2 1999/10/19 19:36:26 jra Exp $
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d7 1
+a7 1
+ * Copyright (c) 1995 Sun Microsystems, Inc.
+d12 1
+a12 1
+ * SCCS: @@(#) tclUnixFile.c 1.48 97/07/07 16:38:11
+a17 53
+/*
+ * The variable below caches the name of the current working directory
+ * in order to avoid repeated calls to getcwd.  The string is malloc-ed.
+ * NULL means the cache needs to be refreshed.
+ */
+
+static char *currentDir =  NULL;
+static int currentDirExitHandlerSet = 0;
+
+/*
+ * The variable below is set if the exit routine for deleting the string
+ * containing the executable name has been registered.
+ */
+
+static int executableNameExitHandlerSet = 0;
+
+extern pid_t waitpid _ANSI_ARGS_((pid_t pid, int *stat_loc, int options));
+
+/*
+ * Static routines for this file:
+ */
+
+static void	FreeCurrentDir _ANSI_ARGS_((ClientData clientData));
+static void	FreeExecutableName _ANSI_ARGS_((ClientData clientData));
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * FreeCurrentDir --
+ *
+ *	Frees the string stored in the currentDir variable. This routine
+ *	is registered as an exit handler and will be called during shutdown.
+ *
+ * Results:
+ *	None.
+ *
+ * Side effects:
+ *	Frees the memory occuppied by the currentDir value.
+ *
+ *----------------------------------------------------------------------
+ */
+
+	/* ARGSUSED */
+static void
+FreeCurrentDir(clientData)
+    ClientData clientData;	/* Not used. */
+{
+    if (currentDir != (char *) NULL) {
+        ckfree(currentDir);
+        currentDir = (char *) NULL;
+        currentDirExitHandlerSet = 0;
+    }
+}
+d20 1
+a20 7
+ *----------------------------------------------------------------------
+ *
+ * FreeExecutableName --
+ *
+ *	Frees the string stored in the tclExecutableName variable. This
+ *	routine is registered as an exit handler and will be called
+ *	during shutdown.
+d22 1
+a22 126
+ * Results:
+ *	None.
+ *
+ * Side effects:
+ *	Frees the memory occuppied by the tclExecutableName value.
+ *
+ *----------------------------------------------------------------------
+ */
+
+	/* ARGSUSED */
+static void
+FreeExecutableName(clientData)
+    ClientData clientData;	/* Not used. */
+{
+    if (tclExecutableName != (char *) NULL) {
+        ckfree(tclExecutableName);
+        tclExecutableName = (char *) NULL;
+    }
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * TclChdir --
+ *
+ *	Change the current working directory.
+ *
+ * Results:
+ *	The result is a standard Tcl result.  If an error occurs and 
+ *	interp isn't NULL, an error message is left in interp->result.
+ *
+ * Side effects:
+ *	The working directory for this application is changed.  Also
+ *	the cache maintained used by TclGetCwd is deallocated and
+ *	set to NULL.
+ *
+ *----------------------------------------------------------------------
+ */
+
+int
+TclChdir(interp, dirName)
+    Tcl_Interp *interp;		/* If non NULL, used for error reporting. */
+    char *dirName;     		/* Path to new working directory. */
+{
+    if (currentDir != NULL) {
+	ckfree(currentDir);
+	currentDir = NULL;
+    }
+    if (chdir(dirName) != 0) {
+	if (interp != NULL) {
+	    Tcl_AppendResult(interp, "couldn't change working directory to \"",
+		    dirName, "\": ", Tcl_PosixError(interp), (char *) NULL);
+	}
+	return TCL_ERROR;
+    }
+    return TCL_OK;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * TclGetCwd --
+ *
+ *	Return the path name of the current working directory.
+ *
+ * Results:
+ *	The result is the full path name of the current working
+ *	directory, or NULL if an error occurred while figuring it out.
+ *	The returned string is owned by the TclGetCwd routine and must
+ *	not be freed by the caller.  If an error occurs and interp
+ *	isn't NULL, an error message is left in interp->result.
+ *
+ * Side effects:
+ *	The path name is cached to avoid having to recompute it
+ *	on future calls;  if it is already cached, the cached
+ *	value is returned.
+ *
+ *----------------------------------------------------------------------
+ */
+
+char *
+TclGetCwd(interp)
+    Tcl_Interp *interp;		/* If non NULL, used for error reporting. */
+{
+    char buffer[MAXPATHLEN+1];
+
+    if (currentDir == NULL) {
+        if (!currentDirExitHandlerSet) {
+            currentDirExitHandlerSet = 1;
+            Tcl_CreateExitHandler(FreeCurrentDir, (ClientData) NULL);
+        }
+#ifdef USEGETWD
+	if ((int)getwd(buffer) == (int)NULL) {
+	    if (interp != NULL) {
+		Tcl_AppendResult(interp,
+			"error getting working directory name: ",
+			buffer, (char *)NULL);
+	    }
+	    return NULL;
+	}
+#else
+	if (getcwd(buffer, MAXPATHLEN+1) == NULL) {
+	    if (interp != NULL) {
+		if (errno == ERANGE) {
+		    Tcl_SetResult(interp,
+			    "working directory name is too long",
+		            TCL_STATIC);
+		} else {
+		    Tcl_AppendResult(interp,
+			    "error getting working directory name: ",
+			    Tcl_PosixError(interp), (char *) NULL);
+		}
+	    }
+	    return NULL;
+	}
+#endif
+	currentDir = (char *) ckalloc((unsigned) (strlen(buffer) + 1));
+	strcpy(currentDir, buffer);
+    }
+    return currentDir;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * Tcl_FindExecutable --
+d28 6
+a33 1
+ *	None.
+d36 1
+a36 1
+ *	The variable tclExecutableName gets filled in with the file
+d38 1
+a38 1
+ *	figure it out, Tcl_FindExecutable is set to NULL.
+d40 1
+a40 1
+ *----------------------------------------------------------------------
+d43 4
+a46 3
+void
+Tcl_FindExecutable(argv0)
+    char *argv0;		/* The value of the application's argv[0]. */
+d48 2
+a49 2
+    char *name, *p, *cwd;
+    Tcl_DString buffer;
+d51 8
+a58 1
+    struct stat statBuf;
+a60 4
+    if (tclExecutableName != NULL) {
+	ckfree(tclExecutableName);
+	tclExecutableName = NULL;
+    }
+d63 1
+a63 1
+    for (p = name; *p != 0; p++) {
+d74 1
+a74 1
+    p = getenv("PATH");
+d82 6
+d96 2
+a97 2
+    while (*p != 0) {
+	while (isspace(UCHAR(*p))) {
+d106 1
+a106 1
+	    Tcl_DStringAppend(&buffer, name, p-name);
+d111 10
+a120 3
+	Tcl_DStringAppend(&buffer, argv0, -1);
+	if ((access(Tcl_DStringValue(&buffer), X_OK) == 0)
+		&& (stat(Tcl_DStringValue(&buffer), &statBuf) == 0)
+a121 1
+	    name = Tcl_DStringValue(&buffer);
+d124 1
+a124 1
+	if (*p == 0) {
+d126 4
+a130 1
+	p++;
+d140 5
+a144 2
+	tclExecutableName = (char *) ckalloc((unsigned) (strlen(name) + 1));
+	strcpy(tclExecutableName, name);
+a156 11
+    cwd = TclGetCwd((Tcl_Interp *) NULL);
+    if (cwd == NULL) {
+	tclExecutableName = NULL;
+	goto done;
+    }
+    length = strlen(cwd);
+    tclExecutableName = (char *) ckalloc((unsigned)
+	    (length + strlen(name) + 2));
+    strcpy(tclExecutableName, cwd);
+    tclExecutableName[length] = '/';
+    strcpy(tclExecutableName + length + 1, name);
+d158 13
+d173 1
+a173 5
+
+    if (!executableNameExitHandlerSet) {
+        executableNameExitHandlerSet = 1;
+        Tcl_CreateExitHandler(FreeExecutableName, (ClientData) NULL);
+    }
+d179 1
+a179 42
+ * TclGetUserHome --
+ *
+ *	This function takes the passed in user name and finds the
+ *	corresponding home directory specified in the password file.
+ *
+ * Results:
+ *	The result is a pointer to a static string containing
+ *	the new name.  If there was an error in processing the
+ *	user name then the return value is NULL.  Otherwise the
+ *	result is stored in bufferPtr, and the caller must call
+ *	Tcl_DStringFree(bufferPtr) to free the result.
+ *
+ * Side effects:
+ *	Information may be left in bufferPtr.
+ *
+ *----------------------------------------------------------------------
+ */
+
+char *
+TclGetUserHome(name, bufferPtr)
+    char *name;			/* User name to use to find home directory. */
+    Tcl_DString *bufferPtr;	/* May be used to hold result.  Must not hold
+				 * anything at the time of the call, and need
+				 * not even be initialized. */
+{
+    struct passwd *pwPtr;
+
+    pwPtr = getpwnam(name);
+    if (pwPtr == NULL) {
+	endpwent();
+	return NULL;
+    }
+    Tcl_DStringInit(bufferPtr);
+    Tcl_DStringAppend(bufferPtr, pwPtr->pw_dir, -1);
+    endpwent();
+    return bufferPtr->string;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * TclMatchFiles --
+d186 1
+a186 1
+ *	added to the interp->result.  Otherwise, TclDoGlob is called
+d198 1
+a198 1
+TclMatchFiles(interp, separators, dirPtr, pattern, tail)
+d203 2
+a204 1
+    char *tail;			/* Pointer to end of pattern. */
+d206 2
+a207 3
+    char *dirName, *patternEnd = tail;
+    char savedChar = 0;		/* Initialization needed only to prevent
+				 * compiler warning from gcc. */
+d209 1
+a210 1
+    struct dirent *entryPtr;
+d223 1
+a223 1
+    if (dirPtr->string[0] == '\0') {
+d226 1
+a226 1
+	dirName = dirPtr->string;
+d228 3
+a230 1
+    if ((stat(dirName, &statBuf) != 0) || !S_ISDIR(statBuf.st_mode)) {
+d249 3
+a251 1
+    d = opendir(dirName);
+d260 1
+a260 1
+	    savedChar = dirPtr->string[baseLength-1];
+d262 1
+a262 1
+		dirPtr->string[baseLength-1] = '\0';
+d266 2
+a267 1
+		dirPtr->string, "\": ", Tcl_PosixError(interp), (char *) NULL);
+d269 1
+a269 1
+	    dirPtr->string[baseLength-1] = savedChar;
+d293 4
+a296 1
+	entryPtr = readdir(d);
+d317 2
+a318 1
+	if (Tcl_StringMatch(entryPtr->d_name, pattern)) {
+d320 1
+a320 1
+	    Tcl_DStringAppend(dirPtr, entryPtr->d_name, -1);
+d322 2
+a323 2
+		Tcl_AppendElement(interp, dirPtr->string);
+	    } else if ((stat(dirPtr->string, &statBuf) == 0)
+d328 1
+d333 1
+d340 259
+@
+

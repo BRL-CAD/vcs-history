@@ -1,0 +1,352 @@
+head	1.6;
+access;
+symbols
+	ansi-20040405-merged:1.4.4.1
+	postmerge-20040405-ansi:1.5
+	premerge-20040404-ansi:1.5
+	postmerge-autoconf:1.5
+	autoconf-freeze:1.4.12.2
+	premerge-autoconf:1.5
+	ansi-20040316-freeze:1.4
+	postmerge-20040315-windows:1.5
+	premerge-20040315-windows:1.5
+	windows-20040315-freeze:1.4.6.1
+	autoconf-20031203:1.4
+	autoconf-20031202:1.4
+	autoconf-branch:1.4.0.12
+	phong-branch:1.4.0.10
+	photonmap-branch:1.4.0.8
+	rel-6-1-DP:1.4
+	windows-branch:1.4.0.6
+	rel-6-0-2:1.4
+	ansi-branch:1.4.0.4
+	rel-6-0-1-branch:1.4.0.2
+	hartley-6-0-post:1.4
+	hartley-6-0-pre:1.4
+	rel-6-0-1:1.4
+	rel-6-0:1.4
+	rel-5-4:1.3
+	offsite-5-3-pre:1.4
+	rel-5-3:1.3
+	rel-5-2:1.3
+	rel-5-1-branch:1.3.0.2
+	rel-5-1:1.3
+	rel-5-0:1.2
+	rel-5-0-beta:1.2
+	rel-4-5:1.2
+	ctj-4-5-post:1.2
+	ctj-4-5-pre:1.2;
+locks; strict;
+comment	@ * @;
+
+
+1.6
+date	2004.05.24.04.01.08;	author morrison;	state dead;
+branches;
+next	1.5;
+
+1.5
+date	2004.02.02.17.39.04;	author morrison;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	2000.08.24.04.10.47;	author mike;	state Exp;
+branches
+	1.4.4.1
+	1.4.6.1
+	1.4.12.1;
+next	1.3;
+
+1.3
+date	2000.03.29.18.42.44;	author mike;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	95.12.01.15.47.52;	author mike;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	95.11.28.21.27.00;	author jra;	state Exp;
+branches;
+next	;
+
+1.4.4.1
+date	2004.03.17.21.16.31;	author morrison;	state Exp;
+branches;
+next	;
+
+1.4.6.1
+date	2004.03.11.23.41.14;	author morrison;	state Exp;
+branches;
+next	;
+
+1.4.12.1
+date	2004.02.12.19.41.38;	author erikg;	state Exp;
+branches;
+next	1.4.12.2;
+
+1.4.12.2
+date	2004.03.15.14.06.12;	author erikg;	state Exp;
+branches;
+next	;
+
+
+desc
+@Routine to get an IGES curve and return a CNURB curve.
+@
+
+
+1.6
+log
+@moved to src/iges/
+@
+text
+@/*
+ *  Authors -
+ *	John R. Anderson
+ *
+ *  Source -
+ *	SLAD/BVLD/VMB
+ *	The U. S. Army Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005
+ *  
+ *  Copyright Notice -
+ *	This software is Copyright (C) 1995-2004 by the United States Army.
+ *	All rights reserved.
+ */
+#ifndef lint
+static const char RCSid[] = "@@(#)$Header: /n/xoff/cvs/brlcad/iges/get_cnurb_curve.c,v 1.5 2004/02/02 17:39:04 morrison Exp $ (BRL)";
+#endif
+
+#include "./iges_struct.h"
+#include "./iges_extern.h"
+
+struct edge_g_cnurb *
+Get_cnurb_curve( curve_de, linear )
+int curve_de;
+int *linear;
+{
+	int i;
+	int curve;
+	struct edge_g_cnurb *crv;
+
+	*linear = 0;
+
+	curve = (curve_de - 1)/2;
+	if( curve >= dirarraylen )
+	{
+		bu_log( "Get_cnurb_curve: DE=%d is too large, dirarraylen = %d\n", curve_de, dirarraylen );
+		return( (struct edge_g_cnurb *)NULL );
+	}
+
+	switch( dir[curve]->type )
+	{
+		case 110:	/* line */
+		{
+			int pt_type;
+			int type;
+			point_t pt1;
+			point_t start_pt, end_pt;
+
+			Readrec( dir[curve]->param );
+			Readint( &type , "" );
+			if( type != dir[curve]->type )
+			{
+				bu_log( "Error in Get_cnurb_curve, looking for curve type %d, found %d\n" ,
+					dir[curve]->type , type );
+				return( (struct edge_g_cnurb *)NULL );
+
+			}
+			/* Read first point */
+			for( i=0 ; i<3 ; i++ )
+				Readcnv( &pt1[i] , "" );
+			MAT4X3PNT( start_pt , *dir[curve]->rot , pt1 );
+
+			/* Read second point */
+			for( i=0 ; i<3 ; i++ )
+				Readcnv( &pt1[i] , "" );
+			MAT4X3PNT( end_pt , *dir[curve]->rot , pt1 );
+
+			/* pt_type for rational UVW coords */
+			pt_type = RT_NURB_MAKE_PT_TYPE( 3, 3, 1 );
+
+			/* make a linear edge_g_cnurb (order=2) */
+			crv = rt_nurb_new_cnurb( 2, 4, 2, pt_type );
+
+			/* insert control mesh */
+			VMOVE( crv->ctl_points, start_pt );
+			VMOVE( &crv->ctl_points[3], end_pt );
+
+			/* insert knot values */
+			crv->k.knots[0] = 0.0;
+			crv->k.knots[1] = 0.0;
+			crv->k.knots[2] = 1.0;
+			crv->k.knots[3] = 1.0;
+
+			*linear = 1;
+
+			return( crv );
+		}
+		case 126:	/* B-spline */
+			crv = Get_cnurb( curve );
+			if( crv->order < 3 )
+				*linear = 1;
+			return( crv );
+		default:
+			bu_log( "Not yet handling curves of type: %s\n", iges_type( dir[curve]->type ) );
+			break;
+	}
+
+	return( (struct edge_g_cnurb *)NULL );
+}
+@
+
+
+1.5
+log
+@update copyright to include span through 2003
+@
+text
+@d15 1
+a15 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/iges/get_cnurb_curve.c,v 1.4 2000/08/24 04:10:47 mike Exp $ (BRL)";
+@
+
+
+1.4
+log
+@
+mk_addmember
+RCSid
+@
+text
+@d11 1
+a11 1
+ *	This software is Copyright (C) 1995 by the United States Army.
+d15 1
+a15 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/iges/get_cnurb_curve.c,v 1.3 2000/03/29 18:42:44 mike Exp $ (BRL)";
+@
+
+
+1.4.4.1
+log
+@sync branch with HEAD
+@
+text
+@d11 1
+a11 1
+ *	This software is Copyright (C) 1995-2004 by the United States Army.
+d15 1
+a15 1
+static const char RCSid[] = "@@(#)$Header$ (BRL)";
+@
+
+
+1.4.6.1
+log
+@sync to HEAD...
+@
+text
+@d11 1
+a11 1
+ *	This software is Copyright (C) 1995-2004 by the United States Army.
+d15 1
+a15 1
+static const char RCSid[] = "@@(#)$Header: /n/cad/c/CVS/brlcad/iges/get_cnurb_curve.c,v 1.5 2004/02/02 17:39:04 morrison Exp $ (BRL)";
+@
+
+
+1.4.12.1
+log
+@merge from HEAD
+@
+text
+@d11 1
+a11 1
+ *	This software is Copyright (C) 1995-2004 by the United States Army.
+d15 1
+a15 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/iges/get_cnurb_curve.c,v 1.5 2004/02/02 17:39:04 morrison Exp $ (BRL)";
+@
+
+
+1.4.12.2
+log
+@merge from head
+@
+text
+@d15 1
+a15 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/iges/get_cnurb_curve.c,v 1.4.12.1 2004/02/12 19:41:38 erikg Exp $ (BRL)";
+@
+
+
+1.3
+log
+@
+Converted from Release 4 names to know about libbu and libbn
+@
+text
+@d15 1
+a15 1
+static char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/iges/get_cnurb_curve.c,v 1.2 1995/12/01 15:47:52 mike Exp $ (BRL)";
+@
+
+
+1.2
+log
+@LIBNURBS has been converted over to using t-NURBS NMG data structures
+@
+text
+@d15 1
+a15 1
+static char RCSid[] = "@@(#)$Header: /m/cad/iges/RCS/get_cnurb_curve.c,v 1.1 1995/11/28 21:27:00 jra Exp $ (BRL)";
+d35 1
+a35 1
+		rt_log( "Get_cnurb_curve: DE=%d is too large, dirarraylen = %d\n", curve_de, dirarraylen );
+d52 1
+a52 1
+				rt_log( "Error in Get_cnurb_curve, looking for curve type %d, found %d\n" ,
+d93 1
+a93 1
+			rt_log( "Not yet handling curves of type: %s\n", iges_type( dir[curve]->type ) );
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d15 1
+a15 1
+static char RCSid[] = "@@(#)$Header: /m/cad/iges/RCS/make_face.c,v 11.5 1995/01/04 10:07:55 mike Rel4_4 jra $ (BRL)";
+d21 1
+a21 1
+struct cnurb *
+d28 1
+a28 1
+	struct cnurb *crv;
+d36 1
+a36 1
+		return( (struct cnurb *)NULL );
+d54 1
+a54 1
+				return( (struct cnurb *)NULL );
+d70 1
+a70 1
+			/* make a linear cnurb (order=2) */
+d78 4
+a81 4
+			crv->knot.knots[0] = 0.0;
+			crv->knot.knots[1] = 0.0;
+			crv->knot.knots[2] = 1.0;
+			crv->knot.knots[3] = 1.0;
+d97 1
+a97 1
+	return( (struct cnurb *)NULL );
+@

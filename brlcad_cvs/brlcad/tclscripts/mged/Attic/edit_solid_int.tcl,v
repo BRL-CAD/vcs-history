@@ -1,0 +1,1160 @@
+head	1.13;
+access;
+symbols
+	ansi-20040405-merged:1.12
+	postmerge-20040405-ansi:1.12
+	premerge-20040404-ansi:1.12
+	postmerge-autoconf:1.12
+	autoconf-freeze:1.12
+	premerge-autoconf:1.12
+	postmerge-20040315-windows:1.12
+	premerge-20040315-windows:1.12
+	windows-20040315-freeze:1.12
+	autoconf-20031203:1.12
+	autoconf-20031202:1.12
+	autoconf-branch:1.12.0.12
+	phong-branch:1.12.0.10
+	photonmap-branch:1.12.0.8
+	rel-6-1-DP:1.12
+	windows-branch:1.12.0.6
+	rel-6-0-2:1.12
+	ansi-branch:1.12.0.4
+	rel-6-0-1-branch:1.12.0.2
+	hartley-6-0-post:1.12
+	hartley-6-0-pre:1.12
+	rel-6-0-1:1.12
+	rel-6-0:1.12
+	rel-5-4:1.10.2.2
+	offsite-5-3-pre:1.12
+	rel-5-3:1.10.2.2
+	rel-5-2:1.10
+	rel-5-1-branch:1.10.0.2
+	rel-5-1:1.10
+	rel-5-0:1.6
+	rel-5-0-beta:1.4;
+locks; strict;
+comment	@# @;
+
+
+1.13
+date	2004.05.21.16.41.23;	author morrison;	state dead;
+branches;
+next	1.12;
+
+1.12
+date	2001.02.02.14.50.24;	author bparker;	state Exp;
+branches;
+next	1.11;
+
+1.11
+date	2000.12.22.00.45.24;	author bparker;	state Exp;
+branches;
+next	1.10;
+
+1.10
+date	2000.06.06.18.35.18;	author bparker;	state Exp;
+branches
+	1.10.2.1;
+next	1.9;
+
+1.9
+date	2000.06.05.21.58.10;	author bparker;	state Exp;
+branches;
+next	1.8;
+
+1.8
+date	2000.06.02.20.14.49;	author bparker;	state Exp;
+branches;
+next	1.7;
+
+1.7
+date	99.12.06.22.23.46;	author bparker;	state Exp;
+branches;
+next	1.6;
+
+1.6
+date	99.07.16.17.38.25;	author bparker;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	99.06.25.18.24.08;	author bparker;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	99.05.25.14.54.25;	author bparker;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	99.01.19.22.31.28;	author bparker;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	98.10.21.17.51.12;	author bparker;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	98.08.13.12.51.39;	author bparker;	state Exp;
+branches;
+next	;
+
+1.10.2.1
+date	2000.12.22.00.03.36;	author bparker;	state Exp;
+branches;
+next	1.10.2.2;
+
+1.10.2.2
+date	2001.02.02.14.46.54;	author bparker;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.13
+log
+@moved to src/tclscripts/
+@
+text
+@##
+#				E D I T _ S O L I D _ I N T . T C L
+#
+# Authors -
+#	Bob Parker
+#
+# Source -
+#	The U. S. Army Research Laboratory
+#	Aberdeen Proving Ground, Maryland  21005
+#
+# Distribution Notice -
+#	Re-distribution of this software is restricted, as described in
+#       your "Statement of Terms and Conditions for the Release of
+#       The BRL-CAD Package" agreement.
+#
+# Description -
+#	This is a solid editor for MGED that allows the user to edit the
+#	solid internally (i.e. the solid currently being edited --> MGED's es_int).
+#
+# Acknowledgements -
+#	This editor is based on Glen Durfee's editobj.tcl (to edit solids)
+#	and solcreate.tcl (to create solids).
+#
+
+# Call this routine to initialize the "solid_data" array
+solid_data_init
+
+## - init_edit_solid_int
+#
+proc init_edit_solid_int { id } {
+    global mged_gui
+    global solid_data
+    global esolint_control
+
+    set w .$id.edit_solid_int
+
+    if { [winfo exists $w] } {
+	raise $w
+	return
+    }
+
+    if ![info exists esolint_control($id,inc_op)] {
+	set esolint_control($id,inc_op) $solid_data(entry,incr_op)
+    }
+
+    if ![info exists esolint_control($id,dec_op)] {
+	set esolint_control($id,dec_op) $solid_data(entry,decr_op)
+    }
+
+    if ![info exists esolint_control($id,format_string)] {
+	set esolint_control($id,format_string) $solid_data(entry,fmt)
+    }
+
+    if ![info exists esolint_control($id,cflag)] {
+	set esolint_control($id,cflag) 0
+    }
+
+    if [catch {get_sed} esolint_info] {
+	# a Tcl output routine doesn't exist for this solid type
+	build_edit_info $id
+	return
+    }
+
+    set esolint_control(name) [lindex $esolint_info 0]
+    set esolint_control(type) [lindex $esolint_info 1]
+    set esolint_vals [lrange $esolint_info 2 end]
+
+    set esolint_info [get_sed -c]
+    set esolint_control(pathname) [lindex $esolint_info 0]
+    set esolint_cvals [lrange $esolint_info 2 end]
+
+    if [catch {db form $esolint_control(type)}] {
+	#  a form routine doesn't exist for this solid type
+	build_edit_info $id
+	return
+    }
+
+    set row -1
+    toplevel $w -screen $mged_gui($id,screen)
+
+    incr row
+    set esolint_control(form_name) $w.sformF._F
+    set esolint_control(form) $row
+    set esolint_control($id,cmd) "put_sed $esolint_control(type)"
+    if $esolint_control($id,cflag) {
+	esolint_build_form $id $w.sformF "** SOLID -- $esolint_control(name): $esolint_control(type)" $esolint_control(type) $esolint_vals disabled 1 1 1 1
+    } else {
+	esolint_build_form $id $w.sformF "** SOLID -- $esolint_control(name): $esolint_control(type)" $esolint_control(type) $esolint_vals normal 1 1 1 1
+    }
+    grid $w.sformF -row $row -column 0 -sticky nsew -padx 8 -pady 8
+    grid rowconfigure $w $row -weight 1
+
+    incr row
+    set esolint_control(form_cname) $w.scformF._F
+    set esolint_control(cform) $row
+    set esolint_control($id,context_cmd) "put_sed -c $esolint_control(type)"
+    if $esolint_control($id,cflag) {
+	esolint_build_form $id $w.scformF "** PATH -- $esolint_control(pathname): $esolint_control(type)" $esolint_control(type) $esolint_cvals normal 1 2 1 1
+    } else {
+	esolint_build_form $id $w.scformF "** PATH -- $esolint_control(pathname): $esolint_control(type)" $esolint_control(type) $esolint_cvals disabled 1 2 1 1
+    }
+    grid $w.scformF -row $row -column 0 -sticky nsew -padx 8
+    grid rowconfigure $w $row -weight 1
+
+    incr row
+    frame $w._F$row -relief groove -bd 2
+    #
+    frame $w.decF
+    label $w.decL -text "-operator:" -width 9 -anchor e
+    entry $w.decE -relief sunken -bd 2 -textvar esolint_control($id,dec_op)
+    grid $w.decL $w.decE -in $w.decF -sticky nsew
+    grid columnconfigure $w.decF 0 -weight 0
+    grid columnconfigure $w.decF 1 -weight 1
+    #
+    frame $w.incF
+    label $w.incL -text "+operator:" -width 9 -anchor e
+    entry $w.incE -relief sunken -bd 2 -textvar esolint_control($id,inc_op)
+    grid $w.incL $w.incE -in $w.incF -sticky nsew
+    grid columnconfigure $w.incF 0 -weight 0
+    grid columnconfigure $w.incF 1 -weight 1
+    #
+    frame $w.fmtF
+    label $w.fmtL -text "format:" -width 9 -anchor e
+    entry $w.fmtE -relief sunken -bd 2 -textvar esolint_control($id,format_string)
+    grid $w.fmtL $w.fmtE -in $w.fmtF -sticky nsew
+    grid columnconfigure $w.fmtF 0 -weight 0
+    grid columnconfigure $w.fmtF 1 -weight 1
+    bind $w.fmtE <Return> "esolint_format_entries $id"
+    #
+    grid $w.decF x $w.incF -sticky nsew -in $w._F$row -padx 8 -pady 8
+    grid $w.fmtF x x -sticky nsew -in $w._F$row -padx 8 -pady 8
+    grid columnconfigure $w._F$row 0 -weight 1
+    grid columnconfigure $w._F$row 1 -weight 0
+    grid columnconfigure $w._F$row 2 -weight 1
+    grid $w._F$row -row $row -column 0 -sticky nsew -padx 8 -pady 8
+    grid rowconfigure $w $row -weight 0
+
+    incr row
+    checkbutton $w.contextCB -relief flat -bd 2 -text "Context Edit"\
+	     -offvalue 0 -onvalue 1 -variable esolint_control($id,cflag)\
+	     -command "esolint_toggle_context $id $w"
+    grid $w.contextCB -row $row -column 0 -sticky nsew -padx 8
+    grid rowconfigure $w $row -weight 0
+
+    incr row
+    set esolint_control(buttons) $row
+    frame $w._F$row -borderwidth 2
+    button $w.applyB -text "Apply" -command "esolint_apply $id"
+    button $w.resetB -text "Reset" -command "esolint_reset"
+    button $w.acceptB -text "Accept" -command "press accept"
+    button $w.rejectB -text "Reject" -command "press reject"
+    button $w.dismissB -text "Dismiss" -command "destroy $w"
+    grid $w.applyB x $w.resetB x $w.acceptB $w.rejectB $w.dismissB -sticky nsew -in $w._F$row
+    grid columnconfigure $w._F$row 1 -weight 1
+    grid columnconfigure $w._F$row 3 -weight 1
+    grid $w._F$row -row $row -column 0 -sticky nsew -padx 6 -pady 8
+    grid rowconfigure $w $row -weight 0
+
+    # only one column
+    grid columnconfigure $w 0 -weight 1
+
+    wm protocol $w WM_DELETE_WINDOW "catch { destroy $w }"
+    wm geometry $w $mged_gui($id,edit_info_pos)
+    wm title $w "Internal Primitive Editor ($id)"
+}
+
+## - esolint_build_form
+#
+# This proc builds a solid form for creating/editing solids.
+#
+proc esolint_build_form { id w name type vals state_val do_gui do_cmd do_entries do_state } {
+    global base2local
+    global local2base
+    global solid_data
+    global esolint_control
+    global build_form_debug
+
+    set row -1
+    set sform $w._F
+
+    if $do_gui {
+	frame $w -relief groove -bd 2
+	frame $sform
+
+	incr row
+	label $sform.name -text $name -anchor w
+	grid $sform.name -row $row -columnspan 10 -sticky nsew
+	grid rowconfigure $sform $row -weight 0
+    }
+
+    incr row
+    set form [db form $type]
+    set len [llength $form]
+
+    for { set i 0 } { $i < $len } { incr i; incr row } {
+	set attr [lindex $form $i]
+	incr i
+
+	switch $do_cmd {
+	    1 {
+		set esolint_control($id,cmd) "$esolint_control($id,cmd) $attr \""
+	    }
+	    2 {
+		set esolint_control($id,context_cmd) "$esolint_control($id,context_cmd) $attr \""
+	    }
+	}
+
+	if $do_gui {
+	    if { [catch { label $sform._$attr\L -text "$solid_data(labels,$attr)" \
+		    -anchor w }]!=0 } {
+		label $sform._$attr\L -text "$attr" -anchor w
+	    }
+	    grid $sform._$attr\L -row $row -column 0 -sticky nsew
+	    grid columnconfigure $sform 0 -weight 0
+	}
+	
+	set field [lindex $form $i]
+	set fieldlen [llength $field]
+	for { set num 0 } { $num < $fieldlen } { incr num } {
+	    set fe_type [lindex $field $num]
+	    set tnum [expr $num % 4]
+
+	    # increment row if more than 4 field elements
+	    if {$num && $tnum == 0} {
+		incr row
+	    }
+
+	    # configure each row
+	    if {$tnum == 0 && $do_gui} {
+		grid rowconfigure $sform $row -weight 1
+	    }
+
+	    switch -glob $fe_type {
+		%*s {
+		    if $do_gui {
+			entry $sform._$attr\E$num -relief sunken
+			grid $sform._$attr\E$num - - -row $row -column 1 -sticky nsew
+			grid columnconfigure $sform 1 -weight 1
+		    }
+
+		    if $do_entries {
+			# Bummer, we have to enable the entry to set its value programmatically
+			set save_state [$sform._$attr\E$num cget -state]
+			$sform._$attr\E$num configure -state normal
+			$sform._$attr\E$num delete 0 end
+			$sform._$attr\E$num insert insert \
+				[lindex [lindex $vals $i] $num]
+			$sform._$attr\E$num configure -state $save_state
+		    }
+
+		    if $do_state {
+			$sform._$attr\E$num configure -state $state_val
+		    }
+
+		    switch $do_cmd {
+			1 {
+			    set esolint_control($id,cmd) "$esolint_control($id,cmd)\[$sform._$attr\E$num get\]"
+			}
+			2 {
+			    set esolint_control($id,context_cmd) "$esolint_control($id,context_cmd)\[$sform._$attr\E$num get\]"
+			}
+		    }
+		}
+		%*d {
+		    if $do_gui {
+			button $sform._$attr\decB$num -text \- -command \
+				"esolint_dec_int $id $sform._$attr\E$num"
+			button $sform._$attr\incB$num -text \+ -command \
+				"esolint_inc_int $id $sform._$attr\E$num"
+			entry $sform._$attr\E$num -width 6 -relief sunken
+			
+			grid $sform._$attr\decB$num -row $row -column [expr $tnum * 3 + 1] -sticky nsew
+			grid $sform._$attr\E$num -row $row -column [expr $tnum * 3 + 2] -sticky nsew
+			grid $sform._$attr\incB$num -row $row -column [expr $tnum * 3 + 3] -sticky nsew
+			grid columnconfigure $sform [expr $tnum * 3 + 1] -weight 0
+			grid columnconfigure $sform [expr $tnum * 3 + 2] -weight 1
+			grid columnconfigure $sform [expr $tnum * 3 + 3] -weight 0
+		    }
+
+		    if $do_entries {
+			# Bummer, we have to enable the entry to set its value programmatically
+			set save_state [$sform._$attr\E$num cget -state]
+			$sform._$attr\E$num configure -state normal
+			$sform._$attr\E$num delete 0 end
+			$sform._$attr\E$num insert insert [lindex [lindex $vals $i] $num]
+			$sform._$attr\E$num configure -state $save_state
+		    }
+
+		    if $do_state {
+			$sform._$attr\decB$num configure -state $state_val
+			$sform._$attr\incB$num configure -state $state_val
+			$sform._$attr\E$num configure -state $state_val
+		    }
+
+		    switch $do_cmd {
+			1 {
+			    set esolint_control($id,cmd) "$esolint_control($id,cmd) \[$sform._$attr\E$num get\]"
+			}
+			2 {
+			    set esolint_control($id,context_cmd) "$esolint_control($id,context_cmd) \[$sform._$attr\E$num get\]"
+			}
+		    }
+		}
+		%*f {
+		    if $do_gui {
+			button $sform._$attr\decB$num -text \- -command \
+				"esolint_dec $id $sform._$attr\E$num"
+			button $sform._$attr\incB$num -text \+ -command \
+				"esolint_inc $id $sform._$attr\E$num"
+			entry $sform._$attr\E$num -width 6 -relief sunken
+			
+			grid $sform._$attr\decB$num -row $row -column [expr $tnum * 3 + 1] -sticky nsew
+			grid $sform._$attr\E$num -row $row -column [expr $tnum * 3 + 2] -sticky nsew
+			grid $sform._$attr\incB$num -row $row -column [expr $tnum * 3 + 3] -sticky nsew
+			grid columnconfigure $sform [expr $tnum * 3 + 1] -weight 0
+			grid columnconfigure $sform [expr $tnum * 3 + 2] -weight 1
+			grid columnconfigure $sform [expr $tnum * 3 + 3] -weight 0
+		    }
+
+		    if $do_entries {
+			# Bummer, we have to enable the entry to set its value programmatically
+			set save_state [$sform._$attr\E$num cget -state]
+			$sform._$attr\E$num configure -state normal
+			$sform._$attr\E$num delete 0 end
+			$sform._$attr\E$num insert insert \
+				[format $esolint_control($id,format_string) [expr [lindex \
+				[lindex $vals $i] $num] * $base2local]]
+			$sform._$attr\E$num configure -state $save_state
+		    }
+
+		    if $do_state {
+			$sform._$attr\decB$num configure -state $state_val
+			$sform._$attr\incB$num configure -state $state_val
+			$sform._$attr\E$num configure -state $state_val
+		    }
+
+		    switch $do_cmd {
+			1 {
+			    set esolint_control($id,cmd) "$esolint_control($id,cmd) \[expr \[$sform._$attr\E$num get\] * $local2base\]"
+			}
+			2 {
+			    set esolint_control($id,context_cmd) "$esolint_control($id,context_cmd) \[expr \[$sform._$attr\E$num get\] * $local2base\]"
+			}
+		    }
+		}
+		default {
+		    puts "esolint_build_form: skipping, attr - $attr, field - $fe_type"
+		}
+	    }
+	}
+
+	switch $do_cmd {
+	    1 {
+		set esolint_control($id,cmd) "$esolint_control($id,cmd)\""
+	    }
+	    2 {
+		set esolint_control($id,context_cmd) "$esolint_control($id,context_cmd)\""
+	    }
+	}
+    }
+
+    if $do_gui {
+	grid $sform -sticky nsew -row 0 -column 0 -padx 8 -pady 8
+	grid columnconfigure $w 0 -weight 1
+	grid rowconfigure $w 0 -weight 1
+    }
+}
+
+## - esolint_apply
+#
+proc esolint_apply { id } {
+    global esolint_control
+
+    if $esolint_control($id,cflag) {
+	eval [set esolint_control($id,context_cmd)]
+    } else {
+	eval [set esolint_control($id,cmd)]
+    }
+
+    esolint_update
+}
+
+## - esolint_inc_int
+#
+proc esolint_inc_int { id entryfield } {
+    global esolint_control
+
+    set val [expr int([$entryfield get])]
+    incr val
+
+    $entryfield delete 0 end
+    $entryfield insert insert $val
+}
+
+## - esolint_dec_int
+#
+proc esolint_dec_int { id entryfield } {
+    global esolint_control
+
+    set val [expr int([$entryfield get])]
+    incr val -1
+
+    $entryfield delete 0 end
+    $entryfield insert insert $val
+}
+
+## - esolint_inc
+#
+proc esolint_inc { id entryfield } {
+    global esolint_control
+
+    set val [$entryfield get]
+
+    $entryfield delete 0 end
+    $entryfield insert insert [format $esolint_control($id,format_string) [expr $esolint_control($id,inc_op)]]
+}
+
+## - esolint_dec
+#
+proc esolint_dec { id entryfield } {
+    global esolint_control
+
+    set val [$entryfield get]
+
+    $entryfield delete 0 end
+    $entryfield insert insert [format $esolint_control($id,format_string) [expr $esolint_control($id,dec_op)]]
+}
+
+## - esolint_reset
+#
+proc esolint_reset {} {
+    sed_reset
+    esolint_update
+}
+
+proc esolint_format_entries { id } {
+    global esolint_control
+
+    if $esolint_control($id,cflag) {
+	foreach child [winfo children $esolint_control(form_name)] {
+	    if { [winfo class $child] == "Entry" } {
+		$child configure -state normal
+		set val [$child get]
+		$child delete 0 end
+		$child insert insert [format $esolint_control($id,format_string) $val]
+		$child configure -state disabled
+	    }
+	}
+
+	foreach child [winfo children $esolint_control(form_cname)] {
+	    if { [winfo class $child] == "Entry" } {
+		set val [$child get]
+		$child delete 0 end
+		$child insert insert [format $esolint_control($id,format_string) $val]
+	    }
+	}
+    } else {
+	foreach child [winfo children $esolint_control(form_name)] {
+	    if { [winfo class $child] == "Entry" } {
+		set val [$child get]
+		$child delete 0 end
+		$child insert insert [format $esolint_control($id,format_string) $val]
+	    }
+	}
+
+	foreach child [winfo children $esolint_control(form_cname)] {
+	    if { [winfo class $child] == "Entry" } {
+		$child configure -state normal
+		set val [$child get]
+		$child delete 0 end
+		$child insert insert [format $esolint_control($id,format_string) $val]
+		$child configure -state disabled
+	    }
+	}
+    }
+}
+
+proc esolint_toggle_context { id w } {
+    global esolint_control
+
+    if $esolint_control($id,cflag) {
+	esolint_build_form $id $w.sformF \
+		"** SOLID -- $esolint_control(name): $esolint_control(type)" \
+		$esolint_control(type) {} disabled 0 0 0 1
+	esolint_build_form $id $w.scformF \
+		"** PATH -- $esolint_control(pathname): $esolint_control(type)" \
+		$esolint_control(type) {} normal 0 0 0 1
+    } else {
+	esolint_build_form $id $w.sformF \
+		"** SOLID -- $esolint_control(name): $esolint_control(type)" \
+		$esolint_control(type) {} normal 0 0 0 1
+	esolint_build_form $id $w.scformF \
+		"** PATH -- $esolint_control(pathname): $esolint_control(type)" \
+		$esolint_control(type) {} disabled 0 0 0 1
+    }
+}
+
+proc esolint_update {} {
+    global mged_players
+    global solid_data
+    global esolint_control
+
+    if [catch {get_sed} esolint_info] {
+	# a Tcl output routine doesn't exist for this solid type
+	return
+    }
+    set esolint_vals [lrange $esolint_info 2 end]
+
+    set esolint_cinfo [get_sed -c]
+    set esolint_cvals [lrange $esolint_cinfo 2 end]
+
+    foreach id $mged_players {
+	set w .$id.edit_solid_int
+	if ![winfo exists $w] {
+	    continue
+	}
+
+	# set entries for non-context form
+	esolint_build_form $id $w.sformF \
+		"** SOLID -- $esolint_control(name): $esolint_control(type)" \
+		$esolint_control(type) $esolint_vals {} 0 0 1 0
+
+	# set entries for context form
+	esolint_build_form $id $w.scformF \
+		"** PATH -- $esolint_control(pathname): $esolint_control(type)" \
+		$esolint_control(type) $esolint_cvals {} 0 0 1 0
+    }
+}
+
+proc esolint_destroy { id } {
+    global mged_gui
+
+    if ![winfo exists .$id.edit_solid_int] {
+	return
+    }
+
+    regexp "\[-+\]\[0-9\]+\[-+\]\[0-9\]+" [wm geometry .$id.edit_solid_int] match
+    set mged_gui($id,edit_info_pos) $match
+    destroy .$id.edit_solid_int
+}
+@
+
+
+1.12
+log
+@*- change solid to primitive
+@
+text
+@@
+
+
+1.11
+log
+@Use cget instead of configure to get
+the current option value
+@
+text
+@d164 1
+a164 1
+    wm title $w "Internal Solid Editor ($id)"
+@
+
+
+1.10
+log
+@*- reset_edit_solid changed to sed_reset
+@
+text
+@d243 1
+a243 1
+			set save_state [$sform._$attr\E$num configure -state]
+d248 1
+a248 1
+			$sform._$attr\E$num configure -state [lindex $save_state 4]
+d282 1
+a282 1
+			set save_state [$sform._$attr\E$num configure -state]
+d286 1
+a286 1
+			$sform._$attr\E$num configure -state [lindex $save_state 4]
+d322 1
+a322 1
+			set save_state [$sform._$attr\E$num configure -state]
+d328 1
+a328 1
+			$sform._$attr\E$num configure -state [lindex $save_state 4]
+@
+
+
+1.10.2.1
+log
+@Use cget instead of configure for getting
+current values of an option.
+@
+text
+@d243 1
+a243 1
+			set save_state [$sform._$attr\E$num cget -state]
+d248 1
+a248 1
+			$sform._$attr\E$num configure -state $save_state
+d282 1
+a282 1
+			set save_state [$sform._$attr\E$num cget -state]
+d286 1
+a286 1
+			$sform._$attr\E$num configure -state $save_state
+d322 1
+a322 1
+			set save_state [$sform._$attr\E$num cget -state]
+d328 1
+a328 1
+			$sform._$attr\E$num configure -state $save_state
+@
+
+
+1.10.2.2
+log
+@*- change solid to primitive
+@
+text
+@d164 1
+a164 1
+    wm title $w "Internal Primitive Editor ($id)"
+@
+
+
+1.9
+log
+@*- a few routines changed names
+	get_edit_solid --> get_sed
+	put_edit_solid --> put_sed
+@
+text
+@d432 1
+a432 1
+    reset_edit_solid
+@
+
+
+1.8
+log
+@*- remove unused parameter from esolint_apply
+@
+text
+@d58 1
+a58 1
+    if [catch {get_edit_solid} esolint_info] {
+d68 1
+a68 1
+    set esolint_info [get_edit_solid -c]
+d84 1
+a84 1
+    set esolint_control($id,cmd) "put_edit_solid $esolint_control(type)"
+d96 1
+a96 1
+    set esolint_control($id,context_cmd) "put_edit_solid -c $esolint_control(type)"
+d503 1
+a503 1
+    if [catch {get_edit_solid} esolint_info] {
+d509 1
+a509 1
+    set esolint_cinfo [get_edit_solid -c]
+@
+
+
+1.7
+log
+@*- catch get_edit_solid
+@
+text
+@d148 1
+a148 1
+    button $w.applyB -text "Apply" -command "esolint_apply $id $w"
+d371 1
+a371 1
+proc esolint_apply { id w } {
+@
+
+
+1.6
+log
+@*- mods to properly handle integer parameter types
+@
+text
+@d58 6
+a63 1
+    set esolint_info [get_edit_solid]
+d73 1
+d503 4
+a506 1
+    set esolint_info [get_edit_solid]
+@
+
+
+1.5
+log
+@*- mods to init_edit_solid_int() to check if
+   form is supported for the current solid type
+@
+text
+@d189 1
+a189 1
+    for { set i 0 } { $i<$len } { incr i; incr row } {
+d213 1
+a213 1
+	for { set num 0 } { $num<$fieldlen } { incr num } {
+d222 1
+a257 1
+		%*f -
+d261 40
+d375 24
+@
+
+
+1.4
+log
+@*- added support for non-numeric fields
+*- added support for fields with more than 3
+   numeric elements (i.e. matrices)
+*- simplified building of commands
+@
+text
+@d67 5
+@
+
+
+1.3
+log
+@*- cleanup variables
+@
+text
+@d165 1
+d190 1
+a190 1
+		set esolint_control($id,cmd) [eval concat \[set esolint_control($id,cmd)\] $attr \\\"]
+d193 1
+a193 1
+		set esolint_control($id,context_cmd) [eval concat \[set esolint_control($id,context_cmd)\] $attr \\\"]
+d209 29
+a237 15
+	    if { [string first "%f" $field]>-1 } {
+		if $do_gui {
+		    button $sform._$attr\decB$num -text \- -command \
+			    "esolint_dec $id $sform._$attr\E$num"
+		    button $sform._$attr\incB$num -text \+ -command \
+			    "esolint_inc $id $sform._$attr\E$num"
+		    entry $sform._$attr\E$num -width 6 -relief sunken
+
+		    grid $sform._$attr\decB$num -row $row -column [expr $num * 3 + 1] -sticky nsew
+		    grid $sform._$attr\E$num -row $row -column [expr $num * 3 + 2] -sticky nsew
+		    grid $sform._$attr\incB$num -row $row -column [expr $num * 3 + 3] -sticky nsew
+		    grid columnconfigure $sform [expr $num * 3 + 1] -weight 0
+		    grid columnconfigure $sform [expr $num * 3 + 2] -weight 1
+		    grid columnconfigure $sform [expr $num * 3 + 3] -weight 0
+		}
+d239 3
+d243 8
+a250 9
+		if $do_entries {
+		    # Bummer, we have to enable the entry to set its value programmatically
+		    set save_state [$sform._$attr\E$num configure -state]
+		    $sform._$attr\E$num configure -state normal
+		    $sform._$attr\E$num delete 0 end
+		    $sform._$attr\E$num insert insert \
+			    [format $esolint_control($id,format_string) [expr [lindex \
+			    [lindex $vals $i] $num] * $base2local]]
+		    $sform._$attr\E$num configure -state [lindex $save_state 4]
+d252 16
+d269 16
+a284 5
+		if $do_state {
+		    $sform._$attr\decB$num configure -state $state_val
+		    $sform._$attr\incB$num configure -state $state_val
+		    $sform._$attr\E$num configure -state $state_val
+		}
+d286 7
+a292 8
+		switch $do_cmd {
+		    1 {
+			set esolint_control($id,cmd) [eval concat \[set esolint_control($id,cmd)\] \
+				\\\[expr \\\[$sform._$attr\E$num get\\\] * $local2base\\\]]
+		    }
+		    2 {
+			set esolint_control($id,context_cmd) [eval concat \[set esolint_control($id,context_cmd)\] \
+				\\\[expr \\\[$sform._$attr\E$num get\\\] * $local2base\\\]]
+d295 3
+a297 3
+	    } else {
+		# XXXX Temporary debugging
+		puts "esolint_build_form: skipping field"
+a300 4
+	if $do_gui {
+	    grid rowconfigure $sform $row -weight 1
+	}
+
+d303 1
+a303 1
+		set esolint_control($id,cmd) [eval concat \[set esolint_control($id,cmd)\] \\\"]
+d306 1
+a306 1
+		set esolint_control($id,context_cmd) [eval concat \[set esolint_control($id,context_cmd)\] \\\"]
+@
+
+
+1.2
+log
+@*- add accept and reject buttons
+@
+text
+@d31 1
+a31 1
+    global player_screen
+d33 1
+a33 11
+    global esolint_db_cmd
+    global esolint_inc_operation
+    global esolint_dec_operation
+    global esolint_format_string
+    global esolint_name
+    global esolint_pathname
+    global esolint_type
+    global esolint_row
+    global esolint_cflag
+    global esolint_form
+    global edit_info_pos
+d42 2
+a43 2
+    if ![info exists esolint_inc_operation($id)] {
+	set esolint_inc_operation($id) $solid_data(entry,incr_op)
+d46 2
+a47 2
+    if ![info exists esolint_dec_operation($id)] {
+	set esolint_dec_operation($id) $solid_data(entry,decr_op)
+d50 2
+a51 2
+    if ![info exists esolint_format_string($id)] {
+	set esolint_format_string($id) $solid_data(entry,fmt)
+d54 2
+a55 2
+    if ![info exists esolint_cflag($id)] {
+	set esolint_cflag($id) 0
+d59 2
+a60 2
+    set esolint_name [lindex $esolint_info 0]
+    set esolint_type [lindex $esolint_info 1]
+d64 1
+a64 1
+    set esolint_pathname [lindex $esolint_info 0]
+d68 1
+a68 1
+    toplevel $w -screen $player_screen($id)
+d71 5
+a75 5
+    set esolint_form(name) $w.sformF._F
+    set esolint_row(form) $row
+    set esolint_db_cmd($id) "put_edit_solid $esolint_type"
+    if $esolint_cflag($id) {
+	esolint_build_form $id $w.sformF "** SOLID -- $esolint_name: $esolint_type" $esolint_type $esolint_vals disabled 1 1 1 1
+d77 1
+a77 1
+	esolint_build_form $id $w.sformF "** SOLID -- $esolint_name: $esolint_type" $esolint_type $esolint_vals normal 1 1 1 1
+d83 5
+a87 5
+    set esolint_form(cname) $w.scformF._F
+    set esolint_row(cform) $row
+    set esolint_db_cmd($id,context) "put_edit_solid -c $esolint_type"
+    if $esolint_cflag($id) {
+	esolint_build_form $id $w.scformF "** PATH -- $esolint_pathname: $esolint_type" $esolint_type $esolint_cvals normal 1 2 1 1
+d89 1
+a89 1
+	esolint_build_form $id $w.scformF "** PATH -- $esolint_pathname: $esolint_type" $esolint_type $esolint_cvals disabled 1 2 1 1
+d99 1
+a99 1
+    entry $w.decE -relief sunken -bd 2 -textvar esolint_dec_operation($id)
+d106 1
+a106 1
+    entry $w.incE -relief sunken -bd 2 -textvar esolint_inc_operation($id)
+d113 1
+a113 1
+    entry $w.fmtE -relief sunken -bd 2 -textvar esolint_format_string($id)
+d129 1
+a129 1
+	     -offvalue 0 -onvalue 1 -variable esolint_cflag($id)\
+d135 1
+a135 1
+    set esolint_row(buttons) $row
+d152 1
+a152 1
+    wm geometry $w $edit_info_pos($id)
+d164 1
+a164 3
+    global esolint_db_cmd
+    global esolint_format_string
+    global esolint_type
+d189 1
+a189 1
+		set esolint_db_cmd($id) [eval concat \[set esolint_db_cmd($id)\] $attr \\\"]
+d192 1
+a192 1
+		set esolint_db_cmd($id,context) [eval concat \[set esolint_db_cmd($id,context)\] $attr \\\"]
+d231 1
+a231 1
+			    [format $esolint_format_string($id) [expr [lindex \
+d244 1
+a244 1
+			set esolint_db_cmd($id) [eval concat \[set esolint_db_cmd($id)\] \
+d248 1
+a248 1
+			set esolint_db_cmd($id,context) [eval concat \[set esolint_db_cmd($id,context)\] \
+d264 1
+a264 1
+		set esolint_db_cmd($id) [eval concat \[set esolint_db_cmd($id)\] \\\"]
+d267 1
+a267 1
+		set esolint_db_cmd($id,context) [eval concat \[set esolint_db_cmd($id,context)\] \\\"]
+d282 1
+a282 5
+    global esolint_db_cmd
+    global esolint_type
+    global esolint_cflag
+    global esolint_name
+    global esolint_pathname
+d284 2
+a285 2
+    if $esolint_cflag($id) {
+	eval [set esolint_db_cmd($id,context)]
+d287 1
+a287 1
+	eval [set esolint_db_cmd($id)]
+d296 1
+a296 2
+    global esolint_inc_operation
+    global esolint_format_string
+d301 1
+a301 1
+    $entryfield insert insert [format $esolint_format_string($id) [expr $esolint_inc_operation($id)]]
+d307 1
+a307 2
+    global esolint_dec_operation
+    global esolint_format_string
+d312 1
+a312 1
+    $entryfield insert insert [format $esolint_format_string($id) [expr $esolint_dec_operation($id)]]
+d323 1
+a323 3
+    global esolint_format_string
+    global esolint_form
+    global esolint_cflag
+d325 2
+a326 2
+    if $esolint_cflag($id) {
+	foreach child [winfo children $esolint_form(name)] {
+d331 1
+a331 1
+		$child insert insert [format $esolint_format_string($id) $val]
+d336 1
+a336 1
+	foreach child [winfo children $esolint_form(cname)] {
+d340 1
+a340 1
+		$child insert insert [format $esolint_format_string($id) $val]
+d344 1
+a344 1
+	foreach child [winfo children $esolint_form(name)] {
+d348 1
+a348 1
+		$child insert insert [format $esolint_format_string($id) $val]
+d352 1
+a352 1
+	foreach child [winfo children $esolint_form(cname)] {
+d357 1
+a357 1
+		$child insert insert [format $esolint_format_string($id) $val]
+d365 1
+a365 4
+    global esolint_type
+    global esolint_cflag
+    global esolint_name
+    global esolint_pathname
+d367 1
+a367 1
+    if $esolint_cflag($id) {
+d369 2
+a370 2
+		"** SOLID -- $esolint_name: $esolint_type" \
+		$esolint_type {} disabled 0 0 0 1
+d372 2
+a373 2
+		"** PATH -- $esolint_pathname: $esolint_type" \
+		$esolint_type {} normal 0 0 0 1
+d376 2
+a377 2
+		"** SOLID -- $esolint_name: $esolint_type" \
+		$esolint_type {} normal 0 0 0 1
+d379 2
+a380 2
+		"** PATH -- $esolint_pathname: $esolint_type" \
+		$esolint_type {} disabled 0 0 0 1
+d387 1
+a387 3
+    global esolint_type
+    global esolint_name
+    global esolint_pathname
+d403 2
+a404 2
+		"** SOLID -- $esolint_name: $esolint_type" \
+		$esolint_type $esolint_vals {} 0 0 1 0
+d408 2
+a409 2
+		"** PATH -- $esolint_pathname: $esolint_type" \
+		$esolint_type $esolint_cvals {} 0 0 1 0
+d414 1
+a414 1
+    global edit_info_pos
+d421 1
+a421 1
+    set edit_info_pos($id) $match
+@
+
+
+1.1
+log
+@*- GUI to edit MGED's es_int (i.e. the solid currently being edited)
+@
+text
+@d149 2
+d152 1
+a152 2
+    grid $w.applyB x $w.resetB x $w.dismissB -sticky nsew -in $w._F$row
+    grid columnconfigure $w._F$row 0 -weight 0
+a153 1
+    grid columnconfigure $w._F$row 2 -weight 0
+a154 1
+    grid columnconfigure $w._F$row 4 -weight 0
+@

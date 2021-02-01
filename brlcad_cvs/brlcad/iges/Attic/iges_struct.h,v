@@ -1,0 +1,728 @@
+head	11.15;
+access;
+symbols
+	ansi-20040405-merged:11.13
+	postmerge-20040405-ansi:11.13
+	premerge-20040404-ansi:11.13
+	postmerge-autoconf:11.13
+	autoconf-freeze:11.13
+	premerge-autoconf:11.13
+	ansi-20040316-freeze:11.13
+	postmerge-20040315-windows:11.13
+	premerge-20040315-windows:11.13
+	windows-20040315-freeze:11.13
+	autoconf-20031203:11.13
+	autoconf-20031202:11.13
+	autoconf-branch:11.13.0.12
+	phong-branch:11.13.0.10
+	photonmap-branch:11.13.0.8
+	rel-6-1-DP:11.13
+	windows-branch:11.13.0.6
+	rel-6-0-2:11.13
+	ansi-branch:11.13.0.4
+	rel-6-0-1-branch:11.13.0.2
+	hartley-6-0-post:11.13
+	hartley-6-0-pre:11.13
+	rel-6-0-1:11.13
+	rel-6-0:11.13
+	rel-5-4:11.12
+	offsite-5-3-pre:11.13
+	rel-5-3:11.12
+	rel-5-2:11.12
+	rel-5-1-branch:11.12.0.2
+	rel-5-1:11.12
+	rel-5-0:11.11
+	rel-5-0-beta:11.11
+	rel-4-5:11.11
+	ctj-4-5-post:11.11
+	ctj-4-5-pre:11.11
+	rel-4-4:11.5
+	rel-4-0:10.1;
+locks; strict;
+comment	@ * @;
+
+
+11.15
+date	2004.05.24.04.01.08;	author morrison;	state dead;
+branches;
+next	11.14;
+
+11.14
+date	2004.05.10.15.30.42;	author erikg;	state Exp;
+branches;
+next	11.13;
+
+11.13
+date	2001.02.06.15.13.42;	author jra;	state Exp;
+branches;
+next	11.12;
+
+11.12
+date	2000.03.29.18.42.45;	author mike;	state Exp;
+branches;
+next	11.11;
+
+11.11
+date	97.03.06.20.24.39;	author jra;	state Exp;
+branches;
+next	11.10;
+
+11.10
+date	95.12.08.17.51.19;	author jra;	state Exp;
+branches;
+next	11.9;
+
+11.9
+date	95.12.05.22.02.45;	author jra;	state Exp;
+branches;
+next	11.8;
+
+11.8
+date	95.12.04.19.35.47;	author jra;	state Exp;
+branches;
+next	11.7;
+
+11.7
+date	95.12.01.15.47.52;	author mike;	state Exp;
+branches;
+next	11.6;
+
+11.6
+date	95.11.28.21.35.45;	author jra;	state Exp;
+branches;
+next	11.5;
+
+11.5
+date	95.01.04.10.07.53;	author mike;	state Rel4_4;
+branches;
+next	11.4;
+
+11.4
+date	94.08.26.10.38.45;	author jra;	state Exp;
+branches;
+next	11.3;
+
+11.3
+date	94.01.10.16.18.42;	author jra;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	94.01.07.15.16.16;	author jra;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	93.06.28.10.12.24;	author jra;	state Exp;
+branches;
+next	10.1;
+
+10.1
+date	91.10.12.06.45.20;	author mike;	state Rel4_0;
+branches;
+next	1.3;
+
+1.3
+date	91.06.23.03.55.37;	author mike;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	91.06.12.20.27.27;	author mike;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	91.06.12.19.59.02;	author mike;	state Exp;
+branches;
+next	;
+
+
+desc
+@IGES converter
+@
+
+
+11.15
+log
+@moved to src/iges/
+@
+text
+@#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+extern char	version[];
+
+#include <stdio.h>
+#include <math.h>
+#ifdef USE_STRING_H
+#include <string.h>
+#else
+#include <strings.h>
+#endif
+
+#include "machine.h"
+#include "externs.h"
+#include "vmath.h"
+#include "rtlist.h"
+#include "rtstring.h"
+#include "nmg.h"
+#include "raytrace.h"
+#include "nurb.h"
+#include "rtgeom.h"
+#include "wdb.h"
+
+extern fastf_t brlabs();
+
+#define	NAMESIZE	16	/* from db.h */
+
+#define	TOL		0.0005
+#define EQUAL( a , b )		((brlabs( (a)-(b) ) < TOL) ? 1 : 0 )
+#define	SAMEPT( pt1 , pt2 )	(EQUAL( pt1[X] , pt2[X] ) && \
+				 EQUAL( pt1[Y] , pt2[Y] ) && \
+				 EQUAL( pt1[Z] , pt2[Z] ) )
+
+#define	Union		1
+#define	Intersect	2
+#define	Subtract	3
+
+/* Circularly linked list of files and names for external references */
+struct file_list
+{
+	struct bu_list		l;			/* for links */
+	char			*file_name;		/* Name of external file */
+	char			obj_name[NAMESIZE+1];	/* BRL-CAD name for top level object */
+};
+
+/* linked list of used BRL-CAD object names */
+struct name_list
+{
+	char name[NAMESIZE+1];
+	struct name_list *next;
+};
+
+/* Structure for storing info from the IGES file directory section along with
+	transformation matrices */
+struct iges_directory
+{
+	int type; /* IGES entity type */
+	int form; /* IGES form number */
+	int view; /* View field from DE, indicates which views this entity is in */
+	int param; /* record number for parameter entry */
+	int paramlines; /* number of lines for this entity in parameter section */
+	int direct; /* directory entry sequence number */
+	int status; /* status entry from directory entry */
+/*
+ * Note that the directory entry sequence number and the directory structure
+ * array index are not the same.  The index into the array can be calculated
+ * as (sequence number - 1)/2.
+ */
+	int trans; /* index into directory array for transformation matrix */
+	int colorp; /* pointer to color definition entity (or color number) */
+	unsigned char rgb[3]; /* Actual color */
+	char *mater;	/* material parameter string */
+	int referenced;
+/*
+ * uses of the "referenced" field:
+ *	for solid objects - number of times this entity is referenced by
+ *		boolean trees or solid assemblies.
+ *	For transformation entities - it indicates whether the matrix list
+ *		has been evaluated.
+ *	for attribute instances - It contains the DE for the attribute
+ *		definition entity.
+ */
+	char *name; /* entity name */
+	mat_t *rot; /*  transformation matrix. */
+};
+
+/* Structure used in builing boolean trees in memory */
+struct node
+{
+	int op; /* if positive, this is an operator (Union, Intersect, or Subtract)
+		   if negative, this is a directory entry sequence number (operand) */
+	struct node *left,*right,*parent;
+};
+
+/* structure for storing atributes */
+struct brlcad_att
+{
+	char			*material_name;
+	char			*material_params;
+	int			region_flag;
+	int			ident;
+	int			air_code;
+	int			material_code;
+	int			los_density;
+	int			inherit;
+	int			color_defined;
+};
+
+/* Structure for linked list of points */
+struct ptlist
+{
+	point_t pt;
+	struct ptlist *next,*prev;
+};
+
+/* Structures for Parametric Splines */
+struct segment
+{
+	int segno;
+	fastf_t tmin,tmax;
+	fastf_t cx[4],cy[4],cz[4];
+	struct segment *next;
+};
+
+struct spline
+{
+	int ndim,nsegs;
+	struct segment *start;
+};
+
+struct reglist
+{
+	char name[NAMESIZE];
+	struct node *tree;
+	struct reglist *next;
+};
+
+struct types
+{
+	int	type;
+	char	*name;
+	int	count;
+};
+
+struct iges_edge_use
+{
+	int	edge_de;		/* directory sequence number for edge list or vertex list */
+	int	edge_is_vertex;		/* flag */
+	int	index;			/* index into list for this edge */
+	int	orient;			/* orientation flag (1 => agrees with geometry */
+	struct iges_param_curve *root;
+};
+
+struct iges_vertex
+{
+	point_t pt;
+	struct vertex *v;
+};
+
+struct iges_vertex_list
+{
+	int vert_de;
+	int no_of_verts;
+	struct iges_vertex *i_verts;
+	struct iges_vertex_list *next;
+};
+
+struct iges_edge
+{
+	int curve_de;
+	int start_vert_de;
+	int start_vert_index;
+	int end_vert_de;
+	int end_vert_index;
+};
+
+struct iges_param_curve
+{
+	int curve_de;
+	struct iges_param_curve *next;
+};
+
+struct iges_edge_list
+{
+	int edge_de;
+	int no_of_edges;
+	struct iges_edge *i_edge;
+	struct iges_edge_list *next;
+};
+
+#define MEMCHECK if( bu_debug & BU_DEBUG_MEM_CHECK ) {\
+		if( bu_mem_barriercheck() ) {\
+			bu_log( "memory corruption found in file %s at line %d\n",\
+				__FILE__, __LINE__ );\
+		}\
+	}
+	
+
+BU_EXTERN( char *iges_type, (int type_no ) );
+BU_EXTERN( char *Make_unique_brl_name, (char *name ) );
+BU_EXTERN( int Add_loop_to_face , (struct shell *s , struct faceuse *fu , int entityno , int face_orient ));
+BU_EXTERN( int Add_nurb_loop_to_face, ( struct shell *s, struct faceuse *fu, int loop_entityno, int face_orient ) );
+BU_EXTERN( int arb_to_iges , ( struct rt_db_internal *ip , char *name , FILE *fp_dir , FILE *fp_param ));
+BU_EXTERN( int ell_to_iges , ( struct rt_db_internal *ip , char *name , FILE *fp_dir , FILE *fp_param ));
+BU_EXTERN( int nmg_to_iges , ( struct rt_db_internal *ip , char *name , FILE *fp_dir , FILE *fp_param ));
+BU_EXTERN( int nmgregion_to_iges , ( char *name , struct nmgregion *r , int dependent , FILE *fp_dir , FILE *fp_param ) );
+BU_EXTERN( int null_to_iges , ( struct rt_db_internal *ip , char *name , FILE *fp_dir , FILE *fp_param ));
+BU_EXTERN( int planar_nurb , ( int entityno ) );
+BU_EXTERN( int sph_to_iges , ( struct rt_db_internal *ip , char *name , FILE *fp_dir , FILE *fp_param ));
+BU_EXTERN( int tgc_to_iges , ( struct rt_db_internal *ip , char *name , FILE *fp_dir , FILE *fp_param ));
+BU_EXTERN( int tor_to_iges , ( struct rt_db_internal *ip , char *name , FILE *fp_dir , FILE *fp_param ));
+BU_EXTERN( int write_shell_face_loop , ( struct nmgregion *r , int edge_de , struct bu_ptbl *etab , int vert_de , struct bu_ptbl *vtab , FILE *fp_dir , FILE *fp_param ) );
+BU_EXTERN( struct edge_g_cnurb *Get_cnurb, ( int entity_no ) );
+BU_EXTERN( struct edge_g_cnurb *Get_cnurb_curve, (int curve_de, int *linear ) );
+BU_EXTERN( struct faceuse *Add_face_to_shell , ( struct shell *s , int entityno , int face_orient) );
+BU_EXTERN( struct faceuse *Make_nurb_face, ( struct shell *s, int surf_entityno ) );
+BU_EXTERN( struct faceuse *Make_planar_face , ( struct shell *s , int entityno , int face_orient ) );
+BU_EXTERN( struct faceuse *nmg_cmface , ( struct shell *s, struct vertex ***verts, int no_of_edges ) );
+BU_EXTERN( struct iges_edge_list *Get_edge_list , (struct iges_edge_use *edge ) );
+BU_EXTERN( struct iges_edge_list *Read_edge_list , ( struct iges_edge_use *edge ) );
+BU_EXTERN( struct iges_vertex *Get_iges_vertex, (struct vertex *v ) );
+BU_EXTERN( struct iges_vertex_list *Get_vertex_list , (int vert_de ) );
+BU_EXTERN( struct iges_vertex_list *Read_vertex_list , ( int vert_de ) );
+BU_EXTERN( struct loopuse *Make_loop, (int entity_no, int orientation, int on_surf_de, struct face_g_snurb *surf, struct faceuse *fu ) );
+BU_EXTERN( struct model *nmg_mmr , () );
+BU_EXTERN( struct shell *Add_inner_shell , ( struct nmgregion *r, int entityno, int shell_orient ) );
+BU_EXTERN( struct shell *Get_outer_shell , ( struct nmgregion *r, int entityno, int shell_orient ) );
+BU_EXTERN( struct shell *nmg_msv , (struct nmgregion *r) );
+BU_EXTERN( struct face_g_snurb *Get_nurb_surf, (int entity_no, struct model *m ) );
+BU_EXTERN( struct vertex **Get_vertex , (struct iges_edge_use *edge ) );
+BU_EXTERN( union tree *do_nmg_region_end , (struct db_tree_state *tsp, struct db_full_path *pathp, union tree *curtree));
+BU_EXTERN( void count_refs , ( struct db_i *dbip , struct directory *dp ) );
+BU_EXTERN( void csg_comb_func , ( struct db_i *dbip , struct directory *dp ) );
+BU_EXTERN( void csg_leaf_func , ( struct db_i *dbip , struct directory *dp ) );
+BU_EXTERN( void nmg_region_edge_list , ( struct bu_ptbl *tab , struct nmgregion *r ) );
+BU_EXTERN( void set_iges_tolerances , ( struct bn_tol *set_tol , struct rt_tess_tol *set_ttol ) );
+BU_EXTERN( void w_start_global , (FILE *fp_dir , FILE *fp_param , char *db_name , char *prog_name , char *output_file , char *id , char *version ));
+BU_EXTERN( void w_terminate , (FILE *fp) );
+BU_EXTERN( void write_edge_list , (struct nmgregion *r , int vert_de , struct bu_ptbl *etab , struct bu_ptbl *vtab , FILE *fp_dir , FILE *fp_param ) );
+BU_EXTERN( void write_vertex_list , ( struct nmgregion *r , struct bu_ptbl *vtab , FILE *fp_dir , FILE *fp_param ) );
+BU_EXTERN( struct iges_edge *Get_edge, (struct iges_edge_use *e_use ) );
+BU_EXTERN( struct vertex *Get_edge_start_vertex, (struct iges_edge *e ) );
+BU_EXTERN( struct vertex *Get_edge_end_vertex, (struct iges_edge *e ) );
+BU_EXTERN( void usage, () );
+BU_EXTERN( void Initstack, () );
+BU_EXTERN( void Push, (union tree *ptr) );
+BU_EXTERN( union tree *Pop, () );
+BU_EXTERN( void Freestack, () );
+BU_EXTERN( int Recsize, () );
+BU_EXTERN( void Zero_counts, () );
+BU_EXTERN( void Summary, () );
+BU_EXTERN( void Readstart, () );
+BU_EXTERN( void Readglobal, ( int file_count ) );
+BU_EXTERN( int Findp, () );
+BU_EXTERN( void Free_dir, () );
+BU_EXTERN( void Makedir, () );
+BU_EXTERN( void Docolor, () );
+BU_EXTERN( void Gett_att, () );
+BU_EXTERN( void Evalxform, () );
+BU_EXTERN( void Check_names, () );
+BU_EXTERN( void Conv_drawings, () );
+BU_EXTERN( void Do_subfigs, () );
+BU_EXTERN( void Convtrimsurfs, () );
+BU_EXTERN( void Convsurfs, () );
+BU_EXTERN( void Convinst, () );
+BU_EXTERN( void Convsolids, () );
+BU_EXTERN( void Get_att, () );
+BU_EXTERN( void Convtree, () );
+BU_EXTERN( void Convassem, () );
+BU_EXTERN( int Readrec, ( int recno ) );
+BU_EXTERN( void Readint, ( int *inum, char *id ) );
+BU_EXTERN( void Readflt, ( fastf_t *inum, char *id ) );
+BU_EXTERN( void Readdbl, ( double *inum, char *id ) );
+BU_EXTERN( void Readstrg, ( char *id ) );
+BU_EXTERN( void Readname, ( char **ptr, char *id ) );
+BU_EXTERN( void Readcnv, ( fastf_t *inum, char *id ) );
+BU_EXTERN( void Assign_surface_to_fu, ( struct faceuse *fu, struct face_g_snurb *srf ) );
+BU_EXTERN( void Assign_cnurb_to_eu, (struct edgeuse *eu, struct edge_g_cnurb *crv ) );
+BU_EXTERN( int Put_vertex, ( struct vertex *v, struct iges_edge_use *edge ) );
+BU_EXTERN( int Getcurve, ( int curve, struct ptlist **curv_pts ) );
+BU_EXTERN( void Orient_loops, ( struct nmgregion *r ) );
+BU_EXTERN( int spline, ( int entityno, struct face_g_snurb **b_patch ) );
+BU_EXTERN( void Freeknots, () );
+BU_EXTERN( void Matmult, ( mat_t a, mat_t b, mat_t c ) );
+BU_EXTERN( int Extrudcon, ( int entityno, int curve, vect_t evect ) );
+BU_EXTERN( int Extrudcirc, ( int entityno, int curve, vect_t evect ) );
+BU_EXTERN( void Read_att, ( int att_de, struct brlcad_att *att ) );
+BU_EXTERN( int block, ( int entityno ) );
+BU_EXTERN( int wedge, ( int entityno ) );
+BU_EXTERN( int cyl, ( int entityno ) );
+BU_EXTERN( int cone, ( int entityno ) );
+BU_EXTERN( int sphere, ( int entityno ) );
+BU_EXTERN( int torus, ( int entityno ) );
+BU_EXTERN( int revolve, ( int entityno ) );
+BU_EXTERN( int extrude, ( int entityno ) );
+BU_EXTERN( int ell, ( int entityno ) );
+BU_EXTERN( int brep, ( int entityno ) );
+BU_EXTERN( void Readtime, ( char *id ) );
+BU_EXTERN( void Readcols, ( char *id, int cols ) );
+BU_EXTERN( void Readmatrix, ( int xform, mat_t rot ) );
+@
+
+
+11.14
+log
+@change conf.h to a wrapped config.h
+@
+text
+@@
+
+
+11.13
+log
+@Mods to get IGES working with new database format (v5)
+@
+text
+@d1 3
+a3 1
+#include "conf.h"
+@
+
+
+11.12
+log
+@
+Converted from Release 4 names to know about libbu and libbn
+@
+text
+@d191 8
+d244 57
+@
+
+
+11.11
+log
+@Converted to use combination import/export.
+@
+text
+@d41 1
+a41 1
+	struct rt_list		l;			/* for links */
+d191 45
+a235 47
+RT_EXTERN( char *iges_type, (int type_no ) );
+RT_EXTERN( char *Make_unique_brl_name, (char *name ) );
+RT_EXTERN( int Add_loop_to_face , (struct shell *s , struct faceuse *fu , int entityno , int face_orient ));
+RT_EXTERN( int Add_nurb_loop_to_face, ( struct shell *s, struct faceuse *fu, int loop_entityno, int face_orient ) );
+RT_EXTERN( int arb_to_iges , ( struct rt_db_internal *ip , char *name , FILE *fp_dir , FILE *fp_param ));
+RT_EXTERN( int ell_to_iges , ( struct rt_db_internal *ip , char *name , FILE *fp_dir , FILE *fp_param ));
+RT_EXTERN( int nmg_to_iges , ( struct rt_db_internal *ip , char *name , FILE *fp_dir , FILE *fp_param ));
+RT_EXTERN( int nmgregion_to_iges , ( char *name , struct nmgregion *r , int dependent , FILE *fp_dir , FILE *fp_param ) );
+RT_EXTERN( int null_to_iges , ( struct rt_db_internal *ip , char *name , FILE *fp_dir , FILE *fp_param ));
+RT_EXTERN( int planar_nurb , ( int entityno ) );
+RT_EXTERN( int sph_to_iges , ( struct rt_db_internal *ip , char *name , FILE *fp_dir , FILE *fp_param ));
+RT_EXTERN( int tgc_to_iges , ( struct rt_db_internal *ip , char *name , FILE *fp_dir , FILE *fp_param ));
+RT_EXTERN( int tor_to_iges , ( struct rt_db_internal *ip , char *name , FILE *fp_dir , FILE *fp_param ));
+RT_EXTERN( int write_shell_face_loop , ( struct nmgregion *r , int edge_de , struct nmg_ptbl *etab , int vert_de , struct nmg_ptbl *vtab , FILE *fp_dir , FILE *fp_param ) );
+RT_EXTERN( struct edge_g_cnurb *Get_cnurb, ( int entity_no ) );
+RT_EXTERN( struct edge_g_cnurb *Get_cnurb_curve, (int curve_de, int *linear ) );
+RT_EXTERN( struct edge_g_cnurb *rt_arc2d_to_cnurb, ( point_t center, point_t start, point_t end, int pt_type, struct rt_tol *tol ) );
+RT_EXTERN( struct face *nmg_find_top_face , (struct shell *s , long *flags ) );
+RT_EXTERN( struct faceuse *Add_face_to_shell , ( struct shell *s , int entityno , int face_orient) );
+RT_EXTERN( struct faceuse *Make_nurb_face, ( struct shell *s, int surf_entityno ) );
+RT_EXTERN( struct faceuse *Make_planar_face , ( struct shell *s , int entityno , int face_orient ) );
+RT_EXTERN( struct faceuse *nmg_cmface , ( struct shell *s, struct vertex ***verts, int no_of_edges ) );
+RT_EXTERN( struct iges_edge_list *Get_edge_list , (struct iges_edge_use *edge ) );
+RT_EXTERN( struct iges_edge_list *Read_edge_list , ( struct iges_edge_use *edge ) );
+RT_EXTERN( struct iges_vertex *Get_iges_vertex, (struct vertex *v ) );
+RT_EXTERN( struct iges_vertex_list *Get_vertex_list , (int vert_de ) );
+RT_EXTERN( struct iges_vertex_list *Read_vertex_list , ( int vert_de ) );
+RT_EXTERN( struct loopuse *Make_loop, (int entity_no, int orientation, int on_surf_de, struct face_g_snurb *surf, struct faceuse *fu ) );
+RT_EXTERN( struct model *nmg_mmr , () );
+RT_EXTERN( struct shell *Add_inner_shell , ( struct nmgregion *r, int entityno, int shell_orient ) );
+RT_EXTERN( struct shell *Get_outer_shell , ( struct nmgregion *r, int entityno, int shell_orient ) );
+RT_EXTERN( struct shell *nmg_msv , (struct nmgregion *r) );
+RT_EXTERN( struct face_g_snurb *Get_nurb_surf, (int entity_no, struct model *m ) );
+RT_EXTERN( struct vertex **Get_vertex , (struct iges_edge_use *edge ) );
+RT_EXTERN( union tree *do_nmg_region_end , (struct db_tree_state *tsp, struct db_full_path *pathp, union tree *curtree));
+RT_EXTERN( void count_refs , ( struct db_i *dbip , struct directory *dp ) );
+RT_EXTERN( void csg_comb_func , ( struct db_i *dbip , struct directory *dp ) );
+RT_EXTERN( void csg_leaf_func , ( struct db_i *dbip , struct directory *dp ) );
+RT_EXTERN( void nmg_region_edge_list , ( struct nmg_ptbl *tab , struct nmgregion *r ) );
+RT_EXTERN( void set_iges_tolerances , ( struct rt_tol *set_tol , struct rt_tess_tol *set_ttol ) );
+RT_EXTERN( void w_start_global , (FILE *fp_dir , FILE *fp_param , char *db_name , char *prog_name , char *output_file , char *id , char *version ));
+RT_EXTERN( void w_terminate , (FILE *fp) );
+RT_EXTERN( void write_edge_list , (struct nmgregion *r , int vert_de , struct nmg_ptbl *etab , struct nmg_ptbl *vtab , FILE *fp_dir , FILE *fp_param ) );
+RT_EXTERN( void write_vertex_list , ( struct nmgregion *r , struct nmg_ptbl *vtab , FILE *fp_dir , FILE *fp_param ) );
+RT_EXTERN( struct iges_edge *Get_edge, (struct iges_edge_use *e_use ) );
+RT_EXTERN( struct vertex *Get_edge_start_vertex, (struct iges_edge *e ) );
+RT_EXTERN( struct vertex *Get_edge_end_vertex, (struct iges_edge *e ) );
+@
+
+
+11.10
+log
+@Mods to get trimmed surfaces with subfigures working.
+@
+text
+@a13 1
+#include "db.h"
+d25 2
+@
+
+
+11.9
+log
+@Checkpoint in mods for handling assemblies (subfigures).
+@
+text
+@d42 1
+a42 1
+	char			obj_name[NAMESIZE];	/* BRL-CAD name for top level object */
+@
+
+
+11.8
+log
+@Mods for new SNURB struct.
+@
+text
+@a26 2
+#define	NAMELEN	16	/* from "brlcad/db.h" */
+
+d37 15
+d132 1
+a132 1
+	char name[NAMELEN];
+d191 1
+@
+
+
+11.7
+log
+@LIBNURBS has been converted over to using t-NURBS NMG data structures
+@
+text
+@d179 1
+d195 1
+a195 1
+RT_EXTERN( struct faceuse *Make_nurb_face, (struct face_g_snurb **surf, struct shell *s, int surf_entityno ) );
+d208 1
+a208 1
+RT_EXTERN( struct face_g_snurb *Get_nurb_surf, (int entity_no ) );
+@
+
+
+11.6
+log
+@Mods to handle TNURB BREP. Also added RT_EXTERNS to iges_struct.h.
+@
+text
+@d189 3
+a191 3
+RT_EXTERN( struct cnurb *Get_cnurb, ( int entity_no ) );
+RT_EXTERN( struct cnurb *Get_cnurb_curve, (int curve_de, int *linear ) );
+RT_EXTERN( struct cnurb *rt_arc2d_to_cnurb, ( point_t center, point_t start, point_t end, int pt_type, struct rt_tol *tol ) );
+d194 1
+a194 1
+RT_EXTERN( struct faceuse *Make_nurb_face, (struct snurb **surf, struct shell *s, int surf_entityno ) );
+d202 1
+a202 1
+RT_EXTERN( struct loopuse *Make_loop, (int entity_no, int orientation, int on_surf_de, struct snurb *surf, struct faceuse *fu ) );
+d207 1
+a207 1
+RT_EXTERN( struct snurb *Get_nurb_surf, (int entity_no ) );
+@
+
+
+11.5
+log
+@Release_4.4
+@
+text
+@d1 16
+d21 3
+d137 1
+d163 6
+d176 46
+@
+
+
+11.4
+log
+@Added raytrace.h
+@
+text
+@@
+
+
+11.3
+log
+@Added View field to directory structure
+@
+text
+@d4 1
+a8 2
+
+#define	ARCSEGS	10	/* number of segments to use in representing a circle */
+@
+
+
+11.2
+log
+@Modified header files
+@
+text
+@d27 1
+@
+
+
+11.1
+log
+@Major Upgrade to IGES 5.1
+@
+text
+@d1 3
+d30 1
+@
+
+
+10.1
+log
+@Release_4.0
+@
+text
+@d27 5
+a31 3
+/* Note that the directory entry sequence number and the directory structure
+   array index are not the same.  The index into the array can be calculated
+   as (sequence number - 1)/2.	*/
+d36 11
+a46 4
+	int referenced; /* number of times this entity is referenced by boolean trees,
+		solids, or solid assemblies. For transformation entities,
+		it indicates whether the matrix list has been evaluated */
+	char name[NAMELEN+1]; /* entity name */
+d58 13
+d99 46
+@
+
+
+1.3
+log
+@Changed struct directory to struct iges_directory, to
+avoid conflict with raytrace.h
+INFINITY now defined in raytrace.h
+ 
+ 
+@
+text
+@@
+
+
+1.2
+log
+@Modified for Release 4.0
+@
+text
+@a7 1
+#define	INFINITY	1.0e20
+d20 1
+a20 1
+struct directory
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@a1 3
+#include <brlcad/machine.h>
+#include <brlcad/vmath.h>
+
+@

@@ -1,0 +1,459 @@
+head	1.6;
+access;
+symbols
+	rel-7-10-4:1.5
+	STABLE:1.5.0.2
+	rel-7-10-2:1.5
+	rel-7-10-0:1.5
+	rel-7-8-4:1.2
+	rel-7-8-2:1.2
+	rel-7-8-0:1.2
+	trimnurbs-branch:1.2.0.2
+	help:1.2
+	temp_tag:1.1
+	postmerge-20051223-bobWinPort:1.1
+	premerge-20051223-bobWinPort:1.1
+	rel-7-6-6:1.1
+	rel-7-6-branch:1.1.0.2
+	rel-7-6-4:1.1;
+locks; strict;
+comment	@ * @;
+
+
+1.6
+date	2007.12.31.20.25.13;	author brlcad;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	2007.01.31.21.40.17;	author brlcad;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	2007.01.23.01.13.25;	author brlcad;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2007.01.20.14.36.47;	author brlcad;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2006.01.18.06.46.14;	author brlcad;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2005.10.27.03.44.49;	author brlcad;	state Exp;
+branches
+	1.1.2.1;
+next	;
+
+1.1.2.1
+date	2005.10.27.03.44.49;	author brlcad;	state dead;
+branches;
+next	1.1.2.2;
+
+1.1.2.2
+date	2005.11.13.17.45.00;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.6
+log
+@header cleanup, more address removal
+@
+text
+@/*                      B U B B L E U P . C
+ * BRL-CAD
+ *
+ * Copyright (c) 1990-2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@file bubbleup.c
+ *
+ * This routine finds union operators in the boolean tree that cannot
+ * be handled by BRL-CAD (due to BRL-CAD's odd way of handling the
+ * union operator), and moves them toward the root of the tree.  To
+ * get the tree into a BRL-CAD-acceptable format, no intersection or
+ * subtraction operators can be above any union operator in the tree.
+ * Traverses the tree in LRN order.  Returns 1 if no change was made
+ * to the tree, 0 otherwise.
+ *
+ *  Authors -
+ *	John R. Anderson
+ *	Susanne L. Muuss
+ *	Earl P. Weaver
+ *
+ */
+
+#include "./iges_struct.h"
+
+Bubbleup( root )
+struct node *root;
+{
+	struct node *Copytree(),*Pop(),*ptr,*ptra,*ptrb,*ptrc,*ptr1,*ptr2;
+	int op,retval=1;
+
+	ptr = root;
+	while( 1 )
+	{
+		while( ptr != NULL )
+		{
+			Push( ptr );
+			ptr = ptr->left;
+		}
+		ptr = Pop();
+		if( ptr->right != NULL && ptr->right->op == Union )
+		{
+			if( ptr->op == Subtract )
+			{
+			/*	(a-(buc)) => ((a-b)-c)	*/
+				retval = 0;
+				ptr1 = ptr->right;
+				ptra = ptr->left;
+				ptrb = ptr->right->left;
+				ptrc = ptr->right->right;
+				ptr->right = ptrc;
+				ptr->left = ptr1;
+				ptr1->op = Subtract;
+				ptr1->left = ptra;
+				ptr1->right = ptrb;
+				ptra->parent = ptr1;
+				ptrb->parent = ptr1;
+				ptrc->parent = ptr;
+			}
+			else if( ptr->op == Intersect )
+			{
+			/*	(a+(buc)) => (a+b)u(a+c)	*/
+				retval = 0;
+				ptr2 = (struct node *)bu_malloc( sizeof( struct node ), "Bubbleup: ptr2" );
+				ptr1 = ptr->right;
+				ptra = ptr->left;
+				ptrb = ptr->right->left;
+				ptrc = ptr->right->right;
+				ptr->left = ptr2;
+				ptr2->op = Intersect;
+				ptr2->left = ptra;
+				ptr2->right = ptrb;
+				ptr1->right = ptrc;
+				ptr1->op = Intersect;
+				ptr->op = Union;
+				ptr1->left = Copytree( ptra , ptr1 );
+				ptra->parent = ptr2;
+				ptrb->parent = ptr2;
+				ptr2->parent = ptr;
+			}
+		}
+		else if( ptr->left != NULL && ptr->left->op == Union )
+		{
+			if( ptr->op == Intersect || ptr->op == Subtract )
+			{
+			/*	((aub)"+ or -"c) => (a"+ or -"c)u(b"+ or -"c)	*/
+				retval = 0;
+				op = ptr->op;
+				ptra = ptr->left->left;
+				ptrb = ptr->left->right;
+				ptrc = ptr->right;
+				ptr1 = ptr->left;
+				ptr2 = (struct node *)bu_malloc( sizeof( struct node ), "Bubbleup: ptr2" );
+				ptr->op = Union;
+				ptr->right = ptr2;
+				ptr2->op = op;
+				ptr2->left = ptrb;
+				ptr2->right = Copytree( ptrc , ptr2 );
+				ptr1->op = op;
+				ptr1->right = ptrc;
+				ptrc->parent = ptr1;
+				ptrb->parent = ptr2;
+				ptr2->parent = ptr;
+			}
+		}
+
+		if( ptr == root ) /* entire tree has been looked at */
+			return( retval );
+
+		if( ptr != ptr->parent->right ) /* we must be at the left node */
+			ptr = ptr->parent->right; /* so push the right node */
+		else				/* we must be at the right node */
+			ptr = NULL;	/* so don't push anything */
+
+	}
+}
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+1.5
+log
+@consistency on BRL-CAD name use, s/BRLCAD/BRL-CAD/
+@
+text
+@d21 9
+a34 5
+ *  Source -
+ *	VLD/ASB Building 1065
+ *	The U. S. Army Ballistic Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005
+ *
+a36 9
+/*	This routine finds union operators in the boolean tree
+	that cannot be handled by BRL-CAD (due to BRL-CAD's odd
+	way of handling the union operator), and moves them
+	toward the root of the tree.  To get the tree into
+	a BRL-CAD-acceptable format, no intersection or
+	subtraction operators can be above any union operator
+	in the tree.  Traverses the tree in LRN order.  Returns 1
+	if no change was made to the tree, 0 otherwise.	*/
+
+@
+
+
+1.4
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@d34 1
+a34 1
+	that cannot be handled by BRL-CAD (due to BRLCAD's odd
+d37 1
+a37 1
+	a BRLCAD-acceptable format, no intersection or
+@
+
+
+1.3
+log
+@update copyright to 2007
+@
+text
+@d8 2
+a9 3
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+d14 1
+a14 1
+ * General Public License for more details.
+d16 2
+a17 2
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+@
+
+
+1.2
+log
+@update copyright to 2006
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 1990-2006 United States Government as represented by
+@
+
+
+1.1
+log
+@moved all the geometry converter directories from src/. to src/conv/.
+@
+text
+@d4 1
+a4 1
+ * Copyright (C) 1990-2005 United States Government as represented by
+@
+
+
+1.1.2.1
+log
+@file bubbleup.c was added on branch rel-7-6-branch on 2005-11-13 17:45:00 +0000
+@
+text
+@d1 145
+@
+
+
+1.1.2.2
+log
+@more merging changes from HEAD aka rel-7-6-4 to the rel-7-6-branch, adding the items that were moved and resolving rcs keyword conflicts
+@
+text
+@a0 145
+/*                      B U B B L E U P . C
+ * BRL-CAD
+ *
+ * Copyright (C) 1990-2005 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@file bubbleup.c
+ *  Authors -
+ *	John R. Anderson
+ *	Susanne L. Muuss
+ *	Earl P. Weaver
+ *
+ *  Source -
+ *	VLD/ASB Building 1065
+ *	The U. S. Army Ballistic Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005
+ *
+ */
+
+/*	This routine finds union operators in the boolean tree
+	that cannot be handled by BRL-CAD (due to BRLCAD's odd
+	way of handling the union operator), and moves them
+	toward the root of the tree.  To get the tree into
+	a BRLCAD-acceptable format, no intersection or
+	subtraction operators can be above any union operator
+	in the tree.  Traverses the tree in LRN order.  Returns 1
+	if no change was made to the tree, 0 otherwise.	*/
+
+#include "./iges_struct.h"
+
+Bubbleup( root )
+struct node *root;
+{
+	struct node *Copytree(),*Pop(),*ptr,*ptra,*ptrb,*ptrc,*ptr1,*ptr2;
+	int op,retval=1;
+
+	ptr = root;
+	while( 1 )
+	{
+		while( ptr != NULL )
+		{
+			Push( ptr );
+			ptr = ptr->left;
+		}
+		ptr = Pop();
+		if( ptr->right != NULL && ptr->right->op == Union )
+		{
+			if( ptr->op == Subtract )
+			{
+			/*	(a-(buc)) => ((a-b)-c)	*/
+				retval = 0;
+				ptr1 = ptr->right;
+				ptra = ptr->left;
+				ptrb = ptr->right->left;
+				ptrc = ptr->right->right;
+				ptr->right = ptrc;
+				ptr->left = ptr1;
+				ptr1->op = Subtract;
+				ptr1->left = ptra;
+				ptr1->right = ptrb;
+				ptra->parent = ptr1;
+				ptrb->parent = ptr1;
+				ptrc->parent = ptr;
+			}
+			else if( ptr->op == Intersect )
+			{
+			/*	(a+(buc)) => (a+b)u(a+c)	*/
+				retval = 0;
+				ptr2 = (struct node *)bu_malloc( sizeof( struct node ), "Bubbleup: ptr2" );
+				ptr1 = ptr->right;
+				ptra = ptr->left;
+				ptrb = ptr->right->left;
+				ptrc = ptr->right->right;
+				ptr->left = ptr2;
+				ptr2->op = Intersect;
+				ptr2->left = ptra;
+				ptr2->right = ptrb;
+				ptr1->right = ptrc;
+				ptr1->op = Intersect;
+				ptr->op = Union;
+				ptr1->left = Copytree( ptra , ptr1 );
+				ptra->parent = ptr2;
+				ptrb->parent = ptr2;
+				ptr2->parent = ptr;
+			}
+		}
+		else if( ptr->left != NULL && ptr->left->op == Union )
+		{
+			if( ptr->op == Intersect || ptr->op == Subtract )
+			{
+			/*	((aub)"+ or -"c) => (a"+ or -"c)u(b"+ or -"c)	*/
+				retval = 0;
+				op = ptr->op;
+				ptra = ptr->left->left;
+				ptrb = ptr->left->right;
+				ptrc = ptr->right;
+				ptr1 = ptr->left;
+				ptr2 = (struct node *)bu_malloc( sizeof( struct node ), "Bubbleup: ptr2" );
+				ptr->op = Union;
+				ptr->right = ptr2;
+				ptr2->op = op;
+				ptr2->left = ptrb;
+				ptr2->right = Copytree( ptrc , ptr2 );
+				ptr1->op = op;
+				ptr1->right = ptrc;
+				ptrc->parent = ptr1;
+				ptrb->parent = ptr2;
+				ptr2->parent = ptr;
+			}
+		}
+
+		if( ptr == root ) /* entire tree has been looked at */
+			return( retval );
+
+		if( ptr != ptr->parent->right ) /* we must be at the left node */
+			ptr = ptr->parent->right; /* so push the right node */
+		else				/* we must be at the right node */
+			ptr = NULL;	/* so don't push anything */
+
+	}
+}
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+

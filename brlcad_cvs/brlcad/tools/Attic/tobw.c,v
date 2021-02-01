@@ -1,0 +1,455 @@
+head	11.8;
+access;
+symbols
+	ansi-20040405-merged:11.5.2.1
+	postmerge-20040405-ansi:11.6
+	premerge-20040404-ansi:11.5
+	postmerge-autoconf:11.5
+	autoconf-freeze:11.5
+	premerge-autoconf:11.5
+	postmerge-20040315-windows:11.5
+	premerge-20040315-windows:11.5
+	windows-20040315-freeze:11.5
+	autoconf-20031203:11.5
+	autoconf-20031202:11.5
+	autoconf-branch:11.5.0.10
+	phong-branch:11.5.0.8
+	photonmap-branch:11.5.0.6
+	rel-6-1-DP:11.5
+	windows-branch:11.5.0.4
+	rel-6-0-2:11.3
+	ansi-branch:11.5.0.2
+	rel-6-0-1-branch:11.3.0.2
+	hartley-6-0-post:11.4
+	hartley-6-0-pre:11.3
+	rel-6-0-1:11.3
+	rel-6-0:11.3
+	rel-5-4:11.2
+	offsite-5-3-pre:11.3
+	rel-5-3:11.2
+	rel-5-2:11.2
+	rel-5-1-branch:11.2.0.2
+	rel-5-1:11.2
+	rel-5-0:11.1
+	rel-5-0-beta:11.1
+	rel-4-5:11.1
+	ctj-4-5-post:11.1
+	ctj-4-5-pre:11.1
+	rel-4-4:11.1
+	rel-4-0:10.1;
+locks; strict;
+comment	@ * @;
+
+
+11.8
+date	2004.05.21.16.39.02;	author morrison;	state dead;
+branches;
+next	11.7;
+
+11.7
+date	2004.05.10.15.30.50;	author erikg;	state Exp;
+branches;
+next	11.6;
+
+11.6
+date	2004.04.05.05.46.01;	author morrison;	state Exp;
+branches;
+next	11.5;
+
+11.5
+date	2002.08.20.17.08.51;	author jra;	state Exp;
+branches
+	11.5.2.1;
+next	11.4;
+
+11.4
+date	2002.08.15.20.56.03;	author hartley;	state Exp;
+branches;
+next	11.3;
+
+11.3
+date	2000.08.24.22.46.25;	author mike;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	2000.01.31.16.17.47;	author jra;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	95.01.04.10.21.36;	author mike;	state Rel4_4;
+branches;
+next	10.2;
+
+10.2
+date	94.08.11.20.09.25;	author gdurf;	state Exp;
+branches;
+next	10.1;
+
+10.1
+date	91.10.12.06.53.09;	author mike;	state Rel4_0;
+branches;
+next	1.2;
+
+1.2
+date	91.07.22.22.33.02;	author mike;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	91.01.03.20.45.41;	author butler;	state Exp;
+branches;
+next	;
+
+11.5.2.1
+date	2002.09.19.18.02.31;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@dist
+@
+
+
+11.8
+log
+@moved to src/tools/
+@
+text
+@/*
+ * This software is copyrighted as noted below.  It may be freely copied,
+ * modified, and redistributed, provided that the copyright notice is 
+ * preserved on all copies.
+ * 
+ * There is no warranty or other guarantee of fitness for this software,
+ * it is provided solely "as is".  Bug reports or fixes may be sent
+ * to the author, who may or may not act on them as he desires.
+ *
+ * You may not include this software in a program or other software product
+ * without supplying the source, or without informing the end-user that the 
+ * source is available for no extra charge.
+ *
+ * If you modify this software, you should include a notice giving the
+ * name of the person performing the modification, the date of modification,
+ * and the reason for such modification.
+ */
+/* 
+ * tobw.c - Filter to change an RLE file to B&W.
+ * 
+ * Author:	Spencer W. Thomas
+ * 		Computer Science Dept.
+ * 		University of Utah
+ * Date:	Tue Feb 25 1986
+ * Copyright (c) 1986, University of Utah
+ * 
+ */
+#ifndef lint
+static const char rcs_ident[] = "$Header: /n/xoff/cvs/brlcad/tools/tobw.c,v 11.7 2004/05/10 15:30:50 erikg Exp $";
+#endif
+
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+
+#include <stdio.h>
+#include <math.h>
+
+#include "machine.h"
+#include "externs.h"		/* For malloc and free */
+#include "rle.h"
+
+/*****************************************************************
+ * TAG( main )
+ * 
+ * Usage: tobw [-t] [-o outfile] [infile]
+ * 
+ * Inputs:
+ *	-t:		If specified, output a 3-channel image (all three
+ *			the same).
+ * 	infile:		Input (color) RLE file.  Stdin used if not
+ *			specified.
+ * Outputs:
+ * 	outfile:	Output (black & white) RLE file.  Stdout used
+ *			if not specified.
+ * Assumptions:
+ *	[None]
+ * Algorithm:
+ *	[None]
+ */
+int
+main(int argc, char **argv)
+{
+    char * infname = NULL, * outfname = NULL;
+    FILE * outfile = stdout;
+    int oflag = 0, tflag = 0, nrow;
+    rle_hdr out_hdr;
+    unsigned char ** scan, *outscan[4];
+    unsigned char * buffer;
+    int rle_cnt, rle_err;
+
+    if ( scanargs( argc, argv, "% t%- o%-outfile!s infile%s",
+		    &tflag, &oflag, &outfname, &infname ) == 0 )
+	exit( 1 );
+
+    rle_dflt_hdr.rle_file = rle_open_f(cmd_name( argv ), infname, "r");
+
+    for ( rle_cnt = 0;
+	  (rle_err = rle_get_setup( &rle_dflt_hdr )) == RLE_SUCCESS;
+	  rle_cnt++ )
+    {
+	if ( rle_dflt_hdr.ncolors == 1 )
+	{
+	    fprintf( stderr, "%s: %s is already black & white\n",
+		     cmd_name( argv ), infname ? infname : "stdin" );
+	    exit( 1 );
+	}
+	if ( rle_dflt_hdr.ncolors < 3 )
+	{
+	    fprintf( stderr, "%s: %s is not RGB",
+		     cmd_name( argv ), infname ? infname : "stdin" );
+	    exit( 1 );
+	}
+	if ( rle_dflt_hdr.alpha )
+	    RLE_SET_BIT( rle_dflt_hdr, RLE_ALPHA );
+
+	out_hdr = rle_dflt_hdr;
+	if ( rle_cnt == 0 )
+	    outfile = rle_open_f(cmd_name( argv ), outfname, "w");
+	rle_dflt_hdr.xmax -= rle_dflt_hdr.xmin;
+	rle_dflt_hdr.xmin = 0;
+	nrow = rle_dflt_hdr.xmax + 1;
+	buffer = (unsigned char *)malloc( nrow );
+	rle_row_alloc( &rle_dflt_hdr, &scan );
+	if ( rle_dflt_hdr.alpha )
+	{
+	    outscan[0] = scan[-1];
+	}
+	outscan[1] = buffer;
+	/* If 3 channel output, reference the line 3 times */
+	if ( tflag )
+	    outscan[2] = outscan[3] = buffer;
+
+	if ( ! tflag )
+	    out_hdr.ncolors = 1;
+	else
+	    out_hdr.ncolors = 3;
+
+	if ( rle_dflt_hdr.background != 0 )
+	{
+	    rle_pixel r, g, b, o;
+
+	    out_hdr.bg_color = (int *)malloc( sizeof( int ) );
+	    r = rle_dflt_hdr.bg_color[0];
+	    g = rle_dflt_hdr.bg_color[1];
+	    b = rle_dflt_hdr.bg_color[2];
+	    rgb_to_bw( &r, &g, &b, &o, 1 );
+	    out_hdr.bg_color[0] = o;
+	}
+
+	rle_addhist( argv, &rle_dflt_hdr, &out_hdr );
+
+	out_hdr.rle_file = outfile;
+
+	rle_put_setup( &out_hdr );
+
+	while ( (rle_getrow( &rle_dflt_hdr, scan )) <=
+		rle_dflt_hdr.ymax )
+	{
+	    rgb_to_bw( scan[0], scan[1], scan[2], buffer, nrow );
+	    rle_putrow( &outscan[1], nrow, &out_hdr );
+	}
+	rle_puteof( &out_hdr );
+
+	rle_row_free( &rle_dflt_hdr, scan );
+    }
+
+    /* Check for an error.  EOF or EMPTY is ok if at least one image
+     * has been read.  Otherwise, print an error message.
+     */
+    if ( rle_cnt == 0 || (rle_err != RLE_EOF && rle_err != RLE_EMPTY) )
+	rle_get_error( rle_err, cmd_name( argv ), infname );
+
+    exit( 0 );
+}
+@
+
+
+11.7
+log
+@change conf.h to a wrapped config.h
+@
+text
+@d29 1
+a29 1
+static const char rcs_ident[] = "$Header: /cvs/brlcad/tools/tobw.c,v 11.6 2004/04/05 05:46:01 morrison Exp $";
+@
+
+
+11.6
+log
+@merge of ansi-6-0-branch into head
+@
+text
+@d29 1
+a29 1
+static const char rcs_ident[] = "$Header$";
+d32 5
+a36 1
+#include "conf.h"
+@
+
+
+11.5
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d29 1
+a29 1
+static const char rcs_ident[] = "$Header: /c/CVS/brlcad/tools/tobw.c,v 11.3 2000/08/24 22:46:25 mike Exp $";
+d60 1
+a60 3
+main( argc, argv )
+int argc;
+char **argv;
+@
+
+
+11.5.2.1
+log
+@Initial ANSIfication
+@
+text
+@d29 1
+a29 1
+static const char rcs_ident[] = "$Header: /c/CVS/brlcad/tools/tobw.c,v 11.5 2002/08/20 17:08:51 jra Exp $";
+d60 3
+a62 1
+main(int argc, char **argv)
+@
+
+
+11.4
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d60 3
+a62 1
+main(int argc, char **argv)
+@
+
+
+11.3
+log
+@
+lint
+@
+text
+@d29 1
+a29 1
+static const char rcs_ident[] = "$Header: /c/CVS/brlcad/tools/tobw.c,v 11.2 2000/01/31 16:17:47 jra Exp $";
+d60 1
+a60 3
+main( argc, argv )
+int argc;
+char **argv;
+@
+
+
+11.2
+log
+@Eliminated some unused variables
+@
+text
+@d29 1
+a29 1
+static char rcs_ident[] = "$Header: /c/CVS/brlcad/tools/tobw.c,v 11.1 1995/01/04 10:21:36 mike Rel4_4 $";
+d59 1
+a59 1
+void
+@
+
+
+11.1
+log
+@Release_4.4
+@
+text
+@d29 1
+a29 1
+static char rcs_ident[] = "$Header: /m/cad/tools/RCS/tobw.c,v 10.2 94/08/11 20:09:25 gdurf Exp $";
+d66 1
+a66 1
+    int oflag = 0, tflag = 0, y, nrow;
+d137 1
+a137 1
+	while ( (y = rle_getrow( &rle_dflt_hdr, scan )) <=
+@
+
+
+10.2
+log
+@Altered #defines and #includes to conform to BRL-CAD standards
+@
+text
+@d29 1
+a29 1
+static char rcs_ident[] = "$Header: /m/cad/tools/RCS/tobw.c,v 10.1 1991/10/12 06:53:09 mike Rel4_0 gdurf $";
+@
+
+
+10.1
+log
+@Release_4.0
+@
+text
+@d29 1
+a29 1
+static char rcs_ident[] = "$Header: /m/cad/tools/RCS/tobw.c,v 1.2 91/07/22 22:33:02 mike Exp $";
+d32 2
+d36 3
+a39 13
+
+#ifdef USE_STDLIB_H
+#include <stdlib.h>
+#else
+
+#ifdef VOID_STAR
+extern void *malloc();
+#else
+extern char *malloc();
+#endif
+extern void free();
+
+#endif /* USE_STDLIB_H */
+@
+
+
+1.2
+log
+@NULL != 0
+@
+text
+@d29 1
+a29 1
+static char rcs_ident[] = "$Header: /m/cad/tools/RCS/tobw.c,v 1.1 91/01/03 20:45:41 butler Exp $";
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d29 1
+a29 1
+static char rcs_ident[] = "$Header: /usr/users/spencer/src/urt/tools/RCS/tobw.c,v 3.0 90/08/03 15:24:09 spencer Exp $";
+d127 1
+a127 1
+	if ( rle_dflt_hdr.background != NULL )
+@

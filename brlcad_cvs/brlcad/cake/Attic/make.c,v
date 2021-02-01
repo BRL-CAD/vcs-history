@@ -1,0 +1,308 @@
+head	11.2;
+access;
+symbols
+	ansi-20040405-merged:11.1
+	premerge-autoconf:11.1
+	ansi-20040316-freeze:11.1
+	postmerge-20040315-windows:11.1
+	premerge-20040315-windows:11.1
+	windows-20040315-freeze:11.1
+	autoconf-20031203:11.1
+	autoconf-20031202:11.1
+	phong-branch:11.1.0.12
+	photonmap-branch:11.1.0.10
+	rel-6-1-DP:11.1
+	windows-branch:11.1.0.8
+	rel-6-0-2:11.1
+	ansi-branch:11.1.0.6
+	rel-6-0-1-branch:11.1.0.4
+	hartley-6-0-post:11.1
+	hartley-6-0-pre:11.1
+	rel-6-0-1:11.1
+	rel-6-0:11.1
+	rel-5-4:11.1
+	offsite-5-3-pre:11.1
+	rel-5-3:11.1
+	rel-5-2:11.1
+	rel-5-1-branch:11.1.0.2
+	rel-5-1:11.1
+	rel-5-0:11.1
+	rel-5-0-beta:11.1
+	rel-4-5:11.1
+	ctj-4-5-post:11.1
+	ctj-4-5-pre:11.1
+	rel-4-4:1.1
+	rel-4-0:1.1
+	rel-3-5:1.1
+	rel-3-0:1.1
+	AUTOCONF:11.1.0.14;
+locks; strict;
+comment	@ * @;
+
+
+11.2
+date	2004.03.18.18.15.14;	author erikg;	state dead;
+branches;
+next	11.1;
+
+11.1
+date	95.01.05.06.00.07;	author mike;	state Rel4_4;
+branches
+	11.1.14.1;
+next	1.1;
+
+1.1
+date	88.06.11.00.56.18;	author mike;	state Original;
+branches;
+next	;
+
+11.1.14.1
+date	2004.03.18.18.10.24;	author erikg;	state dead;
+branches;
+next	;
+
+
+desc
+@cake source file 
+@
+
+
+11.2
+log
+@merge of AUTOCONF branch in to HEAD
+@
+text
+@/*
+**	Module to make Cake data structures.
+*/
+
+static	char
+rcs_id[] = "$Header: /cvs/brlcad/cake/make.c,v 11.1 1995/01/05 06:00:07 mike Rel4_4 $";
+
+#include	"cake.h"
+
+Node *
+make_node(name)
+reg	char	*name;
+{
+	reg	Node	*node;
+
+	node = make(Node);
+	node->n_name    = name;
+
+	if (name == NULL)
+		return node;
+
+	node->n_kind = n_NOWAY;		/* not yet */
+	node->n_flag = 0;
+	node->n_old  = makelist0();
+	node->n_when = NULL;
+	node->n_act  = NULL;
+	node->n_new  = makelist(node);
+#if 0	/* N must be 1 for the time being */
+	node->n_pid  = 0;
+	node->n_file = NULL;
+#endif
+	node_stat(node);
+	node->n_utime   = 0;
+	node->n_stime   = node->n_rtime;
+	node->n_badguys = NULL;
+	node->n_msg     = NULL;
+
+	return node;
+}
+
+Entry *
+make_dep(new, old, cond, file, colon)
+reg	List	*new;				/* of Pat	*/
+reg	List	*old;				/* of Pat	*/
+reg	Test	*cond;
+reg	char	*file;
+reg	char	*colon;
+{
+	reg	Entry	*entry;
+
+	entry = make(Entry);
+	entry->e_new  = new;
+	entry->e_old  = old;
+	entry->e_cond = cond;
+	entry->e_file = file;
+	entry->e_dblc = streq(colon, "::");
+	entry->e_when = makelist0();
+
+	return entry;
+}
+
+Test *
+make_test_mm(name)
+reg	Pat	*name;
+{
+	reg	Test	*test;
+
+	test = make(Test);
+	test->t_kind = t_MATCH;
+	test->t_pat  = name;
+	test->t_list = makelist0();
+
+	return test;
+}
+
+Test *
+make_test_m(name, varpat, pattern)
+reg	Pat	*name;
+reg	Pat	*varpat;
+reg	Pat	*pattern;
+{
+	reg	Test	*test;
+
+	test = make(Test);
+	test->t_kind = t_MATCH;
+	test->t_pat  = name;
+	test->t_list = makelist0();
+
+	if (varpat == NULL)
+		addtail(test->t_list, make_pat("-vX", FALSE, 0));
+	else
+		addtail(test->t_list, varpat);	/* no assignment */
+
+	addtail(test->t_list, pattern);		/* no assignment */
+	return test;
+}
+
+Test *
+make_test_c(cmd)
+reg	char	*cmd;
+{
+	reg	Test	*test;
+
+	test = make(Test);
+	test->t_kind = t_CMD;
+	test->t_cmd  = cmd;
+
+	return test;
+}
+
+Test *
+make_test_s(tkind, pat)
+reg	T_kind	tkind;
+reg	Pat	*pat;
+{
+	reg	Test	*test;
+
+	test = make(Test);
+	test->t_kind = tkind;
+	test->t_pat  = pat;
+
+	return test;
+}
+
+Test *
+make_test_l(pat, list)
+reg	Pat	*pat;
+reg	List	*list;				/* of Pat	*/
+{
+	reg	Test	*test;
+
+	test = make(Test);
+	test->t_kind = t_LIST;
+	test->t_pat  = pat;
+	test->t_list = list;
+
+	return test;
+}
+
+Test *
+make_test_b(tkind, left, right)
+reg	T_kind	tkind;
+reg	Test	*left;
+reg	Test	*right;
+{
+	reg	Test	*test;
+
+	test = make(Test);
+	test->t_kind  = tkind;
+	test->t_left  = left;
+	test->t_right = right;
+
+	return test;
+}
+
+Test *
+make_test_u(tkind, left)
+reg	T_kind	tkind;
+reg	Test	*left;
+{
+	reg	Test	*test;
+
+	test = make(Test);
+	test->t_kind  = tkind;
+	test->t_left  = left;
+	test->t_right = (Test *) NULL;
+
+	return test;
+}
+
+Pat *
+make_pat(text, iscmd, flags)
+reg	char	*text;
+reg	bool	iscmd;
+reg	int	flags;
+{
+	reg	Pat	*pat;
+
+	pat = make(Pat);
+	pat->p_str  = text;
+	pat->p_cmd  = iscmd;
+	pat->p_flag = flags;
+
+	checkpatlen(text);
+	return pat;
+}
+
+Act *
+make_act(str, flag)
+reg	char	*str;
+reg	int	flag;
+{
+	reg	Act	*act;
+
+	act = make(Act);
+	act->a_str  = str;
+	act->a_flag = flag;
+
+	return act;
+}
+@
+
+
+11.1
+log
+@Release_4_4
+@
+text
+@d6 1
+a6 1
+rcs_id[] = "$Header: /m/cad/cake/RCS/make.c,v 1.1 88/06/11 00:56:18 mike Original $";
+@
+
+
+11.1.14.1
+log
+@merge from head
+@
+text
+@d6 1
+a6 1
+rcs_id[] = "$Header: /cvs/brlcad/cake/make.c,v 11.1 1995/01/05 06:00:07 mike Rel4_4 $";
+@
+
+
+1.1
+log
+@Original CAKE version from net.sources
+@
+text
+@d6 1
+a6 1
+rcs_id[] = "$Header: /mip/zs/src/sys/cake/RCS/make.c,v 1.15 87/10/05 20:15:02 zs Exp $";
+@

@@ -1,0 +1,482 @@
+head	1.10;
+access;
+symbols
+	ansi-20040405-merged:1.9
+	postmerge-20040405-ansi:1.9
+	premerge-20040404-ansi:1.9
+	postmerge-autoconf:1.9
+	autoconf-freeze:1.9
+	premerge-autoconf:1.9
+	ansi-20040316-freeze:1.9
+	postmerge-20040315-windows:1.9
+	premerge-20040315-windows:1.9
+	windows-20040315-freeze:1.9
+	autoconf-20031203:1.9
+	autoconf-20031202:1.9
+	autoconf-branch:1.9.0.12
+	phong-branch:1.9.0.10
+	photonmap-branch:1.9.0.8
+	rel-6-1-DP:1.9
+	windows-branch:1.9.0.6
+	rel-6-0-2:1.9
+	ansi-branch:1.9.0.4
+	rel-6-0-1-branch:1.9.0.2
+	hartley-6-0-post:1.9
+	hartley-6-0-pre:1.9
+	rel-6-0-1:1.9
+	rel-6-0:1.9
+	rel-5-4:1.6
+	offsite-5-3-pre:1.7
+	rel-5-3:1.6
+	rel-5-2:1.6
+	rel-5-1-branch:1.6.0.2
+	rel-5-1:1.6
+	rel-5-0:1.6
+	rel-5-0-beta:1.6
+	rel-4-5:1.6
+	ctj-4-5-post:1.6
+	ctj-4-5-pre:1.6
+	rel-4-4:1.5
+	rel-4-0:1.5
+	rel-3-5:1.2;
+locks; strict;
+comment	@ * @;
+
+
+1.10
+date	2004.05.24.04.18.19;	author morrison;	state dead;
+branches;
+next	1.9;
+
+1.9
+date	2001.10.17.07.40.00;	author morrison;	state Exp;
+branches;
+next	1.8;
+
+1.8
+date	2001.08.09.18.47.09;	author jra;	state Exp;
+branches;
+next	1.7;
+
+1.7
+date	2000.08.24.23.12.43;	author mike;	state Exp;
+branches;
+next	1.6;
+
+1.6
+date	95.02.28.09.12.58;	author jra;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	91.01.15.13.53.18;	author moss;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	91.01.10.10.20.40;	author moss;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	89.07.07.16.33.12;	author moss;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	89.01.20.15.21.10;	author moss;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	88.11.07.17.01.05;	author moss;	state Exp;
+branches;
+next	;
+
+
+desc
+@Routines specific to the frame buffer.
+@
+
+
+1.10
+log
+@moved to src/burst/
+@
+text
+@/*
+	Author:		Gary S. Moss
+			U. S. Army Ballistic Research Laboratory
+			Aberdeen Proving Ground
+			Maryland 21005-5066
+*/
+#ifndef lint
+static const char RCSid[] = "@@(#)$Header: /n/xoff/cvs/brlcad/burst/fb.c,v 1.9 2001/10/17 07:40:00 morrison Exp $ (BRL)";
+#endif
+#include <stdio.h>
+#include <string.h>
+#include <memory.h>
+#include <signal.h>
+#include "fb.h"
+#include "./burst.h"
+#include "./ascii.h"
+#include "./extern.h"
+
+bool
+imageInit()
+	{	bool needopen = false;
+		static char lastfbfile[LNBUFSZ]={0}; /* last fbfile */
+	devwid = 512;
+	devhgt = 512;
+	if( fbfile[0] == NUL )
+		return	true;
+	zoom = devwid / gridsz - 1;
+	while( zoom < 3  && devwid < MAXDEVWID )
+		{
+		devwid *= 2;
+		devhgt *= 2;
+		zoom = devwid / gridsz;
+		}
+	if( zoom * gridsz == devwid )
+		zoom--;
+	if( zoom < 1 )
+		zoom = 1;
+
+	/* Determine whether it is necessary to open fbfile. */
+	if( fbiop == FBIO_NULL || fb_getwidth( fbiop ) != devwid )
+		needopen = true; /* not currently open or size changed */
+	else
+	if( lastfbfile[0] != NUL && strcmp( fbfile, lastfbfile ) != 0 )
+		needopen = true; /* name changed */
+	(void) strcpy( lastfbfile, fbfile );
+
+	if( needopen )
+		{
+		if( ! openFbDevice( fbfile ) )
+			return	false;
+		paintGridFb();
+		}
+	else
+	if( !(firemode & FM_SHOT) || (firemode & FM_FILE) )
+		paintGridFb();
+	return	true;
+	}
+
+/*	openFbDevice( char *devname )
+
+	Must be called after gridInit() so that gridsz is setup.
+ */
+bool
+openFbDevice( devname )
+char	*devname;
+	{	bool	ret = true;
+	notify( "Opening frame buffer", NOTIFY_APPEND );
+	if( zoom < 1 )
+		{
+		prntScr( "Device is too small to display image." );
+		ret = false;
+		goto	safe_exit;
+		}
+	if(	(	(fbiop != FBIO_NULL && fb_getwidth( fbiop ) != devwid)
+		||	pixgrid == NULL)
+		&&	(pixgrid = (unsigned char *) calloc( devwid*3, sizeof(unsigned char) ))
+				== (unsigned char *) NULL )
+		{
+			prntScr( "Memory allocation of %d bytes failed.",
+				sizeof(unsigned char)*devwid );
+			ret = false;
+			goto	safe_exit;
+		}
+	(void) memset( (char *) pixgrid, NUL, sizeof(unsigned char)*devwid*3 );
+	if( fbiop != FBIO_NULL )
+		{
+#if SGI_WINCLOSE_BUG
+		if( strncmp( fbiop->if_name, "/dev/sgi", 8 ) == 0 )
+			{
+			prntScr( "IRIS can't change window size." );
+			ret = false;
+			goto	safe_exit;
+			}
+		else
+#endif
+		if( ! closFbDevice() )
+			{
+			ret = false;
+			goto	safe_exit;
+			}
+
+		}
+	fbiop = fb_open( devname, devwid, devhgt );
+	if( fbiop == NULL )
+		{
+		ret = false;
+		goto	safe_exit;
+		}
+	else if( fb_clear( fbiop, pixblack ) == -1
+	    ||	(notify( "Zooming", NOTIFY_APPEND ),
+		 fb_zoom( fbiop, 1, 1 ) == -1)
+	    ||	(notify( "Windowing", NOTIFY_DELETE ),
+		 fb_window( fbiop, devwid/2, devhgt/2 ) == -1)
+		)
+		{
+		ret = false;
+		goto	safe_exit;
+		}
+safe_exit : notify( NULL, NOTIFY_DELETE );
+	return	ret;
+	}
+
+bool
+closFbDevice()
+	{	int	ret;
+	notify( "Closing frame buffer", NOTIFY_APPEND );
+	if( fb_close( fbiop ) == -1 )
+		ret = false;
+	else
+		{
+		ret = true;
+		fbiop = FBIO_NULL;
+		}
+	notify( NULL, NOTIFY_DELETE );
+	return	ret;
+	}
+@
+
+
+1.9
+log
+@Mac OS X warning and error fixes for non-production build
+@
+text
+@d8 1
+a8 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/burst/fb.c,v 1.8 2001/08/09 18:47:09 jra Exp $ (BRL)";
+@
+
+
+1.8
+log
+@Lint
+@
+text
+@d8 1
+a8 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/burst/fb.c,v 1.7 2000/08/24 23:12:43 mike Exp $ (BRL)";
+d13 1
+@
+
+
+1.7
+log
+@
+RCSid
+@
+text
+@d8 1
+a8 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/burst/fb.c,v 1.6 1995/02/28 09:12:58 jra Exp $ (BRL)";
+d102 2
+a103 1
+	if( (fbiop = fb_open( devname, devwid, devhgt )) == NULL )
+d108 5
+a112 6
+	else
+	if(	fb_clear( fbiop, pixblack ) == -1
+	    ||	notify( "Zooming", NOTIFY_APPEND ),
+			fb_zoom( fbiop, 1, 1 ) == -1
+	    ||	notify( "Windowing", NOTIFY_DELETE ),
+			fb_window( fbiop, devwid/2, devhgt/2 ) == -1
+@
+
+
+1.6
+log
+@Changes RGBpixel to unsigned char.
+@
+text
+@d8 1
+a8 1
+static char RCSid[] = "@@(#)$Header: /vld/moss/src/burst/RCS/fb.c,v 1.5 91/01/15 13:53:18 moss Exp $ (BRL)";
+@
+
+
+1.5
+log
+@Removed author's phone number from top of file comment.  This will be
+shipped as version 2.1.
+@
+text
+@d8 1
+a8 1
+static char RCSid[] = "@@(#)$Header: /vld/moss/src/burst/RCS/fb.c,v 1.4 91/01/10 10:20:40 moss Exp $ (BRL)";
+d74 3
+a76 4
+		||	pixgrid == NULL
+		)
+	    && (pixgrid = (RGBpixel *) malloc( sizeof(RGBpixel)*devwid ))
+			== (RGBpixel *) NULL )
+d78 4
+a81 4
+		prntScr( "Memory allocation of %d bytes failed.",
+			sizeof(RGBpixel)*devwid );
+		ret = false;
+		goto	safe_exit;
+d83 1
+a83 1
+	(void) memset( (char *) pixgrid, NUL, sizeof(RGBpixel)*devwid );
+@
+
+
+1.4
+log
+@Fixed imageInit to recognize when the fbfile name has changed.
+@
+text
+@a5 1
+			(301)278-6651 or AV-298-6651
+d8 1
+a8 1
+static char RCSid[] = "@@(#)$Header: /vld/moss/src/burst/RCS/fb.c,v 1.3 89/07/07 16:33:12 moss Exp $ (BRL)";
+@
+
+
+1.3
+log
+@Ready for Bud's visit.
+@
+text
+@d9 1
+a9 1
+static char RCSid[] = "@@(#)$Header: /usr/vld/moss/src/burst/RCS/fb.c,v 1.2 89/01/20 15:21:10 moss Exp $ (BRL)";
+d21 2
+a22 1
+	{
+d38 2
+d41 7
+@
+
+
+1.2
+log
+@Just saving this version for backup purposes, recently added support for
+explicitly inputing burst points.
+@
+text
+@d9 1
+a9 1
+static char RCSid[] = "@@(#)$Header: /usr/vld/moss/src/burst/RCS/fb.c,v 1.1 88/11/07 17:01:05 moss Exp $ (BRL)";
+d37 1
+a37 1
+	if( fbiop == FBIO_NULL )
+a43 6
+	if( fb_getwidth( fbiop ) != devwid )
+		{
+		prntScr( "IRIS can't change window size." );
+		return	false;
+		}
+	else
+d64 3
+a66 1
+	if(	pixgrid == NULL
+d68 1
+a68 1
+		== (RGBpixel *) NULL )
+d76 1
+a76 9
+	if(	fbiop == FBIO_NULL
+	   &&  ((fbiop = fb_open( devname, devwid, devhgt )) == FBIO_NULL
+	    ||	fb_clear( fbiop, pixblack ) == -1
+	    ||	notify( "Zooming", NOTIFY_APPEND ),
+			fb_zoom( fbiop, 1, 1 ) == -1
+	    ||	notify( "Windowing", NOTIFY_DELETE ),
+			fb_window( fbiop, devwid/2, devhgt/2 ) == -1
+	       )
+		)
+d78 18
+d100 5
+a104 2
+	if(	strncmp( devname, "/dev/sgi", 8 ) != 0
+	    &&	(fbiop = fb_open( devname, devwid, devhgt )) == FBIO_NULL
+d118 3
+a120 1
+	if( strncmp( fbiop->if_name, "/dev/sgi", 8 ) != 0 )
+d122 2
+a123 4
+	    	if( fb_close( fbiop ) == -1 )
+			ret = false;
+		else
+			ret = true;
+a124 2
+	else
+		ret = false;
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d9 1
+a9 1
+static char RCSid[] = "@@(#)$Header$ (BRL)";
+d19 1
+a19 1
+void
+d22 2
+d25 3
+a27 2
+		return;
+	do
+d29 3
+a31 8
+		zoom = devwid / gridsz - 1;
+		if( zoom * gridsz == devwid )
+			zoom--;
+		if( zoom < 3 )
+			{
+			devwid *= 2;
+			devhgt *= 2;
+			}
+d33 4
+a36 1
+	while( zoom < 3  && devwid < MAXDEVWID );
+d40 1
+a40 1
+			return;
+d44 6
+d52 1
+a52 1
+	return;
+d62 2
+a63 2
+	{
+	notify( "Opening frame buffer...", NOTIFY_APPEND );
+d66 3
+a68 2
+		rt_log( "Device is too small to display image.\n" );
+		return	false;
+d74 1
+a74 1
+		rt_log( "Memory allocation of %d bytes failed.\n",
+d76 2
+a77 1
+		return	false;
+d83 1
+a83 1
+	    ||	notify( "Zooming...", NOTIFY_APPEND ),
+d85 1
+a85 1
+	    ||	notify( "Windowing...", NOTIFY_DELETE ),
+d89 4
+a92 1
+		return	false;
+d97 6
+a102 3
+		return	false;
+	notify( NULL, NOTIFY_DELETE );
+	return	true;
+d108 1
+a108 1
+	notify( "Closing frame buffer...", NOTIFY_APPEND );
+@

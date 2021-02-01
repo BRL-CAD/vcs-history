@@ -1,0 +1,172 @@
+head	1.3;
+access;
+symbols
+	rel-7-10-4:1.1
+	STABLE:1.1.0.2
+	rel-7-10-2:1.1;
+locks; strict;
+comment	@# @;
+
+
+1.3
+date	2007.11.06.21.38.49;	author erikgreenwald;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2007.09.14.15.22.00;	author erikgreenwald;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2007.05.07.04.17.44;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.3
+log
+@tk 8.5a6->8.5b1
+@
+text
+@#
+# $Id: scrollbar.tcl,v 1.1 2006/10/31 01:42:27 hobbs Exp $
+#
+# Bindings for TScrollbar widget
+#
+
+namespace eval ttk::scrollbar {
+    variable State
+    # State(xPress)	--
+    # State(yPress)	-- initial position of mouse at start of drag.
+    # State(first)	-- value of -first at start of drag.
+}
+
+bind TScrollbar <ButtonPress-1> 	{ ttk::scrollbar::Press %W %x %y }
+bind TScrollbar <B1-Motion>		{ ttk::scrollbar::Drag %W %x %y }
+bind TScrollbar <ButtonRelease-1>	{ ttk::scrollbar::Release %W %x %y }
+
+bind TScrollbar <ButtonPress-2> 	{ ttk::scrollbar::Jump %W %x %y }
+bind TScrollbar <B2-Motion>		{ ttk::scrollbar::Drag %W %x %y }
+bind TScrollbar <ButtonRelease-2>	{ ttk::scrollbar::Release %W %x %y }
+
+proc ttk::scrollbar::Scroll {w n units} {
+    set cmd [$w cget -command]
+    if {$cmd ne ""} {
+	uplevel #0 $cmd scroll $n $units
+    }
+}
+
+proc ttk::scrollbar::Moveto {w fraction} {
+    set cmd [$w cget -command]
+    if {$cmd ne ""} {
+	uplevel #0 $cmd moveto $fraction
+    }
+}
+
+proc ttk::scrollbar::Press {w x y} {
+    variable State
+
+    set State(xPress) $x
+    set State(yPress) $y
+
+    switch -glob -- [$w identify $x $y] {
+    	*uparrow -
+	*leftarrow {
+	    ttk::Repeatedly Scroll $w -1 units
+	}
+	*downarrow -
+	*rightarrow {
+	    ttk::Repeatedly Scroll $w  1 units
+	}
+	*thumb {
+	    set State(first) [lindex [$w get] 0]
+	}
+	*trough {
+	    set f [$w fraction $x $y]
+	    if {$f < [lindex [$w get] 0]} {
+		# Clicked in upper/left trough
+		ttk::Repeatedly Scroll $w -1 pages
+	    } elseif {$f > [lindex [$w get] 1]} {
+		# Clicked in lower/right trough
+		ttk::Repeatedly Scroll $w 1 pages
+	    } else {
+		# Clicked on thumb (???)
+		set State(first) [lindex [$w get] 0]
+	    }
+	}
+    }
+}
+
+proc ttk::scrollbar::Drag {w x y} {
+    variable State
+    if {![info exists State(first)]} {
+    	# Initial buttonpress was not on the thumb, 
+	# or something screwy has happened.  In either case, ignore:
+	return;
+    }
+    set xDelta [expr {$x - $State(xPress)}]
+    set yDelta [expr {$y - $State(yPress)}]
+    Moveto $w [expr {$State(first) + [$w delta $xDelta $yDelta]}]
+}
+
+proc ttk::scrollbar::Release {w x y} {
+    variable State
+    unset -nocomplain State(xPress) State(yPress) State(first)
+    ttk::CancelRepeat
+}
+
+# scrollbar::Jump -- ButtonPress-2 binding for scrollbars.
+# 	Behaves exactly like scrollbar::Press, except that
+#	clicking in the trough jumps to the the selected position.
+#
+proc ttk::scrollbar::Jump {w x y} {
+    variable State
+
+    switch -glob -- [$w identify $x $y] {
+	*thumb -
+	*trough {
+	    set State(first) [$w fraction $x $y]
+	    Moveto $w $State(first)
+	    set State(xPress) $x
+	    set State(yPress) $y
+	}
+	default {
+	    Press $w $x $y
+	}
+    }
+}
+@
+
+
+1.2
+log
+@removed trailing whitespace
+@
+text
+@d2 1
+a2 1
+# $Id: scrollbar.tcl,v 1.1 2007/05/07 04:17:44 brlcad Exp $
+d73 1
+a73 1
+    	# Initial buttonpress was not on the thumb,
+@
+
+
+1.1
+log
+@upgrade to tcl/tk 8.5a6 (from 8.5a5) .. includes even more (extensive) aquatk fixes/enhancements
+@
+text
+@d2 1
+a2 1
+# $Id: scrollbar.tcl,v 1.1 2006/10/31 01:42:27 hobbs Exp $
+d73 1
+a73 1
+    	# Initial buttonpress was not on the thumb, 
+@
+

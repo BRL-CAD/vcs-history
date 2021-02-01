@@ -1,0 +1,740 @@
+head	11.17;
+access;
+symbols
+	ansi-20040405-merged:11.15.4.1
+	postmerge-20040405-ansi:11.16
+	premerge-20040404-ansi:11.16
+	postmerge-autoconf:11.16
+	autoconf-freeze:11.15.12.2
+	premerge-autoconf:11.16
+	ansi-20040316-freeze:11.15
+	postmerge-20040315-windows:11.16
+	premerge-20040315-windows:11.16
+	windows-20040315-freeze:11.15.6.1
+	autoconf-20031203:11.15
+	autoconf-20031202:11.15
+	autoconf-branch:11.15.0.12
+	phong-branch:11.15.0.10
+	photonmap-branch:11.15.0.8
+	rel-6-1-DP:11.15
+	windows-branch:11.15.0.6
+	rel-6-0-2:11.15
+	ansi-branch:11.15.0.4
+	rel-6-0-1-branch:11.15.0.2
+	hartley-6-0-post:11.15
+	hartley-6-0-pre:11.15
+	rel-6-0-1:11.15
+	rel-6-0:11.15
+	rel-5-4:11.12
+	offsite-5-3-pre:11.14
+	rel-5-3:11.12
+	rel-5-2:11.12
+	rel-5-1-branch:11.12.0.2
+	rel-5-1:11.12
+	rel-5-0:11.11
+	rel-5-0-beta:11.11
+	rel-4-5:11.11
+	ctj-4-5-post:11.11
+	ctj-4-5-pre:11.11
+	rel-4-4:11.8;
+locks; strict;
+comment	@ * @;
+
+
+11.17
+date	2004.05.24.04.01.07;	author morrison;	state dead;
+branches;
+next	11.16;
+
+11.16
+date	2004.02.02.17.39.04;	author morrison;	state Exp;
+branches;
+next	11.15;
+
+11.15
+date	2001.05.16.21.37.49;	author morrison;	state Exp;
+branches
+	11.15.4.1
+	11.15.6.1
+	11.15.12.1;
+next	11.14;
+
+11.14
+date	2001.02.06.15.13.41;	author jra;	state Exp;
+branches;
+next	11.13;
+
+11.13
+date	2000.08.24.04.10.46;	author mike;	state Exp;
+branches;
+next	11.12;
+
+11.12
+date	2000.03.29.18.42.41;	author mike;	state Exp;
+branches;
+next	11.11;
+
+11.11
+date	95.12.06.13.25.06;	author jra;	state Exp;
+branches;
+next	11.10;
+
+11.10
+date	95.11.28.21.35.45;	author jra;	state Exp;
+branches;
+next	11.9;
+
+11.9
+date	95.01.11.11.37.20;	author jra;	state Exp;
+branches;
+next	11.8;
+
+11.8
+date	95.01.04.10.07.30;	author mike;	state Rel4_4;
+branches;
+next	11.7;
+
+11.7
+date	94.11.08.14.49.56;	author jra;	state Exp;
+branches;
+next	11.6;
+
+11.6
+date	94.10.11.20.01.07;	author mike;	state Exp;
+branches;
+next	11.5;
+
+11.5
+date	94.08.26.10.42.02;	author jra;	state Exp;
+branches;
+next	11.4;
+
+11.4
+date	94.08.22.19.31.38;	author gdurf;	state Exp;
+branches;
+next	11.3;
+
+11.3
+date	94.01.07.15.15.39;	author jra;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	93.08.18.09.49.42;	author jra;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	93.06.28.09.58.51;	author jra;	state Exp;
+branches;
+next	;
+
+11.15.4.1
+date	2004.03.17.21.16.30;	author morrison;	state Exp;
+branches;
+next	;
+
+11.15.6.1
+date	2004.03.11.23.41.13;	author morrison;	state Exp;
+branches;
+next	;
+
+11.15.12.1
+date	2004.02.12.19.41.38;	author erikg;	state Exp;
+branches;
+next	11.15.12.2;
+
+11.15.12.2
+date	2004.03.15.14.06.12;	author erikg;	state Exp;
+branches;
+next	;
+
+
+desc
+@Process an IGES BREP solid
+@
+
+
+11.17
+log
+@moved to src/iges/
+@
+text
+@/*
+ *  Authors -
+ *	John R. Anderson
+ *
+ *  Source -
+ *	The U. S. Army Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005-5068  USA
+ *  
+ *  Distribution Notice -
+ *	Re-distribution of this software is restricted, as described in
+ *	your "Statement of Terms and Conditions for the Release of
+ *	The BRL-CAD Package" agreement.
+ *
+ *  Copyright Notice -
+ *	This software is Copyright (C) 1994-2004 by the United States Army
+ *	in all countries except the USA.  All rights reserved.
+ */
+#ifndef lint
+static const char RCSid[] = "@@(#)$Header: /n/xoff/cvs/brlcad/iges/brep.c,v 11.16 2004/02/02 17:39:04 morrison Exp $ (ARL)";
+#endif
+
+#include "./iges_struct.h"
+#include "./iges_extern.h"
+
+int
+brep( entityno )
+int entityno;
+{ 
+
+	int		sol_num;		/* IGES solid type number */
+	int		shell_de;		/* Directory sequence number for a shell */
+	int		orient;			/* Orientation of shell */
+	int		*void_shell_de;		/* Directory sequence number for an void shell */
+	int		*void_orient;		/* Orientation of void shell */
+	int		num_of_voids;		/* Number of inner void shells */
+	struct model	*m;			/* NMG model */
+	struct nmgregion *r;			/* NMG region */
+	struct shell	**void_shells;		/* List of void shells */
+	struct shell	*s_outer;		/* Outer shell */
+	struct iges_vertex_list *v_list;
+	struct iges_edge_list	*e_list;
+	int		i;
+
+	/* Acquiring Data */
+
+	if( dir[entityno]->param <= pstart )
+	{
+		bu_log( "Illegal parameter pointer for entity D%07d (%s)\n" ,
+				dir[entityno]->direct , dir[entityno]->name );
+		return(0);
+	}
+
+	Readrec( dir[entityno]->param );
+	Readint( &sol_num , "" );
+	Readint( &shell_de , "" );
+	Readint( &orient , "" );
+	Readint( &num_of_voids , "" );
+
+	if( num_of_voids )
+	{
+		void_shell_de = (int *)bu_calloc( num_of_voids , sizeof( int ) , "BREP: void shell DE's" );
+		void_orient = (int *)bu_calloc( num_of_voids , sizeof( int ) , "BREP: void shell orients" );
+		void_shells = (struct shell **)bu_calloc( num_of_voids , sizeof( struct shell *) , "BREP: void shell pointers" );
+		for( i=0 ; i<num_of_voids ; i++ )
+		{
+			Readint( &void_shell_de[i] , "" );
+			Readint( &void_orient[i] , "" );
+		}
+	}
+	else {
+		void_shell_de = NULL;
+		void_orient = NULL;
+		void_shells = NULL;
+	}
+
+	/* start building */
+	m = nmg_mmr();
+	r = BU_LIST_FIRST( nmgregion, &m->r_hd );
+
+	/* Put outer shell in region */
+	if( (s_outer=Get_outer_shell( r , (shell_de - 1)/2 , orient )) == (struct shell *)NULL )
+		goto err;
+
+	/* Put voids in */
+	for( i=0 ; i<num_of_voids ; i++ )
+	{
+		if( (void_shells[i]=Add_inner_shell( r, (void_shell_de[i] - 1)/2, void_orient[i] ))
+			== (struct shell *)NULL )
+				goto err;
+	}
+
+	/* orient loops */
+	Orient_loops( r );
+
+	/* orient shells */
+	nmg_fix_normals( s_outer , &tol );
+	for( i=0 ; i<num_of_voids ; i++ )
+	{
+		nmg_fix_normals( void_shells[i] , &tol );
+		nmg_invert_shell( void_shells[i] , &tol );
+	}
+
+	if( do_bots )
+	{
+		/* Merge all shells into one */
+		for( i=0 ; i<num_of_voids ; i++ )
+			nmg_js( s_outer, void_shells[i], &tol );
+
+		/* write out BOT */
+		if( mk_bot_from_nmg( fdout, dir[entityno]->name, s_outer ) )
+			goto err;
+	}
+	else
+	{
+		/* Compute "geometry" for region and shell */
+		nmg_region_a( r , &tol );
+
+		/* Write NMG solid */
+		if( mk_nmg( fdout , dir[entityno]->name , m ) )
+			goto err;
+	}
+
+	if( num_of_voids )
+	{
+		bu_free( (char *)void_shell_de , "BREP: void shell DE's" );
+		bu_free( (char *)void_orient , "BREP: void shell orients" );
+		bu_free( (char *)void_shells , "brep: void shell list" );
+	}
+
+	v_list = vertex_root;
+	while( v_list != NULL )
+	{
+		bu_free( (char *)v_list->i_verts , "brep: iges_vertex" );
+		bu_free( (char *)v_list , "brep: vertex list" );
+		v_list = v_list->next;
+	}
+	vertex_root = NULL;
+
+	e_list = edge_root;
+	while( e_list != NULL )
+	{
+		bu_free( (char *)e_list->i_edge , "brep:iges_edge" );
+		bu_free( (char *)e_list , "brep: edge list" );
+		e_list = e_list->next;
+	}
+	edge_root = NULL;
+	return( 1 );
+
+ err :
+	if( num_of_voids )
+	{
+		bu_free( (char *)void_shell_de , "BREP: void shell DE's" );
+		bu_free( (char *)void_orient , "BREP: void shell orients" );
+		bu_free( (char *)void_shells , "brep: void shell list" );
+	}
+	nmg_km( m );
+	return( 0 );
+}
+@
+
+
+11.16
+log
+@update copyright to include span through 2003
+@
+text
+@d19 1
+a19 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/iges/brep.c,v 11.15 2001/05/16 21:37:49 morrison Exp $ (ARL)";
+@
+
+
+11.15
+log
+@PRODUCTION optimizations
+@
+text
+@d15 1
+a15 1
+ *	This software is Copyright (C) 1994 by the United States Army
+d19 1
+a19 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/iges/brep.c,v 11.14 2001/02/06 15:13:41 jra Exp $ (ARL)";
+@
+
+
+11.15.4.1
+log
+@sync branch with HEAD
+@
+text
+@d15 1
+a15 1
+ *	This software is Copyright (C) 1994-2004 by the United States Army
+d19 1
+a19 1
+static const char RCSid[] = "@@(#)$Header$ (ARL)";
+@
+
+
+11.15.6.1
+log
+@sync to HEAD...
+@
+text
+@d15 1
+a15 1
+ *	This software is Copyright (C) 1994-2004 by the United States Army
+d19 1
+a19 1
+static const char RCSid[] = "@@(#)$Header: /n/cad/c/CVS/brlcad/iges/brep.c,v 11.16 2004/02/02 17:39:04 morrison Exp $ (ARL)";
+@
+
+
+11.15.12.1
+log
+@merge from HEAD
+@
+text
+@d15 1
+a15 1
+ *	This software is Copyright (C) 1994-2004 by the United States Army
+d19 1
+a19 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/iges/brep.c,v 11.16 2004/02/02 17:39:04 morrison Exp $ (ARL)";
+@
+
+
+11.15.12.2
+log
+@merge from head
+@
+text
+@d19 1
+a19 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/iges/brep.c,v 11.15.12.1 2004/02/12 19:41:38 erikg Exp $ (ARL)";
+@
+
+
+11.14
+log
+@Mods to get IGES working with new database format (v5)
+@
+text
+@d19 1
+a19 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/iges/brep.c,v 11.13 2000/08/24 04:10:46 mike Exp $ (ARL)";
+d58 1
+d69 5
+@
+
+
+11.13
+log
+@
+mk_addmember
+RCSid
+@
+text
+@d19 1
+a19 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/iges/brep.c,v 11.12 2000/03/29 18:42:41 mike Exp $ (ARL)";
+d25 1
+d97 1
+a97 1
+	if( do_polysolids )
+d103 3
+a105 2
+		/* write out polysolid */
+		write_shell_as_polysolid( fdout, dir[entityno]->name, s_outer );
+a122 1
+	nmg_km( m );
+@
+
+
+11.12
+log
+@
+Converted from Release 4 names to know about libbu and libbn
+@
+text
+@d19 1
+a19 1
+static char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/iges/brep.c,v 11.11 1995/12/06 13:25:06 jra Exp $ (ARL)";
+@
+
+
+11.11
+log
+@All logging done via rt_log
+@
+text
+@d19 1
+a19 1
+static char RCSid[] = "@@(#)$Header: /m/cad/iges/RCS/brep.c,v 11.10 1995/11/28 21:35:45 jra Exp jra $ (ARL)";
+d47 1
+a47 1
+		rt_log( "Illegal parameter pointer for entity D%07d (%s)\n" ,
+d59 3
+a61 3
+		void_shell_de = (int *)rt_calloc( num_of_voids , sizeof( int ) , "BREP: void shell DE's" );
+		void_orient = (int *)rt_calloc( num_of_voids , sizeof( int ) , "BREP: void shell orients" );
+		void_shells = (struct shell **)rt_calloc( num_of_voids , sizeof( struct shell *) , "BREP: void shell pointers" );
+d71 1
+a71 1
+	r = RT_LIST_FIRST( nmgregion, &m->r_hd );
+d117 3
+a119 3
+		rt_free( (char *)void_shell_de , "BREP: void shell DE's" );
+		rt_free( (char *)void_orient , "BREP: void shell orients" );
+		rt_free( (char *)void_shells , "brep: void shell list" );
+d126 2
+a127 2
+		rt_free( (char *)v_list->i_verts , "brep: iges_vertex" );
+		rt_free( (char *)v_list , "brep: vertex list" );
+d135 2
+a136 2
+		rt_free( (char *)e_list->i_edge , "brep:iges_edge" );
+		rt_free( (char *)e_list , "brep: edge list" );
+d145 3
+a147 3
+		rt_free( (char *)void_shell_de , "BREP: void shell DE's" );
+		rt_free( (char *)void_orient , "BREP: void shell orients" );
+		rt_free( (char *)void_shells , "brep: void shell list" );
+@
+
+
+11.10
+log
+@Mods to handle TNURB BREP. Also added RT_EXTERNS to iges_struct.h.
+@
+text
+@d19 1
+a19 1
+static char RCSid[] = "@@(#)$Header: /m/cad/iges/RCS/brep.c,v 11.9 1995/01/11 11:37:20 jra Exp jra $ (ARL)";
+d47 1
+a47 1
+		printf( "Illegal parameter pointer for entity D%07d (%s)\n" ,
+@
+
+
+11.9
+log
+@Added -p option to write polysolids rather than NMG's.
+@
+text
+@d19 1
+a19 1
+static char RCSid[] = "@@(#)$Header: /m/cad/iges/RCS/brep.c,v 11.8 95/01/04 10:07:30 mike Rel4_4 Locker: jra $ (ARL)";
+a21 13
+#include "conf.h"
+
+#include <stdio.h>
+#ifdef USE_STRING_H
+#include <string.h>
+#else
+#include <strings.h>
+#endif
+
+#include "machine.h"
+#include "vmath.h"
+#include "raytrace.h"
+#include "wdb.h"
+a23 4
+
+RT_EXTERN( struct model *nmg_mmr , () );
+RT_EXTERN( struct shell *Get_outer_shell , ( struct nmgregion *r, int entityno, int shell_orient ) );
+RT_EXTERN( struct shell *Add_inner_shell , ( struct nmgregion *r, int entityno, int shell_orient ) );
+@
+
+
+11.8
+log
+@Release_4.4
+@
+text
+@d19 1
+a19 1
+static char RCSid[] = "@@(#)$Header: /m/cad/iges/RCS/brep.c,v 11.7 94/11/08 14:49:56 jra Exp $ (ARL)";
+d113 5
+a117 2
+	/* Compute "geometry" for region and shell */
+	nmg_region_a( r , &tol );
+d119 12
+a130 2
+	if( mk_nmg( fdout , dir[entityno]->name , m ) )
+		goto err;
+@
+
+
+11.7
+log
+@Mods for Irix 6.
+@
+text
+@d19 1
+a19 1
+static char RCSid[] = "@@(#)$Header: /n/wolf/m/cad/iges/RCS/brep.c,v 11.6 1994/10/11 20:01:07 mike Exp jra $ (ARL)";
+@
+
+
+11.6
+log
+@Added conf.h
+@
+text
+@d19 1
+a19 1
+static char RCSid[] = "@@(#)$Header$ (ARL)";
+a53 2
+	struct shell	*s;			/* NMG shell */
+	struct faceuse	*fu;			/* NMG faceuse */
+@
+
+
+11.5
+log
+@Added call to Orient_loops.
+@
+text
+@a5 1
+ *	SLAD/BVLD/VMB
+d7 1
+a7 1
+ *	Aberdeen Proving Ground, Maryland  21005
+d9 5
+d15 2
+a16 2
+ *	This software is Copyright (C) 1993 by the United States Army.
+ *	All rights reserved.
+d18 6
+@
+
+
+11.4
+log
+@Factored ifdefs
+@
+text
+@d29 2
+d46 2
+a49 1
+	struct rt_tol		tol;
+a51 7
+	/* XXX These need to be improved */
+	tol.magic = RT_TOL_MAGIC;
+	tol.dist = 0.005;
+	tol.dist_sq = tol.dist * tol.dist;
+	tol.perp = 1e-6;
+	tol.para = 1 - tol.perp;
+
+d62 4
+a65 4
+	Readint( &sol_num , "MSBO: " );
+	Readint( &shell_de , "\tShell de: " );
+	Readint( &orient , "\tShell orient: " );
+	Readint( &num_of_voids , "\tNo of voids: " );
+d70 1
+d73 2
+a74 2
+			Readint( &void_shell_de[i] , "\t\tVoid shell de: " );
+			Readint( &void_orient[i] , "\t\tVoid shell orient: " );
+d83 1
+a83 1
+	if( !Get_outer_shell( r , (shell_de - 1)/2 , orient ) )
+d89 3
+a91 2
+		if( !Add_inner_shell( r , (void_shell_de[i] - 1)/2 , void_orient[i] ) )
+			goto err;
+d94 6
+a99 4
+printf( "Associate geometry:\n" );
+	/* Associate geometry */
+	v_list = vertex_root;
+	while( v_list != NULL )
+d101 2
+a102 12
+printf( "\tFor list at DE %d (%d vertices)\n:" , v_list->vert_de , v_list->no_of_verts );
+		for( i=0 ; i < v_list->no_of_verts ; i++ )
+		{
+printf( "\t\t%d v = x%x, set to ( %g %g %g)\n" , i+1 , v_list->i_verts[i].v , V3ARGS( v_list->i_verts[i].pt) );
+			if( v_list->i_verts[i].v != NULL )
+			{
+				NMG_CK_VERTEX( v_list->i_verts[i].v );
+				nmg_vertex_gv( v_list->i_verts[i].v ,
+					v_list->i_verts[i].pt );
+			}
+		}
+		v_list = v_list->next;
+a104 15
+        for (RT_LIST_FOR(s, shell, &r->s_hd))
+        {
+            NMG_CK_SHELL( s );
+            for (RT_LIST_FOR(fu, faceuse, &s->fu_hd))
+            {
+            	NMG_CK_FACEUSE( fu );
+            	if( fu->orientation == OT_SAME )
+            	{
+	            	if( nmg_fu_planeeqn( fu , &tol ) )
+	            		rt_log( "Failed to calculate plane eqn\n" );
+            	}
+            }
+        }
+
+
+a107 3
+	/* only do this in extreme cricumstances */
+/*	nmg_pr_m( m );	*/
+
+d115 1
+d143 1
+@
+
+
+11.3
+log
+@Modified header files
+@
+text
+@d15 6
+a22 5
+#ifdef BSD
+#include <strings.h>
+#else
+#include <string.h>
+#endif
+@
+
+
+11.2
+log
+@Added call to nmg_fu_planeeqn
+@
+text
+@d22 2
+a25 5
+#include "rtlist.h"
+#include "rtstring.h"
+#include "nmg.h"
+#include "raytrace.h"
+#include "wdb.h"
+d27 2
+d65 4
+a68 4
+	Readint( &sol_num , "" );
+	Readint( &shell_de , "" );
+	Readint( &orient , "" );
+	Readint( &num_of_voids , "" );
+d75 2
+a76 2
+			Readint( &void_shell_de[i] , "" );
+			Readint( &void_orient[i] , "" );
+d95 1
+d100 2
+a101 1
+		for( i=0 ; i < v_list->no_of_verts ; i++ )	
+d103 4
+a106 1
+			if( v_list->i_verts[i].v )
+d109 1
+d130 1
+a130 1
+	nmg_region_a( r );
+@
+
+
+11.1
+log
+@Major Upgrade to IGES 5.1
+@
+text
+@d42 2
+d46 1
+d49 7
+d96 1
+d109 15
+d126 3
+@

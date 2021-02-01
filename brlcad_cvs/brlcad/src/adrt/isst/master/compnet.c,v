@@ -1,0 +1,584 @@
+head	1.12;
+access;
+symbols
+	rel-7-10-4:1.7
+	STABLE:1.7.0.2
+	rel-7-10-2:1.6
+	rel-7-10-0:1.6
+	rel-7-8-4:1.2
+	rel-7-8-2:1.2
+	rel-7-8-0:1.2
+	trimnurbs-branch:1.2.0.2
+	help:1.2
+	temp_tag:1.2
+	bobWinPort-20051223-freeze:1.1
+	postmerge-20051223-bobWinPort:1.2
+	premerge-20051223-bobWinPort:1.2
+	rel-7-6-6:1.2
+	rel-7-6-4:1.2
+	rel-7-6-2:1.1
+	rel-7-6-branch:1.1.0.6
+	rel-7-6-0:1.1
+	rel-7-4-2:1.1.4.2
+	rel-7-4-branch:1.1.0.4
+	bobWinPort:1.1.0.2;
+locks; strict;
+comment	@ * @;
+
+
+1.12
+date	2007.12.18.21.39.09;	author erikgreenwald;	state Exp;
+branches;
+next	1.11;
+
+1.11
+date	2007.12.18.18.22.13;	author erikgreenwald;	state Exp;
+branches;
+next	1.10;
+
+1.10
+date	2007.10.17.17.42.41;	author erikgreenwald;	state Exp;
+branches;
+next	1.9;
+
+1.9
+date	2007.10.14.08.01.45;	author brlcad;	state Exp;
+branches;
+next	1.8;
+
+1.8
+date	2007.09.15.16.23.03;	author brlcad;	state Exp;
+branches;
+next	1.7;
+
+1.7
+date	2007.09.10.19.38.27;	author erikgreenwald;	state Exp;
+branches;
+next	1.6;
+
+1.6
+date	2007.03.06.21.21.16;	author erikgreenwald;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	2007.02.08.06.49.17;	author brlcad;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	2007.01.23.01.13.21;	author brlcad;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2007.01.21.00.53.11;	author brlcad;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2005.10.23.04.44.27;	author brlcad;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2005.07.18.20.57.56;	author twingy;	state Exp;
+branches
+	1.1.4.1
+	1.1.6.1;
+next	;
+
+1.1.4.1
+date	2005.07.18.20.57.56;	author brlcad;	state dead;
+branches;
+next	1.1.4.2;
+
+1.1.4.2
+date	2005.08.16.21.03.45;	author brlcad;	state Exp;
+branches;
+next	;
+
+1.1.6.1
+date	2005.11.13.13.46.11;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.12
+log
+@generify function names a bit (hopefully leading to unification of the various compute chunks)
+@
+text
+@/*                       C O M P N E T . C
+ * BRL-CAD / ADRT
+ *
+ * Copyright (c) 2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This library is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@file compnet.c
+ *
+ * Author -
+ *   Justin Shumaker
+ *
+ */
+
+/*
+ * $Id: compnet.c,v 1.11 2007/12/18 18:22:13 erikgreenwald Exp $
+ */
+
+/* compnet is first as it includes $(top_srcdir)/include/common.h */
+#include "compnet.h"
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/socket.h>
+#include <sys/types.h>
+#include <netinet/in.h>
+#include <netdb.h>
+
+#include "adrt.h"
+#include "tienet.h"
+
+int master_compserv_socket;
+int master_compserv_active;
+
+
+#define LIST_BASE_ATTS		0
+#define LIST_DEP_ATTS		1
+#define LIST_ALL_ATTS		2
+#define LIST_METRICS		3
+#define GET_BASE_ATTS_STATE	4
+#define GET_ATTS_STATE		5
+#define GET_ATT_STATE		6
+#define SET_BASE_ATTS_01	7
+#define SET_BASE_ATTS_STATE	8
+#define RESET_BASE_ATTS		9
+#define	TERM			128
+
+
+/*
+* Establish a connection to the component server.
+*/
+void compnet_connect(char *host, int port) {
+  struct hostent hostent;
+  struct sockaddr_in compserv, master;
+
+  master_compserv_active = 0;
+
+  /* If no host name is supplied then do nothing */
+  if(!strlen(host))
+    return;
+
+  /* server address */
+  if(gethostbyname(host)) {
+    hostent = gethostbyname(host)[0];
+  } else {
+    fprintf(stderr, "hostname %s unknown, exiting.\n", host);
+    exit(1);
+  }
+
+  /* create a socket */
+  if((master_compserv_socket = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+    fprintf(stderr, "cannot create socket for component server connection, exiting.");
+    exit(1);
+  }
+
+  /* client address */
+  master.sin_family = AF_INET;
+  master.sin_addr.s_addr = INADDR_ANY;
+  master.sin_port = htons(0);
+
+  compserv.sin_family = hostent.h_addrtype;
+  memcpy((char*)&compserv.sin_addr.s_addr, hostent.h_addr_list[0], hostent.h_length);
+  compserv.sin_port = htons(port);
+
+  if(bind(master_compserv_socket, (struct sockaddr *)&master, sizeof(master)) < 0) {
+    fprintf(stderr, "unable to bind component server connection socket, exiting.\n");
+    exit(1);
+  }
+
+  /* connect to master */
+  if(connect(master_compserv_socket, (struct sockaddr *)&compserv, sizeof(compserv)) < 0) {
+    fprintf(stderr, "cannot connect to component server, exiting.\n");
+    exit(1);
+  }
+
+  /* data may now be transmitted to the server */
+  master_compserv_active = 1;
+}
+
+/*
+* Update the status of a component
+*/
+void compnet_update(char *string, char status) {
+  char message[ADRT_NAME_SIZE];
+
+  if(!master_compserv_active)
+    return;
+
+  /* format message */
+  snprintf(message, ADRT_NAME_SIZE, "%c%s,%d%c", SET_BASE_ATTS_STATE, string, status, TERM);
+
+  /* Send string */
+  tienet_send(master_compserv_socket, message, strlen(message), 0);
+}
+
+
+void compnet_reset() {
+  char message;
+
+  if(!master_compserv_active)
+    return;
+
+  message = RESET_BASE_ATTS;
+  tienet_send(master_compserv_socket, &message, 1, 0);
+}
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+1.11
+log
+@merge in the newer stuff
+@
+text
+@d28 1
+a28 1
+ * $Id: compnet.c,v 1.10 2007/10/17 17:42:41 erikgreenwald Exp $
+a42 1
+#include "adrt_common.h"
+d45 2
+a46 2
+int isst_master_compserv_socket;
+int isst_master_compserv_active;
+d65 1
+a65 1
+void isst_compnet_connect(char *host, int port) {
+d69 1
+a69 1
+  isst_master_compserv_active = 0;
+d84 1
+a84 1
+  if((isst_master_compserv_socket = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+d98 1
+a98 1
+  if(bind(isst_master_compserv_socket, (struct sockaddr *)&master, sizeof(master)) < 0) {
+d104 1
+a104 1
+  if(connect(isst_master_compserv_socket, (struct sockaddr *)&compserv, sizeof(compserv)) < 0) {
+d110 1
+a110 1
+  isst_master_compserv_active = 1;
+d116 1
+a116 1
+void isst_compnet_update(char *string, char status) {
+d119 1
+a119 1
+  if(!isst_master_compserv_active)
+d126 1
+a126 1
+  tienet_send(isst_master_compserv_socket, message, strlen(message), 0);
+d130 1
+a130 1
+void isst_compnet_reset() {
+d133 1
+a133 1
+  if(!isst_master_compserv_active)
+d137 1
+a137 1
+  tienet_send(isst_master_compserv_socket, &message, 1, 0);
+@
+
+
+1.10
+log
+@Include adrt_common.h so ADRT_NAME_SIZE gets defined. Add RCS tag.
+@
+text
+@d28 1
+a28 1
+ * $Id$
+d42 1
+@
+
+
+1.9
+log
+@take care of a slew of level 4 flawfinder issues related to adding length parameters to string and i/o functions
+@
+text
+@d27 5
+d41 2
+@
+
+
+1.8
+log
+@more c89 embracing.  c89 provides string.h for all of the various str*() and mem*() functions, so remove the check for its presence.  there is still likely to be work required for strict c89 conformance for the various bsd strings.h functions that may be in use.
+@
+text
+@d110 1
+a110 1
+  char message[256];
+d116 1
+a116 1
+  sprintf(message, "%c%s,%d%c", SET_BASE_ATTS_STATE, string, status, TERM);
+@
+
+
+1.7
+log
+@should only be using common.h, not brlcad_config.h
+@
+text
+@d27 1
+a27 3
+#ifdef HAVE_CONFIG_H
+# include "common.h"
+#endif
+a28 1
+#include "compnet.h"
+d31 1
+a31 5
+
+#ifdef HAVE_STRING_H
+# include <string.h>
+#endif
+
+@
+
+
+1.6
+log
+@add missing headers
+@
+text
+@d28 1
+a28 1
+# include "brlcad_config.h"
+@
+
+
+1.5
+log
+@give adrt some distinctiveness in the header
+@
+text
+@d27 4
+d33 6
+@
+
+
+1.4
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@d2 1
+a2 1
+ * BRL-CAD
+@
+
+
+1.3
+log
+@standard header and footer cleanup
+@
+text
+@d9 1
+a9 1
+ * as published by the Free Software Foundation.
+@
+
+
+1.2
+log
+@trailing ws
+@
+text
+@d1 26
+d129 10
+@
+
+
+1.1
+log
+@IVAT is now ISST (Interactive Shot Selection Tool).
+@
+text
+@d52 1
+a52 1
+  
+d54 1
+a54 1
+  master.sin_family = AF_INET;   
+d57 1
+a57 1
+  
+@
+
+
+1.1.6.1
+log
+@merge changes from HEAD aka rel-7-6-4 to the rel-7-6-branch just in case someone peeks a gander or tries to continue/build the branch
+@
+text
+@d52 1
+a52 1
+
+d54 1
+a54 1
+  master.sin_family = AF_INET;
+d57 1
+a57 1
+
+@
+
+
+1.1.4.1
+log
+@file compnet.c was added on branch rel-7-4-branch on 2005-08-16 21:03:45 +0000
+@
+text
+@d1 102
+@
+
+
+1.1.4.2
+log
+@merge in changes through Aug10 for 7.4.2 release
+@
+text
+@a0 102
+#include "compnet.h"
+#include <stdio.h>
+#include <sys/socket.h>
+#include <sys/types.h>
+#include <netinet/in.h>
+#include <netdb.h>
+#include "tienet.h"
+
+int isst_master_compserv_socket;
+int isst_master_compserv_active;
+
+
+#define LIST_BASE_ATTS		0
+#define LIST_DEP_ATTS		1
+#define LIST_ALL_ATTS		2
+#define LIST_METRICS		3
+#define GET_BASE_ATTS_STATE	4
+#define GET_ATTS_STATE		5
+#define GET_ATT_STATE		6
+#define SET_BASE_ATTS_01	7
+#define SET_BASE_ATTS_STATE	8
+#define RESET_BASE_ATTS		9
+#define	TERM			128
+
+
+/*
+* Establish a connection to the component server.
+*/
+void isst_compnet_connect(char *host, int port) {
+  struct hostent hostent;
+  struct sockaddr_in compserv, master;
+
+  isst_master_compserv_active = 0;
+
+  /* If no host name is supplied then do nothing */
+  if(!strlen(host))
+    return;
+
+  /* server address */
+  if(gethostbyname(host)) {
+    hostent = gethostbyname(host)[0];
+  } else {
+    fprintf(stderr, "hostname %s unknown, exiting.\n", host);
+    exit(1);
+  }
+
+  /* create a socket */
+  if((isst_master_compserv_socket = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+    fprintf(stderr, "cannot create socket for component server connection, exiting.");
+    exit(1);
+  }
+  
+  /* client address */
+  master.sin_family = AF_INET;   
+  master.sin_addr.s_addr = INADDR_ANY;
+  master.sin_port = htons(0);
+  
+  compserv.sin_family = hostent.h_addrtype;
+  memcpy((char*)&compserv.sin_addr.s_addr, hostent.h_addr_list[0], hostent.h_length);
+  compserv.sin_port = htons(port);
+
+  if(bind(isst_master_compserv_socket, (struct sockaddr *)&master, sizeof(master)) < 0) {
+    fprintf(stderr, "unable to bind component server connection socket, exiting.\n");
+    exit(1);
+  }
+
+  /* connect to master */
+  if(connect(isst_master_compserv_socket, (struct sockaddr *)&compserv, sizeof(compserv)) < 0) {
+    fprintf(stderr, "cannot connect to component server, exiting.\n");
+    exit(1);
+  }
+
+  /* data may now be transmitted to the server */
+  isst_master_compserv_active = 1;
+}
+
+/*
+* Update the status of a component
+*/
+void isst_compnet_update(char *string, char status) {
+  char message[256];
+
+  if(!isst_master_compserv_active)
+    return;
+
+  /* format message */
+  sprintf(message, "%c%s,%d%c", SET_BASE_ATTS_STATE, string, status, TERM);
+
+  /* Send string */
+  tienet_send(isst_master_compserv_socket, message, strlen(message), 0);
+}
+
+
+void isst_compnet_reset() {
+  char message;
+
+  if(!isst_master_compserv_active)
+    return;
+
+  message = RESET_BASE_ATTS;
+  tienet_send(isst_master_compserv_socket, &message, 1, 0);
+}
+@
+
+

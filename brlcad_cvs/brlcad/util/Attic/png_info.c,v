@@ -1,0 +1,544 @@
+head	11.10;
+access;
+symbols
+	ansi-20040405-merged:11.5.2.2
+	postmerge-20040405-ansi:11.8
+	premerge-20040404-ansi:11.7
+	postmerge-autoconf:11.7
+	autoconf-freeze:11.6.6.2
+	premerge-autoconf:11.7
+	postmerge-20040315-windows:11.7
+	premerge-20040315-windows:11.7
+	windows-20040315-freeze:11.5.4.1
+	autoconf-20031203:11.6
+	autoconf-20031202:11.6
+	autoconf-branch:11.6.0.6
+	phong-branch:11.6.0.4
+	photonmap-branch:11.6.0.2
+	rel-6-1-DP:11.5
+	windows-branch:11.5.0.4
+	rel-6-0-2:11.3
+	ansi-branch:11.5.0.2
+	rel-6-0-1-branch:11.3.0.2
+	hartley-6-0-post:11.4
+	hartley-6-0-pre:11.3
+	rel-6-0-1:11.3
+	rel-6-0:11.3
+	rel-5-4:11.1
+	offsite-5-3-pre:11.3
+	rel-5-3:11.1
+	rel-5-2:11.1
+	rel-5-1-branch:11.1.0.2
+	rel-5-1:11.1
+	rel-5-0:11.1
+	rel-5-0-beta:11.1;
+locks; strict;
+comment	@ * @;
+
+
+11.10
+date	2004.05.21.14.58.03;	author morrison;	state dead;
+branches;
+next	11.9;
+
+11.9
+date	2004.05.10.15.30.51;	author erikg;	state Exp;
+branches;
+next	11.8;
+
+11.8
+date	2004.04.05.05.46.02;	author morrison;	state Exp;
+branches;
+next	11.7;
+
+11.7
+date	2004.02.02.17.39.52;	author morrison;	state Exp;
+branches;
+next	11.6;
+
+11.6
+date	2002.12.26.15.16.08;	author jra;	state Exp;
+branches
+	11.6.6.1;
+next	11.5;
+
+11.5
+date	2002.08.20.17.09.06;	author jra;	state Exp;
+branches
+	11.5.2.1
+	11.5.4.1;
+next	11.4;
+
+11.4
+date	2002.08.15.20.56.18;	author hartley;	state Exp;
+branches;
+next	11.3;
+
+11.3
+date	2000.09.01.03.24.05;	author mike;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	2000.08.23.19.05.09;	author mike;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	98.06.29.18.27.47;	author jra;	state Exp;
+branches;
+next	;
+
+11.5.2.1
+date	2002.09.19.18.02.45;	author morrison;	state Exp;
+branches;
+next	11.5.2.2;
+
+11.5.2.2
+date	2004.03.17.21.23.37;	author morrison;	state Exp;
+branches;
+next	;
+
+11.5.4.1
+date	2004.03.11.23.52.36;	author morrison;	state Exp;
+branches;
+next	;
+
+11.6.6.1
+date	2004.02.12.19.43.12;	author erikg;	state Exp;
+branches;
+next	11.6.6.2;
+
+11.6.6.2
+date	2004.03.15.14.08.21;	author erikg;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+11.10
+log
+@moved to src/util/
+@
+text
+@/*
+ *	Display info about a PNG (Portable Network Graphics) format file
+ *
+ *	Author -
+ *		John R. Anderson
+ *  
+ *  Source -
+ *	The U. S. Army Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005-5068  USA
+ *  
+ *  Distribution Notice -
+ *      Re-distribution of this software is restricted, as described in
+ *      your "Statement of Terms and Conditions for the Release of
+ *      The BRL-CAD Package" agreement.
+ *
+ *  Copyright Notice -
+ *      This software is Copyright (C) 1998-2004 by the United States Army
+ *      in all countries except the USA.  All rights reserved.
+ */
+
+
+#ifndef lint
+static const char RCSid[] = "@@(#)$Header: /n/xoff/cvs/brlcad/util/png_info.c,v 11.9 2004/05/10 15:30:51 erikg Exp $ (BRL)";
+#endif
+
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+
+#include <stdio.h>
+#include <math.h>
+#include "png.h"
+#include "machine.h"
+#include "externs.h"
+#include "bu.h"
+#include "vmath.h"
+#include "bn.h"
+#include "zlib.h"
+
+static char *usage="Usage:\n\t%s png__file\n";
+
+int
+main(int argc, char **argv)
+{
+	int i;
+	FILE *fp_in = NULL;
+	png_structp png_p;
+	png_infop info_p;
+	char header[8];
+	int bit_depth;
+	int color_type;
+	png_color_16p input_backgrd;
+	double gamma;
+	int file_width, file_height;
+	png_int_32 xoff, yoff;
+	png_uint_32 xres, yres;
+	int unit_type;
+	int rgb_intent;
+	double white_x, white_y, red_x, red_y, green_x, green_y, blue_x, blue_y;
+	png_timep mod_time;
+	png_textp text;
+	int num_text;
+	unsigned char *image;
+	unsigned char **rows;
+
+	if( argc != 2 )
+	{
+		bu_log( usage, argv[0] );
+		bu_bomb( "Incorrect numer of arguments!!\n" );
+	} else {
+		if( (fp_in = fopen(argv[1], "rb")) == NULL )  {
+			perror(argv[1]);
+			bu_log(	"png_onfo: cannot open \"%s\" for reading\n",
+				argv[1] );
+			bu_bomb( "Cannot open input file\n" );
+		}
+	}
+
+	if( fread( header, 8, 1, fp_in ) != 1 )
+		bu_bomb( "ERROR: Failed while reading file header!!!\n" );
+
+	if( !png_check_sig( (png_bytep)header, 8 ) )
+		bu_bomb( "This is not a PNG file!!!\n" );
+
+	png_p = png_create_read_struct( PNG_LIBPNG_VER_STRING, NULL, NULL, NULL );
+	if( !png_p )
+		bu_bomb( "png_create_read_struct() failed!!\n" );
+
+	info_p = png_create_info_struct( png_p );
+	if( !info_p )
+		bu_bomb( "png_create_info_struct() failed!!\n" );
+
+	png_init_io( png_p, fp_in );
+
+	png_set_sig_bytes( png_p, 8 );
+
+	png_read_info( png_p, info_p );
+
+	color_type = png_get_color_type( png_p, info_p );
+
+	bit_depth = png_get_bit_depth( png_p, info_p );
+
+	switch (color_type)
+	{
+		case PNG_COLOR_TYPE_GRAY:
+			bu_log( "color type: b/w (bit depth=%d)\n", bit_depth );
+			break;
+		case PNG_COLOR_TYPE_GRAY_ALPHA:
+			bu_log( "color type: b/w with alpha channel (bit depth=%d)\n", bit_depth );
+			break;
+		case PNG_COLOR_TYPE_PALETTE:
+			bu_log( "color type: color palette (bit depth=%d)\n", bit_depth );
+			break;
+		case PNG_COLOR_TYPE_RGB:
+			bu_log( "color type: RGB (bit depth=%d)\n", bit_depth );
+			break;
+		case PNG_COLOR_TYPE_RGB_ALPHA:
+			bu_log( "color type: RGB with alpha channel (bit depth=%d)\n", bit_depth );
+			break;
+		default:
+			bu_log( "Unrecognized color type (bit depth=%d)\n", bit_depth );
+			break;
+	}
+
+	file_width = png_get_image_width( png_p, info_p );
+	file_height = png_get_image_height( png_p, info_p );
+
+	bu_log( "Image size: %d X %d\n", file_width, file_height );
+
+	/* allocate memory for image */
+	image = (unsigned char *)bu_calloc( 1, file_width*file_height*3, "image" );
+
+	/* create rows array */
+	rows = (unsigned char **)bu_calloc( file_height, sizeof( unsigned char *), "rows" );
+	for( i=0 ; i<file_height ; i++ )
+		rows[file_height-1-i] = image+(i*file_width*3);
+
+	png_read_image( png_p, rows );
+
+	if( png_get_oFFs( png_p, info_p, &xoff, &yoff, &unit_type ) )
+	{
+		if( unit_type == PNG_OFFSET_PIXEL )
+			bu_log( "X Offset: %d pixels\nY Offset: %d pixels\n", xoff, yoff );
+		else if( unit_type == PNG_OFFSET_MICROMETER )
+			bu_log( "X Offset: %d um\nY Offset: %d um\n", xoff, yoff );
+	}
+
+	if( png_get_pHYs( png_p, info_p, &xres, &yres, &unit_type ) )
+	{
+		if( unit_type == PNG_RESOLUTION_UNKNOWN )
+			bu_log( "Aspect ratio: %g (width/height)\n", (double)xres/(double)yres );
+		else if( unit_type == PNG_RESOLUTION_METER )
+			bu_log( "pixel density:\n\t%d pixels/m hroizontal\n\t%d pixels/m vertical\n",
+					xres, yres );
+	}
+
+	if( png_get_interlace_type( png_p, info_p ) == PNG_INTERLACE_NONE )
+		bu_log( "not interlaced\n" );
+	else
+		bu_log( "interlaced\n" );
+
+	if( color_type == PNG_COLOR_TYPE_GRAY_ALPHA ||
+			color_type == PNG_COLOR_TYPE_RGB_ALPHA )
+		if( png_get_bKGD( png_p, info_p, &input_backgrd ) )
+			bu_log( "background color: %d %d %d\n", input_backgrd->red, input_backgrd->green, input_backgrd->blue );
+
+	if( png_get_sRGB( png_p, info_p, &rgb_intent ) )
+	{
+		bu_log( "rendering intent: " );
+		switch( rgb_intent )
+		{
+			case PNG_sRGB_INTENT_SATURATION:
+				bu_log( "saturation\n" );
+				break;
+			case PNG_sRGB_INTENT_PERCEPTUAL:
+				bu_log( "perceptual\n" );
+				break;
+			case PNG_sRGB_INTENT_ABSOLUTE:
+				bu_log( "absolute\n" );
+				break;
+			case PNG_sRGB_INTENT_RELATIVE:
+				bu_log( "relative\n" );
+				break;
+		}
+	}
+
+	if( png_get_gAMA( png_p, info_p, &gamma ) )
+		bu_log( "gamma: %g\n", gamma );
+
+#if defined(PNG_READ_cHRM_SUPPORTED)
+	if( png_get_cHRM( png_p, info_p, &white_x, &white_y, &red_x, &red_y, &green_x, &green_y, &blue_x, &blue_y ) )
+	{
+		bu_log( "Chromaticity:\n" );
+		bu_log( "\twhite point\t(%g %g )\n\tred\t(%g %g)\n\tgreen\t(%g %g)\n\tblue\t(%g %g)\n",
+			white_x, white_y, red_x, red_y, green_x, green_y, blue_x, blue_y );
+	}
+#endif
+
+	if( png_get_text( png_p, info_p, &text, &num_text ) )
+		for( i=0 ; i<num_text ; i++ )
+			bu_log( "%s: %s\n", text[i].key, text[i].text );
+
+	if( png_get_tIME( png_p, info_p, &mod_time ) )
+		bu_log( "Last modified: %d/%d/%d %d:%d:%d\n", mod_time->month, mod_time->day,
+			mod_time->year, mod_time->hour, mod_time->minute, mod_time->second );
+	return 0;
+}
+@
+
+
+11.9
+log
+@change conf.h to a wrapped config.h
+@
+text
+@d23 1
+a23 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/util/png_info.c,v 11.8 2004/04/05 05:46:02 morrison Exp $ (BRL)";
+@
+
+
+11.8
+log
+@merge of ansi-6-0-branch into head
+@
+text
+@d23 1
+a23 1
+static const char RCSid[] = "@@(#)$Header$ (BRL)";
+d26 5
+a30 1
+#include "conf.h"
+@
+
+
+11.7
+log
+@update copyright to include span through 2003
+@
+text
+@d23 1
+a23 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/util/png_info.c,v 11.6 2002/12/26 15:16:08 jra Exp $ (BRL)";
+d41 1
+a41 3
+main( argc, argv )
+int argc;
+char *argv[];
+@
+
+
+11.6
+log
+@Update to libong 1.2.5
+@
+text
+@d17 1
+a17 1
+ *      This software is Copyright (C) 1998 by the United States Army
+d23 1
+a23 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/util/png_info.c,v 11.5 2002/08/20 17:09:06 jra Exp $ (BRL)";
+@
+
+
+11.6.6.1
+log
+@merge from HEAD
+@
+text
+@d17 1
+a17 1
+ *      This software is Copyright (C) 1998-2004 by the United States Army
+d23 1
+a23 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/util/png_info.c,v 11.7 2004/02/02 17:39:52 morrison Exp $ (BRL)";
+@
+
+
+11.6.6.2
+log
+@merge from head
+@
+text
+@d23 1
+a23 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/util/png_info.c,v 11.6.6.1 2004/02/12 19:43:12 erikg Exp $ (BRL)";
+@
+
+
+11.5
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d23 1
+a23 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/util/png_info.c,v 11.3 2000/09/01 03:24:05 mike Exp $ (BRL)";
+d30 1
+a35 1
+#include "png.h"
+d55 1
+a55 1
+	png_uint_32 xoff, yoff;
+@
+
+
+11.5.4.1
+log
+@sync to HEAD...
+@
+text
+@d17 1
+a17 1
+ *      This software is Copyright (C) 1998-2004 by the United States Army
+d23 1
+a23 1
+static const char RCSid[] = "@@(#)$Header: /n/cad/c/CVS/brlcad/util/png_info.c,v 11.7 2004/02/02 17:39:52 morrison Exp $ (BRL)";
+a29 1
+#include "png.h"
+d35 1
+d55 1
+a55 1
+	png_int_32 xoff, yoff;
+@
+
+
+11.5.2.1
+log
+@Initial ANSIfication
+@
+text
+@d23 1
+a23 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/util/png_info.c,v 11.5 2002/08/20 17:09:06 jra Exp $ (BRL)";
+d41 3
+a43 1
+main(int argc, char **argv)
+@
+
+
+11.5.2.2
+log
+@sync branch with HEAD
+@
+text
+@d17 1
+a17 1
+ *      This software is Copyright (C) 1998-2004 by the United States Army
+d23 1
+a23 1
+static const char RCSid[] = "@@(#)$Header$ (BRL)";
+a29 1
+#include "png.h"
+d35 1
+d53 1
+a53 1
+	png_int_32 xoff, yoff;
+@
+
+
+11.4
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d41 3
+a43 1
+main(int argc, char **argv)
+@
+
+
+11.3
+log
+@
+Lint fix
+@
+text
+@d23 1
+a23 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/util/png_info.c,v 11.2 2000/08/23 19:05:09 mike Exp $ (BRL)";
+d41 1
+a41 3
+main( argc, argv )
+int argc;
+char *argv[];
+@
+
+
+11.2
+log
+@
+const RCSid
+@
+text
+@d23 1
+a23 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/util/png_info.c,v 11.1 1998/06/29 18:27:47 jra Exp $ (BRL)";
+d40 1
+d46 1
+a46 1
+	FILE *fp_in;
+d206 1
+@
+
+
+11.1
+log
+@Code to display information about a PNG (Portable Network Graphics) format file.
+@
+text
+@d23 1
+a23 1
+static char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/util/png-pix.c,v 11.4 1998/06/26 14:15:56 jra Exp $ (BRL)";
+@
+

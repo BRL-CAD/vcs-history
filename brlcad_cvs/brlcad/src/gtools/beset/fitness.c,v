@@ -1,0 +1,2433 @@
+head	1.30;
+access;
+symbols
+	rel-7-10-4:1.26
+	STABLE:1.26.0.2
+	rel-7-10-2:1.25;
+locks; strict;
+comment	@ * @;
+
+
+1.30
+date	2007.11.21.16.10.12;	author erikgreenwald;	state Exp;
+branches;
+next	1.29;
+
+1.29
+date	2007.09.15.16.23.06;	author brlcad;	state Exp;
+branches;
+next	1.28;
+
+1.28
+date	2007.09.14.17.44.10;	author erikgreenwald;	state Exp;
+branches;
+next	1.27;
+
+1.27
+date	2007.09.14.15.21.06;	author erikgreenwald;	state Exp;
+branches;
+next	1.26;
+
+1.26
+date	2007.09.10.19.12.53;	author erikgreenwald;	state Exp;
+branches;
+next	1.25;
+
+1.25
+date	2007.08.08.23.38.08;	author poolio;	state Exp;
+branches;
+next	1.24;
+
+1.24
+date	2007.08.06.16.21.19;	author poolio;	state Exp;
+branches;
+next	1.23;
+
+1.23
+date	2007.08.02.19.23.47;	author poolio;	state Exp;
+branches;
+next	1.22;
+
+1.22
+date	2007.08.02.00.15.10;	author poolio;	state Exp;
+branches;
+next	1.21;
+
+1.21
+date	2007.08.01.16.46.47;	author poolio;	state Exp;
+branches;
+next	1.20;
+
+1.20
+date	2007.07.31.21.17.22;	author poolio;	state Exp;
+branches;
+next	1.19;
+
+1.19
+date	2007.07.30.01.21.06;	author poolio;	state Exp;
+branches;
+next	1.18;
+
+1.18
+date	2007.07.28.07.14.55;	author poolio;	state Exp;
+branches;
+next	1.17;
+
+1.17
+date	2007.07.24.19.41.44;	author poolio;	state Exp;
+branches;
+next	1.16;
+
+1.16
+date	2007.07.23.22.09.18;	author poolio;	state Exp;
+branches;
+next	1.15;
+
+1.15
+date	2007.07.20.17.55.51;	author poolio;	state Exp;
+branches;
+next	1.14;
+
+1.14
+date	2007.07.20.14.49.12;	author poolio;	state Exp;
+branches;
+next	1.13;
+
+1.13
+date	2007.07.11.15.58.31;	author poolio;	state Exp;
+branches;
+next	1.12;
+
+1.12
+date	2007.07.10.17.34.43;	author poolio;	state Exp;
+branches;
+next	1.11;
+
+1.11
+date	2007.07.10.15.55.42;	author poolio;	state Exp;
+branches;
+next	1.10;
+
+1.10
+date	2007.06.29.04.36.14;	author poolio;	state Exp;
+branches;
+next	1.9;
+
+1.9
+date	2007.06.29.02.20.00;	author poolio;	state Exp;
+branches;
+next	1.8;
+
+1.8
+date	2007.06.29.01.34.10;	author brlcad;	state Exp;
+branches;
+next	1.7;
+
+1.7
+date	2007.06.29.01.00.10;	author poolio;	state Exp;
+branches;
+next	1.6;
+
+1.6
+date	2007.06.28.18.58.51;	author poolio;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	2007.06.28.03.56.52;	author poolio;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	2007.06.21.19.50.58;	author poolio;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2007.06.21.06.39.59;	author poolio;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2007.06.21.04.42.16;	author poolio;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2007.06.20.05.54.27;	author poolio;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.30
+log
+@change bu_bomb to bu_exit when the sky isn't really falling
+@
+text
+@/*                       F I T N E S S . C
+ * BRL-CAD
+ *
+ * Copyright (c) 2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This library is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@file fitness.c
+ *
+ * Compare rays of source and population
+ * usage: global variable struct fitness_state *fstate must exist
+ *	fit_prep(db, rows, cols);
+ *	fit_store(source_object);
+ *	int linear_difference = fit_diff(test_object);
+ *	fit_clear();
+ * Author - Ben Poole
+ *
+ */
+
+#include "common.h"
+
+#include <stdlib.h>
+#include <errno.h>
+#include <stdio.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <stdio.h>
+#include <string.h>
+#include <math.h>
+#include <limits.h>                     /* home of INT_MAX aka MAXINT */
+
+#include "machine.h"
+#include "bu.h"
+#include "vmath.h"
+#include "raytrace.h"
+#include "plot3.h"
+#include "rtgeom.h"
+
+#include "fitness.h"
+
+
+/**
+ *	F I T _ S T O R E  --- store an object as the "source" to compare with
+ */
+void
+fit_store (char *obj, char *dbname, struct fitness_state *fstate)
+{
+    struct db_i *db;
+
+    if( (db=db_open(dbname, "r")) == DBI_NULL)
+	bu_exit(EXIT_FAILURE, "Failed to open model database");
+    if(db_dirbuild(db) < 0)
+	bu_exit(EXIT_FAILURE, "Failed to build directory sturcutre");
+
+    fstate->capture = 1;
+    fit_rt(obj, db, fstate);
+    db_close(db);
+    fstate->capture = 0;
+
+}
+
+/**
+ *	C A P T U R E _ H I T --- called by rt_shootray(), stores a ray that hit the shape
+ */
+int
+capture_hit(register struct application *ap, struct partition *partHeadp, struct seg *segs)
+{
+    register struct partition *pp;
+    struct part *add;
+
+    /* initialize list of partitions */
+    ((struct fitness_state *)ap->a_uptr)->ray[ap->a_user] = bu_malloc(sizeof(struct part), "part");
+    BU_LIST_INIT(&((struct fitness_state *)ap->a_uptr)->ray[ap->a_user]->l);
+
+    /* save ray */
+    for(pp = partHeadp->pt_forw; pp != partHeadp; pp = pp->pt_forw){
+	add = bu_malloc(sizeof(struct part), "part");
+	add->inhit_dist = pp->pt_inhit->hit_dist;
+	add->outhit_dist = pp->pt_outhit->hit_dist;
+	BU_LIST_INSERT(&((struct fitness_state *)ap->a_uptr)->ray[ap->a_user]->l, &add->l);
+    }
+    return 1;
+}
+
+/**
+ *	C A P T U R E _ M I S S --- called by rt_shootray(), stores a ray that missed the shape
+ */
+int
+capture_miss(register struct application *ap)
+{
+    ((struct fitness_state *)ap->a_uptr)->ray[ap->a_user] = NULL;
+    return 0;
+}
+
+/**
+ *	C O M P A R E _ H I T -- compare a ray that hit to source
+ */
+int
+compare_hit(register struct application *ap, struct partition *partHeadp, struct seg *segs)
+{
+    register struct partition *pp=NULL;
+    register struct part *mp=NULL;
+    struct fitness_state *fstate = (struct fitness_state *) ap->a_uptr;
+    fastf_t xp, yp, lastpt=0.0;
+    int status = 0;
+
+    if(partHeadp == NULL && fstate->ray[ap->a_user] == NULL){
+	bu_semaphore_acquire(SEM_SAME);
+	fstate->same += fstate->a_len;
+	bu_semaphore_release(SEM_SAME);
+	return 0;
+    }
+
+
+    /* move from head */
+    if(partHeadp!=NULL)
+	pp = partHeadp->pt_forw;
+    if(fstate->ray[ap->a_user] !=NULL)
+	mp = BU_LIST_FORW(part, &fstate->ray[ap->a_user]->l);
+
+    /* if both rays missed, count this as the same.
+     * no need to evaluate further*/
+
+    bu_semaphore_acquire(SEM_SAME);
+    bu_semaphore_acquire(SEM_DIFF);
+
+    while(pp != partHeadp && mp != fstate->ray[ap->a_user]) {
+	if(status & STATUS_PP)	xp = pp->pt_outhit->hit_dist;
+	else			xp = pp->pt_inhit->hit_dist;
+	if(status & STATUS_MP)	yp = mp->outhit_dist;
+	else			yp = mp->inhit_dist;
+	if(xp < 0) xp = 0;
+	if(yp < 0) yp = 0;
+
+	if(status==STATUS_EMPTY){
+	    if(NEAR_ZERO(xp-yp, 1.0e-5)){
+		fstate->same += xp;
+		status = (STATUS_PP | STATUS_MP);
+		lastpt = xp;
+	    } else if(xp < yp) {
+		fstate->same+= xp;
+
+		lastpt = xp;
+		status = STATUS_PP;
+	    } else if(yp < xp) {
+		fstate->same+= yp;
+		lastpt = yp;
+		status = STATUS_MP;
+	    }
+	} else if(status == (STATUS_MP | STATUS_PP)) {
+	    if(NEAR_ZERO(xp-yp, 1.0e-5)){
+		fstate->same += xp - lastpt;
+		status = STATUS_EMPTY;
+		pp = pp->pt_forw;
+		mp = BU_LIST_FORW(part, &mp->l);
+		lastpt = xp;
+	    } else if(xp < yp) {
+		fstate->same += xp - lastpt;
+		lastpt = xp;
+		status = STATUS_MP;
+		pp=pp->pt_forw;
+	    } else if(yp < xp) {
+		fstate->same += yp - lastpt;
+		lastpt = yp;
+		status = STATUS_PP;
+		mp = BU_LIST_FORW(part, &mp->l);
+	    }
+
+	}
+
+	else if(status == STATUS_PP){
+	    if(NEAR_ZERO(xp-yp, 1.0e-5)){
+		fstate->diff += xp - lastpt;
+		status = STATUS_MP;
+		lastpt = yp;
+		pp = pp->pt_forw;
+	    } else if(xp > yp) {
+		fstate->diff += yp - lastpt;
+		lastpt = yp;
+		status = STATUS_PP | STATUS_MP;
+	    } else if(xp < yp){
+		fstate->diff += xp - lastpt;
+		status = STATUS_EMPTY;
+		pp = pp ->pt_forw;
+		lastpt = xp;
+	    }
+	}
+	else if(status == STATUS_MP){
+	    if(NEAR_ZERO(xp-yp, 1.0e-5)){
+		fstate->diff += yp - lastpt;
+		status = STATUS_PP;
+		lastpt = xp;
+		mp = BU_LIST_FORW(part, &mp->l);
+	    } else if(xp < yp) {
+		fstate->diff += xp - lastpt;
+		lastpt = xp;
+		status = STATUS_PP | STATUS_MP;
+	    } else if(xp > yp){
+		fstate->diff += yp - lastpt;
+		status = STATUS_EMPTY;
+		mp = BU_LIST_FORW(part, &mp->l);
+		lastpt = yp;
+	    }
+	}
+    }
+
+    /* we could be halfway through evaluating a partition
+     * finish evaluating it before proceeding */
+    if(status == STATUS_PP){
+	if(pp->pt_outhit->hit_dist > fstate->a_len){ /* trim ray */
+	    fstate->diff += fstate->a_len - lastpt;
+	    lastpt = fstate->a_len;
+	} else {
+	    fstate->diff+= pp->pt_outhit->hit_dist - lastpt;
+	    lastpt = pp->pt_outhit->hit_dist;
+	}
+	pp = pp->pt_forw;
+    } else if(status == STATUS_MP) {
+	fstate->diff += mp->outhit_dist - lastpt;
+	lastpt = mp->outhit_dist;
+	mp = BU_LIST_FORW(part, &mp->l);
+    }
+
+    /* if there are a different # of partitions in source and individual */
+    while(mp != fstate->ray[ap->a_user]){
+	fstate->diff += mp->outhit_dist - mp->inhit_dist;
+	lastpt = mp->outhit_dist;
+	mp = BU_LIST_FORW(part, &mp->l);
+    }
+    while(pp != partHeadp && pp->pt_inhit->hit_dist < fstate->a_len){
+	if(pp->pt_outhit->hit_dist > fstate->a_len){ /* trim bounding box */
+	    fstate->diff += fstate->a_len - pp->pt_inhit->hit_dist;
+	    lastpt = fstate->a_len;
+	} else {
+	    fstate->diff += pp->pt_outhit->hit_dist - pp->pt_inhit->hit_dist;
+	    lastpt = pp->pt_outhit->hit_dist;
+	}
+	pp = pp->pt_forw;
+    }
+
+    /* include trailing empty space as similar */
+    fstate->same += fstate->a_len - lastpt;
+
+    bu_semaphore_release(SEM_SAME);
+    bu_semaphore_release(SEM_DIFF);
+
+    return 1;
+}
+
+
+
+
+/**
+ *	C O M P A R E _ M I S S --- compares missed ray to real ray
+ */
+int
+compare_miss(register struct application *ap)
+{
+    compare_hit(ap, NULL, NULL);
+    return 0;
+}
+
+/**
+ *	G E T _ N E X T _ R O W --- grab the next row of rays to be evaluated
+ */
+int
+get_next_row(struct fitness_state *fstate)
+{
+    int r;
+    bu_semaphore_acquire(SEM_WORK);
+    if(fstate->row < fstate->res[Y])
+	r = ++fstate->row; /* get a row to work on */
+    else
+	r = 0; /* signal end of work */
+    bu_semaphore_release(SEM_WORK);
+
+    return r;
+}
+
+/**
+ *	R T _ W O R K E R --- raytraces an object in parallel and stores or compares it to source
+ *
+ */
+void
+rt_worker(int cpu, genptr_t g)
+{
+    struct application ap;
+    struct fitness_state *fstate = (struct fitness_state *)g;
+    int u, v;
+
+    RT_APPLICATION_INIT(&ap);
+    ap.a_rt_i = fstate->rtip;
+    if(fstate->capture){
+	ap.a_hit = capture_hit;
+	ap.a_miss = capture_miss;
+    } else {
+	ap.a_hit = compare_hit;
+	ap.a_miss = compare_miss;
+    }
+
+    ap.a_resource = &rt_uniresource;/*fstate->resource[cpu];*/
+
+    ap.a_ray.r_dir[X] = ap.a_ray.r_dir[Y] = 0.0;
+    ap.a_ray.r_dir[Z] = 1.0;
+    ap.a_uptr = (void *) g;
+
+    u = -1;
+
+    while((v = get_next_row(fstate))) {
+	for(u = 1; u <= fstate->res[X]; u++) {
+	    ap.a_ray.r_pt[X] = fstate->min[X] + u * fstate->gridSpacing[X];
+	    ap.a_ray.r_pt[Y] = fstate->min[Y] + v * fstate->gridSpacing[Y];
+	    ap.a_ray.r_pt[Z] = fstate->min[Z];
+	    ap.a_user = (v-1)*(fstate->res[X]) + u-1;
+
+	    rt_shootray(&ap);
+
+
+	}
+    }
+}
+
+/**
+ *	F I T _ R T --- raytrace an object optionally storing the rays
+ *
+ */
+void
+fit_rt(char *obj, struct db_i *db, struct fitness_state *fstate)
+{
+    int i;
+    fastf_t diff[3], tmp;
+    fastf_t min[3], max[3];
+
+
+    /*
+     * uncomment to calculate # of nodes
+     * and use in fitness calculation
+     *
+    struct directory *dp
+    struct rt_db_internal in;
+    int n_leaves;
+    if(!rt_db_lookup_internal(db, obj, &dp, &in, LOOKUP_NOISY, &rt_uniresource))
+	bu_exit(EXIT_FAILURE, "Failed to read object to raytrace");
+    n_leaves = db_count_tree_nodes(((struct rt_comb_internal *)in.idb_ptr)->tree, 0);
+    rt_db_free_internal(&in, &rt_uniresource);
+    */
+
+    fstate->rtip = rt_new_rti(db);
+    fstate->row = 0;
+
+    if(rt_gettree(fstate->rtip, obj) < 0)
+	bu_exit(EXIT_FAILURE, "rt_gettree failed");
+
+    /*
+    for(i = 0; i < fstate->max_cpus; i++) {
+	rt_init_resource(&fstate->resource[i], i, fstate->rtip);
+	bn_rand_init(fstate->resource[i].re_randptr, i);
+    }
+    */
+
+    /* stash bounding box and if comparing to source
+     * calculate the difference between the bounding boxes */
+    if(fstate->capture) {
+	VMOVE(fstate->min, fstate->rtip->mdl_min);
+	VMOVE(fstate->max, fstate->rtip->mdl_max);
+/*	z_max = fstate->rtip->mdl_max[Z];*/
+    }
+    /*else {
+	* instead of storing min and max, just compute
+	 * what we're going to need later
+	for(i = 0; i < 3; i++){
+	    diff[i] = 0;
+	    if(fstate->min[i] > fstate->rtip->mdl_min[i])
+		diff[i] += fstate->min[i] - fstate->rtip->mdl_min[i];
+	    if(fstate->max[i] < fstate->rtip->mdl_max[i])
+		diff[i] += fstate->rtip->mdl_max[i] - fstate->max[i];
+	    if(fstate->min[i]  < fstate->rtip->mdl_min[i])
+		min[i] = fstate->min[i];
+	    else
+		min[i] = fstate->rtip->mdl_min[i];
+	    if(fstate->max[i] > fstate->rtip->mdl_max[i])
+		max[i] = fstate->max[i];
+	    else
+		max[i] = fstate->rtip->mdl_max[i];
+	    diff[i] = max[i] - min[i];
+	}
+	fastf_t tmp = (diff[X]/fstate->gridSpacing[X]-1) * (diff[Y]/fstate->gridSpacing[Y] - 1);
+	fstate->volume = (fstate->a_len + (max[Z] - fstate->max[Z])) * tmp;
+    }
+    */
+
+
+    /*rt_prep_parallel(fstate->rtip, fstate->ncpu)o;*/
+
+    rt_prep(fstate->rtip);
+        if(fstate->capture){
+	/* Store bounding box of voxel data -- fixed bounding box for fitness */
+	fstate->gridSpacing[X] = (fstate->rtip->mdl_max[X] - fstate->rtip->mdl_min[X]) / (fstate->res[X] + 1);
+	fstate->gridSpacing[Y] = (fstate->rtip->mdl_max[Y] - fstate->rtip->mdl_min[Y]) / (fstate->res[Y] + 1);
+	fstate->a_len = fstate->max[Z]-fstate->rtip->mdl_min[Z]; /* maximum ray length (z-dist of bounding box) */
+	fstate->volume = fstate->a_len * fstate->res[X] * fstate->res[Y]; /* volume of vounding box */
+
+	/* allocate storage for saved rays */
+	fstate->ray = bu_malloc(sizeof(struct part *) * fstate->res[X] * fstate->res[Y], "ray");
+VMOVE(fstate->min, fstate->rtip->mdl_min);
+    VMOVE(fstate->max, fstate->rtip->mdl_max);
+
+
+    } else {
+	/* instead of storing min and max, just compute
+	 * what we're going to need later */
+	for(i = 0; i < 3; i++){
+	    diff[i] = 0;
+	    if(fstate->min[i]  < fstate->rtip->mdl_min[i])
+		min[i] = fstate->min[i];
+	    else
+		min[i] = fstate->rtip->mdl_min[i];
+	    if(fstate->max[i] > fstate->rtip->mdl_max[i])
+		max[i] = fstate->max[i];
+	    else
+		max[i] = fstate->rtip->mdl_max[i];
+	    diff[i] = max[i] - min[i];
+	}
+	tmp = (diff[X]/fstate->gridSpacing[X]-1) * (diff[Y]/fstate->gridSpacing[Y] - 1);
+	fstate->volume = (fstate->a_len + (max[Z] - fstate->max[Z])) * tmp;
+	/* scale fitness to the unon of the sources and individual's bounding boxes */
+	/* FIXME: sloppy
+	fastf_t tmp = (diff[X]/fstate->gridSpacing[X]-1) * (diff[Y]/fstate->gridSpacing[Y] * diff[Z] - 1);
+	if(tmp < 0) tmp = 0;*/
+    }
+
+
+    rt_worker(0,(genptr_t)fstate);
+    /*bu_parallel(rt_worker, fstate->ncpu, (genptr_t)fstate);*/
+
+    /* normalize fitness if we aren't just saving the source */
+    if(!fstate->capture){
+	fstate->fitness = fstate->same / (fstate->volume );
+	/* reset counters for future comparisons */
+	fstate->diff = fstate->same = 0.0;
+    }
+
+    /* clean up resources and rtip */
+    /*
+    for(i = 0; i < fstate->max_cpus; i++)
+	rt_clean_resource(fstate->rtip, &fstate->resource[i]);
+    */
+    rt_free_rti(fstate->rtip);
+
+
+}
+
+/**
+ *	F I T _ D I F F --- returns the difference between input geometry and indivdual  (compares rays)
+ */
+void
+fit_diff(char *obj, struct db_i *db, struct fitness_state *fstate)
+{
+    fit_rt(obj, db, fstate);
+}
+
+/**
+ *	F I T _ P R E P --- load database and prepare for raytracing
+ */
+void
+fit_prep(struct fitness_state *fstate, int rows, int cols)
+{
+    fstate->max_cpus = fstate->ncpu = 1;/*bu_avail_cpus();*/
+    fstate->capture = 0;
+    fstate->res[X] = rows;
+    fstate->res[Y] = cols;
+    fstate->ray = NULL;
+
+    bu_semaphore_init(TOTAL_SEMAPHORES);
+    rt_init_resource(&rt_uniresource, fstate->max_cpus, NULL);
+    bn_rand_init(rt_uniresource.re_randptr, 0);
+}
+
+/**
+ *	F I T _ C L E A N --- cleanup
+ */
+void
+fit_clean(struct fitness_state *fstate)
+{
+    free_rays(fstate);
+    /* bu_semaphore_free(); */
+}
+
+/**
+ *	F R E E _ R A Y S  ---  free saved rays
+ */
+void
+free_rays(struct fitness_state *fstate)
+{
+    int i;
+    struct part *p;
+    for(i = 0; i < fstate->res[X] * fstate->res[Y]; i++){
+	if(fstate->ray[i] == NULL)
+	    continue;
+	while(BU_LIST_WHILE(p, part, &fstate->ray[i]->l)) {
+	    BU_LIST_DEQUEUE(&p->l);
+	    bu_free(p, "part");
+	}
+	bu_free(fstate->ray[i], "part");
+    }
+    bu_free(fstate->ray, "fstate->ray");
+}
+
+
+/**
+ *	F I T _ U P D A T E R E S --- change ray grid resolution
+ *	Note: currently not in use, will be used to refine grid as
+ *	fitness increases
+ */
+/*
+void
+fit_updateRes(int rows, int cols, struct fitness_state *fstate){
+    if( fstate->ray != NULL){
+	free_ray(fstate);
+    }
+    fstate->res[X] = rows;
+    fstate->res[Y] = cols;
+    fit_store(fstate->name, fstate);
+
+}
+*/
+
+
+
+
+
+
+
+
+/*
+ * Local Variables:
+ * tab-width: 8
+ * mode: C
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+1.29
+log
+@more c89 embracing.  c89 provides string.h for all of the various str*() and mem*() functions, so remove the check for its presence.  there is still likely to be work required for strict c89 conformance for the various bsd strings.h functions that may be in use.
+@
+text
+@d63 1
+a63 1
+	bu_bomb("Failed to open model database");
+d65 1
+a65 1
+	bu_bomb("Failed to build directory sturcutre");
+d355 1
+a355 1
+	bu_bomb("Failed to read object to raytrace");
+d364 1
+a364 1
+	bu_bomb("rt_gettree failed");
+@
+
+
+1.28
+log
+@change c++/c99 "//" comments to more portable c89 /* */ comments
+@
+text
+@d33 1
+a33 5
+#ifdef HAVE_STRING_H
+#  include <string.h>
+#else
+#  include <strings.h>
+#endif
+d40 1
+@
+
+
+1.27
+log
+@removed trailing whitespace
+@
+text
+@d501 1
+a501 1
+    //bu_semaphore_free();
+@
+
+
+1.26
+log
+@silly coder, this is C! you can't declare variables mid-scope
+@
+text
+@d22 1
+a22 1
+ * Compare rays of source and population 
+d29 1
+a29 1
+ * 
+d56 1
+a56 1
+	
+d83 1
+a83 1
+    register struct partition *pp; 
+d103 1
+a103 1
+int 
+d121 1
+a121 1
+    
+d129 1
+a129 1
+    
+d147 1
+a147 1
+	if(xp < 0) xp = 0; 
+d149 2
+a150 2
+    	
+	if(status==STATUS_EMPTY){ 
+d221 1
+a221 1
+   
+d249 1
+a249 1
+	} else { 
+d257 1
+a257 1
+    fstate->same += fstate->a_len - lastpt; 
+d265 1
+a265 1
+	
+d291 1
+a291 1
+    
+d305 1
+a305 1
+    
+d330 1
+a330 1
+	    
+d333 1
+a333 1
+	
+d348 1
+a348 1
+    
+d368 1
+a368 1
+    
+d385 1
+a385 1
+	 * what we're going to need later 
+d388 1
+a388 1
+	    if(fstate->min[i] > fstate->rtip->mdl_min[i]) 
+d390 1
+a390 1
+	    if(fstate->max[i] < fstate->rtip->mdl_max[i]) 
+d412 1
+a412 1
+	/* Store bounding box of voxel data -- fixed bounding box for fitness */ 
+d442 1
+a442 1
+	/* FIXME: sloppy 
+d447 1
+a447 1
+    
+d460 1
+a460 1
+    for(i = 0; i < fstate->max_cpus; i++) 
+d527 1
+a527 1
+ *	Note: currently not in use, will be used to refine grid as 
+d546 1
+a546 1
+    
+@
+
+
+1.25
+log
+@fitness now scales to union of bounding boxes. other slight modifications
+@
+text
+@d346 1
+a346 1
+    fastf_t diff[3];
+d439 1
+a439 1
+	fastf_t tmp = (diff[X]/fstate->gridSpacing[X]-1) * (diff[Y]/fstate->gridSpacing[Y] - 1);
+@
+
+
+1.24
+log
+@pre-generate and store identifiers. more cleanup
+@
+text
+@d326 3
+a328 3
+	    ap.a_ray.r_pt[X] = fstate->mdl_min[X] + u * fstate->gridSpacing[X];
+	    ap.a_ray.r_pt[Y] = fstate->mdl_min[Y] + v * fstate->gridSpacing[Y];
+	    ap.a_ray.r_pt[Z] = fstate->mdl_min[Z];
+d346 2
+a347 1
+    fastf_t z_max;
+d376 33
+a408 6
+    /* stash max z depth as it will change
+     * when the rtip is prepped.
+     * Don't bother to stash min, just let it
+     * be zero. */
+    if(fstate->capture)
+	z_max = fstate->rtip->mdl_max[Z];
+a409 1
+    /*rt_prep_parallel(fstate->rtip, fstate->ncpu);*/
+d411 1
+a411 2
+
+    if(fstate->capture){
+d413 3
+a415 4
+	fstate->gridSpacing[X] = (fstate->rtip->mdl_max[X]-fstate->rtip->mdl_min[X])/ (fstate->res[X] + 1);
+	fstate->gridSpacing[Y] = (fstate->rtip->mdl_max[Y] - fstate->rtip->mdl_min[Y]) / (fstate->res[Y] + 1 );
+	VMOVE(fstate->mdl_min, fstate->rtip->mdl_min); 
+	fstate->a_len = z_max-fstate->rtip->mdl_min[Z]; /* maximum ray length (z-dist of bounding box) */
+d420 27
+a446 1
+    } 
+d453 1
+a453 1
+	fstate->fitness = fstate->same / fstate->volume;
+d501 1
+@
+
+
+1.23
+log
+@now conforms to C89
+@
+text
+@d412 1
+a412 1
+    rt_clean(fstate->rtip);
+@
+
+
+1.22
+log
+@fixed some bugs recently introduced. fstate no longer malloc'd
+@
+text
+@d150 1
+a150 1
+	if(status==STATUS_EMPTY){ //neither
+d316 1
+a316 1
+    ap.a_resource = &rt_uniresource;//fstate->resource[cpu];
+d382 1
+a382 1
+    //rt_prep_parallel(fstate->rtip, fstate->ncpu);
+d398 1
+a398 1
+    //bu_parallel(rt_worker, fstate->ncpu, (genptr_t)fstate);
+a412 1
+//    rt_free_rti(fstate->rtip);
+d432 1
+a432 1
+    fstate->max_cpus = fstate->ncpu = 1;//bu_avail_cpus();
+@
+
+
+1.21
+log
+@more mutation support and cosmetics
+@
+text
+@d316 1
+a316 1
+    ap.a_resource = &fstate->resource[cpu];
+a330 3
+	    /* initialize stored partition */
+	    if(fstate->capture){
+	    }
+d332 1
+a347 2
+    fstate->rtip = rt_new_rti(db);
+    fstate->row = 0;
+d368 1
+d373 1
+d408 1
+d411 1
+d430 2
+a431 2
+struct fitness_state * 
+fit_prep(int rows, int cols)
+a432 6
+    struct fitness_state *fstate = bu_malloc(sizeof(struct fitness_state), "fstate");
+
+    bu_semaphore_init(TOTAL_SEMAPHORES);
+    rt_init_resource(&rt_uniresource, fstate->max_cpus, NULL);
+    bn_rand_init(rt_uniresource.re_randptr, 0);
+
+d439 3
+a441 1
+    return fstate;
+a450 1
+    bu_free(fstate, "fstate");
+@
+
+
+1.20
+log
+@fixed race condition
+@
+text
+@d384 2
+a385 1
+    rt_prep_parallel(fstate->rtip, fstate->ncpu);
+d399 2
+a400 1
+    bu_parallel(rt_worker, fstate->ncpu, (genptr_t)fstate);
+d412 2
+a413 1
+    rt_free_rti(fstate->rtip);
+d439 1
+a439 1
+    fstate->max_cpus = fstate->ncpu = bu_avail_cpus();
+@
+
+
+1.19
+log
+@final bug fixed in fitness. crossover and reproduction are stable and functional
+@
+text
+@d26 1
+a26 1
+ *	int linear_difference = fit_linDiff(test_object);
+a53 5
+#define SEM_WORK RT_SEM_LAST
+#define SEM_DIFF RT_SEM_LAST+1
+#define SEM_SAME RT_SEM_LAST+2
+#define TOTAL_SEMAPHORES SEM_SAME+1
+
+a55 18
+
+
+void
+rays_clear(struct fitness_state *fstate)
+{
+    int i;
+    struct part *p;
+    for(i = 0; i < fstate->res[U_AXIS] * fstate->res[V_AXIS]; i++){
+	while(BU_LIST_WHILE(p, part, &fstate->rays[i]->l)) {
+	    BU_LIST_DEQUEUE(&p->l);
+	    //	    printf("[%g %g]\n", p->inhit_dist, p->outhit_dist);
+	    bu_free(p, "part");
+	}
+	bu_free(fstate->rays[i], "part");
+    }
+    bu_free(fstate->rays, "fstate->rays");
+}
+
+a56 2
+
+
+a59 1
+
+a69 1
+
+a70 1
+ 
+d83 6
+a88 1
+    register struct partition *pp; /* pointer to current ray's partitions */
+a90 1
+    struct part *add;
+d93 3
+a95 3
+	add->inhit_dist =   pp->pt_inhit->hit_dist;
+	add->outhit_dist =   pp->pt_outhit->hit_dist;
+	BU_LIST_INSERT(&((struct fitness_state *)ap->a_uptr)->rays[ap->a_user]->l, &add->l);
+d106 1
+a106 3
+    struct part *add = bu_malloc(sizeof(struct part), "part");
+    add->inhit_dist = add->outhit_dist = 0;
+    BU_LIST_INSERT(&((struct fitness_state *)ap->a_uptr)->rays[ap->a_user]->l, &add->l);
+d117 1
+a117 1
+    register struct part *mp;
+d122 7
+d130 1
+d133 5
+d139 2
+a140 12
+    mp = BU_LIST_FORW(part, &fstate->rays[ap->a_user]->l);
+    if(partHeadp == NULL && mp->outhit_dist == 0.0){
+	fstate->same += fstate->a_len;
+	return 1;
+    }
+/*
+    if(pp->pt_outhit->hit_dist == 0.0 && mp->outhit_dist == 0.0){
+	printf("blah\n");
+	    fstate->same += fstate->a_len;
+	    return 1;
+    }
+*/
+d142 1
+a142 4
+    int i=0;
+    fastf_t last_same = fstate->same;
+    while(pp != partHeadp && mp != fstate->rays[ap->a_user]) {
+//	printf("%d\n", i++);
+a148 2
+	//printf("(%g,%g) vs. (%g,%g) -- [%g,%g]\n", pp->pt_inhit->hit_dist, pp->pt_outhit->hit_dist, mp->inhit_dist, mp->outhit_dist, xp, yp);
+	//printf("same: %g\ndiff: %g\n", fstate->same - last_same, fstate->diff);
+d155 1
+a155 2
+	    }
+	    else if(xp < yp){
+d160 1
+a160 2
+	    }
+	    else if(yp < xp){
+d165 1
+a165 4
+	}
+
+	else if(status == (STATUS_MP | STATUS_PP)){
+		bu_semaphore_acquire(SEM_SAME);
+a183 1
+		bu_semaphore_release(SEM_SAME);
+a186 1
+	    bu_semaphore_acquire(SEM_DIFF);
+a201 1
+	    bu_semaphore_release(SEM_DIFF);
+a203 1
+	    bu_semaphore_acquire(SEM_DIFF);
+a218 1
+	    bu_semaphore_release(SEM_DIFF);
+d221 3
+a223 7
+    //printf("Final status: %d\nsame: %g\n", status, fstate->same-last_same);
+    //
+    //printf("lastpt: %g\n", lastpt);
+
+
+
+    bu_semaphore_acquire(SEM_DIFF);
+d225 1
+a225 1
+	if(pp->pt_outhit->hit_dist > fstate->a_len){
+d228 1
+a228 2
+	}
+	else{
+d233 4
+d238 4
+a241 2
+    if(status == STATUS_MP){
+	fstate->diff += mp->outhit_dist - lastpt;
+d245 7
+a251 5
+	/* if there are a different # of partitions in modelHeadp and partHeadp*/
+	while(mp != fstate->rays[ap->a_user]){
+	    fstate->diff += mp->outhit_dist - mp->inhit_dist;
+	    lastpt = mp->outhit_dist;
+	    mp = BU_LIST_FORW(part, &mp->l);
+d253 10
+a262 16
+	while(pp != partHeadp && pp->pt_inhit->hit_dist < fstate->a_len){
+	    if(pp->pt_outhit->hit_dist > fstate->a_len){
+		fstate->diff += fstate->a_len - pp->pt_inhit->hit_dist;
+		lastpt = fstate->a_len;
+	    }
+	    else{
+		fstate->diff += pp->pt_outhit->hit_dist - pp->pt_inhit->hit_dist;
+		lastpt = pp->pt_outhit->hit_dist;
+	    }
+	    pp = pp->pt_forw;
+	}
+	bu_semaphore_release(SEM_DIFF);
+	bu_semaphore_acquire(SEM_SAME);
+	fstate->same += fstate->a_len - lastpt;
+	bu_semaphore_release(SEM_SAME);
+	    return 1;
+d264 1
+a264 1
+		
+d286 1
+a286 1
+    if(fstate->row < fstate->res[V_AXIS])
+d305 1
+a305 2
+    fastf_t last_same = fstate->same, last_diff = fstate->diff;
+
+d318 2
+a319 2
+    ap.a_ray.r_dir[U_AXIS] = ap.a_ray.r_dir[V_AXIS] = 0.0;
+    ap.a_ray.r_dir[I_AXIS] = 1.0;
+a320 1
+    //ap.a_ray_length = fstate->bbox[2]-fstate->mdl_min[I_AXIS];//FIX MEHHH
+a323 1
+    int rays_shot = 0;
+d325 5
+a329 5
+	for(u = 1; u <= fstate->res[U_AXIS]; u++) {
+	    ap.a_ray.r_pt[U_AXIS] = fstate->mdl_min[U_AXIS] + u * fstate->gridSpacing[U_AXIS];
+	    ap.a_ray.r_pt[V_AXIS] = fstate->mdl_min[V_AXIS] + v * fstate->gridSpacing[V_AXIS];
+	    ap.a_ray.r_pt[I_AXIS] = fstate->mdl_min[I_AXIS];
+	    ap.a_user = (v-1)*(fstate->res[U_AXIS]) + u-1;
+a332 2
+		fstate->rays[ap.a_user] = bu_malloc(sizeof(struct part), "part");
+		BU_LIST_INIT(&fstate->rays[ap.a_user]->l);
+a333 1
+	    last_same = fstate->same;
+a334 3
+	    //printf("%g/%g\n", fstate->same-last_same, fstate->a_len);
+	    //printf("%dx%d; %d\t%g\n", fstate->res[U_AXIS], fstate->res[V_AXIS], ++rays_shot, fstate->same/(fstate->same+fstate->diff));
+	    //printf("Same: %g\tDiff: %g\n", fstate->same, fstate->diff);
+d348 10
+a357 2
+    double span[3];
+    struct directory *dp;
+a359 2
+    
+    fstate->rtip = rt_new_rti(db);
+d364 1
+a364 1
+    
+d366 2
+d369 2
+a370 5
+
+    if(rt_gettree(fstate->rtip, obj) < 0){
+	fprintf(stderr, "rt_gettree failed to read %s\n", obj);
+	exit(2);
+    }
+d377 6
+a382 21
+    
+    // Calculate bounding box for raytracing 
+    if(fstate->capture){
+	fstate->bbox[0] = fstate->rtip->mdl_min[Z];
+	fstate->bbox[1] = fstate->rtip->mdl_max[Z];
+	rt_prep_parallel(fstate->rtip,fstate->ncpu);
+	fstate->bbox[0] = fstate->res[U_AXIS] * fstate->res[V_AXIS] ;
+ 
+	VSUB2(span, fstate->rtip->mdl_max, fstate->rtip->mdl_min);
+	fstate->gridSpacing[U_AXIS] = (fstate->rtip->mdl_max[U_AXIS]-fstate->rtip->mdl_min[U_AXIS])/ (fstate->res[U_AXIS] + 1);
+	fstate->gridSpacing[V_AXIS] = (fstate->rtip->mdl_max[V_AXIS] - fstate->rtip->mdl_min[V_AXIS]) / (fstate->res[V_AXIS] + 1 );
+	VSET(fstate->mdl_min,fstate->rtip->mdl_min[X], fstate->rtip->mdl_min[Y], fstate->rtip->mdl_min[Z]);
+
+    fstate->a_len = fstate->bbox[1]-fstate->rtip->mdl_min[Z];
+    fstate->norm = fstate->a_len * fstate->res[U_AXIS] * fstate->res[V_AXIS];
+    } else {
+	rt_prep_parallel(fstate->rtip, fstate->ncpu);
+    }
+    fstate->row = 0;
+    fstate->diff = 0;
+    fstate->same = 0;
+d384 1
+d387 12
+a398 13
+	fstate->name = obj;
+	fstate->rays = bu_malloc(sizeof(struct part *) * fstate->res[U_AXIS] * fstate->res[V_AXIS], "rays");
+	bu_parallel(rt_worker, fstate->ncpu, (genptr_t)fstate);
+    }
+    else{
+	bu_parallel(rt_worker, fstate->ncpu, (genptr_t)fstate);
+	//printf("Same: %g\tDiff:%g\n", fstate->same, fstate->diff);
+	//printf("Fitness: %g\n", fstate->same/(fstate->same+fstate->diff));
+	fstate->fitness = fstate->same / fstate->norm;
+//	printf("%g/(%g+%g)  = %g\n", fstate->same, fstate->same, fstate->diff, fstate->same/(fstate->same+fstate->diff));
+//	fstate->fitness = fstate->same / (fstate->same + fstate->diff);
+	//fstate->same /= fstate->bbox[2] * fstate->res[U_AXIS] * fstate->res[V_AXIS];
+	//fstate->diff /= fstate->bbox[2] *fstate->res[U_AXIS] * fstate->res[V_AXIS];
+d400 5
+a404 2
+	fstate->nodes = n_leaves; 
+//	fstate->diff *= 1+n_leaves/500.0;
+d407 1
+d416 1
+a416 1
+ *	F I T _ L I N D I F F --- returns the total linear difference between the rays of obj and source
+d418 2
+a419 2
+fastf_t
+fit_linDiff(char *obj, struct db_i *db, struct fitness_state *fstate)
+a421 1
+    return fstate->diff;
+a424 19
+ *	F I T _ U P D A T E R E S --- change ray grid resolution
+ *	Note: currently not in use, will be used to refine grid as 
+ *	fitness increases
+ */
+/*
+void
+fit_updateRes(int rows, int cols, struct fitness_state *fstate){
+    if( fstate->rays != NULL){
+	rays_clear(fstate);
+    }
+    fstate->res[U_AXIS] = rows;
+    fstate->res[V_AXIS] = cols;
+    fit_store(fstate->name, fstate);
+
+}
+*/
+
+
+/**
+a429 1
+
+a430 1
+    fstate->max_cpus = fstate->ncpu = 1;//bu_avail_cpus();
+a432 1
+
+d436 5
+a441 23
+    /* 
+     * Load databse into db_i 
+     */
+    /*
+    if( (fstate->db = db_open(db, "r+w")) == DBI_NULL) {
+	bu_free(fstate, "fstate");
+	fprintf(stderr, "Failed to open database %s\n", db);
+	exit(1); 
+    }
+    RT_CK_DBI(fstate->db);
+
+    if( db_dirbuild(fstate->db) < 0) {
+	db_close(fstate->db);
+	bu_free(fstate, "fstate");
+	fprintf(stderr, "Failed to build directory structure on %s\n", db);
+	exit(1);
+    }
+    */
+
+    fstate->capture = 0;
+    fstate->res[U_AXIS] = rows;
+    fstate->res[V_AXIS] = cols;
+    fstate->rays = NULL;
+d451 1
+a451 2
+    //db_close(fstate->db); 
+    rays_clear(fstate);
+d455 19
+d475 18
+a492 2
+    
+	    
+@
+
+
+1.18
+log
+@fitness function should be working, so selection must be broken
+@
+text
+@d153 11
+a163 1
+
+d166 1
+d176 1
+d180 1
+d185 2
+d191 1
+d204 1
+d235 1
+d254 1
+d259 3
+d267 1
+a267 1
+	if(pp->pt_outhit->hit_dist > fstate->a_len)
+d269 3
+a271 1
+	else
+d273 2
+d279 1
+d285 1
+d289 1
+a289 1
+	    if(pp->pt_outhit->hit_dist > fstate->a_len)
+d291 3
+a293 1
+	    else
+d295 2
+d300 4
+a303 1
+    return 1;
+d346 1
+d367 1
+d380 1
+d382 2
+d428 1
+a428 1
+	fstate->bbox[0] = fstate->bbox[1] - fstate->rtip->mdl_min[Z];
+d434 3
+a442 1
+    fstate->a_len = fstate->bbox[0];
+d454 3
+a456 1
+	fstate->fitness = fstate->same / (fstate->same + fstate->diff);
+@
+
+
+1.17
+log
+@minor tweaks. still struggling on two spheres. i have my doubts as to whether the whole project will work...
+@
+text
+@d55 3
+a57 1
+#define TOTAL_SEMAPHORES SEM_WORK+1
+d100 1
+d102 1
+d117 2
+a118 2
+	add->inhit_dist =   ((((struct fitness_state *)ap->a_uptr)->bbox[0])+ pp->pt_inhit->hit_dist) / (((struct fitness_state *)ap->a_uptr)->bbox[1]);
+	add->outhit_dist =   ((((struct fitness_state *)ap->a_uptr)->bbox[0])+ pp->pt_outhit->hit_dist) / (((struct fitness_state *)ap->a_uptr)->bbox[1]);
+d155 1
+d157 3
+a159 2
+	if(status & STATUS_PP)	xp = (fstate->bbox[0] + pp->pt_outhit->hit_dist)/(fstate->bbox[1]);
+	else			xp = (fstate->bbox[0] + pp->pt_inhit->hit_dist)/(fstate->bbox[1]);
+d162 3
+d180 1
+d182 1
+d188 1
+a188 5
+	    }
+
+	    else if(xp < yp){
+
+		//printf("lastpt: %g\txp:%g\n", lastpt, xp);
+d193 1
+a193 2
+	    }
+	    else if(yp < xp){
+d199 2
+d202 1
+d204 7
+a210 1
+	    if(NEAR_ZERO(xp-yp, 1.0e-5) || yp < xp){
+d212 1
+d214 1
+a214 3
+		lastpt = xp;
+	    }
+	    if(xp < yp){
+d219 1
+d222 7
+a228 1
+	    if(NEAR_ZERO(xp-yp, 1.0e-5) || xp < yp){
+d230 1
+d232 1
+a232 3
+		lastpt = yp;
+	    }
+	    if(yp < xp){
+d237 1
+d240 4
+a243 2
+    if(fstate->same != 0.0)
+    printf("SAME IS: %g\n", fstate->same);
+d245 4
+a248 1
+	fstate->diff+= (fstate->bbox[0] +  pp->pt_outhit->hit_dist)/fstate->bbox[1] - lastpt;
+a255 1
+    if(mp != fstate->rays[ap->a_user]){
+d260 5
+a264 4
+    }
+    else if (pp != partHeadp){
+	while(pp != partHeadp){
+	    fstate->diff += (pp->pt_outhit->hit_dist - pp->pt_inhit->hit_dist) / (fstate->bbox[1]);
+d267 1
+a267 1
+    }
+d327 1
+d344 1
+d386 1
+a386 1
+	fstate->bbox[1] = fstate->rtip->mdl_max[Z] - fstate->bbox[0];
+d388 1
+a388 1
+	fstate->bbox[0] = fstate->rtip->mdl_min[Z] - fstate->bbox[0];
+d400 1
+d410 5
+a414 1
+	fstate->diff /= fstate->res[U_AXIS] * fstate->res[V_AXIS];
+@
+
+
+1.16
+log
+@more tweaks. two separated spheres still don't work...
+@
+text
+@d158 1
+a158 1
+	    if(NEAR_ZERO(xp-yp, 1.0e-5))
+d160 2
+d173 1
+d180 3
+d188 1
+d219 2
+d371 1
+d381 3
+@
+
+
+1.15
+log
+@memory leak finally fixed. updated fitness function, much better results.
+@
+text
+@d308 1
+d322 3
+d327 5
+d371 1
+a371 1
+	//fstate->diff /= fstate->res[U_AXIS]*fstate->res[V_AXIS];
+@
+
+
+1.14
+log
+@more cosmetics and options updates
+@
+text
+@d297 3
+a299 3
+	    ap.a_ray.r_pt[U_AXIS] = ap.a_rt_i->mdl_min[U_AXIS] + u * fstate->gridSpacing[U_AXIS];
+	    ap.a_ray.r_pt[V_AXIS] = ap.a_rt_i->mdl_min[V_AXIS] + v * fstate->gridSpacing[V_AXIS];
+	    ap.a_ray.r_pt[I_AXIS] = ap.a_rt_i->mdl_min[I_AXIS];
+d337 1
+d347 1
+d365 5
+a369 1
+    rt_clean(fstate->rtip);
+@
+
+
+1.13
+log
+@fixed issue with renaming directory pointers, combination trees are now supported
+@
+text
+@d337 5
+a341 5
+
+       fstate->bbox[0] = fstate->rtip->mdl_min[Z];
+    fstate->bbox[1] = fstate->rtip->mdl_max[Z] - fstate->bbox[0];
+    rt_prep_parallel(fstate->rtip,fstate->ncpu);
+    fstate->bbox[0] = fstate->rtip->mdl_min[Z] - fstate->bbox[0];
+d343 6
+a348 3
+    VSUB2(span, fstate->rtip->mdl_max, fstate->rtip->mdl_min);
+    fstate->gridSpacing[U_AXIS] = (fstate->rtip->mdl_max[U_AXIS]-fstate->rtip->mdl_min[U_AXIS])/ (fstate->res[U_AXIS] + 1);
+    fstate->gridSpacing[V_AXIS] = (fstate->rtip->mdl_max[V_AXIS] - fstate->rtip->mdl_min[V_AXIS]) / (fstate->res[V_AXIS] + 1 );
+d360 1
+a360 1
+	fstate->diff /= fstate->res[U_AXIS]*fstate->res[V_AXIS];
+@
+
+
+1.12
+log
+@more reasonable debugging output
+@
+text
+@d357 1
+@
+
+
+1.11
+log
+@partially working tree implementation. still some bugs to work out...
+@
+text
+@a96 1
+    printf("rt: storing ray\n");
+a97 1
+    printf("ray stored\n");
+a349 35
+    printf("fstate->rtip->nregions: %ld\tfstate->rtip->nsolids: %ld\n", fstate->rtip->nregions, fstate->rtip->nsolids);
+    printf("%p  - %p\n", fstate->rtip->Regions, fstate->rtip->Regions[0]);
+    struct region *regp;
+    /* safer but ... needed? */
+    for(BU_LIST_FOR(regp, region, &(fstate->rtip->HeadRegion) )){
+	printf("should be a tree here: %p\n", fstate->rtip->Regions[regp->reg_bit]);
+	printf("i lied, tree is here:%p\n", fstate->rtip->Regions[regp->reg_bit]->reg_treetop);
+	printf("db_tree_nleaves: %d\n", db_tree_nleaves(fstate->rtip->Regions[regp->reg_bit]->reg_treetop));
+	union tree *tp = fstate->rtip->Regions[regp->reg_bit]->reg_treetop;
+	switch(tp->tr_op){
+	    case OP_SOLID:
+		printf("SOLID\n");
+		tp->tr_a.tu_stp->st_meth->ft_print(tp->tr_a.tu_stp);
+		switch(tp->tr_a.tu_stp->st_id){
+		    case ID_ELL:
+		    case ID_SPH:
+			printf("ID_ELL\n");
+			VSET( ((struct rt_ell_internal *)tp->tr_a.tu_stp->st_specific)->v, 0.0, 0.0, 0.0);
+			break;
+		    case ID_ARBN:
+			printf("ID_ARBN\n");
+			break;
+		    case ID_TGC:
+			printf("ID_TGC\n");
+			break;
+		}
+
+		break;
+	}
+    }
+
+
+
+
+
+@
+
+
+1.10
+log
+@fixed bug where spheres with non-whole radii produced odd results
+@
+text
+@d52 1
+d85 1
+a85 1
+fit_store (char *obj, struct fitness_state *fstate)
+d87 7
+d96 4
+a99 1
+    fit_rt(obj, fstate);
+d319 1
+a319 1
+fit_rt(char *obj, struct fitness_state *fstate)
+d324 4
+a327 1
+    fstate->rtip = rt_new_rti(fstate->db);
+d351 36
+d403 1
+a403 1
+fit_linDiff(char *obj, struct fitness_state *fstate)
+d405 1
+a405 1
+    fit_rt(obj, fstate);
+d414 1
+d425 1
+d432 1
+a432 1
+fit_prep(char *db, int rows, int cols)
+d447 1
+d461 1
+d476 1
+a476 1
+    db_close(fstate->db); 
+@
+
+
+1.9
+log
+@quell more warnings, exit instead of returning in fit_prep()
+@
+text
+@d104 2
+a105 4
+	printf("hit values: [%.5g\t%.5g]\n", pp->pt_inhit->hit_dist, pp->pt_outhit->hit_dist);
+	add->inhit_dist =   pp->pt_inhit->hit_dist   / (((struct fitness_state *)ap->a_uptr)->rtip->rti_radius * 2);
+	add->outhit_dist =  pp->pt_outhit->hit_dist  / (((struct fitness_state *)ap->a_uptr)->rtip->rti_radius * 2);
+	printf("normalized: [%.5g\t%.5g]\n", add->inhit_dist, add->outhit_dist);
+a140 1
+	printf("hit values: [%g\t%g]\nnormalized: [%g\t%g]\n",pp->pt_inhit->hit_dist, pp->pt_outhit->hit_dist,pp->pt_inhit->hit_dist/(fstate->rtip->rti_radius *2.0), pp->pt_outhit->hit_dist/(fstate->rtip->rti_radius *2.0));
+d143 2
+a144 2
+	if(status & STATUS_PP)	xp = pp->pt_outhit->hit_dist/(fstate->rtip->rti_radius *2.0);
+	else			xp = pp->pt_inhit->hit_dist/(fstate->rtip->rti_radius *2.0);
+d204 1
+a204 1
+	fstate->diff+= pp->pt_outhit->hit_dist/(fstate->rtip->rti_radius*2) - lastpt;
+d220 1
+a220 1
+	    fstate->diff += (pp->pt_outhit->hit_dist - pp->pt_inhit->hit_dist) / (fstate->rtip->rti_radius * 2);
+a322 1
+    rt_prep_parallel(fstate->rtip,fstate->ncpu);
+d324 1
+a324 3
+    printf("radius: %g\n", fstate->rtip->rti_radius);
+    VPRINT("min", fstate->rtip->mdl_min);
+    VPRINT("max", fstate->rtip->mdl_max);
+d326 5
+d332 2
+a333 2
+    fstate->gridSpacing[U_AXIS] = span[U_AXIS] / (fstate->res[U_AXIS] + 1);
+    fstate->gridSpacing[V_AXIS] = span[V_AXIS] / (fstate->res[V_AXIS] + 1 );
+@
+
+
+1.8
+log
+@quell warning
+@
+text
+@d310 1
+a310 1
+int
+d398 2
+a399 1
+	return (struct fitness_state *)DB_OPEN_FAILURE;
+d406 2
+a407 1
+	return (struct fitness_state *)DB_DIRBUILD_FAILURE;
+@
+
+
+1.7
+log
+@added logical debugging output
+@
+text
+@a320 1
+
+d398 1
+a398 1
+	return DB_OPEN_FAILURE;
+d405 1
+a405 1
+	return DB_DIRBUILD_FAILURE;
+@
+
+
+1.6
+log
+@single sphere partially working
+@
+text
+@d104 1
+d107 1
+a107 1
+//	printf("[%.5g\t%.5g]\n", add->inhit_dist, add->outhit_dist);
+d143 2
+a145 1
+	printf("[%g\t%g] [%g\t%g]\n", mp->inhit_dist, mp->outhit_dist,   pp->pt_inhit->hit_dist/(fstate->rtip->rti_radius *2.0), pp->pt_outhit->hit_dist/(fstate->rtip->rti_radius *2.0));
+a238 1
+    printf("miss\n");
+d329 4
+@
+
+
+1.5
+log
+@implemented basic GA framework
+@
+text
+@a58 1
+extern struct fitness_state *fstate;
+d61 1
+a61 1
+rays_clear(void)
+d84 1
+a84 1
+fit_store (char *obj)
+d88 1
+a88 1
+    fit_rt(obj);
+d104 4
+a107 3
+	add->inhit_dist = pp->pt_inhit->hit_dist;
+	add->outhit_dist = pp->pt_outhit->hit_dist;
+	BU_LIST_INSERT(&fstate->rays[ap->a_user]->l, &add->l);
+d120 1
+a120 1
+    BU_LIST_INSERT(&fstate->rays[ap->a_user]->l, &add->l);
+d132 2
+a133 1
+    fastf_t xp, yp, lastpt;
+d143 3
+a145 2
+	if(status & STATUS_PP)	xp = pp->pt_outhit->hit_dist;
+	else			xp = pp->pt_inhit->hit_dist;
+d150 3
+a152 1
+	    if(xp < yp){
+a159 3
+	    else{
+		status = (STATUS_PP | STATUS_MP);
+	    }
+d162 7
+a168 1
+	    if(xp < yp){
+a177 5
+	    else{
+		status = STATUS_EMPTY;
+		pp = pp->pt_forw;
+		mp = BU_LIST_FORW(part, &mp->l);
+	    }
+d180 5
+d190 4
+a193 2
+	    if(yp < xp || yp == xp){
+		fstate->diff += yp - lastpt;
+d195 1
+a195 1
+		lastpt = xp;
+a196 2
+	}
+	else if(status == STATUS_MP){
+a201 5
+	    if(xp < yp || xp == yp){
+		fstate->diff += xp - lastpt;
+		status = STATUS_PP | STATUS_MP;
+		lastpt = yp;
+	    }
+d205 1
+a205 1
+	fstate->diff+= pp->pt_outhit->hit_dist - lastpt;
+d221 1
+a221 1
+	    fstate->diff += pp->pt_outhit->hit_dist - pp->pt_inhit->hit_dist;
+d237 1
+d246 1
+a246 1
+get_next_row(void)
+d267 1
+d269 1
+a269 1
+    
+d284 1
+d288 1
+a288 1
+    while((v = get_next_row())) {
+d310 1
+a310 1
+fit_rt(char *obj)
+d337 1
+a337 1
+	bu_parallel(rt_worker, fstate->ncpu, NULL);
+d340 1
+a340 1
+	bu_parallel(rt_worker, fstate->ncpu, NULL);
+d350 1
+a350 1
+fit_linDiff(char *obj)
+d352 1
+a352 2
+    fit_rt(obj);
+    printf("linDiff: %g\n", fstate->diff);
+d358 2
+d362 1
+a362 1
+fit_updateRes(int rows, int cols){
+d364 1
+a364 1
+	rays_clear();
+d368 1
+a368 1
+    fit_store(fstate->name);
+d376 1
+a376 1
+int 
+a378 2
+    int i;
+    struct part *p; /* used to free stored source */
+d380 1
+a380 2
+
+    fstate = bu_malloc(sizeof(struct fitness_state), "fstate");
+d408 1
+a408 1
+    return 0;
+d415 1
+a415 1
+fit_clean()
+a416 2
+    int i;
+    struct part *p;
+d418 1
+a418 1
+    rays_clear();
+@
+
+
+1.4
+log
+@modularized fitness functions
+@
+text
+@d327 1
+d348 1
+d378 1
+a378 1
+    fstate->max_cpus = fstate->ncpu = bu_avail_cpus();
+d385 1
+d389 1
+a389 1
+    if( (fstate->db = db_open(db, "r")) == DBI_NULL) {
+d416 1
+a416 2
+    db_close(fstate->db);
+    db_close(fstate->db);
+@
+
+
+1.3
+log
+@moved global vars to fstate and general cleanup
+@
+text
+@d23 5
+a27 6
+ *
+ * PROGRAM MODEL
+ * 1) read source  and convert to struct part 
+ * 2) when done, call function to compare a given population object to source
+ *    and return a number representative of the fitness (in terms of closeness
+ *    to the source)
+d52 1
+d54 1
+a54 42
+#define SEM_SHOTS RT_SEM_LAST+1
+#define SEM_STATS RT_SEM_LAST+2 /* semaphore for statistics */
+#define SEM_LIST RT_SEM_LAST+3
+#define TOTAL_SEMAPHORES SEM_LIST+1
+
+#define U_AXIS 0
+#define V_AXIS 1
+#define I_AXIS 2
+
+char *options = "c:r:d:p:t:?:h:";
+char *progname = "(noname)";
+char *usage_msg = "Usage: %s database model pop\n";
+
+
+//struct resource resource[MAX_PSW]; /* memory resources for multi-cpup processing */
+
+
+/* linked list of partitions of a ray*/
+struct part {
+    struct bu_list  l;
+    fastf_t	    inhit_dist;
+    fastf_t	    outhit_dist;
+};
+
+/* stored model ray */
+struct fitness_state {
+    char *name;
+    struct part **rays; /* internal representation of raytraced source */
+    struct db_i *db; /* the database the source and population are a part of */
+    struct rt_i *rtip; /* current objects to be raytraced */
+
+    struct resource resource[MAX_PSW]; /* memory resource for multi-cpu processing */
+    int ncpu;
+    int max_cpus;
+
+    int res[2]; /*  ray resolution on u and v axes */
+    double gridSpacing[2]; /* grid spacing on u and v axes */
+    int row; /* current v axis index *///IS IT?
+    
+    int capture; /* flags whether to store the object */
+    fastf_t diff; /* linear difference between source and object */
+};
+d56 1
+a56 1
+struct fitness_state *fstate;
+d59 1
+a60 5
+
+
+/**
+ *	U S A G E --- tell users how to invoke this program, then exit
+ */
+d62 1
+a62 1
+usage(char *s)
+d64 11
+a74 3
+    if(s) fputs(s,stderr);
+    fprintf(stderr, usage_msg, progname);
+    exit(1);
+d77 3
+d81 1
+a81 1
+ *	P A R S E _ A R G S --- Parse through command line flags
+d83 3
+a85 2
+int
+parse_args(int ac, char *av[])
+a86 5
+    char c;
+    if( ! (progname=strrchr(*av, '/')) )
+	progname = *av;
+    else
+	++progname;
+d88 3
+a90 17
+    bu_opterr = 0;
+
+    while((c=bu_getopt(ac,av,options)) != EOF) {
+	switch(c){
+	    case 'c'	: fstate->res[U_AXIS] = atoi(bu_optarg);break;
+	    case 'r'	: fstate->res[V_AXIS] = atoi(bu_optarg);break;
+	    case 'p'	: if((c=atoi(bu_optarg)) > 0 && c <= fstate->max_cpus) fstate->ncpu = c;
+			  break;
+	    case '?'	:
+	    case 'h'	:
+	    default	:
+			  fprintf(stderr, "Bad or help flag '%c' specified\n",c);
+			  usage("");
+			  break;
+	}
+    }
+    return bu_optind;
+a106 1
+	bu_semaphore_acquire(SEM_LIST);
+a107 1
+	bu_semaphore_release(SEM_LIST);
+d109 1
+a109 1
+
+a119 1
+    bu_semaphore_acquire(SEM_LIST);
+d121 1
+a121 1
+    bu_semaphore_release(SEM_LIST);
+a133 1
+    //some if(partHeadp == NULL)...
+d137 2
+a138 1
+    pp = partHeadp->pt_forw;
+a139 4
+#define STATUS_PP 1
+#define STATUS_MP 2
+#define STATUS_EMPTY 0
+
+d236 1
+a236 1
+    return 1;
+d257 1
+a257 1
+ *	C A P T U R E _ R T _  P L A N E --- capture and store raytraced object
+a259 1
+
+d261 1
+a261 1
+store_source_rt(int cpu, genptr_t g)
+d301 1
+a301 9
+ *	C O M P A R E _ R T _ S O U R C E --- compare raytrace of object to source
+ */
+void
+compare_rt_source(int cpu, genptr_t g)
+{
+
+}
+/**
+ *	R T _ O B J --- raytrace an object optionally storing the rays
+d305 2
+a306 2
+rt_obj(char *obj) {//use function pointers?
+
+d308 1
+d312 1
+a312 1
+	fprintf(stderr, "%s: rt_gettree failed to read %s\n", progname, obj);
+d322 1
+a322 2
+    
+    double span[3];
+d331 1
+a331 1
+	bu_parallel(store_source_rt, fstate->ncpu, NULL);
+d334 1
+a334 1
+	bu_parallel(store_source_rt, fstate->ncpu, NULL);
+a336 1
+    /* cleanup */
+d340 24
+d365 5
+a369 1
+int main(int ac, char *av[])
+a370 5
+    fstate = bu_malloc(sizeof(struct fitness_state), "fstate");
+    int arg_count;
+    //struct rt_i *rtip; /* reset for each object */
+#define IDBUFSIZE 2048
+    char idbuf[IDBUFSIZE];
+a371 2
+    int start_objs; /*index in command line args where geom object list starts */
+    int num_objects; 
+d374 2
+a377 6
+    /*parse command line arguments*/
+    arg_count = parse_args(ac, av);
+    if((ac - arg_count) < 2) {
+	usage("Error: Must specify model and objects on command line\n");
+    }
+
+d386 3
+a388 3
+    if( (fstate->db = db_open(av[arg_count], "r")) == DBI_NULL) {
+	fprintf(stderr, "%s: db_open failure on %s\n", progname, av[arg_count]);
+	exit(2);
+d394 2
+a395 2
+	fprintf(stderr, "db_dirbuild failed on %s\n", av[arg_count]);
+	exit(2);
+a397 12
+    start_objs = ++arg_count;
+    num_objects = ac - arg_count;
+
+    /* 
+     * capture source ray trace
+     */
+    fstate->capture = 1;
+    rt_obj(av[arg_count]); 
+
+    /*
+     * compare source ray trace to an object
+     */
+d399 5
+a403 3
+    rt_obj(av[arg_count+1]);
+
+    printf("Total linear difference between %s and %s: %g\n", av[arg_count], av[arg_count+1], fstate->diff);
+d405 9
+d415 3
+a417 10
+    for(i = 0; i < fstate->res[U_AXIS] * fstate->res[V_AXIS]; i++){
+	while(BU_LIST_WHILE(p, saved_partitition, &fstate->rays[i]->l)) {
+	    BU_LIST_DEQUEUE(&p->l);
+//	    printf("[%g %g]\n", p->inhit_dist, p->outhit_dist);
+	    bu_free(p, "part");
+	}
+	bu_free(fstate->rays[i], "part");
+    }
+    bu_free(fstate->rays, "fstate->rays");
+    return 0;
+a418 1
+}
+d420 1
+@
+
+
+1.2
+log
+@added working ray trace comparison based on linear difference of the partition
+@
+text
+@d25 4
+a28 2
+ * 1) read source model and convert to saved_parts
+ *
+d67 2
+a68 18
+int ncpu = 1;
+int max_cpus;
+int debug;
+
+double uGridSpacing; /* grid spacing along u axis */
+double vGridSpacing; /* grid spacing along v axis */
+
+#define DLOG if (debug) bu_log
+/*following is questionable*/
+
+
+struct resource resource[MAX_PSW]; /* memory resources for multi-cpup processing */
+int row; /*row counter*/
+int num_rows=1; /*number of rows */
+int num_cols=1; /*numbers of cols */
+struct rt_i *rtip; 
+int capture=1;
+fastf_t diff = 0.0;
+d79 21
+a99 1
+struct part **modelRays;
+d130 3
+a132 4
+	    case 'c'	: num_cols = atoi(bu_optarg);break;
+	    case 'r'	: num_rows = atoi(bu_optarg);break;
+	    case 'd'	: debug = 1; break;
+	    case 'p'	: if((c=atoi(bu_optarg)) > 0 && c <= max_cpus) ncpu = c;
+d160 1
+a160 1
+	BU_LIST_INSERT(&modelRays[ap->a_user]->l, &add->l);
+d175 1
+a175 1
+    BU_LIST_INSERT(&modelRays[ap->a_user]->l, &add->l);
+d189 2
+d194 1
+a194 1
+    mp = BU_LIST_FORW(part, &modelRays[ap->a_user]->l);
+d200 1
+a200 1
+    while(pp != partHeadp && mp != modelRays[ap->a_user]) {
+d238 1
+a238 1
+		diff += xp - lastpt;
+d243 1
+a243 1
+		diff += yp - lastpt;
+d250 1
+a250 1
+		diff += yp - lastpt;
+d255 1
+a255 1
+		diff += xp - lastpt;
+d262 1
+a262 1
+	diff+= pp->pt_outhit->hit_dist - lastpt;
+d266 1
+a266 1
+	diff += mp->outhit_dist - lastpt;
+d270 3
+a272 3
+    if(mp != modelRays[ap->a_user]){
+	while(mp != modelRays[ap->a_user]){
+	    diff += mp->outhit_dist - mp->inhit_dist;
+d278 1
+a278 1
+	    diff += pp->pt_outhit->hit_dist - pp->pt_inhit->hit_dist;
+d306 2
+a307 2
+    if(row < num_rows)
+	r = ++row; /* get a row to work on */
+d327 4
+a330 4
+    ap.a_rt_i = (struct rt_i *)rtip;
+    if(capture){
+    ap.a_hit = capture_hit;
+    ap.a_miss = capture_miss;
+d336 1
+a336 1
+    ap.a_resource = &resource[cpu];
+d342 1
+d344 3
+a346 3
+	for(u = 1; u <= num_cols; u++) {
+	    ap.a_ray.r_pt[U_AXIS] = ap.a_rt_i->mdl_min[U_AXIS] + u * uGridSpacing;
+	    ap.a_ray.r_pt[V_AXIS] = ap.a_rt_i->mdl_min[V_AXIS] + v * vGridSpacing;
+d348 1
+a348 1
+	    ap.a_user = (v-1)*(num_cols) + u-1;
+d351 3
+a353 3
+	    if(capture){
+	    modelRays[ap.a_user] = bu_malloc(sizeof(struct part), "part");
+	    BU_LIST_INIT(&modelRays[ap.a_user]->l);
+a354 1
+	    
+d373 1
+a373 1
+rt_obj(struct db_i *db, const char *obj) {//use function pointers?
+d377 2
+a378 2
+    rtip = rt_new_rti(db);
+    if(rt_gettree(rtip, obj) < 0){
+d384 3
+a386 3
+    for(i = 0; i < max_cpus; i++) {
+	rt_init_resource(&resource[i], i, rtip);
+	bn_rand_init(resource[i].re_randptr, i);
+d388 1
+a388 1
+    rt_prep_parallel(rtip,ncpu);
+d391 9
+a399 8
+    VSUB2(span, rtip->mdl_max, rtip->mdl_min);
+    uGridSpacing = span[U_AXIS] / (num_cols + 1);
+    vGridSpacing = span[V_AXIS] / (num_rows + 1 );
+    row = 0;
+
+    if(capture){
+	modelRays = bu_malloc(sizeof(struct part *) * num_rows * num_cols, "modelRays");
+	bu_parallel(store_source_rt, ncpu, NULL);
+d402 1
+a402 1
+	bu_parallel(store_source_rt, ncpu, NULL);
+d405 2
+a406 1
+    rt_clean(rtip);
+d412 1
+a414 1
+    struct db_i *db; /* database */
+a419 2
+    long steps[3]; /* fixme */
+    vect_t span; /* space of geometry */
+d422 1
+a422 1
+    max_cpus = ncpu = bu_avail_cpus();
+d432 1
+a432 1
+    rt_init_resource(&rt_uniresource, max_cpus, NULL);
+d438 1
+a438 1
+    if( (db = db_open(av[arg_count], "r")) == DBI_NULL) {
+d442 1
+a442 1
+    RT_CK_DBI(db);
+d444 2
+a445 2
+    if( db_dirbuild(db) < 0) {
+	db_close(db);
+d456 2
+a457 1
+    rt_obj(db, av[arg_count]); 
+d462 2
+a463 2
+    capture = 0;
+    rt_obj(db, av[arg_count+1]);
+d465 1
+a465 1
+    printf("Total linear difference between %s and %s: %g\n", av[arg_count], av[arg_count+1], diff);
+d467 3
+a469 3
+    db_close(db);
+    for(i = 0; i < num_rows * num_cols; i++){
+	while(BU_LIST_WHILE(p, saved_partitition, &modelRays[i]->l)) {
+d474 1
+a474 1
+	bu_free(modelRays[i], "part");
+d476 1
+a476 1
+    bu_free(modelRays, "modelRays");
+@
+
+
+1.1
+log
+@initial base for _beset_: ben's evolutionary shape extraction tool
+@
+text
+@d24 3
+d61 1
+a61 1
+char *options = "d:p:?:h:";
+d65 1
+a65 1
+int ncpu;
+a66 1
+int verbose;
+d68 4
+a73 1
+#define A_STATE a_uptr 
+d78 5
+a82 3
+int num_rows; /*number of rows */
+int num_cols;
+struct rt_i *rtip;
+a84 5
+/* linked list of rays shot at model */
+struct saved_ray {
+    struct bu_list  l;
+    struct saved_partition *part;
+};
+d86 1
+a86 1
+struct saved_partition {
+d92 4
+a95 9
+/* stored ray trace of the model */
+static struct saved_ray modelRays = {
+    {
+	BU_LIST_HEAD_MAGIC,
+	(struct bu_list *)&modelRays,
+	(struct bu_list *)&modelRays
+    },
+    (struct saved_partition *)NULL
+};
+d124 2
+d127 1
+a127 1
+	    case 'P'	: if((c=atoi(bu_optarg)) > 0 && c <= max_cpus) ncpu = c;
+d144 1
+a144 1
+hit_capture(register struct application *ap, struct partition *partHeadp, struct seg *segs)
+d149 1
+a149 1
+    struct saved_partition *add;
+d151 1
+a151 1
+	add = bu_malloc(sizeof(struct saved_partition), "saved_partition");
+d155 1
+a155 1
+	BU_LIST_INSERT(&modelRays.l, &add->l);
+d165 1
+a165 1
+miss_capture(register struct application *ap)
+d167 2
+a168 2
+    struct saved_partition *add = bu_malloc(sizeof(struct saved_partition), "saved_partition");
+    add->inhit_dist = add->outhit_dist = -1;
+d170 1
+a170 1
+    BU_LIST_INSERT(&modelRays.l, &add->l);
+d175 117
+d297 1
+d300 1
+a300 1
+	++row; /* get a row to work on */
+d302 1
+a302 1
+	row = 0; /* signal end of work */
+d305 1
+a305 1
+    return row;
+d309 2
+a310 1
+ *	R T _ R O W S --- parallel ray tracing of rows
+d312 1
+d314 1
+a314 1
+rt_rows(int cpu, genptr_t ptr)
+a317 1
+    struct saved_ray *add;
+d321 1
+d324 5
+d331 1
+a331 1
+    ap.a_ray.r_dir[U_AXIS] = ap.a_ray.r_dist[V_AXIS] = 0.0;
+a332 1
+    ap.A_STATE = ptr; /* necessary? */
+d335 95
+a429 2
+    /* D'OH: linked lists develop race condition which means rays are not in order in linked list
+     * --> move from linked list to array, oh well.
+d431 19
+d452 18
+a469 6
+    while((v = get_next_row())) {
+	for(u = 1; u < num_cols; u++) {
+	    ap.a_ray.r_pt[U_AXIS] = ap.a_rt_i->mdl_min[U_AXIS] + u * gridSpacing;
+	    ap.a_ray.r_pt[V_AXIS] = ap.a_rt_i->mdl_min[V_AXIS] + v * gridSpacing;
+	    ap.a_ray.r_pt[I_AXIS] = ap.a_rt_i->mdl_min[I_AXIS];
+	    ap.a_user = v;
+a470 2
+	    add = bu_malloc(sizeof(struct saved_ray), "saved_ray");
+	    */
+d472 1
+@
+

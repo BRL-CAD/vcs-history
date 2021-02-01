@@ -1,0 +1,272 @@
+head	1.4;
+access;
+symbols
+	rel-7-10-4:1.3
+	STABLE:1.3.0.2
+	stable-branch:1.1
+	rel-7-10-2:1.3
+	rel-7-10-0:1.3
+	rel-7-8-4:1.3
+	rel-7-8-2:1.3
+	rel-7-8-0:1.3
+	trimnurbs-branch:1.2.0.2
+	help:1.2
+	temp_tag:1.2
+	bobWinPort-20051223-freeze:1.1
+	postmerge-20051223-bobWinPort:1.2
+	premerge-20051223-bobWinPort:1.2
+	rel-7-6-6:1.2
+	rel-7-6-4:1.2
+	rel-7-6-2:1.1
+	rel-7-6-branch:1.1.0.6
+	rel-7-6-0:1.1
+	rel-7-4-2:1.1
+	rel-7-4-branch:1.1.0.4
+	bobWinPort:1.1.0.2
+	rel-7-4-0:1.1
+	rel-7-2-6:1.1
+	rel-7-2-4:1.1
+	rel-7-2-2:1.1
+	rel-7-2-0:1.1
+	rel-7-0-4:1.1;
+locks; strict;
+comment	@ * @;
+
+
+1.4
+date	2007.09.14.15.21.13;	author erikgreenwald;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2006.03.24.19.36.13;	author brlcad;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2005.11.06.03.50.58;	author brlcad;	state Exp;
+branches
+	1.2.2.1;
+next	1.1;
+
+1.1
+date	2005.01.24.05.12.41;	author brlcad;	state Exp;
+branches
+	1.1.6.1;
+next	;
+
+1.1.6.1
+date	2005.11.13.13.46.18;	author brlcad;	state Exp;
+branches;
+next	;
+
+1.2.2.1
+date	2006.04.07.19.34.10;	author jlowenz;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.4
+log
+@removed trailing whitespace
+@
+text
+@/*
+ * This software is copyrighted as noted below.  It may be freely copied,
+ * modified, and redistributed, provided that the copyright notice is
+ * preserved on all copies.
+ *
+ * There is no warranty or other guarantee of fitness for this software,
+ * it is provided solely "as is".  Bug reports or fixes may be sent
+ * to the author, who may or may not act on them as he desires.
+ *
+ * You may not include this software in a program or other software product
+ * without supplying the source, or without informing the end-user that the
+ * source is available for no extra charge.
+ *
+ * If you modify this software, you should include a notice giving the
+ * name of the person performing the modification, the date of modification,
+ * and the reason for such modification.
+ */
+/*
+ * rlesetbg.c - set the background color (based on repos)
+ *
+ * Author:	John W. Peterson & Rod Bogart
+ * 		Computer Science Dept.
+ * 		University of Utah
+ * Date:	Sat Jun 21 1986
+ * Copyright (c) 1986, University of Utah
+ *
+ */
+#ifndef lint
+static char rcs_ident[] = "$Id: rlesetbg.c,v 1.3 2006/03/24 19:36:13 brlcad Exp $";
+#endif
+
+#include <stdlib.h>
+#include <stdio.h>
+#include "rle.h"
+
+char buffer[4096];
+
+int
+main(argc, argv)
+int	argc;
+char	*argv[];
+{
+    int *new_back = NULL, nback = 0;
+    int overlay_flag = 0, backcolor_flag = 0, oflag = 0;
+    rle_hdr 	in_hdr, out_hdr;
+    char * fname = NULL, *out_fname = NULL;
+    FILE *outfile = stdout;
+    int rle_cnt, rle_err;
+
+    in_hdr = *rle_hdr_init( NULL );
+    out_hdr = *rle_hdr_init( NULL );
+
+    if (scanargs(argc, argv,
+		 "% DO%- c%-bgcolor!*d o%-outfile!s infile%s",
+		 &overlay_flag, &backcolor_flag,
+		 &nback, &new_back,
+		 &oflag, &out_fname, &fname ) == 0)
+    {
+	exit(-1);
+    }
+    if (overlay_flag == 2 && backcolor_flag)
+    {
+	fprintf(stderr, "%s: Delete or new color, but not both\n",
+		cmd_name( argv ));
+	exit(-1);
+    }
+    in_hdr.rle_file = rle_open_f(cmd_name( argv ), fname, "r");
+    rle_names( &in_hdr, cmd_name( argv ), fname, 0 );
+    rle_names( &out_hdr, in_hdr.cmd, out_fname, 0 );
+
+    for ( rle_cnt = 0;
+	  (rle_err = rle_get_setup( &in_hdr )) == RLE_SUCCESS;
+	  rle_cnt++ )
+    {
+	if ( backcolor_flag && nback < in_hdr.ncolors )
+	{
+	    fprintf( stderr, "%s: Need %ld colors, only %ld supplied.\n",
+		     in_hdr.ncolors, nback );
+	    exit(-1);
+	}
+	(void)rle_hdr_cp( &in_hdr, &out_hdr );
+	if ( rle_cnt == 0 )
+	    outfile = rle_open_f( cmd_name( argv ), out_fname, "w" );
+	out_hdr.rle_file = outfile;
+
+	rle_addhist( argv, &in_hdr, &out_hdr );
+
+	out_hdr.background = 2 - overlay_flag;
+	if ( backcolor_flag != 0 )
+	    out_hdr.bg_color = new_back;
+
+	rle_put_setup( &out_hdr );
+
+	rle_cp( &in_hdr, &out_hdr );
+    }
+
+    /* Check for an error.  EOF or EMPTY is ok if at least one image
+     * has been read.  Otherwise, print an error message.
+     */
+    if ( rle_cnt == 0 || (rle_err != RLE_EOF && rle_err != RLE_EMPTY) )
+	rle_get_error( rle_err, cmd_name( argv ), fname );
+
+    exit( 0 );
+}
+@
+
+
+1.3
+log
+@quell compiler warnings
+@
+text
+@d3 1
+a3 1
+ * modified, and redistributed, provided that the copyright notice is 
+d5 1
+a5 1
+ * 
+d11 1
+a11 1
+ * without supplying the source, or without informing the end-user that the 
+d18 1
+a18 1
+/* 
+d20 1
+a20 1
+ * 
+d26 1
+a26 1
+ * 
+d29 1
+a29 1
+static char rcs_ident[] = "$Id: rlesetbg.c,v 1.2 2005/11/06 03:50:58 brlcad Exp $";
+@
+
+
+1.2
+log
+@include stdlib.h to quell ansi c warnings about exit being implicitly defined
+@
+text
+@d29 1
+a29 1
+static char rcs_ident[] = "$Id: rlesetbg.c,v 1.1 2005/01/24 05:12:41 brlcad Exp $";
+d38 1
+a38 1
+void
+d77 1
+a77 1
+	    fprintf( stderr, "%s: Need %d colors, only %d supplied.\n",
+@
+
+
+1.2.2.1
+log
+@update from HEAD
+@
+text
+@d29 1
+a29 1
+static char rcs_ident[] = "$Id: rlesetbg.c,v 1.2 2005/11/06 03:50:58 brlcad Exp $";
+d38 1
+a38 1
+int
+d77 1
+a77 1
+	    fprintf( stderr, "%s: Need %ld colors, only %ld supplied.\n",
+@
+
+
+1.1
+log
+@update of urt from 3.0 to 3.1b1; this includes keeping directory structure and moving tools to src/other/URToolkit/tools
+@
+text
+@d29 1
+a29 1
+static char rcs_ident[] = "$Id: rlesetbg.c,v 3.0.1.1 1992/01/23 20:44:32 spencer Exp $";
+d32 1
+@
+
+
+1.1.6.1
+log
+@merge changes from HEAD aka rel-7-6-4 to the rel-7-6-branch just in case someone peeks a gander or tries to continue/build the branch
+@
+text
+@d29 1
+a29 1
+static char rcs_ident[] = "$Id$";
+a31 1
+#include <stdlib.h>
+@
+
+

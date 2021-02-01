@@ -1,0 +1,671 @@
+head	11.12;
+access;
+symbols
+	ansi-20040405-merged:11.9.2.1
+	postmerge-20040405-ansi:11.10
+	premerge-20040404-ansi:11.9
+	postmerge-autoconf:11.9
+	autoconf-freeze:11.9
+	premerge-autoconf:11.9
+	postmerge-20040315-windows:11.9
+	premerge-20040315-windows:11.9
+	windows-20040315-freeze:11.9
+	autoconf-20031203:11.9
+	autoconf-20031202:11.9
+	autoconf-branch:11.9.0.10
+	phong-branch:11.9.0.8
+	photonmap-branch:11.9.0.6
+	rel-6-1-DP:11.9
+	windows-branch:11.9.0.4
+	rel-6-0-2:11.7
+	ansi-branch:11.9.0.2
+	rel-6-0-1-branch:11.7.0.2
+	hartley-6-0-post:11.8
+	hartley-6-0-pre:11.7
+	rel-6-0-1:11.7
+	rel-6-0:11.7
+	rel-5-4:11.4
+	offsite-5-3-pre:11.6
+	rel-5-3:11.4
+	rel-5-2:11.4
+	rel-5-1-branch:11.4.0.2
+	rel-5-1:11.4
+	rel-5-0:11.3
+	rel-5-0-beta:11.3
+	rel-4-5:11.2
+	ctj-4-5-post:11.2
+	ctj-4-5-pre:11.2
+	rel-4-4:11.1;
+locks; strict;
+comment	@ * @;
+
+
+11.12
+date	2004.05.21.14.57.46;	author morrison;	state dead;
+branches;
+next	11.11;
+
+11.11
+date	2004.05.10.15.30.50;	author erikg;	state Exp;
+branches;
+next	11.10;
+
+11.10
+date	2004.04.05.05.46.02;	author morrison;	state Exp;
+branches;
+next	11.9;
+
+11.9
+date	2002.08.20.17.09.01;	author jra;	state Exp;
+branches
+	11.9.2.1;
+next	11.8;
+
+11.8
+date	2002.08.15.20.56.12;	author hartley;	state Exp;
+branches;
+next	11.7;
+
+11.7
+date	2001.08.08.03.28.15;	author butler;	state Exp;
+branches;
+next	11.6;
+
+11.6
+date	2000.09.01.03.23.53;	author mike;	state Exp;
+branches;
+next	11.5;
+
+11.5
+date	2000.08.23.19.04.39;	author mike;	state Exp;
+branches;
+next	11.4;
+
+11.4
+date	99.10.20.01.09.17;	author mike;	state Exp;
+branches;
+next	11.3;
+
+11.3
+date	99.05.19.22.01.03;	author mike;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	96.12.13.15.05.51;	author jra;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	95.01.04.10.12.24;	author mike;	state Rel4_4;
+branches;
+next	1.4;
+
+1.4
+date	94.08.23.13.08.33;	author gdurf;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	93.12.04.05.03.34;	author mike;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	93.12.04.05.02.31;	author mike;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	93.12.04.04.48.24;	author mike;	state Exp;
+branches;
+next	;
+
+11.9.2.1
+date	2002.09.19.18.02.39;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@.pix to .ppm
+@
+
+
+11.12
+log
+@moved to src/util/
+@
+text
+@/*
+ * convert BRL .pix files to ppm
+ * sahayman 1991 01 18
+ *
+ * Pixels run left-to-right, from the bottom of the screen to the top.
+ *
+ *  Authors -
+ *	Steve Hayman <sahayman@@iuvax.cs.indiana.edu>
+ *	Michael John Muuss
+ *  
+ *  Source -
+ *	The U. S. Army Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005-5068  USA
+ *  
+ *  Distribution Status -
+ *	Public Domain, Distribution Unlimitied.
+ */
+#ifndef lint
+static const char RCSid[] = "@@(#)$Header: /n/xoff/cvs/brlcad/util/pix-ppm.c,v 11.11 2004/05/10 15:30:50 erikg Exp $ (ARL)";
+#endif
+
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+
+#include <stdio.h>
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+#include "machine.h"
+#include "bu.h"
+#include "vmath.h"
+#include "bn.h"
+#include "externs.h"
+
+static int	file_width = 512;	/* default input width */
+static int	file_height = 512;	/* default input height */
+
+static int	autosize = 0;		/* !0 to autosize input */
+
+static int	fileinput = 0;		/* file of pipe on input? */
+static char	*file_name;
+static FILE	*infp;
+
+static int	pixbytes = 3;
+
+#define ROWSIZE (file_width * pixbytes)
+#define SIZE (file_width * file_height * pixbytes)
+
+char *scanbuf;
+
+static char usage[] = "\
+Usage: pix-ppm [-a] [-#bytes] [-w file_width] [-n file_height]\n\
+	[-s square_file_size] [file.pix]\n";
+
+int
+get_args(int argc, register char **argv)
+{
+	register int c;
+
+	while ( (c = getopt( argc, argv, "a#:s:w:n:" )) != EOF )  {
+		switch( c )  {
+		case '#':
+			pixbytes = atoi(optarg);
+			break;
+		case 'a':
+			autosize = 1;
+			break;
+		case 's':
+			/* square file size */
+			file_height = file_width = atoi(optarg);
+			autosize = 0;
+			break;
+		case 'w':
+			file_width = atoi(optarg);
+			autosize = 0;
+			break;
+		case 'n':
+			file_height = atoi(optarg);
+			autosize = 0;
+			break;
+
+		default:		/* '?' */
+			return(0);
+		}
+	}
+
+	if( optind >= argc )  {
+		if( isatty(fileno(stdin)) )
+			return(0);
+		file_name = "-";
+		infp = stdin;
+	} else {
+		file_name = argv[optind];
+		if( (infp = fopen(file_name, "r")) == NULL )  {
+			perror(file_name);
+			(void)fprintf( stderr,
+				"pix-ppm: cannot open \"%s\" for reading\n",
+				file_name );
+			exit(1);
+		}
+		fileinput++;
+	}
+
+	if ( argc > ++optind )
+		(void)fprintf( stderr, "pix-ppm: excess argument(s) ignored\n" );
+
+	return(1);		/* OK */
+}
+
+int
+main(int argc, char **argv)
+{
+	int i;
+	char *row;
+
+
+	if ( !get_args( argc, argv ) )  {
+		(void)fputs(usage, stderr);
+		exit( 1 );
+	}
+
+	/* autosize input? */
+	if( fileinput && autosize ) {
+		int	w, h;
+		if( bn_common_file_size(&w, &h, file_name, pixbytes) ) {
+			file_width = w;
+			file_height = h;
+		} else {
+			fprintf(stderr,"pix-ppm: unable to autosize\n");
+		}
+	}
+
+
+	/*
+	 * gobble up the bytes
+	 */
+	scanbuf = malloc( SIZE );
+	if ( scanbuf == NULL ) {
+		perror("pix-ppm: malloc");
+		exit(1);
+	}
+	if ( fread(scanbuf, 1, SIZE, infp) == 0 ) {
+		fprintf(stderr, "pix-ppm: Short read\n");
+		exit(1);
+	}
+
+	if( pixbytes == 1 )  {
+		/* PGM magic number */
+		printf("P2\n");
+	} else {
+		/* PPM magic number */
+		printf("P6\n");
+	}
+
+	/* width height */
+	printf("%d %d\n", file_width, file_height);
+
+	/* maximum color component value */
+	printf("255\n");
+	fflush(stdout);
+
+	/*
+	 * now write them out in the right order, 'cause the
+	 * input is upside down.
+	 */
+	
+	for ( i = 0; i < file_height; i++ ) {
+		row = scanbuf + (file_height-1 - i) * ROWSIZE;
+		fwrite(row, 1, ROWSIZE, stdout);
+	}
+
+	exit(0);
+}
+@
+
+
+11.11
+log
+@change conf.h to a wrapped config.h
+@
+text
+@d19 1
+a19 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/util/pix-ppm.c,v 11.10 2004/04/05 05:46:02 morrison Exp $ (ARL)";
+@
+
+
+11.10
+log
+@merge of ansi-6-0-branch into head
+@
+text
+@d19 1
+a19 1
+static const char RCSid[] = "@@(#)$Header$ (ARL)";
+d22 5
+a26 1
+#include "conf.h"
+d29 5
+a33 1
+#include "conf.h"
+@
+
+
+11.9
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d19 1
+a19 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/util/pix-ppm.c,v 11.7 2001/08/08 03:28:15 butler Exp $ (ARL)";
+d53 1
+a53 2
+get_args( argc, argv )
+register char **argv;
+d108 1
+a108 3
+main(argc, argv)
+int	argc;
+char	**argv;
+@
+
+
+11.9.2.1
+log
+@Initial ANSIfication
+@
+text
+@d19 1
+a19 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/util/pix-ppm.c,v 11.9 2002/08/20 17:09:01 jra Exp $ (ARL)";
+d53 2
+a54 1
+get_args(int argc, register char **argv)
+d109 3
+a111 1
+main(int argc, char **argv)
+@
+
+
+11.8
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d53 2
+a54 1
+get_args(int argc, register char **argv)
+d109 3
+a111 1
+main(int argc, char **argv)
+@
+
+
+11.7
+log
+@Misc compiler warnings eliminated
+@
+text
+@d19 1
+a19 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/util/pix-ppm.c,v 11.6 2000/09/01 03:23:53 mike Exp $ (ARL)";
+d53 1
+a53 2
+get_args( argc, argv )
+register char **argv;
+d108 1
+a108 3
+main(argc, argv)
+int	argc;
+char	**argv;
+@
+
+
+11.6
+log
+@
+Lint fix
+@
+text
+@d19 1
+a19 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/util/pix-ppm.c,v 11.5 2000/08/23 19:04:39 mike Exp $ (ARL)";
+d25 1
+d27 3
+d52 1
+@
+
+
+11.5
+log
+@
+const RCSid
+@
+text
+@d19 1
+a19 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/util/pix-ppm.c,v 11.4 1999/10/20 01:09:17 mike Exp $ (ARL)";
+d103 1
+@
+
+
+11.4
+log
+@
+Off-by-one error
+fix from Tom Browder
+From: Tom Browder <tom2@@fwb.asi.srs.com>
+@
+text
+@d19 1
+a19 1
+static char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/util/pix-ppm.c,v 11.3 1999/05/19 22:01:03 mike Exp $ (ARL)";
+@
+
+
+11.3
+log
+@
+Added -# option so that it will work with .bw files too.
+@
+text
+@d19 1
+a19 1
+static char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/util/pix-ppm.c,v 11.2 1996/12/13 15:05:51 jra Exp $ (ARL)";
+d162 1
+a162 1
+		row = scanbuf + (file_height - i) * ROWSIZE;
+@
+
+
+11.2
+log
+@Mods to account for asize routines now in libbn.
+@
+text
+@d19 1
+a19 1
+static char RCSid[] = "@@(#)$Header: /m/cad/util/RCS/pix-ppm.c,v 11.1 1995/01/04 10:12:24 mike Rel4_4 jra $ (ARL)";
+d37 1
+a37 2
+#define BYTESPERPIXEL 3
+#define ROWSIZE (file_width * BYTESPERPIXEL)
+d39 2
+a40 1
+#define SIZE (file_width * file_height * BYTESPERPIXEL)
+d45 1
+a45 1
+Usage: pix-ppm [-a] [-w file_width] [-n file_height]\n\
+d53 1
+a53 1
+	while ( (c = getopt( argc, argv, "as:w:n:" )) != EOF )  {
+d55 3
+d119 1
+a119 1
+		if( bn_common_file_size(&w, &h, file_name, 3) ) {
+d141 7
+a147 2
+	/* PPM magic number */
+	printf("P6\n");
+@
+
+
+11.1
+log
+@Release_4.4
+@
+text
+@d19 1
+a19 1
+static char RCSid[] = "@@(#)$Header: /m/cad/util/RCS/pix-ppm.c,v 1.4 94/08/23 13:08:33 gdurf Exp $ (ARL)";
+d116 1
+a116 1
+		if( fb_common_file_size(&w, &h, file_name, 3) ) {
+@
+
+
+1.4
+log
+@Added include of conf.h
+@
+text
+@d19 1
+a19 1
+static char RCSid[] = "@@(#)$Header: /m/cad/util/RCS/pix-ppm.c,v 1.3 1993/12/04 05:03:34 mike Exp gdurf $ (ARL)";
+@
+
+
+1.3
+log
+@Regular header.
+@
+text
+@d19 1
+a19 1
+static char RCSid[] = "@@(#)$Header$ (ARL)";
+d21 2
+@
+
+
+1.2
+log
+@Initial working version.
+@
+text
+@a2 1
+ * zcat file.Z | pixtoppm
+a4 7
+ * From: Steve Hayman <sahayman@@iuvax.cs.indiana.edu>
+ *
+ * brl says this:
+ *
+ * These compressed images are in BRL-CAD .pix file format.
+ * They are 24-bits/pixel, 720 by 486 pixels.
+ *
+d7 10
+a16 1
+ *	Mike @@ BRL.MIL
+d18 4
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@a0 18
+
+Received: from vgr.brl.mil by WOLF.BRL.MIL id aa26015; 19 Jan 91 3:38 EST
+Received: from iuvax.cs.indiana.edu by VGR.BRL.MIL id aa28346;
+          19 Jan 91 3:19 EST
+Received: by iuvax.cs.indiana.edu 
+Date: Sat, 19 Jan 91 03:20:32 -0500
+From: Steve Hayman <sahayman@@iuvax.cs.indiana.edu>
+To: mike@@BRL.MIL
+Subject: Re:  War Images
+Message-ID:  <9101190319.aa28346@@VGR.BRL.MIL>
+
+Here it is, it's pretty basic and only handles the images at
+the specific resolution you posted.  Just a 10-minute hack,
+but I suppose it would be easy to add options to select
+different widths/heights.
+
+#include <stdio.h>
+
+d6 2
+d17 3
+d21 9
+a29 2
+#define WIDTH 720
+#define HEIGHT 486
+d31 1
+a31 1
+#define ROWSIZE (WIDTH * BYTESPERPIXEL)
+d33 1
+a33 1
+#define SIZE (WIDTH * HEIGHT * BYTESPERPIXEL)
+d35 1
+d37 3
+a39 2
+char *map;
+char *malloc();
+d41 2
+a42 1
+main()
+d44 1
+d46 18
+a63 5
+    int i;
+    char *row;
+    /*
+     * magic number
+     */
+d65 4
+a68 1
+    printf("P6\n");
+d70 16
+a85 4
+    /*
+     * width height
+     */
+    printf("%d %d\n", WIDTH, HEIGHT);
+d87 2
+a88 3
+    /*
+     * maximum color component value
+     */
+d90 2
+a91 2
+    printf("255\n");
+    fflush(stdout);
+d93 6
+a98 3
+    /*
+     * now gobble up the bytes
+     */
+a99 5
+    map = malloc( SIZE );
+    if ( map == NULL ) {
+	perror("malloc");
+	exit(1);
+    }
+d101 4
+d106 10
+a115 4
+    if ( fread(map, 1, SIZE, stdin) == 0 ) {
+	fprintf(stderr, "Short read\n");
+	exit(1);
+    }
+a116 9
+    /*
+     * now write them out in the right order, 'cause the
+     * input is upside down.
+     */
+    
+    for ( i = 0; i < HEIGHT; i++ ) {
+	row = map + (HEIGHT - i) * ROWSIZE;
+	fwrite(row, 1, ROWSIZE, stdout);
+    }
+d118 34
+a151 1
+    exit(0);
+a152 1
+
+@

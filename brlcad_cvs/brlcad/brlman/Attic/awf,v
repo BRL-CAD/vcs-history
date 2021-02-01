@@ -1,0 +1,153 @@
+head	1.3;
+access;
+symbols
+	ansi-20040405-merged:1.2
+	postmerge-20040405-ansi:1.2
+	premerge-20040404-ansi:1.2
+	postmerge-autoconf:1.2
+	autoconf-freeze:1.2
+	premerge-autoconf:1.2
+	ansi-20040316-freeze:1.2
+	postmerge-20040315-windows:1.2
+	premerge-20040315-windows:1.2
+	windows-20040315-freeze:1.2
+	autoconf-20031203:1.2
+	autoconf-20031202:1.2
+	autoconf-branch:1.2.0.14
+	phong-branch:1.2.0.12
+	photonmap-branch:1.2.0.10
+	rel-6-1-DP:1.2
+	windows-branch:1.2.0.8
+	rel-6-0-2:1.2
+	ansi-branch:1.2.0.6
+	rel-6-0-1-branch:1.2.0.4
+	hartley-6-0-post:1.2
+	hartley-6-0-pre:1.2
+	rel-6-0-1:1.2
+	rel-6-0:1.2
+	rel-5-4:1.2
+	offsite-5-3-pre:1.2
+	rel-5-3:1.2
+	rel-5-2:1.2
+	rel-5-1-branch:1.2.0.2
+	rel-5-1:1.2
+	rel-5-0:1.2
+	rel-5-0-beta:1.2
+	rel-4-5:1.1
+	ctj-4-5-post:1.1
+	ctj-4-5-pre:1.1
+	rel-4-4:1.1
+	rel-4-0:1.1;
+locks; strict;
+comment	@# @;
+
+
+1.3
+date	2004.05.24.04.20.22;	author morrison;	state dead;
+branches;
+next	1.2;
+
+1.2
+date	98.08.22.23.41.00;	author mike;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	91.06.23.01.49.59;	author mike;	state Exp;
+branches;
+next	;
+
+
+desc
+@Henry Spencer's "nroff -man" replacement
+@
+
+
+1.3
+log
+@moved to src/brlman/
+@
+text
+@#! /bin/sh
+eval `machinetype.sh -v`		# BRL mod: sets $BASEDIR
+PATH=/bin:/usr/bin ; export PATH
+# AWFLIB is where the pieces live
+AWFLIB=${AWFLIB-$BASEDIR/etc}		# BRL mod
+
+tmp=/tmp/awp$$			# tempfile for building pass 2
+errs=/tmp/awe$$		# error messages (awk can't send to stderr)
+
+case "$1" in
+-ms)	mac=ms	;;
+-man)	mac=man	;;
+*)	echo "$0: must specify -ms or -man" >&2
+	exit 2
+	;;
+esac
+shift
+
+dev="$AWFLIB/dev.$TERM"
+if test ! -r $dev
+then
+	dev="$AWFLIB/dev.dumb"
+fi
+
+trap "rm -f $tmp $errs ; exit 0" 0 1 2
+
+# build the full, macro-set-dependent, pass-2 awk program
+(
+	sed -n '1,/^#include/p' $AWFLIB/pass2.base
+	cat $AWFLIB/pass2.$mac
+	sed -n '/^#include/,$p' $AWFLIB/pass2.base
+) >$tmp
+
+# do it
+(
+	echo ".^x $errs"
+	echo ".^b"
+	echo ".^# 1 <prolog>"
+	cat $dev $AWFLIB/common $AWFLIB/mac.$mac
+	if test " $*" = " "
+	then
+		echo ".^# 1 <stdin>"
+		cat
+	else
+		for f
+		do
+			echo ".^# 1 $f"
+			cat $f
+		done
+	fi
+	echo ".^e"
+) | awk -f $AWFLIB/pass1 | awk -f $tmp | awk -f $AWFLIB/pass3
+
+# error messages, if any
+if test -s $errs
+then
+	cat $errs >&2
+	exit 1
+else
+	exit 0
+fi
+@
+
+
+1.2
+log
+@Changed to use machinetype.sh at run time to find BINDIR,
+rather than depending on newbindir.sh at installation time.
+@
+text
+@@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d2 1
+d5 1
+a5 1
+AWFLIB=${AWFLIB-/usr/brlcad/etc}		# BRL mod
+@

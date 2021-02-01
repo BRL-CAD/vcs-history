@@ -1,0 +1,1073 @@
+head	1.18;
+access;
+symbols
+	ansi-20040405-merged:1.15.2.1
+	postmerge-20040405-ansi:1.16
+	premerge-20040404-ansi:1.15
+	postmerge-autoconf:1.15
+	autoconf-freeze:1.15
+	premerge-autoconf:1.15
+	ansi-20040316-freeze:1.15.2.1
+	postmerge-20040315-windows:1.15
+	premerge-20040315-windows:1.15
+	windows-20040315-freeze:1.15
+	autoconf-20031203:1.15
+	autoconf-20031202:1.15
+	autoconf-branch:1.15.0.10
+	phong-branch:1.15.0.8
+	photonmap-branch:1.15.0.6
+	rel-6-1-DP:1.15
+	windows-branch:1.15.0.4
+	rel-6-0-2:1.13
+	ansi-branch:1.15.0.2
+	rel-6-0-1-branch:1.13.0.2
+	hartley-6-0-post:1.14
+	hartley-6-0-pre:1.13
+	rel-6-0-1:1.13
+	rel-6-0:1.13
+	rel-5-4:1.9
+	offsite-5-3-pre:1.11
+	rel-5-3:1.9
+	rel-5-2:1.9
+	rel-5-1-branch:1.9.0.2
+	rel-5-1:1.9
+	rel-5-0:1.6
+	rel-5-0-beta:1.6
+	rel-4-5:1.6
+	ctj-4-5-post:1.5
+	ctj-4-5-pre:1.5;
+locks; strict;
+comment	@ * @;
+
+
+1.18
+date	2004.05.21.18.06.24;	author morrison;	state dead;
+branches;
+next	1.17;
+
+1.17
+date	2004.05.10.15.30.44;	author erikg;	state Exp;
+branches;
+next	1.16;
+
+1.16
+date	2004.04.05.07.46.16;	author morrison;	state Exp;
+branches;
+next	1.15;
+
+1.15
+date	2002.08.20.17.07.41;	author jra;	state Exp;
+branches
+	1.15.2.1;
+next	1.14;
+
+1.14
+date	2002.08.15.20.54.54;	author hartley;	state Exp;
+branches;
+next	1.13;
+
+1.13
+date	2001.05.16.21.37.53;	author morrison;	state Exp;
+branches;
+next	1.12;
+
+1.12
+date	2001.04.20.22.29.07;	author morrison;	state Exp;
+branches;
+next	1.11;
+
+1.11
+date	2000.07.07.05.20.13;	author cjohnson;	state Exp;
+branches;
+next	1.10;
+
+1.10
+date	2000.07.07.00.37.35;	author cjohnson;	state Exp;
+branches;
+next	1.9;
+
+1.9
+date	2000.03.31.04.53.48;	author mike;	state Exp;
+branches;
+next	1.8;
+
+1.8
+date	2000.03.28.18.55.09;	author mike;	state Exp;
+branches;
+next	1.7;
+
+1.7
+date	2000.03.28.18.04.43;	author mike;	state Exp;
+branches;
+next	1.6;
+
+1.6
+date	97.11.24.15.56.22;	author jra;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	96.08.31.04.02.16;	author mike;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	96.08.29.05.31.26;	author mike;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	96.08.29.03.04.38;	author mike;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	96.08.28.09.32.14;	author mike;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	96.08.28.08.39.50;	author mike;	state Exp;
+branches;
+next	;
+
+1.15.2.1
+date	2002.09.19.18.01.13;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@ptbl.c
+@
+
+
+1.18
+log
+@moved to src/
+@
+text
+@/*
+ *			P T B L . C
+ *
+ *  Support for generalized "pointer tables",
+ *  kept compactly in a dynamic array.
+ *
+ *  The table is currently un-ordered, and is merely a array of pointers.
+ *  The support routine nmg_tbl manipulates the array for you.
+ *  Pointers to be operated on (inserted, deleted,
+ *  searched for) are passed as a "pointer to long".
+ *
+ *  Authors -
+ *	Lee A. Butler
+ *	Michael John Muuss
+ *  
+ *  Source -
+ *	The U. S. Army Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005-5068  USA
+ *  
+ *  Distribution Status -
+ *	Public Domain, Distribution Unlimited.
+ */
+#ifndef lint
+static const char libbu_ptbl_RCSid[] = "@@(#)$Header: /n/xoff/cvs/brlcad/libbu/ptbl.c,v 1.17 2004/05/10 15:30:44 erikg Exp $ (ARL)";
+#endif
+
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+#include <stdio.h>
+#include "machine.h"
+#include "bu.h"
+#ifdef HAVE_STRING_H
+#include <string.h>
+#else
+#include <strings.h>
+#endif
+
+/*
+ *			B U _ P T B L _ I N I T
+ *
+ *  Initialize struct & get storage for table
+ */
+void
+bu_ptbl_init(struct bu_ptbl *b, int len, const char *str)
+              	   
+   		    		/* initial len.  Recommend 8 or 64 */
+          	     
+{
+	if (bu_debug & BU_DEBUG_PTBL)
+		bu_log("bu_ptbl_init(%8x, len=%d, %s)\n", b, len, str);
+	BU_LIST_INIT(&b->l);
+	b->l.magic = BU_PTBL_MAGIC;
+	if( len <= 0 )  len = 64;
+	b->blen = len;
+	b->buffer = (long **)bu_calloc(b->blen, sizeof(long *), str);
+	b->end = 0;
+}
+
+/*
+ *			B U _ P T B L _ R E S E T
+ *
+ *  Reset the table to have no elements, but retain any existing storage.
+ */
+void
+bu_ptbl_reset(struct bu_ptbl *b)
+{
+	BU_CK_PTBL(b);
+	b->end = 0;
+	if (bu_debug & BU_DEBUG_PTBL)
+		bu_log("bu_ptbl_reset(%8x)\n", b);
+	memset( (char *)b->buffer, 0, b->blen*sizeof(long *) );	/* no peeking */
+}
+
+/*
+ *			B U _ P T B L _ I N S
+ *
+ *  Append a (long *) item to the table.
+ *  Called "insert", for unknown reasons.
+ */
+int
+bu_ptbl_ins(struct bu_ptbl *b, long int *p)
+{
+	register int i;
+
+	if (bu_debug & BU_DEBUG_PTBL)
+		bu_log("bu_ptbl_ins(%8x, %8x)\n", b, p);
+
+	BU_CK_PTBL(b);
+
+	if (b->blen == 0) bu_ptbl_init(b, 8, "bu_ptbl_ins() buffer");
+	if (b->end >= b->blen)  {
+		b->buffer = (long **)bu_realloc( (char *)b->buffer,
+		    sizeof(p)*(b->blen *= 4),
+		    "bu_ptbl.buffer[] (ins)" );
+	}
+
+	b->buffer[i=b->end++] = p;
+	return(i);
+}
+
+/*
+ *			B U _ P T B L _ L O C A T E
+ *
+ *  locate a (long *) in an existing table
+ *
+ *  Returns -
+ *	index of first matching element in array, if found
+ *	-1	if not found
+ *
+ * We do this a great deal, so make it go as fast as possible.
+ * this is the biggest argument I can make for changing to an
+ * ordered list.  Someday....
+ */
+int
+bu_ptbl_locate(const struct bu_ptbl *b, const long int *p)
+{
+	register int		k;
+	register const long	**pp;
+
+	BU_CK_PTBL(b);
+	pp = (const long **)b->buffer;
+#	include "noalias.h"
+	for( k = b->end-1; k >= 0; k-- )
+		if (pp[k] == p) return(k);
+
+	return(-1);
+}
+
+/*
+ *			B U _ P T B L _ Z E R O
+ *
+ *  Set all occurrences of "p" in the table to zero.
+ *  This is different than deleting them.
+ */
+void
+bu_ptbl_zero(struct bu_ptbl *b, const long int *p)
+{
+	register int		k;
+	register const long	**pp;
+
+	BU_CK_PTBL(b);
+	pp = (const long **)b->buffer;
+#	include "noalias.h"
+	for( k = b->end-1; k >= 0; k-- )
+		if (pp[k] == p) pp[k] = (long *)0;
+}
+
+/*
+ *			B U _ P T B L _ I N S _ U N I Q U E
+ *
+ *  Append item to table, if not already present.  Unique insert.
+ *
+ *  Returns -
+ *	index of first matchine element in array, if found.  (table unchanged)
+ *	-1	if table extended to hold new element
+ *
+ * We do this a great deal, so make it go as fast as possible.
+ * this is the biggest argument I can make for changing to an
+ * ordered list.  Someday....
+ */
+int
+bu_ptbl_ins_unique(struct bu_ptbl *b, long int *p)
+{
+	register int	k;
+	register long	**pp = b->buffer;
+
+	BU_CK_PTBL(b);
+#	include "noalias.h"
+	for( k = b->end-1; k >= 0; k-- )
+		if (pp[k] == p) return(k);
+
+	if (bu_debug & BU_DEBUG_PTBL)
+		bu_log("bu_ptbl_ins_unique(%8x, %8x)\n", b, p);
+
+	if (b->blen <= 0 || b->end >= b->blen)  {
+		/* Table needs to grow */
+		bu_ptbl_ins( b, p );
+		return -1;	/* To signal that it was added */
+	}
+
+	b->buffer[k=b->end++] = p;
+	return(-1);		/* To signal that it was added */
+}
+
+/*
+ *			B U _ P T B L _ R M
+ *
+ *  Remove all occurrences of an item from a table
+ *
+ *  Returns -
+ *	Number of copies of 'p' that were removed from the table.
+ *	0 if none found.
+ *
+ * we go backwards down the table looking for occurrences
+ * of p to delete.  We do it backwards to reduce the amount
+ * of data moved when there is more than one occurrence of p
+ * in the table.  A pittance savings, unless you're doing a
+ * lot of it.
+ */
+int
+bu_ptbl_rm(struct bu_ptbl *b, const long int *p)
+{
+	register int end = b->end, j, k, l;
+	register long **pp = b->buffer;
+	int	ndel = 0;
+
+	BU_CK_PTBL(b);
+	for (l = b->end-1 ; l >= 0 ; --l)  {
+		if (pp[l] == p){
+			/* delete consecutive occurrence(s) of p */
+			ndel++;
+
+			j=l+1;
+			while (l >= 1 && pp[l-1] == p) --l, ndel++;
+			/* pp[l] through pp[j-1] match p */
+
+			end -= j - l;
+#			include "noalias.h"
+			for(k=l ; j < b->end ;)
+				b->buffer[k++] = b->buffer[j++];
+			b->end = end;
+		}
+	}
+	if (bu_debug & BU_DEBUG_PTBL)
+		bu_log("bu_ptbl_rm(%8x, %8x) ndel=%d\n", b, p, ndel);
+	return ndel;
+}
+
+/*
+ *			B U _ P T B L _ C A T
+ *
+ *  Catenate one table onto end of another.
+ *  There is no checking for duplication.
+ */
+void
+bu_ptbl_cat(struct bu_ptbl *dest, const struct bu_ptbl *src)
+{
+	BU_CK_PTBL(dest);
+	BU_CK_PTBL(src);
+	if (bu_debug & BU_DEBUG_PTBL)
+		bu_log("bu_ptbl_cat(%8x, %8x)\n", dest, src);
+
+	if ((dest->blen - dest->end) < src->end) {
+		dest->blen = (dest->blen + src->end) * 2 + 8;
+		dest->buffer = (long **)bu_realloc( (char *)dest->buffer,
+			dest->blen * sizeof(long *),
+			"bu_ptbl.buffer[] (cat)");
+	}
+	bcopy( (char *)src->buffer, (char *)&dest->buffer[dest->end],
+		src->end*sizeof(long *));
+	dest->end += src->end;
+}
+
+/*
+ *			B U _ P T B L _ C A T _ U N I Q
+ *
+ *  Catenate one table onto end of another,
+ *  ensuring that no entry is duplicated.
+ *  Duplications between multiple items in 'src' are not caught.
+ *  The search is a nasty n**2 one.  The tables are expected to be short.
+ */
+void
+bu_ptbl_cat_uniq(struct bu_ptbl *dest, const struct bu_ptbl *src)
+{
+	register long	**p;
+
+	BU_CK_PTBL(dest);
+	BU_CK_PTBL(src);
+	if (bu_debug & BU_DEBUG_PTBL)
+		bu_log("bu_ptbl_cat_uniq(%8x, %8x)\n", dest, src);
+
+	/* Assume the worst, ensure sufficient space to add all 'src' items */
+	if ((dest->blen - dest->end) < src->end) {
+		dest->buffer = (long **)bu_realloc( (char *)dest->buffer,
+			sizeof(long *)*(dest->blen += src->blen + 8),
+			"bu_ptbl.buffer[] (cat_uniq)");
+	}
+	for( BU_PTBL_FOR( p, (long **), src ) )  {
+		bu_ptbl_ins_unique( dest, *p );
+	}
+}
+
+/*
+ *			B U _ P T B L _ F R E E
+ *
+ *  Deallocate dynamic buffer associated with a table,
+ *  and render this table unusable without a subsequent bu_ptbl_init().
+ */
+void
+bu_ptbl_free(struct bu_ptbl *b)
+{
+	BU_CK_PTBL(b);
+
+	bu_free((genptr_t)b->buffer, "bu_ptbl.buffer[]");
+	memset((char *)b, 0, sizeof(struct bu_ptbl));	/* sanity */
+
+	if (bu_debug & BU_DEBUG_PTBL)
+		bu_log("bu_ptbl_free(%8x)\n", b);
+}
+
+
+
+/*
+ *			B U _ P T B L
+ *
+ *  This version maintained for source compatibility with existing NMG code.
+ */
+int
+bu_ptbl(struct bu_ptbl *b, int func, long int *p)
+{
+	if (func == BU_PTBL_INIT) {
+		bu_ptbl_init(b, 64, "bu_ptbl() buffer[]");
+		return 0;
+	} else if (func == BU_PTBL_RST) {
+		bu_ptbl_reset(b);
+		return 0;
+	} else if (func == BU_PTBL_INS) {
+		return bu_ptbl_ins(b, p);
+	} else if (func == BU_PTBL_LOC) {
+		return bu_ptbl_locate(b, p);
+	} else if( func == BU_PTBL_ZERO ) {
+		bu_ptbl_zero(b, p);
+		return( 0 );
+	} else if (func == BU_PTBL_INS_UNIQUE) {
+		return bu_ptbl_ins_unique(b, p);
+	} else if (func == BU_PTBL_RM) {
+		return bu_ptbl_rm(b, p);
+	} else if (func == BU_PTBL_CAT) {
+		bu_ptbl_cat( b, (const struct bu_ptbl *)p );
+		return(0);
+	} else if (func == BU_PTBL_FREE) {
+		bu_ptbl_free(b);
+		return (0);
+	} else {
+		BU_CK_PTBL(b);
+		bu_log("bu_ptbl(%8x) Unknown table function %d\n", b, func);
+		bu_bomb("bu_ptbl");
+	}
+	return(-1);/* this is here to keep lint happy */
+}
+
+/*
+ *			B U _ P R _ P T B L
+ *
+ *  Print a bu_ptbl array for inspection.
+ */
+void
+bu_pr_ptbl(const char *title, const struct bu_ptbl *tbl, int verbose)
+{
+	register long	**lp;
+
+	BU_CK_PTBL(tbl);
+	bu_log("%s: bu_ptbl array with %d entries\n",
+		title, tbl->end );
+
+	if( !verbose )  return;
+
+	/* Go in ascending order */
+	for( lp = (long **)BU_PTBL_BASEADDR(tbl);
+	     lp <= (long **)BU_PTBL_LASTADDR(tbl); lp++
+	)  {
+		if( *lp == 0 )  {
+			bu_log("  %.8x NULL entry\n", *lp);
+			continue;
+		}
+		bu_log("  %.8x %s\n", *lp, bu_identify_magic(**lp) );
+	}
+}
+
+/*			B U _ P T B L _ T R U N C
+ *
+ *	truncate a bu_ptbl
+ */
+void
+bu_ptbl_trunc(struct bu_ptbl *tbl, int end)
+{
+	BU_CK_PTBL(tbl);
+
+	if( tbl->end <= end )
+		return;
+
+	tbl->end = end;
+	return;
+}
+@
+
+
+1.17
+log
+@change conf.h to a wrapped config.h
+@
+text
+@d24 1
+a24 1
+static const char libbu_ptbl_RCSid[] = "@@(#)$Header: /cvs/brlcad/libbu/ptbl.c,v 1.16 2004/04/05 07:46:16 morrison Exp $ (ARL)";
+@
+
+
+1.16
+log
+@merge of ansi-6-0-branch into HEAD
+@
+text
+@d24 1
+a24 1
+static const char libbu_ptbl_RCSid[] = "@@(#)$Header$ (ARL)";
+d27 5
+a31 1
+#include "conf.h"
+@
+
+
+1.15
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d24 1
+a24 1
+static const char libbu_ptbl_RCSid[] = "@@(#)$Header: /c/CVS/brlcad/libbu/ptbl.c,v 1.13 2001/05/16 21:37:53 morrison Exp $ (ARL)";
+d43 4
+a46 4
+bu_ptbl_init(b, len, str)
+struct bu_ptbl	*b;
+int		len;		/* initial len.  Recommend 8 or 64 */
+const char	*str;
+d64 1
+a64 2
+bu_ptbl_reset(b)
+struct bu_ptbl	*b;
+d80 1
+a80 3
+bu_ptbl_ins(b, p)
+struct bu_ptbl	*b;
+long		*p;
+d114 1
+a114 3
+bu_ptbl_locate(b, p)
+const struct bu_ptbl	*b;
+const long		*p;
+d135 1
+a135 3
+bu_ptbl_zero(b, p)
+struct bu_ptbl	*b;
+const long	*p;
+d161 1
+a161 3
+bu_ptbl_ins_unique(b, p)
+struct bu_ptbl	*b;
+long		*p;
+d200 1
+a200 3
+bu_ptbl_rm(b, p)
+struct bu_ptbl	*b;
+const long	*p;
+d235 1
+a235 3
+bu_ptbl_cat(dest, src)
+struct bu_ptbl		*dest;
+const struct bu_ptbl	*src;
+d262 1
+a262 3
+bu_ptbl_cat_uniq(dest, src)
+struct bu_ptbl		*dest;
+const struct bu_ptbl	*src;
+d289 1
+a289 2
+bu_ptbl_free(b)
+struct bu_ptbl	*b;
+d308 1
+a308 4
+bu_ptbl(b, func, p)
+struct bu_ptbl	*b;
+int		func;
+long		*p;
+d347 1
+a347 4
+bu_pr_ptbl( title, tbl, verbose )
+const char		*title;
+const struct bu_ptbl	*tbl;
+int			verbose;
+d374 1
+a374 3
+bu_ptbl_trunc( tbl, end )
+struct bu_ptbl		*tbl;
+int			end;
+@
+
+
+1.15.2.1
+log
+@Initial ANSIfication
+@
+text
+@d24 1
+a24 1
+static const char libbu_ptbl_RCSid[] = "@@(#)$Header: /c/CVS/brlcad/libbu/ptbl.c,v 1.15 2002/08/20 17:07:41 jra Exp $ (ARL)";
+d43 4
+a46 4
+bu_ptbl_init(struct bu_ptbl *b, int len, const char *str)
+              	   
+   		    		/* initial len.  Recommend 8 or 64 */
+          	     
+d64 2
+a65 1
+bu_ptbl_reset(struct bu_ptbl *b)
+d81 3
+a83 1
+bu_ptbl_ins(struct bu_ptbl *b, long int *p)
+d117 3
+a119 1
+bu_ptbl_locate(const struct bu_ptbl *b, const long int *p)
+d140 3
+a142 1
+bu_ptbl_zero(struct bu_ptbl *b, const long int *p)
+d168 3
+a170 1
+bu_ptbl_ins_unique(struct bu_ptbl *b, long int *p)
+d209 3
+a211 1
+bu_ptbl_rm(struct bu_ptbl *b, const long int *p)
+d246 3
+a248 1
+bu_ptbl_cat(struct bu_ptbl *dest, const struct bu_ptbl *src)
+d275 3
+a277 1
+bu_ptbl_cat_uniq(struct bu_ptbl *dest, const struct bu_ptbl *src)
+d304 2
+a305 1
+bu_ptbl_free(struct bu_ptbl *b)
+d324 4
+a327 1
+bu_ptbl(struct bu_ptbl *b, int func, long int *p)
+d366 4
+a369 1
+bu_pr_ptbl(const char *title, const struct bu_ptbl *tbl, int verbose)
+d396 3
+a398 1
+bu_ptbl_trunc(struct bu_ptbl *tbl, int end)
+@
+
+
+1.14
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d43 4
+a46 4
+bu_ptbl_init(struct bu_ptbl *b, int len, const char *str)
+              	   
+   		    		/* initial len.  Recommend 8 or 64 */
+          	     
+d64 2
+a65 1
+bu_ptbl_reset(struct bu_ptbl *b)
+d81 3
+a83 1
+bu_ptbl_ins(struct bu_ptbl *b, long int *p)
+d117 3
+a119 1
+bu_ptbl_locate(const struct bu_ptbl *b, const long int *p)
+d140 3
+a142 1
+bu_ptbl_zero(struct bu_ptbl *b, const long int *p)
+d168 3
+a170 1
+bu_ptbl_ins_unique(struct bu_ptbl *b, long int *p)
+d209 3
+a211 1
+bu_ptbl_rm(struct bu_ptbl *b, const long int *p)
+d246 3
+a248 1
+bu_ptbl_cat(struct bu_ptbl *dest, const struct bu_ptbl *src)
+d275 3
+a277 1
+bu_ptbl_cat_uniq(struct bu_ptbl *dest, const struct bu_ptbl *src)
+d304 2
+a305 1
+bu_ptbl_free(struct bu_ptbl *b)
+d324 4
+a327 1
+bu_ptbl(struct bu_ptbl *b, int func, long int *p)
+d366 4
+a369 1
+bu_pr_ptbl(const char *title, const struct bu_ptbl *tbl, int verbose)
+d396 3
+a398 1
+bu_ptbl_trunc(struct bu_ptbl *tbl, int end)
+@
+
+
+1.13
+log
+@PRODUCTION optimizations
+@
+text
+@d24 1
+a24 1
+static const char libbu_ptbl_RCSid[] = "@@(#)$Header: /c/CVS/brlcad/libbu/ptbl.c,v 1.12 2001/04/20 22:29:07 morrison Exp $ (ARL)";
+d43 4
+a46 4
+bu_ptbl_init(b, len, str)
+struct bu_ptbl	*b;
+int		len;		/* initial len.  Recommend 8 or 64 */
+const char	*str;
+d64 1
+a64 2
+bu_ptbl_reset(b)
+struct bu_ptbl	*b;
+d80 1
+a80 3
+bu_ptbl_ins(b, p)
+struct bu_ptbl	*b;
+long		*p;
+d114 1
+a114 3
+bu_ptbl_locate(b, p)
+const struct bu_ptbl	*b;
+const long		*p;
+d135 1
+a135 3
+bu_ptbl_zero(b, p)
+struct bu_ptbl	*b;
+const long	*p;
+d161 1
+a161 3
+bu_ptbl_ins_unique(b, p)
+struct bu_ptbl	*b;
+long		*p;
+d200 1
+a200 3
+bu_ptbl_rm(b, p)
+struct bu_ptbl	*b;
+const long	*p;
+d235 1
+a235 3
+bu_ptbl_cat(dest, src)
+struct bu_ptbl		*dest;
+const struct bu_ptbl	*src;
+d262 1
+a262 3
+bu_ptbl_cat_uniq(dest, src)
+struct bu_ptbl		*dest;
+const struct bu_ptbl	*src;
+d289 1
+a289 2
+bu_ptbl_free(b)
+struct bu_ptbl	*b;
+d308 1
+a308 4
+bu_ptbl(b, func, p)
+struct bu_ptbl	*b;
+int		func;
+long		*p;
+d347 1
+a347 4
+bu_pr_ptbl( title, tbl, verbose )
+const char		*title;
+const struct bu_ptbl	*tbl;
+int			verbose;
+d374 1
+a374 3
+bu_ptbl_trunc( tbl, end )
+struct bu_ptbl		*tbl;
+int			end;
+@
+
+
+1.12
+log
+@CONST to const
+@
+text
+@d24 1
+a24 1
+static const char libbu_ptbl_RCSid[] = "@@(#)$Header: /c/CVS/brlcad/libbu/ptbl.c,v 1.11 2000/07/07 05:20:13 cjohnson Exp $ (ARL)";
+d71 1
+a71 1
+	bzero( (char *)b->buffer, b->blen*sizeof(long *) );	/* no peeking */
+d310 1
+a310 1
+	bzero((char *)b, sizeof(struct bu_ptbl));	/* sanity */
+@
+
+
+1.11
+log
+@LINT
+@
+text
+@d24 1
+a24 1
+static const char libbu_ptbl_RCSid[] = "@@(#)$Header: /c/CVS/brlcad/libbu/ptbl.c,v 1.10 2000/07/07 00:37:35 cjohnson Exp $ (ARL)";
+d46 1
+a46 1
+CONST char	*str;
+d118 2
+a119 2
+CONST struct bu_ptbl	*b;
+CONST long		*p;
+d122 1
+a122 1
+	register CONST long	**pp;
+d125 1
+a125 1
+	pp = (CONST long **)b->buffer;
+d142 1
+a142 1
+CONST long	*p;
+d145 1
+a145 1
+	register CONST long	**pp;
+d148 1
+a148 1
+	pp = (CONST long **)b->buffer;
+d211 1
+a211 1
+CONST long	*p;
+d248 1
+a248 1
+CONST struct bu_ptbl	*src;
+d277 1
+a277 1
+CONST struct bu_ptbl	*src;
+d347 1
+a347 1
+		bu_ptbl_cat( b, (CONST struct bu_ptbl *)p );
+d367 2
+a368 2
+CONST char		*title;
+CONST struct bu_ptbl	*tbl;
+@
+
+
+1.10
+log
+@LINT
+@
+text
+@d24 1
+a24 1
+static char libbu_ptbl_RCSid[] = "@@(#)$Header: /c/CVS/brlcad/libbu/ptbl.c,v 1.9 2000/03/31 04:53:48 mike Exp $ (ARL)";
+@
+
+
+1.9
+log
+@
+Fixed bug with running off bottom of ptbl array!
+@
+text
+@d24 1
+a24 1
+static char libbu_ptbl_RCSid[] = "@@(#)$Header: /c/CVS/brlcad/libbu/ptbl.c,v 1.8 2000/03/28 18:55:09 mike Exp $ (ARL)";
+d31 5
+@
+
+
+1.8
+log
+@
+Put libbu_filename_ prefixes on RCSid variables.
+@
+text
+@d24 1
+a24 1
+static char libbu_ptbl_RCSid[] = "@@(#)$Header: /c/CVS/brlcad/libbu/ptbl.c,v 1.7 2000/03/28 18:04:43 mike Exp $ (ARL)";
+d215 1
+a215 1
+			/* delete occurrence(s) of p */
+d219 2
+a220 1
+			while (pp[l-1] == p) --l, ndel++;
+@
+
+
+1.7
+log
+@
+Changed from RT_LIST to BU_LIST
+A few dregs
+@
+text
+@d24 1
+a24 1
+static char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/libbu/ptbl.c,v 1.6 1997/11/24 15:56:22 jra Exp $ (ARL)";
+@
+
+
+1.6
+log
+@Added bu_ptbl_trunc().
+@
+text
+@d24 1
+a24 1
+static char RCSid[] = "@@(#)$Header: /m/cad/libbu/RCS/ptbl.c,v 1.5 1996/08/31 04:02:16 mike Exp jra $ (ARL)";
+d45 1
+a45 1
+	RT_LIST_INIT(&b->l);
+@
+
+
+1.5
+log
+@Added identity string to bu_ptbl_init(), for bu_malloc() tracking
+@
+text
+@d24 1
+a24 1
+static char RCSid[] = "@@(#)$Header: /m/cad/libbu/RCS/ptbl.c,v 1.4 1996/08/29 05:31:26 mike Exp mike $ (ARL)";
+d383 18
+@
+
+
+1.4
+log
+@Fixed horrid bug with TBL_CAT being an expensive no-op.
+It neglected to increase the destination's "end" variable.
+@
+text
+@d24 1
+a24 1
+static char RCSid[] = "@@(#)$Header: /m/cad/libbu/RCS/ptbl.c,v 1.3 1996/08/29 03:04:38 mike Exp mike $ (ARL)";
+d38 1
+a38 1
+bu_ptbl_init(b, len)
+d41 1
+d44 1
+a44 1
+		bu_log("bu_ptbl_init(%8x, len=%d)\n", b, len);
+d49 1
+a49 2
+	b->buffer = (long **)bu_calloc(b->blen, sizeof(long *),
+		"bu_ptbl.buffer[]");
+d87 1
+a87 1
+	if (b->blen == 0) bu_ptbl_init(b, 8);
+d324 1
+a324 1
+		bu_ptbl_init(b, 64);
+@
+
+
+1.3
+log
+@Added some more CONSTs
+@
+text
+@d24 1
+a24 1
+static char RCSid[] = "@@(#)$Header: /m/cad/libbu/RCS/ptbl.c,v 1.2 1996/08/28 09:32:14 mike Exp mike $ (ARL)";
+d43 1
+a43 1
+		bu_log("bu_ptbl_init(%8x)\n", b);
+d46 1
+d250 1
+d252 1
+a252 1
+			sizeof(long *)*(dest->blen += src->blen + 8),
+d257 1
+@
+
+
+1.2
+log
+@Fixed horrid error in cat_uniq
+Also improved realloc messages
+@
+text
+@d24 1
+a24 1
+static char RCSid[] = "@@(#)$Header: /m/cad/libbu/RCS/ptbl.c,v 1.1 1996/08/28 08:39:50 mike Exp mike $ (ARL)";
+d112 2
+a113 2
+struct bu_ptbl	*b;
+long		*p;
+d115 2
+a116 2
+	register int	k;
+	register long	**pp = b->buffer;
+d119 1
+d136 1
+a136 1
+long		*p;
+d138 2
+a139 2
+	register int	k;
+	register long	**pp = b->buffer;
+d142 1
+d205 1
+a205 1
+long		*p;
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d24 1
+a24 1
+static char RCSid[] = "@@(#)$Header$ (ARL)";
+d90 1
+a90 1
+		    "bu_ptbl.buffer[]" );
+d248 2
+a249 2
+			sizeof(long *)*(dest->blen += src->blen),
+			"pointer table (CAT)");
+d278 2
+a279 2
+			sizeof(long *)*(dest->blen += src->blen),
+			"pointer table (CAT)");
+a283 3
+
+	bcopy( (char *)src->buffer, (char *)&dest->buffer[dest->end],
+		src->end*sizeof(long *));
+@

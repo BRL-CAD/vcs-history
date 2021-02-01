@@ -1,0 +1,984 @@
+head	14.14;
+access;
+symbols
+	rel-7-10-4:14.12
+	STABLE:14.12.0.2
+	rel-7-10-2:14.12
+	rel-7-10-0:14.11
+	rel-7-8-4:14.9
+	rel-7-8-2:14.9
+	rel-7-8-0:14.6
+	trimnurbs-branch:14.6.0.2
+	help:14.6
+	temp_tag:14.5
+	bobWinPort-20051223-freeze:14.3
+	postmerge-20051223-bobWinPort:14.5
+	premerge-20051223-bobWinPort:14.5
+	rel-7-6-6:14.5
+	rel-7-6-4:14.5
+	rel-7-6-2:14.3
+	rel-7-6-branch:14.3.0.6
+	rel-7-6-0:14.3
+	rel-7-4-2:14.3
+	rel-7-4-branch:14.3.0.4
+	bobWinPort:14.3.0.2
+	rel-7-4-0:14.3
+	rel-7-2-6:14.3
+	rel-7-2-4:14.3
+	rel-7-2-2:14.3
+	rel-7-2-0:14.3
+	rel-7-0-4:14.2
+	rel-7-0-2:14.2
+	rel-7-0-1:14.2
+	opensource-post:14.2
+	opensource-pre:1.2
+	rel-7-0-branch:1.2.0.2
+	rel-7-0:1.2;
+locks; strict;
+comment	@ * @;
+
+
+14.14
+date	2007.12.02.22.34.25;	author brlcad;	state Exp;
+branches;
+next	14.13;
+
+14.13
+date	2007.09.15.16.23.23;	author brlcad;	state Exp;
+branches;
+next	14.12;
+
+14.12
+date	2007.07.26.01.14.00;	author brlcad;	state Exp;
+branches;
+next	14.11;
+
+14.11
+date	2007.01.23.01.13.57;	author brlcad;	state Exp;
+branches;
+next	14.10;
+
+14.10
+date	2007.01.20.14.37.07;	author brlcad;	state Exp;
+branches;
+next	14.9;
+
+14.9
+date	2006.06.04.14.13.39;	author brlcad;	state Exp;
+branches;
+next	14.8;
+
+14.8
+date	2006.06.04.14.11.45;	author brlcad;	state Exp;
+branches;
+next	14.7;
+
+14.7
+date	2006.06.04.14.01.39;	author brlcad;	state Exp;
+branches;
+next	14.6;
+
+14.6
+date	2006.01.18.06.46.28;	author brlcad;	state Exp;
+branches;
+next	14.5;
+
+14.5
+date	2005.11.03.17.43.41;	author brlcad;	state Exp;
+branches;
+next	14.4;
+
+14.4
+date	2005.10.23.04.44.39;	author brlcad;	state Exp;
+branches;
+next	14.3;
+
+14.3
+date	2005.01.30.20.31.34;	author brlcad;	state Exp;
+branches
+	14.3.6.1;
+next	14.2;
+
+14.2
+date	2004.12.21.03.45.41;	author butler;	state Exp;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.32;	author morrison;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2004.08.02.23.01.53;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.15.21.59;	author morrison;	state Exp;
+branches;
+next	;
+
+14.3.6.1
+date	2005.11.13.13.46.21;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.14
+log
+@woo hoo, finally got through most of the flawfinder level 4 issues related to string buffer limits (leaving issues that can probably/mostly be ignored).  these changes mostly invovlved using the n-variants of the various string processing functions so that the buffers being written to are properly clamped.
+@
+text
+@/*                       S G I - P I X . C
+ * BRL-CAD
+ *
+ * Copyright (c) 2004-2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@file sgi-pix.c
+ *
+ *  Authors -
+ *	Multiple Sources (Dykstra, Muuss, etc)
+ *	Based on scrsave.c
+ *
+ */
+#ifndef lint
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/sgi-pix.c,v 14.13 2007/09/15 16:23:23 brlcad Exp $ (BRL)";
+#endif
+
+#include "common.h"
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include "machine.h"
+#include "bu.h"
+
+#if HAS_SGIGL
+#  ifdef mips
+#    include <gl/gl.h>
+#  else
+#    include <gl.h>
+#  endif
+
+#  define	MIN(a,b)	((a)<(b)?(a):(b))
+#  define	ABS(a)		((a)<0? -(a):(a))
+
+char rbuf[2048];
+char gbuf[2048];
+char bbuf[2048];
+char obuf[2048*3];
+struct cmap {
+    unsigned char red;
+    unsigned char grn;
+    unsigned char blu;
+} cmap[4096];
+
+
+static const char usage[] = "\
+Usage: sgi-pix [x1 x2 y1 y2] [outfile]\n";
+
+
+#  ifndef __mips
+/*
+ *  This block of code is for SGI 3030 machines, and 4Ds running Irix 3.
+ */
+
+
+/*
+ *			S A V E S C R E E N
+ */
+void
+savescreen(FILE *ofp, int xorg, int yorg, int xsize, int ysize)
+{
+    int y, i;
+    int pos, togo, n;
+
+    screenspace();
+
+#    if !defined(mips)
+    /* 3D only */
+    viewport(0,1023,0,767);
+    ortho2(-0.5,1023.5,-0.5,767.5);
+#    endif
+
+    for(y=0; y<ysize; y++) {
+#    ifdef mips
+	/* Note that gl_readscreen() can only do 256 pixels! */
+	togo = xsize;
+	pos = 0;
+	while(togo) {
+	    n = togo;
+	    if(n>256)
+		n = 256;
+	    cmov2i(xorg+pos,yorg+y);
+	    gl_readscreen(n,rbuf+pos,gbuf+pos,bbuf+pos);
+	    pos += n;
+	    togo -= n;
+	}
+#    else
+	cmov2i(xorg,yorg+y);
+	readRGB(n,rbuf,gbuf,bbuf);
+#    endif
+	for( i = 0; i < xsize; i++ ) {
+	    obuf[3*i] = rbuf[i];
+	    obuf[3*i+1] = gbuf[i];
+	    obuf[3*i+2] = bbuf[i];
+	}
+	if( fwrite(obuf,3,xsize,ofp) != xsize )  {
+	    perror("fwrite");
+	    exit(2);
+	}
+    }
+}
+
+void
+cmap_savescreen(FILE *ofp, int xorg, int yorg, int xsize, int ysize)
+{
+    int y, i;
+    int pos, togo, n;
+    Colorindex buff[1024];
+
+    screenspace();
+
+    for(y=0; y<ysize; y++) {
+	cmov2i(xorg,yorg+y);
+	readpixels(xsize,buff);
+
+	for( i = 0; i < xsize; i++ ) {
+	    obuf[i*3] = cmap[buff[i]].red;
+	    obuf[i*3+1] = cmap[buff[i]].grn;
+	    obuf[i*3+2] = cmap[buff[i]].blu;
+	}
+	if( fwrite(obuf,3,xsize,ofp) != xsize )  {
+	    perror("fwrite");
+	    exit(2);
+	}
+    }
+}
+#  else  /* __mips */
+/*
+ *  This block of code is for SGI 4Ds running Irix.
+ */
+
+
+/*
+ *			S A V E S C R E E N
+ *
+ *  In order for this to work reasonably, the entire screen should be read
+ *  at once.
+ */
+void
+savescreen(FILE *ofp, int xorg, int yorg, int xsize, int ysize)
+{
+    unsigned long	*lbuf;
+    unsigned long	*lp;
+    int	npix;
+    int	x;
+    int	y;
+    register unsigned char	*op;
+    long	got;
+
+    npix = (xsize+1)*(ysize+1);		/* conservative */
+    lbuf = (unsigned long *)malloc( sizeof(long) * npix );
+    if( lbuf == (unsigned long *)NULL )  {
+	fprintf(stderr, "sgi-pix:  malloc error\n");
+	exit(1);
+    }
+
+    npix = (xsize)*(ysize);			/* exact */
+    got = readdisplay( xorg, yorg, xorg+xsize-1, yorg+ysize-1,
+		       lbuf, RD_FREEZE );
+    if( got != npix )  {
+	fprintf(stderr,"sgi-pix: readdisplay() wanted %d, got %d\n",
+		npix, got );
+    }
+    lp = lbuf;
+    for( y=0; y<ysize; y++ )  {
+	register unsigned long	w;
+	op = (unsigned char *)obuf;
+	for( x=0; x<xsize; x++ )  {
+	    w = *lp++;
+	    *op++ = (w    ) & 0xFF;
+	    *op++ = (w>> 8) & 0xFF;
+	    *op++ = (w>>16) & 0xFF;
+	}
+	if( fwrite(obuf,3,xsize,ofp) != xsize )  {
+	    perror("fwrite");
+	    exit(2);
+	}
+    }
+}
+#  endif  /* __mips */
+
+int
+main(int argc, char *argv[])
+{
+    int x1, x2, y1, y2;
+    int xsize, ysize;
+    int xorg, yorg;
+    FILE *ofp;
+    char *fname;
+#  ifndef mips
+    int mode, planes;
+#  endif
+
+    if(!(argc==1 || argc==2 || argc==5 || argc==6)) {
+	bu_exit(1, "%s", usage);
+    }
+    if( argc > 4 ) {
+	x1 = atoi(argv[1]);
+	x2 = atoi(argv[2]);
+	y1 = atoi(argv[3]);
+	y2 = atoi(argv[4]);
+    } else {
+	x1 = 0;
+	x2 = XMAXSCREEN;
+	y1 = 0;
+	y2 = YMAXSCREEN;
+    }
+    if( argc == 2 ) {
+	fname = argv[1];
+	ofp = fopen(fname,"w");
+    } else if( argc == 6 ) {
+	fname = argv[5];
+	ofp = fopen(fname,"w");
+    } else {
+	fname = "-";
+	ofp = stdout;
+    }
+    if( ofp == NULL ) {
+	fprintf(stderr,"sgi-pix: can't open \"%s\"\n", fname);
+	exit(2);
+    }
+    if( isatty(fileno(ofp)) ) {
+	fprintf(stderr, "%s", usage);
+	bu_exit(1, "sgi-pix: refuse to send binary output to terminal\n");
+    }
+
+    /* Convert rectangle edges to origin and size */
+    xorg = MIN(x1,x2);
+    yorg = MIN(y1,y2);
+    if(xorg<0)
+	xorg = 0;
+    if(yorg<0)
+	yorg = 0;
+    xsize = ABS(x2-x1);
+    ysize = ABS(y2-y1);
+    if((xorg+xsize)>XMAXSCREEN)
+	xsize = XMAXSCREEN-xorg;
+    if((yorg+ysize)>YMAXSCREEN)
+	ysize = YMAXSCREEN-yorg;
+    xsize++;
+    ysize++;
+    fprintf(stderr,"origin(%d, %d) size (%d, %d)\n",
+	    xorg, yorg, xsize, ysize);
+
+#  ifdef mips
+    foreground();
+    noport();
+    winopen("sgi-pix");
+    savescreen(ofp, xorg, yorg, xsize, ysize);
+#  else
+    gbegin();
+    foreground();
+    noport();
+    winopen("sgi-pix");
+    cursoff();
+
+    if((mode = getdisplaymode()) == 0) {
+	/* RGB mode */
+	fprintf(stderr,"RGB mode\n");
+	savescreen(ofp, xorg, yorg, xsize, ysize);
+    } else {
+	if( mode == 1 )
+	    fprintf(stderr,"CMAP mode (single buffered)\n");
+	else  {
+	    fprintf(stderr,"CMAP mode (double buffered)\n");
+	    swapbuffers();
+	}
+	planes = getplanes();
+	fprintf(stderr,"%d planes\n", planes);
+	for( i = 0; i < 4096; i++ ) {
+	    short r,g,b;
+	    getmcolor( i, &r, &g, &b );
+	    cmap[i].red = r;
+	    cmap[i].grn = g;
+	    cmap[i].blu = b;
+	}
+	cmap_savescreen(ofp,x1,x2,y1,y2);
+	if( mode != 1 )  {
+	    /* Double buffered mode, swap 'em back */
+	    swapbuffers();
+	}
+    }
+#  endif
+    return(0);
+}
+
+#else  /* !HAS_SGIGL */
+
+int
+main(int argc, char *argv[])
+{
+    fprintf(stderr, "sgi-pix:  This program only works on SGI machines\n");
+    exit(1);
+}
+#endif
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+14.13
+log
+@more c89 embracing.  c89 provides string.h for all of the various str*() and mem*() functions, so remove the check for its presence.  there is still likely to be work required for strict c89 conformance for the various bsd strings.h functions that may be in use.
+@
+text
+@d28 1
+a28 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/sgi-pix.c,v 14.12 2007/07/26 01:14:00 brlcad Exp $ (BRL)";
+d61 1
+a61 1
+static char usage[] = "\
+d210 1
+a210 2
+	fprintf(stderr,usage);
+	exit(1);
+d238 2
+a239 3
+	fprintf(stderr,"sgi-pix: refuse to send binary output to terminal\n");
+	fprintf(stderr,usage);
+	exit(1);
+@
+
+
+14.12
+log
+@remove ephemeral data like phone numbers and addresses, including the misleading 'source' statements on code that is continually evolving and receiving contributions from many many sources
+@
+text
+@d28 1
+a28 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/sgi-pix.c,v 14.11 2007/01/23 01:13:57 brlcad Exp $ (BRL)";
+a34 1
+#ifdef HAVE_STRING_H
+d36 1
+a36 3
+#else
+#include <strings.h>
+#endif
+@
+
+
+14.11
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@a25 4
+ *  Source -
+ *	SECAD/VLD Computing Consortium, Bldg 394
+ *	The U. S. Army Ballistic Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005-5066
+d28 1
+a28 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/sgi-pix.c,v 14.10 2007/01/20 14:37:07 brlcad Exp $ (BRL)";
+@
+
+
+14.10
+log
+@update copyright to 2007
+@
+text
+@d8 2
+a9 3
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+d14 1
+a14 1
+ * General Public License for more details.
+d16 2
+a17 2
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+d32 1
+a32 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/sgi-pix.c,v 14.9 2006/06/04 14:13:39 brlcad Exp $ (BRL)";
+@
+
+
+14.9
+log
+@few more unused
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 2004-2006 United States Government as represented by
+d33 1
+a33 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/sgi-pix.c,v 14.8 2006/06/04 14:11:45 brlcad Exp $ (BRL)";
+@
+
+
+14.8
+log
+@sane function ordering, clean up preprocessor logic, quell warnings, ws.
+@
+text
+@d33 1
+a33 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/sgi-pix.c,v 14.7 2006/06/04 14:01:39 brlcad Exp $ (BRL)";
+a207 1
+    int i, y, gotfirst;
+@
+
+
+14.7
+log
+@quell more warnings
+@
+text
+@d33 1
+a33 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/sgi-pix.c,v 14.6 2006/01/18 06:46:28 brlcad Exp $ (BRL)";
+d49 5
+a53 7
+# ifdef mips
+#	include <gl/gl.h>
+# else
+#	include <gl.h>
+# endif
+#endif
+
+d55 2
+a56 2
+#define	MIN(a,b)	((a)<(b)?(a):(b))
+#define	ABS(a)		((a)<0? -(a):(a))
+d63 3
+a65 3
+	unsigned char red;
+	unsigned char grn;
+	unsigned char blu;
+d68 1
+a68 8
+#if !HAS_SGIGL
+int
+main(int argc, char **argv)
+{
+	fprintf(stderr, "sgi-pix:  This program only works on SGI machines\n");
+	exit(1);
+}
+#else
+a71 110
+int
+main(argc,argv)
+int argc;
+char **argv;
+{
+	int i, y, gotfirst;
+	int x1, x2, y1, y2;
+	int xsize, ysize;
+	int xorg, yorg;
+	FILE *ofp;
+	char *fname;
+#ifndef mips
+	int mode, planes;
+#endif
+
+	if(!(argc==1 || argc==2 || argc==5 || argc==6)) {
+		fprintf(stderr,usage);
+		exit(1);
+	}
+	if( argc > 4 ) {
+		x1 = atoi(argv[1]);
+		x2 = atoi(argv[2]);
+		y1 = atoi(argv[3]);
+		y2 = atoi(argv[4]);
+	} else {
+		x1 = 0;
+		x2 = XMAXSCREEN;
+		y1 = 0;
+		y2 = YMAXSCREEN;
+	}
+	if( argc == 2 ) {
+		fname = argv[1];
+		ofp = fopen(fname,"w");
+	} else if( argc == 6 ) {
+		fname = argv[5];
+		ofp = fopen(fname,"w");
+	} else {
+		fname = "-";
+		ofp = stdout;
+	}
+	if( ofp == NULL ) {
+		fprintf(stderr,"sgi-pix: can't open \"%s\"\n", fname);
+		exit(2);
+	}
+	if( isatty(fileno(ofp)) ) {
+		fprintf(stderr,"sgi-pix: refuse to send binary output to terminal\n");
+		fprintf(stderr,usage);
+		exit(1);
+	}
+
+	/* Convert rectangle edges to origin and size */
+	xorg = MIN(x1,x2);
+	yorg = MIN(y1,y2);
+	if(xorg<0)
+		xorg = 0;
+	if(yorg<0)
+		yorg = 0;
+	xsize = ABS(x2-x1);
+	ysize = ABS(y2-y1);
+	if((xorg+xsize)>XMAXSCREEN)
+		xsize = XMAXSCREEN-xorg;
+	if((yorg+ysize)>YMAXSCREEN)
+		ysize = YMAXSCREEN-yorg;
+	xsize++;
+	ysize++;
+	fprintf(stderr,"origin(%d, %d) size (%d, %d)\n",
+		xorg, yorg, xsize, ysize);
+
+#ifdef mips
+	foreground();
+	noport();
+	winopen("sgi-pix");
+	savescreen(ofp, xorg, yorg, xsize, ysize);
+#else
+	gbegin();
+	foreground();
+	noport();
+	winopen("sgi-pix");
+	cursoff();
+
+	if((mode = getdisplaymode()) == 0) {
+		/* RGB mode */
+		fprintf(stderr,"RGB mode\n");
+		savescreen(ofp, xorg, yorg, xsize, ysize);
+	} else {
+		if( mode == 1 )
+			fprintf(stderr,"CMAP mode (single buffered)\n");
+		else  {
+			fprintf(stderr,"CMAP mode (double buffered)\n");
+			swapbuffers();
+		}
+		planes = getplanes();
+		fprintf(stderr,"%d planes\n", planes);
+		for( i = 0; i < 4096; i++ ) {
+			short r,g,b;
+			getmcolor( i, &r, &g, &b );
+			cmap[i].red = r;
+			cmap[i].grn = g;
+			cmap[i].blu = b;
+		}
+		cmap_savescreen(ofp,x1,x2,y1,y2);
+		if( mode != 1 )  {
+			/* Double buffered mode, swap 'em back */
+			swapbuffers();
+		}
+	}
+#endif
+	return(0);
+}
+#endif
+d73 1
+d77 2
+a78 1
+#if HAS_SGIGL && !defined(__mips)
+d82 2
+a83 3
+savescreen(ofp,xorg,yorg,xsize,ysize)
+FILE	*ofp;
+int	xorg,yorg,xsize,ysize;
+d85 2
+a86 2
+	int y, i;
+	int pos, togo, n;
+d88 1
+a88 1
+	screenspace();
+d90 32
+a121 33
+#if !defined(mips)
+	/* 3D only */
+	viewport(0,1023,0,767);
+	ortho2(-0.5,1023.5,-0.5,767.5);
+#endif
+
+	for(y=0; y<ysize; y++) {
+#ifdef mips
+		/* Note that gl_readscreen() can only do 256 pixels! */
+		togo = xsize;
+		pos = 0;
+		while(togo) {
+			n = togo;
+			if(n>256)
+				n = 256;
+			cmov2i(xorg+pos,yorg+y);
+			gl_readscreen(n,rbuf+pos,gbuf+pos,bbuf+pos);
+			pos += n;
+			togo -= n;
+		}
+#else
+		cmov2i(xorg,yorg+y);
+		readRGB(n,rbuf,gbuf,bbuf);
+#endif
+		for( i = 0; i < xsize; i++ ) {
+			obuf[3*i] = rbuf[i];
+			obuf[3*i+1] = gbuf[i];
+			obuf[3*i+2] = bbuf[i];
+		}
+		if( fwrite(obuf,3,xsize,ofp) != xsize )  {
+			perror("fwrite");
+			exit(2);
+		}
+d123 1
+d126 2
+a127 3
+cmap_savescreen(ofp,xorg,yorg,xsize,ysize)
+FILE	*ofp;
+int	xorg,yorg,xsize,ysize;
+d129 18
+a146 19
+	int y, i;
+	int pos, togo, n;
+	Colorindex buff[1024];
+
+	screenspace();
+
+	for(y=0; y<ysize; y++) {
+		cmov2i(xorg,yorg+y);
+		readpixels(xsize,buff);
+
+		for( i = 0; i < xsize; i++ ) {
+			obuf[i*3] = cmap[buff[i]].red;
+			obuf[i*3+1] = cmap[buff[i]].grn;
+			obuf[i*3+2] = cmap[buff[i]].blu;
+		}
+		if( fwrite(obuf,3,xsize,ofp) != xsize )  {
+			perror("fwrite");
+			exit(2);
+		}
+d148 1
+d150 1
+a150 2
+#endif
+
+d154 2
+a155 1
+#if HAS_SGIGL && defined(__mips)
+d162 2
+a163 3
+savescreen(ofp,xorg,yorg,xsize,ysize)
+FILE	*ofp;
+int	xorg,yorg,xsize,ysize;
+d165 35
+a199 13
+	unsigned long	*lbuf;
+	unsigned long	*lp;
+	int	npix;
+	int	x;
+	int	y;
+	register unsigned char	*op;
+	long	got;
+
+	npix = (xsize+1)*(ysize+1);		/* conservative */
+	lbuf = (unsigned long *)malloc( sizeof(long) * npix );
+	if( lbuf == (unsigned long *)NULL )  {
+		fprintf(stderr, "sgi-pix:  malloc error\n");
+		exit(1);
+d201 3
+d205 115
+a319 22
+	npix = (xsize)*(ysize);			/* exact */
+	got = readdisplay( xorg, yorg, xorg+xsize-1, yorg+ysize-1,
+		lbuf, RD_FREEZE );
+	if( got != npix )  {
+		fprintf(stderr,"sgi-pix: readdisplay() wanted %d, got %d\n",
+			npix, got );
+	}
+	lp = lbuf;
+	for( y=0; y<ysize; y++ )  {
+		register unsigned long	w;
+		op = (unsigned char *)obuf;
+		for( x=0; x<xsize; x++ )  {
+			w = *lp++;
+			*op++ = (w    ) & 0xFF;
+			*op++ = (w>> 8) & 0xFF;
+			*op++ = (w>>16) & 0xFF;
+		}
+		if( fwrite(obuf,3,xsize,ofp) != xsize )  {
+			perror("fwrite");
+			exit(2);
+		}
+	}
+@
+
+
+14.6
+log
+@update copyright to 2006
+@
+text
+@d33 1
+a33 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/sgi-pix.c,v 14.5 2005/11/03 17:43:41 brlcad Exp $ (BRL)";
+d92 1
+d94 1
+@
+
+
+14.5
+log
+@missing bu.h header for bu_getopt()
+@
+text
+@d4 1
+a4 1
+ * Copyright (C) 2004-2005 United States Government as represented by
+d33 1
+a33 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/sgi-pix.c,v 14.4 2005/10/23 04:44:39 brlcad Exp $ (BRL)";
+@
+
+
+14.4
+log
+@trailing ws
+@
+text
+@d33 1
+a33 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/sgi-pix.c,v 14.3 2005/01/30 20:31:34 brlcad Exp $ (BRL)";
+a37 2
+
+
+d46 1
+d56 1
+@
+
+
+14.3
+log
+@update copyright to 2005
+@
+text
+@d26 1
+a26 1
+ *  
+d33 1
+a33 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/sgi-pix.c,v 14.2 2004/12/21 03:45:41 butler Exp $ (BRL)";
+@
+
+
+14.3.6.1
+log
+@merge changes from HEAD aka rel-7-6-4 to the rel-7-6-branch just in case someone peeks a gander or tries to continue/build the branch
+@
+text
+@d26 1
+a26 1
+ *
+d33 1
+a33 1
+static const char RCSid[] = "@@(#)$Header$ (BRL)";
+d38 2
+a47 1
+#include "bu.h"
+a56 1
+
+@
+
+
+14.2
+log
+@GPL license changes
+@
+text
+@d4 2
+a5 2
+ * Copyright (c) 2004 United States Government as represented by the
+ * U.S. Army Research Laboratory.
+d33 1
+a33 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/util/sgi-pix.c,v 14.1 2004/11/16 19:42:32 morrison Exp $ (BRL)";
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@d1 21
+a21 2
+/*
+ *			S G I - P I X . C
+a30 3
+ *  
+ *  Distribution Status -
+ *	Public Domain, Distribution Unlimitied.
+d33 1
+a33 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/util/sgi-pix.c,v 1.2 2004/08/02 23:01:53 morrison Exp $ (BRL)";
+@
+
+
+1.2
+log
+@replace the wrapped config.h block with common.h
+@
+text
+@d17 1
+a17 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/util/sgi-pix.c,v 1.1 2004/05/20 15:21:59 morrison Exp $ (BRL)";
+d306 10
+@
+
+
+1.1
+log
+@Vast reorganization begins.  Sources moved from top-level directories into src/.
+@
+text
+@d17 1
+a17 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/util/sgi-pix.c,v 11.11 2004/05/10 15:30:51 erikg Exp $ (BRL)";
+d20 1
+a20 3
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+@
+

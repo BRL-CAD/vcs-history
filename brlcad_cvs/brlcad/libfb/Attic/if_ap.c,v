@@ -1,0 +1,542 @@
+head	11.4;
+access;
+symbols
+	ansi-20040405-merged:11.2
+	postmerge-20040405-ansi:11.2
+	premerge-20040404-ansi:11.2
+	postmerge-autoconf:11.2
+	autoconf-freeze:11.2
+	premerge-autoconf:11.2
+	ansi-20040316-freeze:11.2
+	postmerge-20040315-windows:11.2
+	premerge-20040315-windows:11.2
+	windows-20040315-freeze:11.2
+	autoconf-20031203:11.2
+	autoconf-20031202:11.2
+	autoconf-branch:11.2.0.14
+	phong-branch:11.2.0.12
+	photonmap-branch:11.2.0.10
+	rel-6-1-DP:11.2
+	windows-branch:11.2.0.8
+	rel-6-0-2:11.2
+	ansi-branch:11.2.0.6
+	rel-6-0-1-branch:11.2.0.4
+	hartley-6-0-post:11.2
+	hartley-6-0-pre:11.2
+	rel-6-0-1:11.2
+	rel-6-0:11.2
+	rel-5-4:11.2
+	offsite-5-3-pre:11.2
+	rel-5-3:11.2
+	rel-5-2:11.2
+	rel-5-1-branch:11.2.0.2
+	rel-5-1:11.2
+	rel-5-0:11.2
+	rel-5-0-beta:11.2
+	rel-4-5:11.1
+	ctj-4-5-post:11.1
+	ctj-4-5-pre:11.1
+	rel-4-4:11.1
+	rel-4-0:10.1;
+locks; strict;
+comment	@ * @;
+
+
+11.4
+date	2004.05.21.18.07.25;	author morrison;	state dead;
+branches;
+next	11.3;
+
+11.3
+date	2004.05.10.15.30.45;	author erikg;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	98.06.27.04.29.16;	author mike;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	95.01.04.09.52.51;	author mike;	state Rel4_4;
+branches;
+next	10.2;
+
+10.2
+date	94.08.12.20.24.51;	author gdurf;	state Exp;
+branches;
+next	10.1;
+
+10.1
+date	91.10.12.06.37.23;	author mike;	state Rel4_0;
+branches;
+next	1.3;
+
+1.3
+date	91.07.26.22.41.01;	author mike;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	90.12.11.22.18.15;	author phil;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	90.12.03.20.03.01;	author phil;	state Exp;
+branches;
+next	;
+
+
+desc
+@Apollo interface
+@
+
+
+11.4
+log
+@moved to src/
+@
+text
+@/*
+*			I F _ A P . C
+*
+*  Apollo display interface using GPR.  This interface runs under the
+*  display manager(direct mode).
+*
+*  Author-
+*           Dave Barber
+*
+*  Source -
+*           Idaho National Engineering Lab
+*           P.O. Box 1625
+*           Idaho Falls, ID 83415-2408
+*           (208)526-9415
+*
+*  Copyright Notice -
+*           This software is Copyright (C) 1989 by the Department of Energy.
+*           All rights reserved.
+*
+*  BRL NOTE: This is only the scant beginnings of an Apollo interface.
+*   We have no way of testing this, and given the changes in LIBFB this
+*   code may not even compile any longer.  If you make improvements to
+*   this please let us know. <phil@@brl.mil>
+*/
+
+
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+
+#include <stdio.h>
+#include <time.h>
+
+#include "machine.h"
+#include "base.h"
+#include "gpr.h"
+#include "fb.h"
+#include "./fblocal.h"
+
+_LOCAL_ int	ap_open(),
+		ap_close(),
+		ap_clear(),
+		ap_read(),
+		ap_write(),
+		ap_rmap(),
+		ap_wmap(),
+		ap_setcursor(),
+		ap_cursor(),
+		ap_help();
+
+/* This is the ONLY thing that we normally "export" */
+FBIO ap_interface =  {
+	0,
+	ap_open,		/* device_open		*/
+	ap_close,		/* device_close		*/
+	ap_clear,		/* device_clear		*/
+	ap_read,		/* buffer_read		*/
+	ap_write,		/* buffer_write		*/
+	ap_rmap,		/* colormap_read	*/
+	ap_wmap,		/* colormap_write	*/
+	fb_sim_view,		/* set view		*/
+	fb_sim_getview,		/* get view		*/
+	ap_setcursor,		/* define cursor	*/
+	ap_cursor,		/* set cursor		*/
+	fb_sim_getcursor,	/* get cursor		*/
+	fb_sim_readrect,
+	fb_sim_writerect,
+	fb_sim_bwreadrect,
+	fb_sim_bwwriterect,
+	fb_null,			/* poll */
+	fb_null,			/* flush */
+	fb_null,			/* free */
+	ap_help,			/* help message		*/
+	"Apollo General Primitive Resource",/* device description	*/
+	1280,				/* max width		*/
+	1024,				/* max height		*/
+	"/dev/shortname",		/* short device name	*/
+	1280,				/* default/current width  */
+	1024,				/* default/current height */
+	-1,				/* select fd		*/
+	-1,				/* file descriptor	*/
+	1, 1,				/* zoom			*/
+	640, 512,			/* window center	*/
+	0, 0, 0,			/* cursor		*/
+	PIXEL_NULL,			/* page_base		*/
+	PIXEL_NULL,			/* page_curp		*/
+	PIXEL_NULL,			/* page_endp		*/
+	-1,				/* page_no		*/
+	0,				/* page_dirty		*/
+	0L,				/* page_curpos		*/
+	0L,				/* page_pixels		*/
+	0				/* debug		*/
+};
+
+gpr_$bitmap_desc_t	display_bm;
+static char window_id	'1';
+gpr_$event_t		event_type;
+gpr_$keyset_t		key_set;
+char			event_data;
+gpr_$position_t		position;
+char			unobs;
+char			delete_display=false;
+
+_LOCAL_ void
+ap_storepixel( ifp, x, y, pixelp, count )
+FBIO	*ifp;
+int	x, y;
+RGBpixel	*pixelp;
+int	count;
+{
+	{	register RGBpixel *memp;
+	for( 	memp = (RGBpixel *)
+			(&ifp->if_mem[(y*ifp->if_width+x)*sizeof(RGBpixel)]);
+		count > 0;
+		memp++, p++, count--)
+		{
+			COPYRGB(*memp, *p);
+		}
+	return(count);
+}
+
+_LOCAL_ int
+ap_open( ifp, file, width, height )
+FBIO	*ifp;
+char	*file;
+int	width, height;
+{
+    static gpr_$display_mode_t	mode = gpr_$direct;
+    ios_$id_t			graphics_strid;
+    pad_$window_desc_t		window;
+    gpr_$offset_t		display_bm_size;
+    static gpr_$rgb_plane_t	hi_plane = 1;
+    status_$t status;
+
+    FB_CK_FBIO(ifp);
+
+/*  Create a window  */
+
+    window.top = 0;
+    window.left = 0;
+    window.width = width;
+    window.height = height;
+    pad_$create_window("",0,pad_$transcript,1,window,graphics_strid,status);
+
+/*  Size and initialize the window  */
+
+    display_bm_size.x_size = width;
+    display_bm_size.y_size = height;
+    gpr_$init(mode,graphics_strid,display_bm_size,hi_plane,display_bm,status);
+    gpr_$set_window_id(window_id,status);
+    gpr_$enable_input(gpr_$entered_window,key_set,status);
+    gpr_$set_auto_close(grpahics_strid,1,true,status);
+    gpr_$set_obscured_opt(gpr_$pop_if_obs,status);
+    gpr_$set_auto_refresh(true,status);
+    return(0);
+}
+
+_LOCAL_ int
+ap_close( ifp )
+FBIO	*ifp;
+{
+    status_$t status;
+    gpr_$terminate(false,status);
+    return(0);
+}
+
+_LOCAL_ int
+ap_clear( ifp, pp )
+FBIO	*ifp;
+RGBpixel	*pp;
+{
+    status_$t status;
+
+/*  Clear to the background color  */
+
+    gpr_$clear(-2,status);
+    return(0);
+}
+
+_LOCAL_ int
+ap_read( ifp, x, y, pixelp, count )
+FBIO	*ifp;
+int	x, y;
+RGBpixel	*pixelp;
+int	count;
+{
+	{	register RGBpixel *memp;
+	for( 	memp = (RGBpixel *)
+			(&ifp->if_mem[(y*ifp->if_width+x)*sizeof(RGBpixel)]);
+		count > 0;
+		memp++, p++, count--)
+		{
+			COPYRGB(*p, *memp);
+		}
+	return(count);
+}
+
+_LOCAL_ int
+ap_write( ifp, x, y, pixelp, count )
+FBIO	*ifp;
+int	x, y;
+RGBpixel	*pixelp;
+int	count;
+{
+	return(count);
+}
+
+_LOCAL_ int
+ap_rmap( ifp, cmp )
+FBIO	*ifp;
+ColorMap	*cmp;
+{
+	return(0);
+}
+
+_LOCAL_ int
+ap_wmap( ifp, cmp )
+FBIO	*ifp;
+ColorMap	*cmp;
+{
+	return(0);
+}
+
+_LOCAL_ int
+ap_setcursor( ifp, bits, xbits, ybits, xorig, yorig )
+FBIO	*ifp;
+unsigned char *bits;
+int	xbits, ybits;
+int	xorig, yorig;
+{
+	return(0);
+}
+
+_LOCAL_ int
+ap_cursor( ifp, mode, x, y )
+FBIO	*ifp;
+int	mode;
+int	x, y;
+{
+	fb_sim_cursor( ifp, mode, x, y );
+	return(0);
+}
+
+_LOCAL_ int
+ap_help( ifp )
+FBIO	*ifp;
+{
+	fb_log( "Description: %s\n", ap_interface.if_type );
+	fb_log( "Device: %s\n", ifp->if_name );
+	fb_log( "Max width/height: %d %d\n",
+		ap_interface.if_max_width,
+		ap_interface.if_max_height );
+	fb_log( "Default width/height: %d %d\n",
+		ap_interface.if_width,
+		ap_interface.if_height );
+	return(0);
+}
+@
+
+
+11.3
+log
+@change conf.h to a wrapped config.h
+@
+text
+@@
+
+
+11.2
+log
+@Additions to LIBFB interface and remote framebuffer protocol to
+read and write monochrome rectangles.
+Particularly important for sending thermal images at high speed.
+@
+text
+@d27 5
+a31 1
+#include "conf.h"
+@
+
+
+11.1
+log
+@Release_4.4
+@
+text
+@d66 2
+@
+
+
+10.2
+log
+@Added includes
+@
+text
+@@
+
+
+10.1
+log
+@Release_4.0
+@
+text
+@d26 4
+d31 2
+@
+
+
+1.3
+log
+@Added if_magic field, and FB_CK_FBIO() macro, to allow checking
+FBIO pointers
+@
+text
+@@
+
+
+1.2
+log
+@if_ struct changes and name cleanups.  No way to test this one.
+@
+text
+@d45 1
+d124 2
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d20 4
+d32 9
+a40 14
+_LOCAL_ int	ap_dopen(),
+		ap_dclose(),
+		ap_dreset(),
+		ap_dclear(),
+		ap_bread(),
+		ap_bwrite(),
+		ap_cmread(),
+		ap_cmwrite(),
+		ap_viewport_set(),
+		ap_window_set(),
+		ap_zoom_set(),
+		ap_curs_set(),
+		ap_cmemory_addr(),
+		ap_cscreen_addr(),
+d45 17
+a61 14
+	ap_dopen,		/* device_open		*/
+	ap_dclose,		/* device_close		*/
+	ap_dreset,		/* device_reset		*/
+	ap_dclear,		/* device_clear		*/
+	ap_bread,		/* buffer_read		*/
+	ap_bwrite,		/* buffer_write		*/
+	ap_cmread,		/* colormap_read	*/
+	ap_cmwrite,		/* colormap_write	*/
+	ap_viewport_set,		/* viewport_set		*/
+	ap_window_set,		/* window_set		*/
+	ap_zoom_set,		/* zoom_set		*/
+	ap_curs_set,		/* curs_set		*/
+	ap_cmemory_addr,		/* cursor_move_memory_addr */
+	ap_cscreen_addr,		/* cursor_move_screen_addr */
+d69 1
+d71 3
+d83 1
+d112 1
+a112 1
+ap_dopen( ifp, file, width, height )
+d146 1
+a146 1
+ap_dclose( ifp )
+d155 1
+a155 1
+ap_dreset( ifp )
+a156 7
+{
+	return(0);
+}
+
+_LOCAL_ int
+ap_dclear( ifp, pp )
+FBIO	*ifp;
+d168 1
+a168 1
+ap_bread( ifp, x, y, pixelp, count )
+d186 1
+a186 1
+ap_bwrite( ifp, x, y, pixelp, count )
+d196 1
+a196 1
+ap_cmread( ifp, cmp )
+d204 1
+a204 1
+ap_cmwrite( ifp, cmp )
+d212 1
+a212 1
+ap_viewport_set( ifp, left, top, right, bottom )
+a213 24
+int	left, top, right, bottom;
+{
+	return(0);
+}
+
+_LOCAL_ int
+ap_window_set( ifp, x, y )
+FBIO	*ifp;
+int	x, y;
+{
+	return(0);
+}
+
+_LOCAL_ int
+ap_zoom_set( ifp, x, y )
+FBIO	*ifp;
+int	x, y;
+{
+	return(0);
+}
+
+_LOCAL_ int
+ap_curs_set( ifp, bits, xbits, ybits, xorig, yorig )
+FBIO	*ifp;
+d222 1
+a222 1
+ap_cmemory_addr( ifp, mode, x, y )
+d227 1
+a227 9
+	return(0);
+}
+
+_LOCAL_ int
+ap_cscreen_addr( ifp, mode, x, y )
+FBIO	*ifp;
+int	mode;
+int	x, y;
+{
+@

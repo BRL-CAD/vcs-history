@@ -1,0 +1,496 @@
+head	14.11;
+access;
+symbols
+	rel-7-10-4:14.11
+	STABLE:14.11.0.2
+	stable-branch:14.3
+	rel-7-10-2:14.11
+	rel-7-10-0:14.10
+	rel-7-8-4:14.6
+	rel-7-8-2:14.6
+	rel-7-8-0:14.6
+	trimnurbs-branch:14.6.0.2
+	help:14.6
+	temp_tag:14.5
+	bobWinPort-20051223-freeze:14.3
+	postmerge-20051223-bobWinPort:14.5
+	premerge-20051223-bobWinPort:14.5
+	rel-7-6-6:14.5
+	rel-7-6-4:14.5
+	rel-7-6-2:14.3
+	rel-7-6-branch:14.3.0.6
+	rel-7-6-0:14.3
+	rel-7-4-2:14.3
+	rel-7-4-branch:14.3.0.4
+	bobWinPort:14.3.0.2
+	rel-7-4-0:14.3
+	rel-7-2-6:14.3
+	rel-7-2-4:14.3
+	rel-7-2-2:14.3
+	rel-7-2-0:14.3
+	rel-7-0-4:14.2
+	rel-7-0-2:14.2
+	rel-7-0-1:14.2
+	opensource-post:14.2
+	opensource-pre:1.2
+	rel-7-0-branch:1.2.0.2
+	rel-7-0:1.2;
+locks; strict;
+comment	@ * @;
+
+
+14.11
+date	2007.05.14.21.04.33;	author brlcad;	state Exp;
+branches;
+next	14.10;
+
+14.10
+date	2007.02.02.08.48.30;	author brlcad;	state Exp;
+branches;
+next	14.9;
+
+14.9
+date	2007.01.27.01.41.45;	author brlcad;	state Exp;
+branches;
+next	14.8;
+
+14.8
+date	2007.01.23.01.13.44;	author brlcad;	state Exp;
+branches;
+next	14.7;
+
+14.7
+date	2007.01.20.14.36.59;	author brlcad;	state Exp;
+branches;
+next	14.6;
+
+14.6
+date	2006.01.18.06.46.23;	author brlcad;	state Exp;
+branches;
+next	14.5;
+
+14.5
+date	2005.10.23.04.44.37;	author brlcad;	state Exp;
+branches;
+next	14.4;
+
+14.4
+date	2005.09.09.09.44.09;	author brlcad;	state Exp;
+branches;
+next	14.3;
+
+14.3
+date	2005.01.30.20.31.09;	author brlcad;	state Exp;
+branches
+	14.3.6.1;
+next	14.2;
+
+14.2
+date	2004.12.21.03.46.09;	author butler;	state Exp;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.30;	author morrison;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2004.08.02.23.01.52;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.15.20.41;	author morrison;	state Exp;
+branches;
+next	;
+
+14.3.6.1
+date	2005.11.13.13.46.19;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.11
+log
+@gah, pick up where someone left off over half a decade ago.  finish updating all of the compat4 symbols throughout the code to their new names.  finally. it's done.  make the deprecated headers obsolete -- make compat4.h obsolete too so we can be sure that all of the changes are now picked up by the compiler as errors.  this change will likely impact muves if they've similarly not updated to the new names too, so the headers are kept with a #warning for now (though will likely disappear down the road entirely).
+@
+text
+@/*                           T E A . C
+ * BRL-CAD
+ *
+ * Copyright (c) 2004-2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@file tea.c
+ * Convert the Utah Teapot description from the IEEE CG&A database to the
+ * BRL-CAD spline format. (Note that this has the closed bottom)
+ *
+ */
+
+#include "common.h"
+
+
+#include <stdio.h>		/* Direct the output to stdout */
+#include <unistd.h>
+#include "machine.h"		/* BRL-CAD specific machine data types */
+#include "vmath.h"		/* BRL-CAD Vector macros */
+#include "nurb.h"		/* BRL-CAD Spline data structures */
+#include "raytrace.h"
+#include "wdb.h"
+
+#include "./tea.h"		/* IEEE Data Structures */
+#include "./ducks.h"		/* Teapot Vertex data */
+#include "./patches.h"		/* Teapot Patch data */
+
+extern dt ducks[DUCK_COUNT];		/* Vertex data of teapot */
+extern pt patches[PATCH_COUNT];		/* Patch data of teapot */
+
+struct face_g_snurb **surfaces;
+
+char *Usage = "This program ordinarily generates a database on stdout.\n\
+	Your terminal probably wouldn't like it.";
+
+/*void dump_patch(int (*patch)[4]);*/
+void dump_patch( struct face_g_snurb **surfp, pt patch );
+
+struct rt_wdb *outfp;
+
+int
+main(int argc, char **argv) 			/* really has no arguments */
+
+{
+	char * id_name = "Spline Example";
+	char * tea_name = "UtahTeapot";
+	int i;
+
+	rt_init_resource( &rt_uniresource, 0, NULL );
+
+	outfp = wdb_fopen("teapot.g");
+
+	while ((i=bu_getopt(argc, argv, "d")) != EOF) {
+		switch (i) {
+		case 'd' : rt_g.debug |= DEBUG_MEM | DEBUG_MEM_FULL; break;
+		default	:
+			(void)fprintf(stderr,
+				"Usage: %s [-d]\n", *argv);
+			return(-1);
+		}
+	}
+
+	/* Setup information
+	 * Database header record
+	 *	File name
+	 * B-Spline Solid record
+	 * 	Name, Number of Surfaces, resolution (not used)
+	 *
+	 */
+
+	mk_id( outfp, id_name);
+
+	/* Step through each patch and create a B_SPLINE surface
+	 * representing the patch then dump them out.
+	 */
+
+	surfaces = (struct face_g_snurb **)bu_calloc( PATCH_COUNT+2,
+			       sizeof( struct face_g_snurb *), "surfaces" );
+
+	for( i = 0; i < PATCH_COUNT; i++)
+	{
+		dump_patch( &surfaces[i], patches[i] );
+	}
+	surfaces[PATCH_COUNT] = NULL;
+
+	mk_bspline( outfp, tea_name, surfaces );
+
+	return(0);
+}
+
+/* IEEE patch number of the Bi-Cubic Bezier patch and convert it
+ * to a B-Spline surface (Bezier surfaces are a subset of B-spline surfaces
+ * and output it to a BRL-CAD binary format.
+ */
+void
+dump_patch( struct face_g_snurb **surfp, pt patch )
+{
+	struct face_g_snurb * b_patch;
+	int i,j, pt_type;
+	fastf_t * mesh_pointer;
+
+	/* U and V parametric Direction Spline parameters
+	 * Cubic = order 4,
+	 * knot size is Control point + order = 4
+	 * control point size is 4
+	 * point size is 3
+	 */
+
+	pt_type = RT_NURB_MAKE_PT_TYPE(3, 2,0); /* see nurb.h for details */
+
+	b_patch = (struct face_g_snurb *) rt_nurb_new_snurb( 4, 4, 8, 8, 4, 4,
+		pt_type, &rt_uniresource);
+	*surfp = b_patch;
+
+	/* Now fill in the pieces */
+
+	/* Both u and v knot vectors are [ 0 0 0 0 1 1 1 1]
+	 * spl_kvknot( order, lower parametric value, upper parametric value,
+	 * 		Number of interior knots )
+	 */
+
+
+	bu_free((char *)b_patch->u.knots, "dumping u knots I'm about to realloc");
+	rt_nurb_kvknot( &b_patch->u, 4, 0.0, 1.0, 0, &rt_uniresource);
+
+	bu_free((char *)b_patch->v.knots, "dumping v_kv knots I'm about to realloc");
+	rt_nurb_kvknot( &b_patch->v, 4, 0.0, 1.0, 0, &rt_uniresource);
+
+	/* Copy the control points */
+
+	mesh_pointer = b_patch->ctl_points;
+
+	for( i = 0; i< 4; i++)
+	for( j = 0; j < 4; j++)
+	{
+		*mesh_pointer = ducks[patch[i][j]-1].x * 1000;
+		*(mesh_pointer+1) = ducks[patch[i][j]-1].y * 1000;
+		*(mesh_pointer+2) = ducks[patch[i][j]-1].z * 1000;
+		mesh_pointer += 3;
+	}
+}
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+14.10
+log
+@convert all of the lingering getopt calls to bu_getopt (as well as the related getopt globals optind, opterr, optarg) -- libbu's getopt has the benefit of being re-entrant and is portable to environments where getopt() may not be available.
+@
+text
+@a141 8
+	if (RT_G_DEBUG) {
+		rt_ck_malloc_ptr(b_patch, "b_patch");
+		rt_ck_malloc_ptr(b_patch->u.knots,
+			"b_patch->u.knots");
+		rt_ck_malloc_ptr(b_patch->v.knots,
+			"b_patch->v.knots");
+	}
+
+@
+
+
+14.9
+log
+@ws. lots and lots of ws.  see sh/ws.sh for details (cases 'abcdeg').
+@
+text
+@d66 1
+a66 1
+	while ((i=getopt(argc, argv, "d")) != EOF) {
+@
+
+
+14.8
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@a28 1
+
+d77 1
+a77 1
+   	 * Database header record
+d133 1
+a133 1
+ 	 */
+@
+
+
+14.7
+log
+@update copyright to 2007
+@
+text
+@d8 2
+a9 3
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+d14 1
+a14 1
+ * General Public License for more details.
+d16 2
+a17 2
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+@
+
+
+14.6
+log
+@update copyright to 2006
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 2004-2006 United States Government as represented by
+@
+
+
+14.5
+log
+@trailing ws
+@
+text
+@d4 1
+a4 1
+ * Copyright (C) 2004-2005 United States Government as represented by
+@
+
+
+14.4
+log
+@BRL-CAD not BRLCAD, consistency
+@
+text
+@d58 1
+a58 1
+                       
+d78 1
+a78 1
+	/* Setup information 
+d118 1
+a118 1
+	 * Cubic = order 4, 
+d129 1
+a129 1
+	
+d132 1
+a132 1
+	/* Both u and v knot vectors are [ 0 0 0 0 1 1 1 1] 
+d136 1
+a136 1
+	
+@
+
+
+14.3
+log
+@update copyright to 2005
+@
+text
+@d33 3
+a35 3
+#include "machine.h"		/* BRLCAD specific machine data types */
+#include "vmath.h"		/* BRLCAD Vector macros */
+#include "nurb.h"		/* BRLCAD Spline data structures */
+d108 1
+a108 1
+ * and output it to a BRLCAD binary format.
+@
+
+
+14.3.6.1
+log
+@merge changes from HEAD aka rel-7-6-4 to the rel-7-6-branch just in case someone peeks a gander or tries to continue/build the branch
+@
+text
+@d33 3
+a35 3
+#include "machine.h"		/* BRL-CAD specific machine data types */
+#include "vmath.h"		/* BRL-CAD Vector macros */
+#include "nurb.h"		/* BRL-CAD Spline data structures */
+d58 1
+a58 1
+
+d78 1
+a78 1
+	/* Setup information
+d108 1
+a108 1
+ * and output it to a BRL-CAD binary format.
+d118 1
+a118 1
+	 * Cubic = order 4,
+d129 1
+a129 1
+
+d132 1
+a132 1
+	/* Both u and v knot vectors are [ 0 0 0 0 1 1 1 1]
+d136 1
+a136 1
+
+@
+
+
+14.2
+log
+@GPL license changes
+@
+text
+@d4 2
+a5 2
+ * Copyright (c) 2004 United States Government as represented by the
+ * U.S. Army Research Laboratory.
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@d1 2
+a2 1
+/*		T E A . C
+d4 18
+@
+
+
+1.2
+log
+@replace the wrapped config.h block with common.h
+@
+text
+@d146 10
+@
+
+
+1.1
+log
+@Vast reorganization begins.  Sources moved from top-level directories into src/.
+@
+text
+@d8 1
+a8 3
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+@
+

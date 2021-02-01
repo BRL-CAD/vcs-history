@@ -1,0 +1,815 @@
+head	1.10;
+access;
+symbols
+	rel-7-10-4:1.5
+	STABLE:1.5.0.2
+	rel-7-10-2:1.5
+	rel-7-10-0:1.4
+	rel-7-8-4:1.2
+	rel-7-8-2:1.2
+	rel-7-8-0:1.2
+	trimnurbs-branch:1.2.0.2
+	help:1.2
+	temp_tag:1.1
+	postmerge-20051223-bobWinPort:1.1
+	premerge-20051223-bobWinPort:1.1
+	rel-7-6-6:1.1
+	rel-7-6-branch:1.1.0.2
+	rel-7-6-4:1.1;
+locks; strict;
+comment	@ * @;
+
+
+1.10
+date	2007.12.31.20.25.14;	author brlcad;	state Exp;
+branches;
+next	1.9;
+
+1.9
+date	2007.12.18.07.07.12;	author brlcad;	state Exp;
+branches;
+next	1.8;
+
+1.8
+date	2007.11.21.20.49.07;	author erikgreenwald;	state Exp;
+branches;
+next	1.7;
+
+1.7
+date	2007.11.21.19.05.59;	author erikgreenwald;	state Exp;
+branches;
+next	1.6;
+
+1.6
+date	2007.10.14.22.15.54;	author brlcad;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	2007.05.14.21.04.30;	author brlcad;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	2007.01.23.01.13.26;	author brlcad;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2007.01.20.14.36.47;	author brlcad;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2006.01.18.06.46.14;	author brlcad;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2005.10.27.03.44.49;	author brlcad;	state Exp;
+branches
+	1.1.2.1;
+next	;
+
+1.1.2.1
+date	2005.10.27.03.44.49;	author brlcad;	state dead;
+branches;
+next	1.1.2.2;
+
+1.1.2.2
+date	2005.11.13.17.45.00;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.10
+log
+@header cleanup, more address removal
+@
+text
+@/*                      S H O W T R E E . C
+ * BRL-CAD
+ *
+ * Copyright (c) 1990-2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@file showtree.c
+ *  Authors -
+ *	John R. Anderson
+ *	Susanne L. Muuss
+ *	Earl P. Weaver
+ *
+ */
+
+/*		Display a boolean tree		*/
+
+#include "./iges_struct.h"
+#include "./iges_extern.h"
+
+#define	STKBLK	100	/* Allocation block size */
+
+static void Initastack(),Apush();
+static void Initsstack(),Spush();
+static void Afreestack(),Sfreestack();
+
+static char *Apop();
+static struct node *Spop();
+
+/* Some junk for this routines private node stack */
+struct node **sstk_p;
+int sjtop,sstklen;
+
+/* some junk for this routines private character string stack */
+char **stk;
+int jtop,stklen;
+
+void
+Showtree( root )
+struct node *root;
+{
+	struct node *ptr;
+	char *opa,*opb,*tmp,oper[4];
+
+	strcpy( oper , "   " );
+
+	/* initialize both stacks */
+	Initastack();
+	Initsstack();
+
+	ptr = root;
+	while( 1 )
+	{
+		while( ptr != NULL )
+		{
+			Spush( ptr );
+			ptr = ptr->left;
+		}
+		ptr = Spop();
+
+		if( ptr == NULL )
+		{
+			bu_log( "Error in Showtree: Popped a null pointer\n" );
+			Afreestack();
+			Sfreestack();
+			return;
+		}
+
+		if( ptr->op < 0 ) /* this is an operand, push it's name */
+			Apush( dir[-(1+ptr->op)/2]->name );
+		else	/* this is an operator */
+		{
+			int size;
+			/* Pop the names of the operands */
+			opb = Apop();
+			opa = Apop();
+
+			size = strlen(opa) + strlen(opb) + 6;
+
+			/* construct the character string (opa ptr->op opb) */
+			tmp = (char *)bu_malloc( size, "Showtree: tmp" );
+			if( ptr->parent )
+				strcpy( tmp , "(" );
+			else
+				*tmp = '\0';
+			strncat( tmp , opa, size - strlen(tmp) - 1 );
+			oper[1] = operator[ptr->op];
+			strncat( tmp , oper, size - strlen(tmp) - 1 );
+			strncat( tmp , opb, size - strlen(tmp) - 1 );
+			if( ptr->parent )
+				strcat( tmp , ")" );
+			tmp[size-1] = '\0'; /* sanity */
+
+			/* push the character string representing the result */
+			Apush( tmp );
+		}
+
+		if( ptr == root )	/* done! */
+		{
+			bu_log( "%s\n" , Apop() ); /* print the result */
+
+			/* free some memory */
+			Afreestack();
+			Sfreestack();
+			return;
+		}
+
+		if( ptr != ptr->parent->right )
+			ptr = ptr->parent->right;
+		else
+			ptr = NULL;
+	}
+}
+
+/* The following are stack routines for character strings */
+
+static void
+Initastack()
+{
+	int i;
+
+	jtop = (-1);
+	stklen = STKBLK;
+	stk = (char **)bu_malloc( stklen*sizeof( char * ), "Initastack: stk" );
+	if( stk == NULL )
+	{
+		bu_log( "Cannot allocate stack space\n" );
+		perror( "Initastack" );
+		bu_exit( 1, NULL );
+	}
+	for( i=0 ; i<stklen ; i++ )
+		stk[i] = NULL;
+}
+
+/*  This function pushes a pointer onto the stack. */
+
+static void
+Apush(ptr)
+char *ptr;
+{
+	int i;
+
+	jtop++;
+	if( jtop == stklen )
+	{
+		stklen += STKBLK;
+		stk = (char **)bu_realloc( (char *)stk , stklen*sizeof( char *), "Apush: stk" );
+		if( stk == NULL )
+		{
+			bu_log( "Cannot reallocate stack space\n" );
+			perror( "Apush" );
+			bu_exit( 1, NULL );
+		}
+		for( i=jtop ; i<stklen ; i++ )
+			stk[i] = NULL;
+	}
+	stk[jtop] = ptr;
+}
+
+
+/*  This function pops the top of the stack. */
+
+
+static char *
+Apop()
+{
+	char *ptr;
+
+	if( jtop == (-1) )
+		ptr=NULL;
+	else
+	{
+		ptr = stk[jtop];
+		jtop--;
+	}
+
+	return(ptr);
+}
+
+/* Free the memory associated with the stack */
+static void
+Afreestack()
+{
+
+	jtop = (-1);
+	stklen = 0;
+	bu_free( (char *)stk, "Afreestack: stk" );
+	return;
+}
+
+
+/* The following routines are stack routines for 'struct node' */
+static void
+Initsstack() /* initialize the stack */
+{
+
+	sjtop = (-1);
+	sstklen = STKBLK;
+	sstk_p = (struct node **)bu_malloc( sstklen*sizeof( struct node * ), "Initsstack: sstk_p" );
+	if( sstk_p == NULL )
+	{
+		bu_log( "Cannot allocate stack space\n" );
+		perror( "Initsstack" );
+		bu_exit( 1, NULL );
+	}
+}
+
+/*  This function pushes a pointer onto the stack. */
+
+static void
+Spush(ptr)
+struct node *ptr;
+{
+
+	sjtop++;
+	if( sjtop == sstklen )
+	{
+		sstklen += STKBLK;
+		sstk_p = (struct node **)bu_realloc( (char *)sstk_p , sstklen*sizeof( struct node *), "Spush: sstk_p" );
+		if( sstk_p == NULL )
+		{
+			bu_log( "Cannot reallocate stack space\n" );
+			perror( "Spush" );
+			bu_exit( 1, NULL );
+		}
+	}
+	sstk_p[sjtop] = ptr;
+}
+
+
+/*  This function pops the top of the stack. */
+
+
+static struct node *
+Spop()
+{
+	struct node *ptr;
+
+	if( sjtop == (-1) )
+		ptr=NULL;
+	else
+	{
+		ptr = sstk_p[sjtop];
+		sjtop--;
+	}
+
+	return(ptr);
+}
+
+/* free memory associated with the stack, but not the pointed to nodes */
+static void
+Sfreestack()
+{
+	sjtop = (-1);
+	bu_free( (char *)sstk_p, "Sfreestack: sstk_p" );
+	return;
+}
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+1.9
+log
+@null-terminate strncat'd buffers for sanity sake since we don't usually check if we filled/truncated
+@
+text
+@a25 5
+ *  Source -
+ *	VLD/ASB Building 1065
+ *	The U. S. Army Ballistic Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005
+ *
+@
+
+
+1.8
+log
+@pass bu_exit a NULL instead of an empty string
+@
+text
+@d109 1
+@
+
+
+1.7
+log
+@exit->bu_exit where applicable
+@
+text
+@d145 1
+a145 1
+		bu_exit( 1, "" );
+d168 1
+a168 1
+			bu_exit( 1, "" );
+d220 1
+a220 1
+		bu_exit( 1, "" );
+d240 1
+a240 1
+			bu_exit( 1, "" );
+@
+
+
+1.6
+log
+@more level 4 flawfinder issues.  mostly string length clampages.
+@
+text
+@d145 1
+a145 1
+		exit( 1 );
+d168 1
+a168 1
+			exit( 1 );
+d220 1
+a220 1
+		exit( 1 );
+d240 1
+a240 1
+			exit( 1 );
+@
+
+
+1.5
+log
+@gah, pick up where someone left off over half a decade ago.  finish updating all of the compat4 symbols throughout the code to their new names.  finally. it's done.  make the deprecated headers obsolete -- make compat4.h obsolete too so we can be sure that all of the changes are now picked up by the compiler as errors.  this change will likely impact muves if they've similarly not updated to the new names too, so the headers are kept with a #warning for now (though will likely disappear down the road entirely).
+@
+text
+@d90 1
+d95 2
+d98 2
+a99 2
+			tmp = (char *)bu_malloc( strlen( opa ) + strlen( opb ) + 6, "Showtree: tmp" );
+			if( ptr->parent != NULL )
+d103 1
+a103 1
+			strcat( tmp , opa );
+d105 3
+a107 3
+			strcat( tmp , oper );
+			strcat( tmp , opb );
+			if( ptr->parent != NULL )
+@
+
+
+1.4
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@d160 1
+a160 1
+		stk = (char **)rt_realloc( (char *)stk , stklen*sizeof( char *), "Apush: stk" );
+d232 1
+a232 1
+		sstk_p = (struct node **)rt_realloc( (char *)sstk_p , sstklen*sizeof( struct node *), "Spush: sstk_p" );
+@
+
+
+1.3
+log
+@update copyright to 2007
+@
+text
+@d8 2
+a9 3
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+d14 1
+a14 1
+ * General Public License for more details.
+d16 2
+a17 2
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+@
+
+
+1.2
+log
+@update copyright to 2006
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 1990-2006 United States Government as represented by
+@
+
+
+1.1
+log
+@moved all the geometry converter directories from src/. to src/conv/.
+@
+text
+@d4 1
+a4 1
+ * Copyright (C) 1990-2005 United States Government as represented by
+@
+
+
+1.1.2.1
+log
+@file showtree.c was added on branch rel-7-6-branch on 2005-11-13 17:45:00 +0000
+@
+text
+@d1 281
+@
+
+
+1.1.2.2
+log
+@more merging changes from HEAD aka rel-7-6-4 to the rel-7-6-branch, adding the items that were moved and resolving rcs keyword conflicts
+@
+text
+@a0 281
+/*                      S H O W T R E E . C
+ * BRL-CAD
+ *
+ * Copyright (C) 1990-2005 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@file showtree.c
+ *  Authors -
+ *	John R. Anderson
+ *	Susanne L. Muuss
+ *	Earl P. Weaver
+ *
+ *  Source -
+ *	VLD/ASB Building 1065
+ *	The U. S. Army Ballistic Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005
+ *
+ */
+
+/*		Display a boolean tree		*/
+
+#include "./iges_struct.h"
+#include "./iges_extern.h"
+
+#define	STKBLK	100	/* Allocation block size */
+
+static void Initastack(),Apush();
+static void Initsstack(),Spush();
+static void Afreestack(),Sfreestack();
+
+static char *Apop();
+static struct node *Spop();
+
+/* Some junk for this routines private node stack */
+struct node **sstk_p;
+int sjtop,sstklen;
+
+/* some junk for this routines private character string stack */
+char **stk;
+int jtop,stklen;
+
+void
+Showtree( root )
+struct node *root;
+{
+	struct node *ptr;
+	char *opa,*opb,*tmp,oper[4];
+
+	strcpy( oper , "   " );
+
+	/* initialize both stacks */
+	Initastack();
+	Initsstack();
+
+	ptr = root;
+	while( 1 )
+	{
+		while( ptr != NULL )
+		{
+			Spush( ptr );
+			ptr = ptr->left;
+		}
+		ptr = Spop();
+
+		if( ptr == NULL )
+		{
+			bu_log( "Error in Showtree: Popped a null pointer\n" );
+			Afreestack();
+			Sfreestack();
+			return;
+		}
+
+		if( ptr->op < 0 ) /* this is an operand, push it's name */
+			Apush( dir[-(1+ptr->op)/2]->name );
+		else	/* this is an operator */
+		{
+			/* Pop the names of the operands */
+			opb = Apop();
+			opa = Apop();
+
+			/* construct the character string (opa ptr->op opb) */
+			tmp = (char *)bu_malloc( strlen( opa ) + strlen( opb ) + 6, "Showtree: tmp" );
+			if( ptr->parent != NULL )
+				strcpy( tmp , "(" );
+			else
+				*tmp = '\0';
+			strcat( tmp , opa );
+			oper[1] = operator[ptr->op];
+			strcat( tmp , oper );
+			strcat( tmp , opb );
+			if( ptr->parent != NULL )
+				strcat( tmp , ")" );
+
+			/* push the character string representing the result */
+			Apush( tmp );
+		}
+
+		if( ptr == root )	/* done! */
+		{
+			bu_log( "%s\n" , Apop() ); /* print the result */
+
+			/* free some memory */
+			Afreestack();
+			Sfreestack();
+			return;
+		}
+
+		if( ptr != ptr->parent->right )
+			ptr = ptr->parent->right;
+		else
+			ptr = NULL;
+	}
+}
+
+/* The following are stack routines for character strings */
+
+static void
+Initastack()
+{
+	int i;
+
+	jtop = (-1);
+	stklen = STKBLK;
+	stk = (char **)bu_malloc( stklen*sizeof( char * ), "Initastack: stk" );
+	if( stk == NULL )
+	{
+		bu_log( "Cannot allocate stack space\n" );
+		perror( "Initastack" );
+		exit( 1 );
+	}
+	for( i=0 ; i<stklen ; i++ )
+		stk[i] = NULL;
+}
+
+/*  This function pushes a pointer onto the stack. */
+
+static void
+Apush(ptr)
+char *ptr;
+{
+	int i;
+
+	jtop++;
+	if( jtop == stklen )
+	{
+		stklen += STKBLK;
+		stk = (char **)rt_realloc( (char *)stk , stklen*sizeof( char *), "Apush: stk" );
+		if( stk == NULL )
+		{
+			bu_log( "Cannot reallocate stack space\n" );
+			perror( "Apush" );
+			exit( 1 );
+		}
+		for( i=jtop ; i<stklen ; i++ )
+			stk[i] = NULL;
+	}
+	stk[jtop] = ptr;
+}
+
+
+/*  This function pops the top of the stack. */
+
+
+static char *
+Apop()
+{
+	char *ptr;
+
+	if( jtop == (-1) )
+		ptr=NULL;
+	else
+	{
+		ptr = stk[jtop];
+		jtop--;
+	}
+
+	return(ptr);
+}
+
+/* Free the memory associated with the stack */
+static void
+Afreestack()
+{
+
+	jtop = (-1);
+	stklen = 0;
+	bu_free( (char *)stk, "Afreestack: stk" );
+	return;
+}
+
+
+/* The following routines are stack routines for 'struct node' */
+static void
+Initsstack() /* initialize the stack */
+{
+
+	sjtop = (-1);
+	sstklen = STKBLK;
+	sstk_p = (struct node **)bu_malloc( sstklen*sizeof( struct node * ), "Initsstack: sstk_p" );
+	if( sstk_p == NULL )
+	{
+		bu_log( "Cannot allocate stack space\n" );
+		perror( "Initsstack" );
+		exit( 1 );
+	}
+}
+
+/*  This function pushes a pointer onto the stack. */
+
+static void
+Spush(ptr)
+struct node *ptr;
+{
+
+	sjtop++;
+	if( sjtop == sstklen )
+	{
+		sstklen += STKBLK;
+		sstk_p = (struct node **)rt_realloc( (char *)sstk_p , sstklen*sizeof( struct node *), "Spush: sstk_p" );
+		if( sstk_p == NULL )
+		{
+			bu_log( "Cannot reallocate stack space\n" );
+			perror( "Spush" );
+			exit( 1 );
+		}
+	}
+	sstk_p[sjtop] = ptr;
+}
+
+
+/*  This function pops the top of the stack. */
+
+
+static struct node *
+Spop()
+{
+	struct node *ptr;
+
+	if( sjtop == (-1) )
+		ptr=NULL;
+	else
+	{
+		ptr = sstk_p[sjtop];
+		sjtop--;
+	}
+
+	return(ptr);
+}
+
+/* free memory associated with the stack, but not the pointed to nodes */
+static void
+Sfreestack()
+{
+	sjtop = (-1);
+	bu_free( (char *)sstk_p, "Sfreestack: sstk_p" );
+	return;
+}
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+

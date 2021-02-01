@@ -1,0 +1,304 @@
+head	11.3;
+access;
+symbols
+	ansi-20040405-merged:11.2
+	premerge-autoconf:11.2
+	ansi-20040316-freeze:11.2
+	postmerge-20040315-windows:11.2
+	premerge-20040315-windows:11.2
+	windows-20040315-freeze:11.2
+	autoconf-20031203:11.2
+	autoconf-20031202:11.2
+	phong-branch:11.2.0.12
+	photonmap-branch:11.2.0.10
+	rel-6-1-DP:11.2
+	windows-branch:11.2.0.8
+	rel-6-0-2:11.2
+	ansi-branch:11.2.0.6
+	rel-6-0-1-branch:11.2.0.4
+	hartley-6-0-post:11.2
+	hartley-6-0-pre:11.2
+	rel-6-0-1:11.2
+	rel-6-0:11.2
+	rel-5-4:11.2
+	offsite-5-3-pre:11.2
+	rel-5-3:11.2
+	rel-5-2:11.2
+	rel-5-1-branch:11.2.0.2
+	rel-5-1:11.2
+	rel-5-0:11.2
+	rel-5-0-beta:11.2
+	rel-4-5:11.2
+	ctj-4-5-post:11.2
+	ctj-4-5-pre:11.2
+	rel-4-4:1.3
+	rel-4-0:1.1
+	rel-3-5:1.1
+	rel-3-0:1.1
+	AUTOCONF:11.2.0.14;
+locks; strict;
+comment	@ * @;
+
+
+11.3
+date	2004.03.18.18.15.14;	author erikg;	state dead;
+branches;
+next	11.2;
+
+11.2
+date	97.05.22.16.57.55;	author mike;	state Exp;
+branches
+	11.2.14.1;
+next	11.1;
+
+11.1
+date	95.01.05.06.00.04;	author mike;	state Rel4_4;
+branches;
+next	1.3;
+
+1.3
+date	94.11.03.14.29.45;	author mike;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	93.11.04.18.33.15;	author mike;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	88.06.11.00.55.52;	author mike;	state Original;
+branches;
+next	;
+
+11.2.14.1
+date	2004.03.18.18.10.24;	author erikg;	state dead;
+branches;
+next	;
+
+
+desc
+@cake
+@
+
+
+11.3
+log
+@merge of AUTOCONF branch in to HEAD
+@
+text
+@/*
+**	Error handling module.
+*/
+
+static	char
+rcs_id[] = "$Header: /cvs/brlcad/cake/error.c,v 11.2 1997/05/22 16:57:55 mike Exp $";
+
+#include	"cake.h"
+
+/*
+**	This function prints out the history of errors
+**	that prevent the proper update of the given node.
+*/
+
+void
+trace_errs(node)
+reg	Node	*node;
+{
+	reg	List	*ptr;
+	reg	Node	*bnode;
+
+	if (on_node(node, nf_TRACED))
+		return;
+
+	set_node(node, nf_TRACED);
+	for_list (ptr, node->n_badguys)
+	{
+		bnode = (Node *) ldata(ptr);
+		trace_errs(bnode);
+	}
+
+	if (strdiff(node->n_name, CHASEROOT))
+		printf("%s", node->n_msg);
+}
+
+/*
+**	This function adds msg to the list of error messages
+**	to be printed by trace_errs for the given node.
+*/
+void
+add_error(node, msg, badguys, iserror)
+reg	Node	*node;
+reg	char	*msg;
+reg	List	*badguys;
+reg	int	iserror;
+{
+	char	buf[MAXSIZE];
+
+	if (node->n_msg == NULL)
+		node->n_msg = "";
+
+	if (iserror)
+		set_node(node, nf_ERR);
+
+	sprintf(buf, "%scake: %s\n", node->n_msg, msg);
+	if (strlen(buf) >= (unsigned)MAXSIZE)
+	{
+		fprintf(stderr, "cake internal error: buffer overflow in add_error\n");
+		exit_cake(FALSE);
+	}
+
+	node->n_msg = new_name(buf);
+	node->n_badguys = addlist(node->n_badguys, badguys);
+}
+
+char *
+find_circle(name)
+reg	char	*name;
+{
+	extern	int	goal_stackp;
+	extern	char	*goal_stack[];
+	char		buf[MAXSIZE];
+	reg	int	i;
+
+	cdebug("stackp = %d\n", goal_stackp);
+	cdebug("looking for %s\n", goal_stack[goal_stackp-1]);
+
+	if (goal_stack[goal_stackp-1] == name)
+		return "directly";
+
+	for (i = 0; i < goal_stackp; i++)
+	{
+		cdebug("checking %d: %s\n", i, goal_stack[i]);
+		if (goal_stack[i] == name)
+		{
+			cdebug("hit\n");
+			strcpy(buf, "through");
+			for (; i < goal_stackp; i++)
+			{
+				strcat(buf, " ");
+				strcat(buf, goal_stack[i]);
+			}
+
+			if (strlen(buf) >= (unsigned)MAXSIZE)
+			{
+				fprintf(stderr, "cake internal error: buffer overflow in find_circle\n");
+				exit_cake(FALSE);
+			}
+
+			return new_name(buf);
+		}
+	}
+
+	fprintf(stderr, "cake internal error: no circularity in find_circle\n");
+	exit_cake(TRUE);
+	return "";		/* to satisfy lint */
+}
+
+char *
+list_names(list)
+reg	List	*list;		/* of Node	*/
+{
+	reg	List	*ptr;
+	reg	Node	*node;
+	reg	char	*sep;
+	char		buf[MAXSIZE];
+
+	buf[0] = '\0';
+	sep = "";
+	for_list (ptr, list)
+	{
+		node = (Node *) ldata(ptr);
+		strcat(buf, sep);
+		strcat(buf, node->n_name);
+		sep = " ";
+	}
+
+	if (strlen(buf) >= (unsigned)MAXSIZE)
+	{
+		fprintf(stderr, "cake internal error: buffer overflow in list_names\n");
+		exit_cake(FALSE);
+	}
+
+	return new_name(buf);
+}
+@
+
+
+11.2
+log
+@Added (void) declarations for IRIX 6 compiler.
+@
+text
+@d6 1
+a6 1
+rcs_id[] = "$Header: /m/cad/cake/RCS/error.c,v 11.1 1995/01/05 06:00:04 mike Rel4_4 mike $";
+@
+
+
+11.2.14.1
+log
+@merge from head
+@
+text
+@d6 1
+a6 1
+rcs_id[] = "$Header: /cvs/brlcad/cake/error.c,v 11.2 1997/05/22 16:57:55 mike Exp $";
+@
+
+
+11.1
+log
+@Release_4_4
+@
+text
+@d6 1
+a6 1
+rcs_id[] = "$Header: /m/cad/cake/RCS/error.c,v 1.3 94/11/03 14:29:45 mike Exp $";
+d40 1
+a40 1
+
+@
+
+
+1.3
+log
+@Eliminated 'when' statements.
+@
+text
+@d6 1
+a6 1
+rcs_id[] = "$Header: /m/cad/cake/RCS/error.c,v 1.2 93/11/04 18:33:15 mike Exp Locker: mike $";
+@
+
+
+1.2
+log
+@ANSI
+@
+text
+@d6 1
+a6 1
+rcs_id[] = "$Header: /m/cad/cake/RCS/error.c,v 1.1 88/06/11 00:55:52 mike Original Locker: mike $";
+d15 1
+@
+
+
+1.1
+log
+@Original CAKE version from net.sources
+@
+text
+@d6 1
+a6 1
+rcs_id[] = "$Header: /mip/zs/src/sys/cake/RCS/error.c,v 1.15 87/10/05 20:14:20 zs Exp $";
+d55 1
+a55 1
+	if (strlen(buf) >= MAXSIZE)
+d93 1
+a93 1
+			if (strlen(buf) >= MAXSIZE)
+d127 1
+a127 1
+	if (strlen(buf) >= MAXSIZE)
+@

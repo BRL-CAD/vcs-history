@@ -1,0 +1,547 @@
+head	11.7;
+access;
+symbols
+	rel-4-5:11.6
+	ctj-4-5-post:11.6
+	ctj-4-5-pre:11.6
+	rel-4-4:11.1;
+locks; strict;
+comment	@ * @;
+
+
+11.7
+date	98.12.30.04.24.10;	author mike;	state dead;
+branches;
+next	11.6;
+
+11.6
+date	96.08.27.07.10.51;	author mike;	state Exp;
+branches;
+next	11.5;
+
+11.5
+date	95.09.20.13.48.09;	author pjt;	state Exp;
+branches;
+next	11.4;
+
+11.4
+date	95.09.20.11.59.54;	author pjt;	state Exp;
+branches;
+next	11.3;
+
+11.3
+date	95.07.10.20.17.51;	author pjt;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	95.04.19.19.03.56;	author pjt;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	95.01.04.10.05.57;	author mike;	state Rel4_4;
+branches;
+next	2.5;
+
+2.5
+date	94.12.30.16.41.04;	author stay;	state Exp;
+branches;
+next	2.4;
+
+2.4
+date	94.09.26.12.21.10;	author jra;	state Exp;
+branches;
+next	2.3;
+
+2.3
+date	94.09.22.15.34.49;	author pjt;	state Exp;
+branches;
+next	2.2;
+
+2.2
+date	94.09.22.15.27.11;	author pjt;	state Exp;
+branches;
+next	2.1;
+
+2.1
+date	93.03.25.11.03.29;	author pjt;	state Exp;
+branches;
+next	1.10;
+
+1.10
+date	93.03.25.11.00.26;	author pjt;	state Exp;
+branches;
+next	1.9;
+
+1.9
+date	93.01.15.13.07.54;	author pjt;	state zero_1;
+branches;
+next	1.8;
+
+1.8
+date	93.01.15.10.43.31;	author pjt;	state zero_0;
+branches;
+next	1.7;
+
+1.7
+date	93.01.14.15.05.26;	author pjt;	state Exp;
+branches;
+next	1.6;
+
+1.6
+date	93.01.14.10.53.11;	author pjt;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	93.01.14.09.27.11;	author pjt;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	92.12.23.11.11.20;	author pjt;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	92.11.06.13.54.58;	author pjt;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	92.11.05.11.32.40;	author pjt;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	92.11.04.12.55.41;	author pjt;	state Exp;
+branches;
+next	;
+
+
+desc
+@
+     Routines to search for a node in a red-black tree
+
+@
+
+
+11.7
+log
+@All moved to libbu
+@
+text
+@/*			R B _ S E A R C H . C
+ *
+ *	Routines to search for a node in a red-black tree
+ *
+ *	Author:	Paul Tanenbaum
+ *
+ */
+#ifndef lint
+static char RCSid[] = "@@(#) $Header: /c/CVS/brlcad/libredblack/rb_search.c,v 11.6 1996/08/27 07:10:51 mike Exp mike $";
+#endif
+
+#include "conf.h"
+
+#include <stdio.h>
+#include <math.h>
+#include "machine.h"
+#include "rtlist.h"
+#include "bu.h"
+#include "compat4.h"
+#include "redblack.h"
+#include "./rb_internals.h"
+
+/*		        _ R B _ S E A R C H ( )
+ *
+ *	   	Search for a node in a red-black tree
+ *
+ *	This function has four parameters: the root and order of the tree
+ *	in which to search, the comparison function, and a data block
+ *	containing the desired value of the key.  On success, _rb_search()
+ *	returns a pointer to the discovered node.  Otherwise, it returns
+ *	(tree -> rbt_empty_node).
+ */
+static struct rb_node *_rb_search (root, order_nm, order, data)
+
+struct rb_node	*root;
+int		order_nm;
+int		(*order)();
+void		*data;
+
+{
+    int		result;
+    rb_tree	*tree;
+
+    RB_CKMAG(root, RB_NODE_MAGIC, "red-black node");
+    tree = root -> rbn_tree;
+    RB_CKORDER(tree, order_nm);
+
+    while (1)
+    {
+	if (root == rb_null(root -> rbn_tree))
+	    break;
+	if ((result = (*order)(data, rb_data(root, order_nm))) == 0)
+	    break;
+	else if (result < 0)
+	    root = rb_left_child(root, order_nm);
+	else	/* result > 0 */
+	    root = rb_right_child(root, order_nm);
+	RB_CKMAG(root, RB_NODE_MAGIC, "red-black node");
+    }
+    rb_current(tree) = root;
+    return (root);
+}
+
+/*		        R B _ S E A R C H ( )
+ *
+ *	        Applications interface to _rb_search()
+ *
+ *	This function has three parameters: the tree in which to search,
+ *	the order on which to do the searching, and a data block containing
+ *	the desired value of the key.  On success, rb_search() returns a
+ *	pointer to the data block in the discovered node.  Otherwise,
+ *	it returns NULL.
+ */
+void *rb_search (tree, order, data)
+
+rb_tree	*tree;
+int	order;
+void	*data;
+
+{
+
+    int			(*compare)();
+    struct rb_node	*node;
+
+    RB_CKMAG(tree, RB_TREE_MAGIC, "red-black tree");
+    RB_CKORDER(tree, order);
+
+    compare = rb_order_func(tree, order);
+    node = _rb_search(rb_root(tree, order), order, compare, data);
+    if (node == rb_null(tree))
+	return (NULL);
+    else
+	return (rb_data(node, order));
+}
+@
+
+
+11.6
+log
+@Changed over to bu.h
+@
+text
+@d9 1
+a9 1
+static char RCSid[] = "@@(#) $Header: /m/cad/libredblack/RCS/rb_search.c,v 11.5 1995/09/20 13:48:09 pjt Exp pjt $";
+@
+
+
+11.5
+log
+@_rb_search() now sets rbt_current to rbt_null on failure
+@
+text
+@d9 1
+a9 1
+static char RCSid[] = "@@(#) $Header: /m/cad/libredblack/RCS/rb_search.c,v 11.4 1995/09/20 11:59:54 pjt Exp pjt $";
+d18 2
+@
+
+
+11.4
+log
+@Changed declaration of _rb_search() to static
+@
+text
+@d9 1
+a9 1
+static char RCSid[] = "@@(#) $Header: /m/cad/libredblack/RCS/rb_search.c,v 11.3 1995/07/10 20:17:51 pjt Exp pjt $";
+d49 1
+a49 1
+	    return (root);
+@
+
+
+11.3
+log
+@Must now include rtlist.h before redblack.h
+@
+text
+@d9 1
+a9 1
+static char RCSid[] = "@@(#) $Header: /m/cad/libredblack/RCS/rb_search.c,v 11.2 1995/04/19 19:03:56 pjt Exp $";
+d31 1
+a31 1
+struct rb_node *_rb_search (root, order_nm, order, data)
+@
+
+
+11.2
+log
+@include machine.h
+@
+text
+@d9 1
+a9 1
+static char RCSid[] = "@@(#) $Header: /m/cad/libredblack/RCS/rb_search.c,v 11.1 95/01/04 10:05:57 mike Rel4_4 $";
+d17 1
+@
+
+
+11.1
+log
+@Release_4.4
+@
+text
+@d9 1
+a9 1
+static char RCSid[] = "@@(#) $Header: /m/cad/libredblack/RCS/rb_search.c,v 2.5 94/12/30 16:41:04 stay Exp $";
+d16 1
+@
+
+
+2.5
+log
+@deleted reference to stdlib, it wil be included in conf.h if
+it exists or is STDC
+@
+text
+@d9 1
+a9 1
+static char RCSid[] = "@@(#) $Header: /m/cad/libredblack/RCS/rb_search.c,v 2.4 1994/09/26 12:21:10 jra Exp stay $";
+@
+
+
+2.4
+log
+@Added #include "conf.h"
+@
+text
+@d9 1
+a9 1
+static char RCSid[] = "@@(#) $Header: /m/cad/libredblack/RCS/rb_search.c,v 2.3 94/09/22 15:34:49 pjt Exp Locker: jra $";
+a13 1
+#include <stdlib.h>
+@
+
+
+2.3
+log
+@Changed "#include "rt_internals.h" to "#include "./rt_internals.h"
+@
+text
+@d9 1
+a9 1
+static char RCSid[] = "@@(#) $Header: /m/cad/libredblack/RCS/rb_search.c,v 2.2 94/09/22 15:27:11 pjt Exp Locker: pjt $";
+d11 2
+@
+
+
+2.2
+log
+@Replaced prototype-type definition with K&R type
+@
+text
+@d9 1
+a9 1
+static char RCSid[] = "@@(#) $Header: /m/cad/libredblack/RCS/rb_search.c,v 2.1 93/03/25 11:03:29 pjt Exp $";
+d16 1
+a16 1
+#include "rb_internals.h"
+@
+
+
+2.1
+log
+@Installed into BRL CAD tree
+@
+text
+@d9 1
+a9 1
+static char RCSid[] = "@@(#) $Header: /m/cad/libredblack/RCS/rb_search.c,v 1.10 93/03/25 11:00:26 pjt Exp Locker: pjt $";
+d28 7
+a34 2
+struct rb_node *_rb_search
+	(struct rb_node *root, int order_nm, int (*order)(), void *data)
+d69 6
+a74 1
+void *rb_search (rb_tree *tree, int order, void *data)
+@
+
+
+1.10
+log
+@Added authorship comment
+@
+text
+@d9 1
+a9 1
+static char RCSid[] = "@@(#) $Header: /m/cad/libredblack/RCS/rb_search.c,v 1.9 93/01/15 13:07:54 pjt zero_1 Locker: pjt $";
+@
+
+
+1.9
+log
+@Added comments and performed general clean up
+@
+text
+@d5 2
+d9 1
+a9 1
+static char RCSid[] = "@@(#) $Header: /arl/pjt/libredblack/RCS/rb_search.c,v 1.8 93/01/15 10:43:31 pjt Exp Locker: pjt $";
+@
+
+
+1.8
+log
+@Addes static char RCSid[] to contain the RCS header
+@
+text
+@d3 1
+a3 1
+ *	Written by:	Paul Tanenbaum
+d7 1
+a7 1
+static char RCSid[] = "@@(#) $Header: /arl/pjt/libredblack/RCS/rb_search.c,v 1.7 93/01/14 15:05:26 pjt Exp Locker: pjt $";
+d20 5
+a24 5
+ *	This function has four parameters: the root of the tree
+ *	in which to search, the order number and the comparison function,
+ *	and a data block containing the desired value of the key.  On
+ *	success, _rb_search() returns a pointer to the discovered node.
+ *	Otherwise, it returns (tree -> rbt_empty_node).
+@
+
+
+1.7
+log
+@Switched from current_node to rb_current()
+@
+text
+@a4 1
+ *  $Header: /arl/pjt/libredblack/RCS/rb_search.c,v 1.6 93/01/14 10:53:11 pjt Exp Locker: pjt $
+d6 3
+@
+
+
+1.6
+log
+@1. Added call to RB_CKORDER()
+@
+text
+@d5 1
+a5 1
+ *  $Header: /arl/pjt/libredblack/RCS/rb_search.c,v 1.5 93/01/14 09:27:11 pjt Exp Locker: pjt $
+d27 2
+a28 1
+    int	result;
+d30 4
+a35 3
+	RB_CKMAG(root, RB_NODE_MAGIC, "red-black node");
+	RB_CKORDER(root -> rbn_tree, order_nm);
+
+d44 1
+d46 1
+a46 1
+    current_node = root;
+@
+
+
+1.5
+log
+@1. Now use rb_null() and rb_data()
+2. _rb_search() now returns (struct rb_node *)
+@
+text
+@d5 1
+a5 1
+ *  $Header: /arl/pjt/libredblack/RCS/rb_search.c,v 1.4 92/12/23 11:11:20 pjt Exp Locker: pjt $
+d32 2
+d65 1
+@
+
+
+1.4
+log
+@Changed name of parameter "datum" to "data"
+@
+text
+@d5 1
+a5 1
+ *  $Header: /arl/pjt/libredblack/RCS/rb_search.c,v 1.3 92/11/06 13:54:58 pjt Exp Locker: pjt $
+d21 2
+a22 2
+ *	success, _rb_search() returns a pointer to the data block
+ *	in the discovered node.  Otherwise, it returns NULL.
+d24 1
+a24 1
+static void *_rb_search
+a30 2
+	if (root == RB_NODE_NULL)
+	    return (NULL);
+d32 3
+a34 1
+	if ((result = (*order)(data, root -> rbn_data)) == 0)
+d42 1
+a42 1
+    return (root -> rbn_data);
+d59 1
+d64 5
+a68 1
+    return(_rb_search(rb_root(tree, order), order, compare, data));
+@
+
+
+1.3
+log
+@Made _rb_search() static
+@
+text
+@d5 1
+a5 1
+ *  $Header: /arl/pjt/libredblack/RCS/rb_search.c,v 1.2 92/11/05 11:32:40 pjt Exp Locker: pjt $
+d25 1
+a25 1
+	(struct rb_node *root, int order_nm, int (*order)(), void *datum)
+d34 1
+a34 1
+	if ((result = (*order)(datum, root -> rbn_data)) == 0)
+d55 1
+a55 1
+void *rb_search (rb_tree *tree, int order, void *datum)
+d63 1
+a63 1
+    return(_rb_search(rb_root(tree, order), order, compare, datum));
+@
+
+
+1.2
+log
+@Replaced reference to rbt_root by call to rb_root()
+@
+text
+@d5 1
+a5 1
+ *  $Header: /arl/pjt/libredblack/RCS/rb_search.c,v 1.1 92/11/04 12:55:41 pjt Exp Locker: pjt $
+d24 1
+a24 1
+void *_rb_search
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d5 1
+a5 1
+ *  $Header: /arl/pjt/libredblack/RCS/rb_walk.c,v 1.1 92/11/04 12:14:22 pjt Exp Locker: pjt $
+d63 1
+a63 1
+    return(_rb_search(tree -> rbt_root, order, compare, datum));
+@

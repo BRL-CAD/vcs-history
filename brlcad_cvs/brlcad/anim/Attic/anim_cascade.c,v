@@ -1,0 +1,901 @@
+head	11.14;
+access;
+symbols
+	ansi-20040405-merged:11.10.2.2
+	postmerge-20040405-ansi:11.12
+	premerge-20040404-ansi:11.11
+	postmerge-autoconf:11.11
+	autoconf-freeze:11.10.10.1
+	premerge-autoconf:11.11
+	ansi-20040316-freeze:11.10.2.1
+	postmerge-20040315-windows:11.11
+	premerge-20040315-windows:11.11
+	windows-20040315-freeze:11.10.4.1
+	autoconf-20031203:11.10
+	autoconf-20031202:11.10
+	autoconf-branch:11.10.0.10
+	phong-branch:11.10.0.8
+	photonmap-branch:11.10.0.6
+	rel-6-1-DP:11.10
+	windows-branch:11.10.0.4
+	rel-6-0-2:11.8
+	ansi-branch:11.10.0.2
+	rel-6-0-1-branch:11.8.0.2
+	hartley-6-0-post:11.9
+	hartley-6-0-pre:11.8
+	rel-6-0-1:11.8
+	rel-6-0:11.8
+	rel-5-4:11.7
+	offsite-5-3-pre:11.7
+	rel-5-3:11.7
+	rel-5-2:11.7
+	rel-5-1-branch:11.7.0.2
+	rel-5-1:11.7
+	rel-5-0:11.6
+	rel-5-0-beta:11.5
+	rel-4-5:11.5
+	ctj-4-5-post:11.4
+	ctj-4-5-pre:11.4
+	rel-4-4:11.1;
+locks; strict;
+comment	@ * @;
+
+
+11.14
+date	2004.05.24.04.17.00;	author morrison;	state dead;
+branches;
+next	11.13;
+
+11.13
+date	2004.05.10.15.30.41;	author erikg;	state Exp;
+branches;
+next	11.12;
+
+11.12
+date	2004.04.05.07.50.19;	author morrison;	state Exp;
+branches;
+next	11.11;
+
+11.11
+date	2004.02.02.17.38.57;	author morrison;	state Exp;
+branches;
+next	11.10;
+
+11.10
+date	2002.08.20.17.07.18;	author jra;	state Exp;
+branches
+	11.10.2.1
+	11.10.4.1
+	11.10.10.1;
+next	11.9;
+
+11.9
+date	2002.08.15.20.54.05;	author hartley;	state Exp;
+branches;
+next	11.8;
+
+11.8
+date	2001.08.21.18.47.17;	author jra;	state Exp;
+branches;
+next	11.7;
+
+11.7
+date	99.12.30.18.59.26;	author jra;	state Exp;
+branches;
+next	11.6;
+
+11.6
+date	99.07.02.22.07.10;	author mike;	state Exp;
+branches;
+next	11.5;
+
+11.5
+date	97.08.22.22.48.24;	author mike;	state Exp;
+branches;
+next	11.4;
+
+11.4
+date	96.07.15.18.59.58;	author cnuzman;	state Exp;
+branches;
+next	11.3;
+
+11.3
+date	96.07.15.13.16.07;	author cnuzman;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	95.07.10.23.34.00;	author cnuzman;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	95.01.04.10.33.50;	author mike;	state Rel4_4;
+branches;
+next	1.1;
+
+1.1
+date	94.08.25.10.18.01;	author cnuzman;	state Exp;
+branches;
+next	;
+
+11.10.2.1
+date	2002.09.19.18.00.31;	author morrison;	state Exp;
+branches;
+next	11.10.2.2;
+
+11.10.2.2
+date	2004.03.17.21.15.47;	author morrison;	state Exp;
+branches;
+next	;
+
+11.10.4.1
+date	2004.03.11.23.40.24;	author morrison;	state Exp;
+branches;
+next	;
+
+11.10.10.1
+date	2004.02.12.19.40.39;	author erikg;	state Exp;
+branches;
+next	;
+
+
+desc
+@combine layers of motion.
+@
+
+
+11.14
+log
+@moved to src/anim/
+@
+text
+@/*	A N I M _ C A S C A D E . C
+ *
+ *  Purpose: Given position and orientation of main frame of reference,
+ * along with the position and orientation of another frame with respect
+ * to the main frame, give the absolute orientation and position of the
+ * second frame.
+ *	For example, given the position and orientation of a tank, and of the 
+ * turret relative to the tank, you can get the absolute position and 
+ * orientation of the turret at each time.
+ * 	Or, optionally, given position and orientation of main frame of 
+ * reference, and the absolute position and orientation of another frame,
+ * find the position and orientation of the second frame in terms of the main
+ * frame of reference. (-i option).
+ *
+ * Usage:
+ *	anim_cascade main.table < relative.table > absolute.table
+ *
+ * The format of the tables is: 
+ *  time x y z yaw pitch roll
+ * unless specified otherwise by options.
+ *
+ *  Author -
+ *	Carl J. Nuzman
+ *  
+ *  Source -
+ *      The U. S. Army Research Laboratory
+ *      Aberdeen Proving Ground, Maryland  21005-5068  USA
+ *  
+ *  Distribution Notice -
+ *      Re-distribution of this software is restricted, as described in
+ *      your "Statement of Terms and Conditions for the Release of
+ *      The BRL-CAD Pacakge" agreement.
+ *
+ *  Copyright Notice -
+ *      This software is Copyright (C) 1993-2004 by the United States Army
+ *      in all countries except the USA.  All rights reserved.
+ */
+
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+
+#include <math.h>
+#include <stdio.h>
+
+#include "machine.h"
+#include "vmath.h"
+#include "bu.h"
+#include "bn.h"
+#include "anim.h"
+
+
+#ifndef M_PI
+#define M_PI	3.14159265358979323846
+#endif
+
+#ifndef M_PI
+#define RTOD	180.000/M_PI
+#endif
+
+#define	CASCADE_A	0
+#define CASCADE_R	1
+#define CASCADE_F	2
+
+int get_args(int argc, char **argv);
+
+extern void	anim_dy_p_r2mat(fastf_t *, double, double, double);
+extern void	anim_tran(fastf_t *);
+extern int	anim_mat2ypr(fastf_t *, fastf_t *);
+
+extern int bu_optind;
+extern char *bu_optarg;
+
+vect_t fcenter, fypr, rcenter, rypr, acenter, aypr;
+int cmd_fcen, cmd_fypr, cmd_rcen, cmd_rypr, cmd_acen, cmd_aypr;
+int output_mode, read_time, print_time;
+
+int
+main (int argc, char **argv)
+{
+	int val;
+	fastf_t time, yaw1, pitch1, roll1, yaw2, pitch2, roll2;
+	vect_t cen1, cen2, cen_ans, ang_ans, rad_ang_ans, rotated;
+	mat_t m_rot1, m_rot2, m_ans;
+	int one_time, read_cen1, read_cen2, read_rot1, read_rot2;
+
+	read_cen1 = read_cen2 = read_rot1 = read_rot2 = 1;
+
+	if (!get_args(argc,argv))
+		fprintf(stderr,"anim_cascade: Argument error.");
+
+	switch (output_mode) {
+	case CASCADE_A:
+		if (cmd_fcen) {
+			VMOVE(cen1, fcenter);
+			read_cen1 = 0;
+		}
+		if (cmd_rcen) {
+			VMOVE(cen2, rcenter);
+			read_cen2 = 0;
+		}
+		if (cmd_fypr){
+			anim_dy_p_r2mat(m_rot1, fypr[0], fypr[1], fypr[2]);
+			read_rot1 = 0;
+		}
+		if (cmd_rypr){
+			anim_dy_p_r2mat(m_rot2, rypr[0], rypr[1], rypr[2]);
+			read_rot2 = 0;
+		}
+		break;
+	case CASCADE_R:
+		if (cmd_fcen) {
+			VMOVE(cen1, fcenter);
+			read_cen1 = 0;
+		}
+		if (cmd_acen) {
+			VMOVE(cen2, acenter);
+			read_cen2 = 0;
+		}
+		if (cmd_fypr){
+			anim_dy_p_r2mat(m_rot1, fypr[0], fypr[1], fypr[2]);
+			read_rot1 = 0;
+		}
+		if (cmd_aypr){
+			anim_dy_p_r2mat(m_rot2, aypr[0], aypr[1], aypr[2]);
+			read_rot2 = 0;
+		}
+		break;
+	case CASCADE_F:
+		if (cmd_acen) {
+			VMOVE(cen1, acenter);
+			read_cen1 = 0;
+		}
+		if (cmd_rcen) {
+			VMOVE(cen2, rcenter);
+			read_cen2 = 0;
+		}
+		if (cmd_aypr){
+			anim_dy_p_r2mat(m_rot1, aypr[0], aypr[1], aypr[2]);
+			read_rot1 = 0;
+		}
+		if (cmd_rypr){
+			anim_dy_p_r2mat(m_rot2, rypr[0], rypr[1], rypr[2]);
+			read_rot2 = 0;
+		}
+		break;
+	default:
+		break;
+	}
+
+
+	one_time = (!(read_cen1||read_cen2||read_rot1||read_rot2));
+	read_time = one_time ? 0 : print_time;
+	time = 0.0;
+
+	val = 3;
+	while(1){
+		if (read_time) {
+			val=scanf("%lf",&time);
+			if (val < 1) break;
+		}
+		if (read_cen1) 
+			val =scanf("%lf %lf %lf",cen1, cen1+1, cen1+2);
+		if (read_rot1) {
+			val=scanf("%lf %lf %lf", &yaw1, &pitch1, &roll1);
+			anim_dy_p_r2mat(m_rot1, yaw1, pitch1, roll1);
+		}
+		if (read_cen2) {
+			val=scanf("%lf %lf %lf", cen2, cen2+1,cen2+2);
+		}
+		if (read_rot2) {
+			val=scanf("%lf %lf %lf", &yaw2, &pitch2, &roll2);
+			anim_dy_p_r2mat(m_rot2, yaw2, pitch2, roll2);
+		}
+		if (val<3) break;
+		
+		if (output_mode==CASCADE_R) {
+			anim_tran(m_rot1);
+			VSUB2(rotated,cen2,cen1);
+			MAT4X3PNT(cen_ans, m_rot1, rotated);
+			bn_mat_mul(m_ans, m_rot1, m_rot2);
+		} else if (output_mode==CASCADE_F) {
+			anim_tran(m_rot2);
+			bn_mat_mul(m_ans, m_rot1, m_rot2);
+			MAT4X3PNT(rotated, m_ans, cen2);
+			VSUB2(cen_ans, cen1, rotated);
+		} else {
+			MAT4X3PNT(rotated, m_rot1, cen2);
+			VADD2(cen_ans, rotated, cen1);
+			bn_mat_mul(m_ans, m_rot1, m_rot2);
+		}
+		anim_mat2ypr(rad_ang_ans, m_ans);
+		VSCALE(ang_ans, rad_ang_ans, RTOD);
+
+		if (print_time){
+			printf("%g",time);
+		}
+		printf("\t%.12g\t%.12g\t%.12g", cen_ans[0], cen_ans[1], cen_ans[2]);
+		printf("\t%.12g\t%.12g\t%.12g", ang_ans[0], ang_ans[1], ang_ans[2]);
+		printf("\n");
+		
+		if (one_time) break;
+	}
+	return( 0 );
+}
+
+#define OPT_STR "so:f:r:a:"
+
+int get_args(int argc, char **argv)
+{
+	int c,d;
+
+	output_mode = CASCADE_A;
+	cmd_fcen = cmd_fypr = cmd_rcen = cmd_rypr = cmd_acen = cmd_aypr = 0;
+	print_time = 1;
+	while ( (c=bu_getopt(argc,argv,OPT_STR)) != EOF) {
+		switch(c){
+		case 'f':
+			d = *(bu_optarg);
+			if (d == 'c'){
+				sscanf(argv[bu_optind],"%lf",fcenter+0);
+				sscanf(argv[bu_optind+1],"%lf",fcenter+1);
+				sscanf(argv[bu_optind+2],"%lf",fcenter+2);
+				bu_optind += 3;
+				cmd_fcen = 1;
+				break;
+			} else if ( d =='y'){
+				sscanf(argv[bu_optind],"%lf",fypr+0);
+				sscanf(argv[bu_optind+1],"%lf",fypr+1);
+				sscanf(argv[bu_optind+2],"%lf",fypr+2);
+				bu_optind += 3;
+				cmd_fypr = 1;
+				break;
+			} else {
+				fprintf(stderr,"anim_cascade: unknown option -f%c\n", d);
+			}
+			break;
+		case 'r':
+			d = *(bu_optarg);
+			if (d == 'c'){
+				sscanf(argv[bu_optind],"%lf",rcenter+0);
+				sscanf(argv[bu_optind+1],"%lf",rcenter+1);
+				sscanf(argv[bu_optind+2],"%lf",rcenter+2);
+				bu_optind += 3;
+				cmd_rcen = 1;
+				break;
+			} else if ( d =='y'){
+				sscanf(argv[bu_optind],"%lf",rypr+0);
+				sscanf(argv[bu_optind+1],"%lf",rypr+1);
+				sscanf(argv[bu_optind+2],"%lf",rypr+2);
+				bu_optind += 3;
+				cmd_rypr = 1;
+				break;
+			} else {
+				fprintf(stderr,"anim_cascade: unknown option -r%c\n", d);
+			}
+			break;
+		case 'a':
+			d = *(bu_optarg);
+			if (d == 'c'){
+				sscanf(argv[bu_optind],"%lf",acenter+0);
+				sscanf(argv[bu_optind+1],"%lf",acenter+1);
+				sscanf(argv[bu_optind+2],"%lf",acenter+2);
+				bu_optind += 3;
+				cmd_acen = 1;
+				break;
+			} else if ( d =='y'){
+				sscanf(argv[bu_optind],"%lf",aypr+0);
+				sscanf(argv[bu_optind+1],"%lf",aypr+1);
+				sscanf(argv[bu_optind+2],"%lf",aypr+2);
+				bu_optind += 3;
+				cmd_aypr = 1;
+				break;
+			} else {
+				fprintf(stderr,"anim_cascade: unknown option -a%c\n", d);
+			}
+			break;
+		case 'o':
+			d = *(bu_optarg);
+			if (d == 'r'){
+				output_mode = CASCADE_R;
+			} else if (d == 'f') {
+				output_mode = CASCADE_F;
+			} else if (d == 'a') { /* default */
+				output_mode = CASCADE_A;
+			} else {
+				fprintf(stderr,"anim_cascade: unknown option -i%c\n",d);
+			}
+			break;
+		case 's':
+			print_time = 0;
+			break;
+		default:
+			fprintf(stderr,"anim_cascade: unknown option: -%c\n",c);
+			return(0);
+		}
+	}
+	return(1);
+}
+@
+
+
+11.13
+log
+@change conf.h to a wrapped config.h
+@
+text
+@@
+
+
+11.12
+log
+@merge of ansi-6-0-branch into HEAD
+@
+text
+@d39 5
+a43 1
+#include "conf.h"
+@
+
+
+11.11
+log
+@update copyright to include span through 2003
+@
+text
+@d63 1
+a63 1
+int get_args();
+d65 3
+a67 3
+extern void	anim_dy_p_r2mat();
+extern void	anim_tran();
+extern int	anim_mat2ypr();
+d77 1
+a77 3
+main (argc,argv)
+int argc;
+char **argv;
+d207 1
+a207 3
+int get_args(argc,argv)
+int argc;
+char **argv;
+@
+
+
+11.10
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d35 1
+a35 1
+ *      This software is Copyright (C) 1993 by the United States Army
+@
+
+
+11.10.4.1
+log
+@sync to HEAD...
+@
+text
+@d35 1
+a35 1
+ *      This software is Copyright (C) 1993-2004 by the United States Army
+@
+
+
+11.10.10.1
+log
+@merge from HEAD
+@
+text
+@d35 1
+a35 1
+ *      This software is Copyright (C) 1993-2004 by the United States Army
+@
+
+
+11.10.2.1
+log
+@Initial ANSIfication
+@
+text
+@d63 1
+a63 1
+int get_args(int argc, char **argv);
+d65 3
+a67 3
+extern void	anim_dy_p_r2mat(fastf_t *, double, double, double);
+extern void	anim_tran(fastf_t *);
+extern int	anim_mat2ypr(fastf_t *, fastf_t *);
+d77 3
+a79 1
+main (int argc, char **argv)
+d209 3
+a211 1
+int get_args(int argc, char **argv)
+@
+
+
+11.10.2.2
+log
+@sync branch with HEAD
+@
+text
+@d35 1
+a35 1
+ *      This software is Copyright (C) 1993-2004 by the United States Army
+@
+
+
+11.9
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d63 1
+a63 1
+int get_args(int argc, char **argv);
+d65 3
+a67 3
+extern void	anim_dy_p_r2mat(fastf_t *, double, double, double);
+extern void	anim_tran(fastf_t *);
+extern int	anim_mat2ypr(fastf_t *, fastf_t *);
+d77 3
+a79 1
+main (int argc, char **argv)
+d209 3
+a211 1
+int get_args(int argc, char **argv)
+@
+
+
+11.8
+log
+@lint
+@
+text
+@d63 1
+a63 1
+int get_args();
+d65 3
+a67 3
+extern void	anim_dy_p_r2mat();
+extern void	anim_tran();
+extern int	anim_mat2ypr();
+d77 1
+a77 3
+main (argc,argv)
+int argc;
+char **argv;
+d207 1
+a207 3
+int get_args(argc,argv)
+int argc;
+char **argv;
+@
+
+
+11.7
+log
+@Eliminated some unused variables
+@
+text
+@d46 2
+d63 6
+d76 1
+d204 1
+a204 1
+
+@
+
+
+11.6
+log
+@
+Eliminated dependence on compat4.h
+@
+text
+@d72 1
+a72 1
+	int i, val;
+a75 1
+	FILE	*fp;
+@
+
+
+11.5
+log
+@Made dependence on bu_getopt() explicit.
+@
+text
+@d173 1
+a173 1
+			mat_mul(m_ans, m_rot1, m_rot2);
+d176 1
+a176 1
+			mat_mul(m_ans, m_rot1, m_rot2);
+d182 1
+a182 1
+			mat_mul(m_ans, m_rot1, m_rot2);
+@
+
+
+11.4
+log
+@reworked options to generalize
+@
+text
+@d61 2
+a62 2
+extern int optind;
+extern char *optarg;
+d210 1
+a210 1
+	while ( (c=getopt(argc,argv,OPT_STR)) != EOF) {
+d213 1
+a213 1
+			d = *(optarg);
+d215 4
+a218 4
+				sscanf(argv[optind],"%lf",fcenter+0);
+				sscanf(argv[optind+1],"%lf",fcenter+1);
+				sscanf(argv[optind+2],"%lf",fcenter+2);
+				optind += 3;
+d222 4
+a225 4
+				sscanf(argv[optind],"%lf",fypr+0);
+				sscanf(argv[optind+1],"%lf",fypr+1);
+				sscanf(argv[optind+2],"%lf",fypr+2);
+				optind += 3;
+d233 1
+a233 1
+			d = *(optarg);
+d235 4
+a238 4
+				sscanf(argv[optind],"%lf",rcenter+0);
+				sscanf(argv[optind+1],"%lf",rcenter+1);
+				sscanf(argv[optind+2],"%lf",rcenter+2);
+				optind += 3;
+d242 4
+a245 4
+				sscanf(argv[optind],"%lf",rypr+0);
+				sscanf(argv[optind+1],"%lf",rypr+1);
+				sscanf(argv[optind+2],"%lf",rypr+2);
+				optind += 3;
+d253 1
+a253 1
+			d = *(optarg);
+d255 4
+a258 4
+				sscanf(argv[optind],"%lf",acenter+0);
+				sscanf(argv[optind+1],"%lf",acenter+1);
+				sscanf(argv[optind+2],"%lf",acenter+2);
+				optind += 3;
+d262 4
+a265 4
+				sscanf(argv[optind],"%lf",aypr+0);
+				sscanf(argv[optind+1],"%lf",aypr+1);
+				sscanf(argv[optind+2],"%lf",aypr+2);
+				optind += 3;
+d273 1
+a273 1
+			d = *(optarg);
+@
+
+
+11.3
+log
+@reworked input - now takes everything from stdin. Also added inverse mode
+@
+text
+@d57 4
+d64 3
+a66 3
+vect_t wcenter, wypr, rcenter, rypr;
+int cmd_wcen, cmd_wypr, cmd_rcen, cmd_rypr;
+int inverse_mode, read_time, print_time;
+d73 3
+a75 3
+	fastf_t time, yaw, pitch, roll, ryaw, rpitch, rroll;
+	vect_t mainv, relative, absolute, angles, rad_angles, rotated;
+	mat_t m_main, m_rel, m_abs;
+d77 3
+a79 1
+	int one_time;
+d84 61
+a144 1
+	one_time = (cmd_wcen&&cmd_rcen&&cmd_wypr&&cmd_rypr);
+a147 11
+	if (cmd_wcen)
+		VMOVE(mainv, wcenter);
+	if (cmd_rcen)
+		VMOVE(relative, rcenter);
+	if (cmd_wypr){
+		anim_dy_p_r2mat(m_main, wypr[0], wypr[1], wypr[2]);
+	}
+	if (cmd_rypr){
+		anim_dy_p_r2mat(m_rel, rypr[0], rypr[1], rypr[2]);
+	}
+
+d154 8
+a161 12
+		if (!cmd_wcen) 
+			val =scanf("%lf %lf %lf",mainv, mainv+1, mainv+2);
+		if (!cmd_wypr) {
+			val=scanf("%lf %lf %lf", &yaw, &pitch, &roll);
+			anim_dy_p_r2mat(m_main, yaw, pitch, roll);
+		}
+		if (!cmd_rcen) {
+			val=scanf("%lf %lf %lf", relative, relative+1,relative+2);
+		}
+		if (!cmd_rypr) {
+			val=scanf("%lf %lf %lf", &ryaw, &rpitch, &rroll);
+			anim_dy_p_r2mat(m_rel, ryaw, rpitch, rroll);
+d163 4
+d169 10
+a178 4
+		if (inverse_mode) {
+			anim_tran(m_main);
+			VSUB2(rotated,relative,mainv);
+			MAT4X3PNT(absolute, m_main, rotated);
+d180 3
+a182 2
+			MAT4X3PNT(rotated, m_main, relative);
+			VADD2(absolute, rotated, mainv);
+d184 2
+a185 3
+		mat_mul(m_abs, m_main, m_rel);
+		anim_mat2ypr(rad_angles, m_abs);
+		VSCALE(angles, rad_angles, RTOD);
+d190 2
+a191 2
+		printf("\t%g\t%g\t%g", absolute[0], absolute[1], absolute[2]);
+		printf("\t%g\t%g\t%g", angles[0], angles[1], angles[2]);
+d199 1
+a199 1
+#define OPT_STR "siw:r:"
+d207 2
+a208 1
+	inverse_mode = cmd_wcen = cmd_wypr = cmd_rcen = cmd_rypr = 0;
+d212 1
+a212 1
+		case 'w':
+d215 3
+a217 3
+				sscanf(argv[optind],"%lf",wcenter+0);
+				sscanf(argv[optind+1],"%lf",wcenter+1);
+				sscanf(argv[optind+2],"%lf",wcenter+2);
+d219 1
+a219 1
+				cmd_wcen = 1;
+d222 3
+a224 3
+				sscanf(argv[optind],"%lf",wypr+0);
+				sscanf(argv[optind+1],"%lf",wypr+1);
+				sscanf(argv[optind+2],"%lf",wypr+2);
+d226 1
+a226 1
+				cmd_wypr = 1;
+d229 1
+a229 1
+				fprintf(stderr,"anim_cascade: unknown option -w%c\n", d);
+d252 31
+a282 2
+		case 'i':
+			inverse_mode = 1;
+@
+
+
+11.2
+log
+@updated anim.c routine names
+@
+text
+@d10 4
+d18 3
+a20 1
+ * The format of the tables is: time x y z yaw pitch roll
+d60 4
+d73 1
+d75 2
+d78 13
+a90 4
+
+	if (!(fp=fopen(argv[1],"r"))){
+		fprintf(stderr,"Couldn't open file %s.\n",argv[1]);
+		return(-1);
+a91 4
+	while(!feof(fp)){
+		fscanf(fp,"%*f");
+		fscanf(fp,"%lf %lf %lf",mainv, mainv+1, mainv+2);
+		fscanf(fp,"%lf %lf %lf", &yaw, &pitch, &roll);
+d93 29
+a121 12
+		anim_dy_p_r2mat(m_main, yaw, pitch, roll);
+
+		val=scanf("%lf",&time);
+		if(val<1)
+			break;
+		printf("%g",time);
+		val=scanf("%lf %lf %lf", relative, relative+1,relative+2);
+		val=scanf("%lf %lf %lf", &ryaw, &rpitch, &rroll);
+		if (val<2) break;
+		MAT4X3PNT(rotated, m_main, relative);
+		VADD2(absolute, rotated, mainv);
+		anim_dy_p_r2mat(m_rel, ryaw, rpitch, rroll);
+d126 3
+d132 37
+a168 1
+		if (val<2)
+d170 30
+d201 1
+a201 2
+
+	fclose(fp);
+@
+
+
+11.1
+log
+@Release_4.4
+@
+text
+@d68 1
+a68 1
+		return;
+d75 1
+a75 1
+		dy_p_r2mat(m_main, yaw, pitch, roll);
+d86 1
+a86 1
+		dy_p_r2mat(m_rel, ryaw, rpitch, rroll);
+d88 1
+a88 1
+		mat2ypr(rad_angles, m_abs);
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@@

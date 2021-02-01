@@ -1,0 +1,557 @@
+head	1.13;
+access;
+symbols
+	rel-7-10-4:1.12
+	STABLE:1.12.0.2
+	rel-7-10-2:1.11
+	rel-7-10-0:1.11
+	rel-7-8-4:1.4
+	rel-7-8-2:1.4
+	rel-7-8-0:1.4
+	trimnurbs-branch:1.4.0.2
+	help:1.4
+	temp_tag:1.4
+	bobWinPort-20051223-freeze:1.3
+	postmerge-20051223-bobWinPort:1.4
+	premerge-20051223-bobWinPort:1.4
+	rel-7-6-6:1.4
+	rel-7-6-4:1.4
+	rel-7-6-2:1.3
+	rel-7-6-branch:1.3.0.6
+	rel-7-6-0:1.3
+	rel-7-4-2:1.3
+	rel-7-4-branch:1.3.0.4
+	bobWinPort:1.3.0.2
+	rel-7-4-0:1.3;
+locks; strict;
+comment	@ * @;
+
+
+1.13
+date	2007.10.14.08.01.46;	author brlcad;	state Exp;
+branches;
+next	1.12;
+
+1.12
+date	2007.09.10.19.38.27;	author erikgreenwald;	state Exp;
+branches;
+next	1.11;
+
+1.11
+date	2007.02.20.08.05.27;	author brlcad;	state Exp;
+branches;
+next	1.10;
+
+1.10
+date	2007.02.08.06.49.19;	author brlcad;	state Exp;
+branches;
+next	1.9;
+
+1.9
+date	2007.02.02.17.11.22;	author erikgreenwald;	state Exp;
+branches;
+next	1.8;
+
+1.8
+date	2007.02.02.08.48.28;	author brlcad;	state Exp;
+branches;
+next	1.7;
+
+1.7
+date	2007.01.27.01.41.31;	author brlcad;	state Exp;
+branches;
+next	1.6;
+
+1.6
+date	2007.01.23.01.13.23;	author brlcad;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	2007.01.21.00.53.11;	author brlcad;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	2005.10.23.04.44.28;	author brlcad;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2005.07.01.21.07.54;	author twingy;	state Exp;
+branches
+	1.3.6.1;
+next	1.2;
+
+1.2
+date	2005.06.17.21.41.01;	author erikgreenwald;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2005.06.17.15.09.29;	author lbutler;	state Exp;
+branches;
+next	;
+
+1.3.6.1
+date	2005.11.13.13.46.12;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.13
+log
+@take care of a slew of level 4 flawfinder issues related to adding length parameters to string and i/o functions
+@
+text
+@/*                          M A I N . C
+ * BRL-CAD / ADRT
+ *
+ * Copyright (c) 2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This library is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@file main.c
+ *
+ *  Author -
+ *      Justin L. Shumaker
+ *
+ * $Id: main.c,v 1.12 2007/09/10 19:38:27 erikgreenwald Exp $
+ */
+
+#ifdef HAVE_CONFIG_H
+# include "common.h"
+#endif
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <signal.h>
+#include <unistd.h>
+
+#include <bu.h>
+
+#include "rise.h"
+#include "master.h"
+#include "tienet.h"
+
+
+#ifdef HAVE_GETOPT_H
+# include <getopt.h>
+#endif
+
+#ifdef HAVE_GETOPT_LONG
+static struct option longopts[] =
+{
+	{ "exec",	required_argument,	NULL, 'e' },
+	{ "help",	no_argument,		NULL, 'h' },
+	{ "interval",	required_argument,	NULL, 'i' },
+	{ "obs_port",	required_argument,	NULL, 'o' },
+	{ "port",	required_argument,	NULL, 'p' },
+	{ "version",	no_argument,		NULL, 'v' },
+	{ "list",	required_argument,	NULL, 'l' },
+};
+#endif
+
+static char shortopts[] = "e:i:hvl:p:";
+
+
+static void finish(int sig) {
+  printf("Collected signal %d, aborting!\n", sig);
+  exit(EXIT_FAILURE);
+}
+
+
+static void help() {
+  printf("%s\n", RISE_VER_DETAIL);
+  printf("%s\n", "usage: rise_master [options] [proj_env_file]\n\
+  -h\t\tdisplay help.\n\
+  -p\t\tset master port number.\n\
+  -o\t\tset observer port number.\n\
+  -i\t\tinterval in minutes between each autosave.\n\
+  -l\t\tfile containing list of slaves to use as compute nodes.\n\
+  -e\t\tscript to execute that starts slaves.\n\
+  -v\t\tdisplay version info.\n");
+}
+
+
+int main(int argc, char **argv) {
+  int port = 0, obs_port, c = 0, interval = 1;
+  char proj[64], exec[64], list[64], temp[64];
+
+
+  signal(SIGINT, finish);
+
+  if(argc == 1) {
+    help();
+    return EXIT_FAILURE;
+  }
+
+  /* Initialize strings */
+  list[0] = 0;
+  exec[0] = 0;
+  proj[0] = 0;
+  port = TN_MASTER_PORT;
+  obs_port = RISE_OBSERVER_PORT;
+
+  /* Parse command line options */
+
+  while((c =
+#ifdef HAVE_GETOPT_LONG
+	getopt_long(argc, argv, shortopts, longopts, NULL)
+#else
+	getopt(argc, argv, shortopts)
+#endif
+	)!= -1)
+  {
+	  switch(c) {
+		  case 'o':
+			  obs_port = atoi(optarg);
+			  break;
+		  case 'p':
+			  port = atoi(optarg);
+			  break;
+		  case 'e':
+			  strncpy(exec, optarg, 64);
+			  break;
+		  case 'i':
+			  strncpy(temp, optarg, 4);
+			  interval = atoi(temp);
+			  if(interval < 0) interval = 0;
+			  if(interval > 60) interval = 60;
+			  break;
+		  case 'l':
+			  strncpy(list, optarg, 64);
+			  break;
+		  case 'h':
+			  help();
+			  return EXIT_SUCCESS;
+		  case 'v':
+			  printf("%s\n", RISE_VER_DETAIL);
+			  return EXIT_SUCCESS;
+		default:
+			  help();
+			  return EXIT_FAILURE;
+	  }
+  }
+  argc -= optind;
+  argv += optind;
+
+  strncpy(proj, argv[0], 64);
+
+  if(proj[0]) {
+    rise_master(port, obs_port, proj, list, exec, interval);
+  } else {
+    help();
+    return EXIT_FAILURE;
+  }
+
+  return EXIT_SUCCESS;
+}
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+1.12
+log
+@should only be using common.h, not brlcad_config.h
+@
+text
+@d25 1
+a25 1
+ * $Id: main.c,v 1.11 2007/02/20 08:05:27 brlcad Exp $
+d146 1
+a146 1
+  strcpy(proj, argv[0]);
+@
+
+
+1.11
+log
+@revert the introduction of a libbu dependency to adrt, it's somewhat inconsequential value added just to get bu_getopt processing compared to the benefit of it still compiling stand-alone if needed.
+@
+text
+@d25 1
+a25 1
+ * $Id: main.c,v 1.10 2007/02/08 06:49:19 brlcad Exp $
+d29 1
+a29 1
+# include "brlcad_config.h"
+@
+
+
+1.10
+log
+@give adrt some distinctiveness in the header
+@
+text
+@d25 1
+a25 1
+ * $Id: main.c,v 1.9 2007/02/02 17:11:22 erikgreenwald Exp $
+d109 1
+a109 1
+	bu_getopt(argc, argv, shortopts)
+d115 1
+a115 1
+			  obs_port = atoi(bu_optarg);
+d118 1
+a118 1
+			  port = atoi(bu_optarg);
+d121 1
+a121 1
+			  strncpy(exec, bu_optarg, 64);
+d124 1
+a124 1
+			  strncpy(temp, bu_optarg, 4);
+d130 1
+a130 1
+			  strncpy(list, bu_optarg, 64);
+d143 2
+a144 2
+  argc -= bu_optind;
+  argv += bu_optind;
+@
+
+
+1.9
+log
+@include bu.h and link libbu for bu_getopt
+@
+text
+@d2 1
+a2 1
+ * BRL-CAD
+d25 1
+a25 1
+ * $Id: main.c,v 1.8 2007/02/02 08:48:28 brlcad Exp $
+@
+
+
+1.8
+log
+@convert all of the lingering getopt calls to bu_getopt (as well as the related getopt globals optind, opterr, optarg) -- libbu's getopt has the benefit of being re-entrant and is portable to environments where getopt() may not be available.
+@
+text
+@d25 1
+a25 1
+ * $Id: main.c,v 1.7 2007/01/27 01:41:31 brlcad Exp $
+d37 3
+@
+
+
+1.7
+log
+@ws. lots and lots of ws.  see sh/ws.sh for details (cases 'abcdeg').
+@
+text
+@d25 1
+a25 1
+ * $Id: main.c,v 1.6 2007/01/23 01:13:23 brlcad Exp $
+d106 1
+a106 1
+	getopt(argc, argv, shortopts)
+d112 1
+a112 1
+			  obs_port = atoi(optarg);
+d115 1
+a115 1
+			  port = atoi(optarg);
+d118 1
+a118 1
+			  strncpy(exec, optarg, 64);
+d121 1
+a121 1
+			  strncpy(temp, optarg, 4);
+d127 1
+a127 1
+			  strncpy(list, optarg, 64);
+d140 2
+a141 2
+  argc -= optind;
+  argv += optind;
+@
+
+
+1.6
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@d25 1
+a25 1
+ * $Id: main.c,v 1.5 2007/01/21 00:53:11 brlcad Exp $
+d55 1
+a55 1
+  	{ "list",	required_argument,	NULL, 'l' },
+@
+
+
+1.5
+log
+@standard header and footer cleanup
+@
+text
+@d9 1
+a9 1
+ * as published by the Free Software Foundation.
+d25 1
+a25 1
+ * $Id: main.c,v 1.4 2005/10/23 04:44:28 brlcad Exp $
+@
+
+
+1.4
+log
+@trailing ws
+@
+text
+@d1 25
+a25 2
+/*
+ * $Id: main.c,v 1.3 2005/07/01 21:07:54 twingy Exp $
+d154 10
+@
+
+
+1.3
+log
+@Moved the g loader int adrt to a converter in brl-cad.  The converter creates
+all the necessary files that adrt needs to use geometry.  Going to fix unpack
+next so the program is usable again.
+@
+text
+@d2 1
+a2 1
+ * $Id: main.c,v 1.2 2005/06/17 21:41:01 erikgreenwald Exp $
+d53 1
+a53 1
+  -e\t\tscript to execute that starts slaves.\n\  
+d79 1
+a79 1
+  while((c = 
+@
+
+
+1.3.6.1
+log
+@merge changes from HEAD aka rel-7-6-4 to the rel-7-6-branch just in case someone peeks a gander or tries to continue/build the branch
+@
+text
+@d2 1
+a2 1
+ * $Id$
+d53 1
+a53 1
+  -e\t\tscript to execute that starts slaves.\n\
+d79 1
+a79 1
+  while((c =
+@
+
+
+1.2
+log
+@use brlcad_config.h instead of config.h
+@
+text
+@d2 1
+a2 1
+ * $Id: main.c,v 1.1 2005/06/17 15:09:29 lbutler Exp $
+a26 2
+	{ "geom",	required_argument,	NULL, 'g' },
+	{ "args",	required_argument,	NULL, 'a' },
+d29 2
+a30 2
+	{ "obs_port",	required_argument,	NULL, 'O' },
+	{ "port",	required_argument,	NULL, 'P' },
+a32 1
+  	{ "proj",	required_argument,	NULL, 'p' },
+d36 1
+a36 1
+static char shortopts[] = "e:a:g:i:hO:P:vl:p:";
+d47 8
+a54 11
+  printf("%s\n", "usage: rise_master [options]\n\
+  -v\t\tdisplay version\n\
+  -h\t\tdisplay help\n\
+  -P\t\tport number\n\
+  -O\t\tobserver port number\n\
+  -e ...\tfile to execute that starts slaves\n\
+  -i ...\tinterval in minutes between each autosave dump\n\
+  -l ...\tfile containing list of slave hostnames to distribute work to\n\
+  -p ...\tproject directory\n\
+  -g ...\tlocation of geometry file\n\
+  -a ...\targuments to geometry file\n");
+d60 1
+a60 1
+  char proj[64], exec[64], list[64], temp[64], geom[64], args[64];
+a73 2
+  geom[0] = 0;
+  args[0] = 0;
+d88 1
+a88 1
+		  case 'O':
+d91 1
+a91 1
+		  case 'P':
+a93 3
+		  case 'a':
+			  strncpy(args, optarg, 64);
+			  break;
+a96 3
+		  case 'g':
+			  strncpy(geom, optarg, 64);
+			  break;
+a105 3
+		  case 'p':
+			  strncpy(proj, optarg, 64);
+			  break;
+d120 2
+d123 1
+a123 5
+    if(!geom[0]) {
+      printf("must supply additional argument: -g /path/to/geometry/file\n");
+      return EXIT_FAILURE;
+    }
+    rise_master(port, obs_port, proj, geom, args, list, exec, interval);
+@
+
+
+1.1
+log
+@Welcome ADRT
+@
+text
+@d2 1
+a2 1
+ * $Id: main.c,v 1.4 2005/04/29 20:48:39 justin Exp $
+d6 1
+a6 1
+# include "config.h"
+@
+

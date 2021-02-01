@@ -1,0 +1,592 @@
+head	1.15;
+access;
+symbols
+	ansi-20040405-merged:1.10.2.2
+	postmerge-20040405-ansi:1.13
+	premerge-20040404-ansi:1.12
+	postmerge-autoconf:1.12
+	autoconf-freeze:1.11.2.2
+	premerge-autoconf:1.12
+	ansi-20040316-freeze:1.10.2.1
+	postmerge-20040315-windows:1.12
+	premerge-20040315-windows:1.12
+	windows-20040315-freeze:1.10.4.1
+	autoconf-20031203:1.11
+	autoconf-20031202:1.11
+	autoconf-branch:1.11.0.2
+	phong-branch:1.10.0.8
+	photonmap-branch:1.10.0.6
+	rel-6-1-DP:1.10
+	windows-branch:1.10.0.4
+	rel-6-0-2:1.8
+	ansi-branch:1.10.0.2
+	rel-6-0-1-branch:1.8.0.2
+	hartley-6-0-post:1.9
+	hartley-6-0-pre:1.8
+	rel-6-0-1:1.8
+	rel-6-0:1.8
+	rel-5-4:1.6
+	offsite-5-3-pre:1.8
+	rel-5-3:1.6
+	rel-5-2:1.6
+	rel-5-1-branch:1.6.0.2
+	rel-5-1:1.6
+	rel-5-0:1.3
+	rel-5-0-beta:1.3;
+locks; strict;
+comment	@ * @;
+
+
+1.15
+date	2004.05.21.18.07.26;	author morrison;	state dead;
+branches;
+next	1.14;
+
+1.14
+date	2004.05.10.15.30.45;	author erikg;	state Exp;
+branches;
+next	1.13;
+
+1.13
+date	2004.04.05.07.43.56;	author morrison;	state Exp;
+branches;
+next	1.12;
+
+1.12
+date	2004.02.02.17.39.13;	author morrison;	state Exp;
+branches;
+next	1.11;
+
+1.11
+date	2003.09.27.01.18.11;	author morrison;	state Exp;
+branches
+	1.11.2.1;
+next	1.10;
+
+1.10
+date	2002.08.20.17.07.49;	author jra;	state Exp;
+branches
+	1.10.2.1
+	1.10.4.1;
+next	1.9;
+
+1.9
+date	2002.08.15.20.55.03;	author hartley;	state Exp;
+branches;
+next	1.8;
+
+1.8
+date	2000.08.24.22.05.01;	author mike;	state Exp;
+branches;
+next	1.7;
+
+1.7
+date	2000.07.25.17.28.22;	author butler;	state Exp;
+branches;
+next	1.6;
+
+1.6
+date	2000.02.04.00.41.42;	author mike;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	2000.02.03.23.35.50;	author mike;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	2000.02.03.23.23.49;	author mike;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	99.01.20.01.03.53;	author mike;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	98.12.11.06.02.33;	author mike;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	98.09.22.02.20.07;	author mike;	state Exp;
+branches;
+next	;
+
+1.10.2.1
+date	2002.09.19.18.01.23;	author morrison;	state Exp;
+branches;
+next	1.10.2.2;
+
+1.10.2.2
+date	2004.03.17.21.18.30;	author morrison;	state Exp;
+branches;
+next	;
+
+1.10.4.1
+date	2004.03.11.23.42.56;	author morrison;	state Exp;
+branches;
+next	;
+
+1.11.2.1
+date	2004.02.12.19.42.44;	author erikg;	state Exp;
+branches;
+next	1.11.2.2;
+
+1.11.2.2
+date	2004.03.15.14.07.12;	author erikg;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.15
+log
+@moved to src/
+@
+text
+@/*
+ *			L I B M U L T I S P E C T R A L / I N I T . C
+ *
+ *  This file represents the single function exported from the
+ *  shader library whose "name" is known.
+ *  All other functions are called through the function table.
+ *
+ *  Shaders are, of course, permitted to "upcall" into LIBRT as
+ *  necessary.
+ *
+ *  Author -
+ *	Michael John Muuss
+ *  
+ *  Source -
+ *	The U. S. Army Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005-5068  USA
+ *  
+ *  Distribution Notice -
+ *	Re-distribution of this software is restricted, as described in
+ *	your "Statement of Terms and Conditions for the Release of
+ *	The BRL-CAD Package" license agreement.
+ *
+ *  Copyright Notice -
+ *	This software is Copyright (C) 1998-2004 by the United States Army
+ *	in all countries except the USA.  All rights reserved.
+ */
+#ifndef lint
+static const char RCSid[] = "@@(#)$Header: /n/xoff/cvs/brlcad/libmultispectral/init.c,v 1.14 2004/05/10 15:30:45 erikg Exp $ (ARL)";
+#endif
+
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+
+#include <stdio.h>
+#include "machine.h"
+#include "vmath.h"
+#include "rtlist.h"
+#include "raytrace.h"
+#include "shadefuncs.h"
+#include "shadework.h"
+#include "rtprivate.h"
+
+int		rdebug;			/* RT program debugging */
+double		AmbientIntensity = 0.4;	/* Ambient light intensity */
+
+#define MFUNCS(_name)	\
+	{ extern struct mfuncs _name[]; mlib_add_shader( headp, _name ); }
+
+const struct bn_table		*spectrum;	/* definition of spectrum */
+struct bn_tabdata		*background;		/* radiant emittance of bg */
+
+
+/*
+ *			M U L T I S P E C T R A L _ S H A D E R _ I N I T
+ *
+ *  Connect up shader ("material") interfaces
+ *  Note that sh_plastic.c defines the required "default" entry.
+ */
+void
+multispectral_shader_init(struct mfuncs **headp)
+{
+	/* multi-spectral-specific routines */
+	MFUNCS( temp_mfuncs );
+
+	/* Compiled from sources in liboptical */
+	MFUNCS( phg_mfuncs );
+	MFUNCS( stk_mfuncs );
+	MFUNCS( light_mfuncs );
+	MFUNCS( camo_mfuncs );
+	MFUNCS( noise_mfuncs );
+#if 0
+	MFUNCS( cloud_mfuncs );
+	MFUNCS( spm_mfuncs );
+	MFUNCS( txt_mfuncs );
+	MFUNCS( cook_mfuncs );
+	MFUNCS( marble_mfuncs );
+	MFUNCS( stxt_mfuncs );
+	MFUNCS( points_mfuncs );
+	MFUNCS( toyota_mfuncs );
+	MFUNCS( wood_mfuncs );
+	MFUNCS( camo_mfuncs ); 
+	MFUNCS( scloud_mfuncs );
+	MFUNCS( air_mfuncs );
+	MFUNCS( rtrans_mfuncs );
+	MFUNCS( fire_mfuncs );
+	MFUNCS( brdf_mfuncs );
+	MFUNCS( gauss_mfuncs );
+	MFUNCS( gravel_mfuncs );
+	MFUNCS( prj_mfuncs );
+	MFUNCS( grass_mfuncs );
+#endif
+}
+@
+
+
+1.14
+log
+@change conf.h to a wrapped config.h
+@
+text
+@d28 1
+a28 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/libmultispectral/init.c,v 1.13 2004/04/05 07:43:56 morrison Exp $ (ARL)";
+@
+
+
+1.13
+log
+@merge of ansi-6-0-branch into HEAD
+@
+text
+@d28 1
+a28 1
+static const char RCSid[] = "@@(#)$Header$ (ARL)";
+d31 5
+a35 1
+#include "conf.h"
+@
+
+
+1.12
+log
+@update copyright to include span through 2003
+@
+text
+@d28 1
+a28 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/libmultispectral/init.c,v 1.11 2003/09/27 01:18:11 morrison Exp $ (ARL)";
+d59 1
+a59 2
+multispectral_shader_init(headp)
+struct mfuncs	**headp;
+@
+
+
+1.11
+log
+@multispectral definitions of spectrum and background are moved here from the rt back-end; rdebug and AmbientIntensity also provided here
+@
+text
+@d24 1
+a24 1
+ *	This software is Copyright (C) 1998 by the United States Army
+d28 1
+a28 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/libmultispectral/init.c,v 1.10 2002/08/20 17:07:49 jra Exp $ (ARL)";
+@
+
+
+1.11.2.1
+log
+@merge from HEAD
+@
+text
+@d24 1
+a24 1
+ *	This software is Copyright (C) 1998-2004 by the United States Army
+d28 1
+a28 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/libmultispectral/init.c,v 1.12 2004/02/02 17:39:13 morrison Exp $ (ARL)";
+@
+
+
+1.11.2.2
+log
+@merge from head
+@
+text
+@d28 1
+a28 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/libmultispectral/init.c,v 1.11.2.1 2004/02/12 19:42:44 erikg Exp $ (ARL)";
+@
+
+
+1.10
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d28 1
+a28 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/libmultispectral/init.c,v 1.8 2000/08/24 22:05:01 mike Exp $ (ARL)";
+d42 3
+d47 4
+@
+
+
+1.10.4.1
+log
+@sync to HEAD...
+@
+text
+@d24 1
+a24 1
+ *	This software is Copyright (C) 1998-2004 by the United States Army
+d28 1
+a28 1
+static const char RCSid[] = "@@(#)$Header: /n/cad/c/CVS/brlcad/libmultispectral/init.c,v 1.12 2004/02/02 17:39:13 morrison Exp $ (ARL)";
+a41 3
+int		rdebug;			/* RT program debugging */
+double		AmbientIntensity = 0.4;	/* Ambient light intensity */
+
+a43 4
+
+const struct bn_table		*spectrum;	/* definition of spectrum */
+struct bn_tabdata		*background;		/* radiant emittance of bg */
+
+@
+
+
+1.10.2.1
+log
+@Initial ANSIfication
+@
+text
+@d28 1
+a28 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/libmultispectral/init.c,v 1.10 2002/08/20 17:07:49 jra Exp $ (ARL)";
+d52 2
+a53 1
+multispectral_shader_init(struct mfuncs **headp)
+@
+
+
+1.10.2.2
+log
+@sync branch with HEAD
+@
+text
+@d24 1
+a24 1
+ *	This software is Copyright (C) 1998-2004 by the United States Army
+d28 1
+a28 1
+static const char RCSid[] = "@@(#)$Header$ (ARL)";
+a41 3
+int		rdebug;			/* RT program debugging */
+double		AmbientIntensity = 0.4;	/* Ambient light intensity */
+
+a43 4
+
+const struct bn_table		*spectrum;	/* definition of spectrum */
+struct bn_tabdata		*background;		/* radiant emittance of bg */
+
+@
+
+
+1.9
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d52 2
+a53 1
+multispectral_shader_init(struct mfuncs **headp)
+@
+
+
+1.8
+log
+@
+RCSid
+@
+text
+@d28 1
+a28 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/libmultispectral/init.c,v 1.7 2000/07/25 17:28:22 butler Exp $ (ARL)";
+d52 1
+a52 2
+multispectral_shader_init(headp)
+struct mfuncs	**headp;
+@
+
+
+1.7
+log
+@../rt/rdebug.h became rtprivate.h
+@
+text
+@d28 1
+a28 1
+static char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/libmultispectral/init.c,v 1.6 2000/02/04 00:41:42 mike Exp $ (ARL)";
+@
+
+
+1.6
+log
+@
+stacker is multispectral-capable
+@
+text
+@d28 1
+a28 1
+static char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/libmultispectral/init.c,v 1.5 2000/02/03 23:35:50 mike Exp $ (ARL)";
+d40 1
+a40 1
+#include "../rt/rdebug.h"
+@
+
+
+1.5
+log
+@
+Tidied up.
+Added sh_noise
+@
+text
+@d28 1
+a28 1
+static char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/libmultispectral/init.c,v 1.4 2000/02/03 23:23:49 mike Exp $ (ARL)";
+d60 1
+a67 1
+	MFUNCS( stk_mfuncs );
+@
+
+
+1.4
+log
+@
+Added multi-spectral version of camo
+@
+text
+@d28 1
+a28 1
+static char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/libmultispectral/init.c,v 1.3 1999/01/20 01:03:53 mike Exp $ (ARL)";
+d47 3
+d55 3
+d62 1
+a62 4
+
+	/* multi-spectral-specific routines */
+	MFUNCS( temp_mfuncs );
+
+d64 20
+a83 54
+	{
+		extern struct mfuncs phg_mfuncs[];
+		mlib_add_shader( headp, phg_mfuncs );
+	}
+	{
+		extern struct mfuncs light_mfuncs[];
+		mlib_add_shader( headp, light_mfuncs );
+	}
+	/*
+	 *  Connect up shader ("material") interfaces
+	 *  Note that sh_plastic.c defines the required "default" entry.
+	 */
+	{
+		extern struct mfuncs cloud_mfuncs[];
+		extern struct mfuncs spm_mfuncs[];
+		extern struct mfuncs txt_mfuncs[];
+		extern struct mfuncs stk_mfuncs[];
+		extern struct mfuncs cook_mfuncs[];
+		extern struct mfuncs marble_mfuncs[];
+		extern struct mfuncs stxt_mfuncs[];
+		extern struct mfuncs points_mfuncs[];
+		extern struct mfuncs toyota_mfuncs[];
+		extern struct mfuncs wood_mfuncs[];
+		extern struct mfuncs camo_mfuncs[]; 
+		extern struct mfuncs scloud_mfuncs[];
+		extern struct mfuncs air_mfuncs[];
+		extern struct mfuncs rtrans_mfuncs[];
+		extern struct mfuncs fire_mfuncs[];
+		extern struct mfuncs brdf_mfuncs[];
+		extern struct mfuncs gauss_mfuncs[];
+		extern struct mfuncs gravel_mfuncs[];
+		extern struct mfuncs prj_mfuncs[];
+		extern struct mfuncs grass_mfuncs[];
+
+		mlib_add_shader( headp, cloud_mfuncs );
+		mlib_add_shader( headp, spm_mfuncs );
+		mlib_add_shader( headp, txt_mfuncs );
+		mlib_add_shader( headp, stk_mfuncs );
+		mlib_add_shader( headp, cook_mfuncs );
+		mlib_add_shader( headp, marble_mfuncs );
+		mlib_add_shader( headp, stxt_mfuncs );
+		mlib_add_shader( headp, points_mfuncs );
+		mlib_add_shader( headp, toyota_mfuncs );
+		mlib_add_shader( headp, wood_mfuncs );
+		mlib_add_shader( headp, scloud_mfuncs );
+		mlib_add_shader( headp, air_mfuncs );
+		mlib_add_shader( headp, rtrans_mfuncs );
+		mlib_add_shader( headp, fire_mfuncs );
+		mlib_add_shader( headp, brdf_mfuncs );
+		mlib_add_shader( headp, gauss_mfuncs );
+		mlib_add_shader( headp, gravel_mfuncs );
+		mlib_add_shader( headp, prj_mfuncs );
+		mlib_add_shader( headp, grass_mfuncs );
+	}
+@
+
+
+1.3
+log
+@Added temperature texture-map shader.
+@
+text
+@d28 1
+a28 1
+static char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/libmultispectral/init.c,v 1.2 1998/12/11 06:02:33 mike Exp $ (ARL)";
+d55 1
+a104 1
+		mlib_add_shader( headp, camo_mfuncs );
+@
+
+
+1.2
+log
+@Converted to new macro to make it easier to attach to shader modules.
+@
+text
+@d28 1
+a28 1
+static char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/libmultispectral/init.c,v 1.1 1998/09/22 02:20:07 mike Exp $ (ARL)";
+d52 1
+d55 4
+@
+
+
+1.1
+log
+@Skeleton libmultispectral/
+@
+text
+@d28 1
+a28 1
+static char RCSid[] = "@@(#)$Header$ (ARL)";
+d42 3
+d52 2
+d55 8
+a67 2
+		extern struct mfuncs phg_mfuncs[];
+		extern struct mfuncs light_mfuncs[];
+a88 2
+		mlib_add_shader( headp, phg_mfuncs );
+		mlib_add_shader( headp, light_mfuncs );
+@

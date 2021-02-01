@@ -1,0 +1,927 @@
+head	14.15;
+access;
+symbols
+	rel-7-10-4:14.15
+	STABLE:14.15.0.2
+	stable-branch:14.7
+	rel-7-10-2:14.15
+	rel-7-10-0:14.15
+	rel-7-8-4:14.11
+	rel-7-8-2:14.10
+	rel-7-8-0:14.10
+	trimnurbs-branch:14.10.0.2
+	help:14.10
+	temp_tag:14.9
+	bobWinPort-20051223-freeze:14.8
+	postmerge-20051223-bobWinPort:14.9
+	premerge-20051223-bobWinPort:14.9
+	rel-7-6-6:14.9
+	rel-7-6-4:14.9
+	rel-7-6-2:14.8
+	rel-7-6-branch:14.8.0.4
+	rel-7-6-0:14.8
+	rel-7-4-2:14.7
+	rel-7-4-branch:14.7.0.2
+	bobWinPort:14.8.0.2
+	rel-7-4-0:14.7
+	rel-7-2-6:14.7
+	rel-7-2-4:14.7
+	rel-7-2-2:14.7
+	rel-7-2-0:14.7
+	rel-7-0-4:14.6
+	rel-7-0-2:14.6
+	rel-7-0-1:14.6
+	opensource-post:14.6
+	opensource-pre:1.2
+	rel-7-0-branch:1.2.0.2
+	rel-7-0:1.2;
+locks; strict;
+comment	@ * @;
+
+
+14.15
+date	2007.01.27.01.41.42;	author brlcad;	state Exp;
+branches;
+next	14.14;
+
+14.14
+date	2007.01.23.01.13.38;	author brlcad;	state Exp;
+branches;
+next	14.13;
+
+14.13
+date	2007.01.21.04.45.45;	author brlcad;	state Exp;
+branches;
+next	14.12;
+
+14.12
+date	2007.01.20.14.36.55;	author brlcad;	state Exp;
+branches;
+next	14.11;
+
+14.11
+date	2006.09.16.02.04.25;	author lbutler;	state Exp;
+branches;
+next	14.10;
+
+14.10
+date	2006.01.18.06.46.17;	author brlcad;	state Exp;
+branches
+	14.10.2.1;
+next	14.9;
+
+14.9
+date	2005.10.23.04.44.36;	author brlcad;	state Exp;
+branches;
+next	14.8;
+
+14.8
+date	2005.08.12.22.31.08;	author lbutler;	state Exp;
+branches
+	14.8.4.1;
+next	14.7;
+
+14.7
+date	2005.01.30.20.31.03;	author brlcad;	state Exp;
+branches;
+next	14.6;
+
+14.6
+date	2004.12.21.07.25.30;	author morrison;	state Exp;
+branches;
+next	14.5;
+
+14.5
+date	2004.12.21.06.38.21;	author morrison;	state Exp;
+branches;
+next	14.4;
+
+14.4
+date	2004.12.21.06.18.47;	author morrison;	state Exp;
+branches;
+next	14.3;
+
+14.3
+date	2004.12.21.05.45.24;	author morrison;	state Exp;
+branches;
+next	14.2;
+
+14.2
+date	2004.12.21.04.18.20;	author morrison;	state Exp;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.16;	author morrison;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2004.08.02.23.01.49;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.15.20.08;	author morrison;	state Exp;
+branches;
+next	;
+
+14.8.4.1
+date	2005.11.13.13.46.17;	author brlcad;	state Exp;
+branches;
+next	;
+
+14.10.2.1
+date	2006.04.07.17.49.12;	author jlowenz;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.15
+log
+@ws. lots and lots of ws.  see sh/ws.sh for details (cases 'abcdeg').
+@
+text
+@/*                    N U R B _ S P L I T . C
+ * BRL-CAD
+ *
+ * Copyright (c) 1990-2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This library is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@addtogroup nurb */
+/** @@{ */
+/** @@file nurb_split.c
+ *
+ * 	Subdivide a nurb surface by inserting a multiple knot of
+ * 	of the surface order in a given direction and return the
+ *	resulting surfaces.
+ *
+ * Author-
+ *	Paul Randal Stay
+ *
+ * Source
+ *	SECAD/VLD Computing Consortium, Bldg 394
+ *	The US Army Ballistic Research Laboratory
+ *	Aberdeen Proving Ground, Maryland 21005
+ */
+/** @@} */
+
+#include "common.h"
+
+
+#include <stdio.h>
+#include "machine.h"
+#include "vmath.h"
+#include "nmg.h"
+#include "raytrace.h"
+#include "nurb.h"
+
+/* Algorithm
+ *
+ * 	Given a parametric direction (u or v) look at the direction
+ * knot vector and insert a multiple knot of parametric direction surface
+ * order.  If internal knot values exist than pick the one closest to the
+ * middle and add additional knots to split at that value, otherwise
+ * add multiple knots at the mid point of the knot vector. Use the new
+ * knot vector to pass to the oslo refinement process and split the surface.
+ * Separate the surface and return the two resulting surface.
+ *
+ *  The original surface is undisturbed by this operation.
+ */
+void
+rt_nurb_s_split(struct bu_list *split_hd, const struct face_g_snurb *srf, int dir, struct resource *res)
+{
+	struct knot_vector new_kv;
+	fastf_t value;
+	struct oslo_mat * oslo;
+	int i;
+	int k_index = 0;
+	struct face_g_snurb * srf1, * srf2;
+
+	NMG_CK_SNURB(srf);
+
+	if ( dir == RT_NURB_SPLIT_ROW )
+	{
+		value = srf->u.knots[(srf->u.k_size -1)/2];
+
+		for( i = 0; i < srf->u.k_size; i++)
+			if( value == srf->u.knots[i] )
+			{
+				k_index = i;
+				break;
+			}
+		if ( k_index == 0)
+		{
+			value = ( value +
+				srf->u.knots[ srf->u.k_size -1])
+				/2.0;
+			k_index = srf->order[0];
+		}
+
+		rt_nurb_kvmult( &new_kv, &srf->u, srf->order[0], value, res);
+
+		oslo = ( struct oslo_mat *)
+			rt_nurb_calc_oslo( srf->order[RT_NURB_SPLIT_ROW], &srf->u, &new_kv, res);
+
+		GET_SNURB( srf1 );
+		srf1->order[0]  = srf->order[0];
+		srf1->order[1]  = srf->order[1];
+		srf1->dir = RT_NURB_SPLIT_ROW;
+		rt_nurb_kvextract(&srf1->u, &new_kv, 0, k_index + srf1->order[0], res);
+		rt_nurb_kvcopy(&srf1->v, &srf->v, res);
+
+		srf1->pt_type = srf->pt_type;
+		srf1->s_size[0] = srf1->v.k_size -
+			srf1->order[1];
+		srf1->s_size[1] = srf1->u.k_size -
+			srf1->order[0];
+
+		srf1->ctl_points = (fastf_t *)
+			bu_malloc( sizeof(fastf_t) * srf1->s_size[0] *
+				srf1->s_size[1] *
+				RT_NURB_EXTRACT_COORDS( srf1->pt_type),
+				"rt_nurb_s_split: srf1 row mesh control points");
+
+		GET_SNURB( srf2 );
+		srf2->order[0]  = srf->order[0];
+		srf2->order[1]  = srf->order[1];
+		srf2->dir = RT_NURB_SPLIT_ROW;
+		rt_nurb_kvextract(&srf2->u, &new_kv, k_index, new_kv.k_size, res);
+		rt_nurb_kvcopy(&srf2->v, &srf->v, res);
+
+		srf2->pt_type = srf->pt_type;
+		srf2->s_size[0] = srf2->v.k_size -
+			srf2->order[1];
+		srf2->s_size[1] = srf2->u.k_size -
+			srf2->order[0];
+
+		srf2->ctl_points = (fastf_t *)
+			bu_malloc( sizeof(fastf_t) * srf2->s_size[0] *
+				srf2->s_size[1] *
+				RT_NURB_EXTRACT_COORDS( srf2->pt_type),
+				"rt_nurb_s_split: srf2 row mesh control points");
+
+		for( i = 0; i < srf->s_size[0]; i++)
+		{
+			fastf_t * old_mesh_ptr;
+			fastf_t * new_mesh_ptr;
+
+			old_mesh_ptr = &srf->ctl_points[
+				i * srf->s_size[1] *
+				RT_NURB_EXTRACT_COORDS( srf->pt_type)];
+			new_mesh_ptr = &srf1->ctl_points[
+				i * srf1->s_size[1] *
+				RT_NURB_EXTRACT_COORDS( srf1->pt_type)];
+			rt_nurb_map_oslo( oslo, old_mesh_ptr, new_mesh_ptr,
+				RT_NURB_EXTRACT_COORDS( srf->pt_type ),
+				RT_NURB_EXTRACT_COORDS( srf1->pt_type ),
+				0, k_index, srf1->pt_type);
+			new_mesh_ptr = &srf2->ctl_points[
+				i * srf2->s_size[1] *
+				RT_NURB_EXTRACT_COORDS( srf2->pt_type)];
+			rt_nurb_map_oslo( oslo, old_mesh_ptr, new_mesh_ptr,
+				RT_NURB_EXTRACT_COORDS( srf->pt_type ),
+				RT_NURB_EXTRACT_COORDS( srf2->pt_type ),
+				k_index, new_kv.k_size - srf2->order[0],
+				srf2->pt_type);
+		}
+	}
+	else
+	{
+		value = srf->v.knots[(srf->v.k_size -1)/2];
+
+		for( i = 0; i < srf->v.k_size; i++)
+			if( value == srf->v.knots[i] )
+			{
+				k_index = i;
+				break;
+			}
+		if ( k_index == 0)
+		{
+			value = ( value +
+				srf->v.knots[ srf->v.k_size -1])
+				/2.0;
+			k_index = srf->order[1];
+		}
+
+		rt_nurb_kvmult(&new_kv, &srf->v, srf->order[RT_NURB_SPLIT_COL], value, res);
+
+		oslo = ( struct oslo_mat *)
+			rt_nurb_calc_oslo( srf->order[RT_NURB_SPLIT_COL], &srf->v, &new_kv, res);
+
+		GET_SNURB( srf1 );
+		srf1->order[0]  = srf->order[0];
+		srf1->order[1]  = srf->order[1];
+		srf1->dir = RT_NURB_SPLIT_COL;
+		rt_nurb_kvextract(&srf1->v, &new_kv, 0, k_index + srf1->order[RT_NURB_SPLIT_COL], res);
+		rt_nurb_kvcopy(&srf1->u, &srf->u, res);
+
+		srf1->pt_type = srf->pt_type;
+		srf1->s_size[0] = srf1->v.k_size -
+			srf1->order[1];
+		srf1->s_size[1] = srf1->u.k_size -
+			srf1->order[0];
+
+		srf1->ctl_points = (fastf_t *)
+			bu_malloc( sizeof(fastf_t) * srf1->s_size[0] *
+				srf1->s_size[1] *
+				RT_NURB_EXTRACT_COORDS( srf1->pt_type),
+				"rt_nurb_s_split: srf1 col mesh control points");
+
+		GET_SNURB( srf2 );
+		srf2->order[0]  = srf->order[0];
+		srf2->order[1]  = srf->order[1];
+		srf2->dir = RT_NURB_SPLIT_COL;
+		rt_nurb_kvextract(&srf2->v, &new_kv, k_index, new_kv.k_size, res);
+		rt_nurb_kvcopy(&srf2->u, &srf->u, res);
+
+		srf2->pt_type = srf->pt_type;
+		srf2->s_size[0] = srf2->v.k_size -
+			srf2->order[1];
+		srf2->s_size[1] = srf2->u.k_size -
+			srf2->order[0];
+
+		srf2->ctl_points = (fastf_t *)
+			bu_malloc( sizeof(fastf_t) * srf2->s_size[0] *
+				srf2->s_size[1] *
+				RT_NURB_EXTRACT_COORDS( srf2->pt_type),
+				"rt_nurb_s_split: srf2 col mesh control points");
+
+		for( i = 0; i < srf->s_size[1]; i++)
+		{
+			fastf_t * old_mesh_ptr;
+			fastf_t * new_mesh_ptr;
+
+			old_mesh_ptr = &srf->ctl_points[
+				i * RT_NURB_EXTRACT_COORDS( srf->pt_type)];
+			new_mesh_ptr = &srf1->ctl_points[
+				i * RT_NURB_EXTRACT_COORDS( srf1->pt_type)];
+			rt_nurb_map_oslo( oslo, old_mesh_ptr, new_mesh_ptr,
+				srf->s_size[1] *
+				RT_NURB_EXTRACT_COORDS( srf->pt_type ),
+				srf1->s_size[1] *
+				RT_NURB_EXTRACT_COORDS( srf1->pt_type ),
+				0, k_index, srf1->pt_type);
+			new_mesh_ptr = &srf2->ctl_points[
+				i * RT_NURB_EXTRACT_COORDS( srf2->pt_type)];
+			rt_nurb_map_oslo( oslo, old_mesh_ptr, new_mesh_ptr,
+				srf->s_size[1] *
+				RT_NURB_EXTRACT_COORDS( srf->pt_type ),
+				srf2->s_size[1] *
+				RT_NURB_EXTRACT_COORDS( srf2->pt_type ),
+				k_index, new_kv.k_size - srf2->order[1],
+				srf2->pt_type);
+		}
+	}
+
+	/* Arrangement will be:  head, srf1, srf2 */
+	BU_LIST_APPEND( split_hd, &srf2->l );
+	BU_LIST_APPEND( split_hd, &srf1->l );
+
+	rt_nurb_free_oslo(oslo, res);
+	bu_free( (char *)new_kv.knots, "rt_nurb_s_split: new kv knots");
+
+}
+
+/*
+ *			R T _ N U R B _ C _ S P L I T
+ *
+ * Split a NURB curve by inserting a multiple knot and return
+ * the result of the two curves.
+ *
+ * Algorithm
+ *
+ * Insert a multiple knot of the curve
+ * order.  If internal knot values exist than pick the one closest to the
+ * middle and add additional knots to split at that value, otherwise
+ * add multiple knots at the mid point of the knot vector. Use the new
+ * knot vector to pass to the oslo refinement process and split the curve.
+ * Separate the curve and return the two resulting curves.
+ *
+ *  The original curve is undisturbed by this operation.
+ */
+void
+rt_nurb_c_split(struct bu_list *split_hd, const struct edge_g_cnurb *crv)
+{
+	struct knot_vector new_kv;
+	fastf_t value;
+	struct oslo_mat * oslo;
+	int i;
+	int k_index = 0;
+	struct edge_g_cnurb * crv1, * crv2;
+	int coords;
+
+	NMG_CK_CNURB(crv);
+
+	coords = RT_NURB_EXTRACT_COORDS( crv->pt_type ),
+
+	value = crv->k.knots[(crv->k.k_size -1)/2];
+
+	for( i = 0; i < crv->k.k_size; i++)
+		if( value == crv->k.knots[i] )
+		{
+			k_index = i;
+			break;
+		}
+	if ( k_index == 0)
+	{
+		value = ( value +
+			crv->k.knots[ crv->k.k_size -1])
+			/2.0;
+		k_index = crv->order;
+	}
+
+	rt_nurb_kvmult(&new_kv, &crv->k, crv->order, value, (struct resource *)NULL);
+
+	oslo = ( struct oslo_mat *)
+		rt_nurb_calc_oslo( crv->order, &crv->k, &new_kv, (struct resource *)NULL);
+
+	GET_CNURB( crv1 );
+	crv1->order  = crv->order;
+	rt_nurb_kvextract(&crv1->k, &new_kv, 0, k_index + crv->order, (struct resource *)NULL);
+	crv1->pt_type = crv->pt_type;
+	crv1->c_size = crv1->k.k_size - crv1->order;
+	crv1->ctl_points = (fastf_t *)
+		bu_malloc( sizeof(fastf_t) * crv1->c_size *
+			RT_NURB_EXTRACT_COORDS( crv1->pt_type),
+			"rt_nurb_c_split: crv1 control points");
+
+	GET_CNURB( crv2 );
+	crv2->order  = crv->order;
+	rt_nurb_kvextract(&crv2->k, &new_kv, k_index, new_kv.k_size, (struct resource *)NULL);
+	crv2->pt_type = crv->pt_type;
+	crv2->c_size = crv2->k.k_size - crv2->order;
+	crv2->ctl_points = (fastf_t *)
+		bu_malloc( sizeof(fastf_t) * crv2->c_size *
+			RT_NURB_EXTRACT_COORDS( crv2->pt_type),
+			"rt_nurb_s_split: crv2 mesh control points");
+
+	rt_nurb_map_oslo( oslo, crv->ctl_points, crv1->ctl_points,
+		coords, coords, 0, k_index, crv->pt_type );
+
+	rt_nurb_map_oslo( oslo, crv->ctl_points, crv2->ctl_points,
+		coords, coords, k_index, new_kv.k_size - crv2->order,
+		crv2->pt_type );
+
+	rt_nurb_free_oslo( oslo, (struct resource *)NULL );
+
+	bu_free( (char *) new_kv.knots, "rt_nurb_c_split; new_kv.knots" );
+
+	/* Arrangement will be:  head, crv1, crv2 */
+	BU_LIST_APPEND( split_hd, &crv2->l );
+	BU_LIST_APPEND( split_hd, &crv1->l );
+}
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+14.14
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@a40 1
+
+@
+
+
+14.13
+log
+@ugh, what tedium.  put some effort towards cleaning up the doxygen labels and making the headers more consistent.  also exclusively using @@ for doxygen instead of \ to try to keep things more consistent.
+@
+text
+@d9 1
+a9 2
+ * as published by the Free Software Foundation; either version 2 of
+ * the License, or (at your option) any later version.
+d14 1
+a14 1
+ * Library General Public License for more details.
+@
+
+
+14.12
+log
+@update copyright to 2007
+@
+text
+@a20 1
+
+d22 1
+a22 1
+/*@@{*/
+d24 1
+d37 1
+a37 1
+/*@@}*/
+@
+
+
+14.11
+log
+@Doxygen updates
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 1990-2006 United States Government as represented by
+@
+
+
+14.10
+log
+@update copyright to 2006
+@
+text
+@d22 1
+a22 1
+/** \addtogroup nurb */
+@
+
+
+14.10.2.1
+log
+@modified call to rt_nurb_free_oslo to support new implementation
+@
+text
+@d252 1
+a252 1
+	rt_nurb_free_oslo(oslo);
+d337 1
+a337 1
+	rt_nurb_free_oslo( oslo );
+@
+
+
+14.9
+log
+@trailing ws
+@
+text
+@d4 1
+a4 1
+ * Copyright (C) 1990-2005 United States Government as represented by
+@
+
+
+14.8
+log
+@Doxygen changes
+@
+text
+@d26 1
+a26 1
+ * 	of the surface order in a given direction and return the 
+d52 1
+a52 1
+ * 	Given a parametric direction (u or v) look at the direction 
+d77 1
+a77 1
+		
+d86 1
+a86 1
+			value = ( value + 
+d94 1
+a94 1
+		oslo = ( struct oslo_mat *) 
+d103 1
+a103 1
+		
+d105 1
+a105 1
+		srf1->s_size[0] = srf1->v.k_size - 
+d107 1
+a107 1
+		srf1->s_size[1] = srf1->u.k_size - 
+d112 1
+a112 1
+				srf1->s_size[1] * 
+d122 1
+a122 1
+		
+d124 1
+a124 1
+		srf2->s_size[0] = srf2->v.k_size - 
+d126 1
+a126 1
+		srf2->s_size[1] = srf2->u.k_size - 
+d131 1
+a131 1
+				srf2->s_size[1] * 
+d141 1
+a141 1
+				i * srf->s_size[1] * 
+d144 1
+a144 1
+				i * srf1->s_size[1] * 
+d151 1
+a151 1
+				i * srf2->s_size[1] * 
+d156 1
+a156 1
+				k_index, new_kv.k_size - srf2->order[0], 
+d160 1
+a160 1
+	else 
+d163 1
+a163 1
+		
+d172 1
+a172 1
+			value = ( value + 
+d180 1
+a180 1
+		oslo = ( struct oslo_mat *) 
+d189 1
+a189 1
+		
+d191 1
+a191 1
+		srf1->s_size[0] = srf1->v.k_size - 
+d193 1
+a193 1
+		srf1->s_size[1] = srf1->u.k_size - 
+d198 1
+a198 1
+				srf1->s_size[1] * 
+d210 1
+a210 1
+		srf2->s_size[0] = srf2->v.k_size - 
+d212 1
+a212 1
+		srf2->s_size[1] = srf2->u.k_size - 
+d217 1
+a217 1
+				srf2->s_size[1] * 
+d233 1
+a233 1
+				srf1->s_size[1] * 
+d243 1
+a243 1
+				k_index, new_kv.k_size - srf2->order[1], 
+d247 1
+a247 1
+	
+d265 1
+a265 1
+ * Insert a multiple knot of the curve 
+d290 1
+a290 1
+		
+d299 1
+a299 1
+		value = ( value + 
+d307 1
+a307 1
+	oslo = ( struct oslo_mat *) 
+d334 1
+a334 1
+		coords, coords, k_index, new_kv.k_size - crv2->order, 
+@
+
+
+14.8.4.1
+log
+@merge changes from HEAD aka rel-7-6-4 to the rel-7-6-branch just in case someone peeks a gander or tries to continue/build the branch
+@
+text
+@d26 1
+a26 1
+ * 	of the surface order in a given direction and return the
+d52 1
+a52 1
+ * 	Given a parametric direction (u or v) look at the direction
+d77 1
+a77 1
+
+d86 1
+a86 1
+			value = ( value +
+d94 1
+a94 1
+		oslo = ( struct oslo_mat *)
+d103 1
+a103 1
+
+d105 1
+a105 1
+		srf1->s_size[0] = srf1->v.k_size -
+d107 1
+a107 1
+		srf1->s_size[1] = srf1->u.k_size -
+d112 1
+a112 1
+				srf1->s_size[1] *
+d122 1
+a122 1
+
+d124 1
+a124 1
+		srf2->s_size[0] = srf2->v.k_size -
+d126 1
+a126 1
+		srf2->s_size[1] = srf2->u.k_size -
+d131 1
+a131 1
+				srf2->s_size[1] *
+d141 1
+a141 1
+				i * srf->s_size[1] *
+d144 1
+a144 1
+				i * srf1->s_size[1] *
+d151 1
+a151 1
+				i * srf2->s_size[1] *
+d156 1
+a156 1
+				k_index, new_kv.k_size - srf2->order[0],
+d160 1
+a160 1
+	else
+d163 1
+a163 1
+
+d172 1
+a172 1
+			value = ( value +
+d180 1
+a180 1
+		oslo = ( struct oslo_mat *)
+d189 1
+a189 1
+
+d191 1
+a191 1
+		srf1->s_size[0] = srf1->v.k_size -
+d193 1
+a193 1
+		srf1->s_size[1] = srf1->u.k_size -
+d198 1
+a198 1
+				srf1->s_size[1] *
+d210 1
+a210 1
+		srf2->s_size[0] = srf2->v.k_size -
+d212 1
+a212 1
+		srf2->s_size[1] = srf2->u.k_size -
+d217 1
+a217 1
+				srf2->s_size[1] *
+d233 1
+a233 1
+				srf1->s_size[1] *
+d243 1
+a243 1
+				k_index, new_kv.k_size - srf2->order[1],
+d247 1
+a247 1
+
+d265 1
+a265 1
+ * Insert a multiple knot of the curve
+d290 1
+a290 1
+
+d299 1
+a299 1
+		value = ( value +
+d307 1
+a307 1
+	oslo = ( struct oslo_mat *)
+d334 1
+a334 1
+		coords, coords, k_index, new_kv.k_size - crv2->order,
+@
+
+
+14.7
+log
+@update copyright to 2005
+@
+text
+@d21 3
+a24 2
+ *
+ * Function -
+d37 1
+@
+
+
+14.6
+log
+@tidy up a lil bit
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 1990-2004 United States Government as represented by
+@
+
+
+14.5
+log
+@remove the old copyright notice section
+@
+text
+@a34 2
+ *
+ *
+@
+
+
+14.4
+log
+@they should have received a copy of the LGPL with LGPL'd files
+@
+text
+@a36 3
+ * Copyright Notice -
+ * 	This software if Copyright (C) 1990-2004 by the United States Army.
+ *	All Rights Reserved.
+@
+
+
+14.3
+log
+@s/GNU Library General/GNU Lesser General/g
+@
+text
+@d17 2
+a18 2
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+@
+
+
+14.2
+log
+@assign copyright and LGPL
+@
+text
+@d8 1
+a8 1
+ * modify it under the terms of the GNU Library General Public License
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@d1 21
+a21 2
+/*
+ *			N U R B _ S P L I T . C
+@
+
+
+1.2
+log
+@replace the wrapped config.h block with common.h
+@
+text
+@d329 10
+@
+
+
+1.1
+log
+@Vast reorganization begins.  Sources moved from top-level directories into src/.
+@
+text
+@d23 1
+a23 3
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+@
+

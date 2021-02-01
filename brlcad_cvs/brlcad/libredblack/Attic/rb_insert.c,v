@@ -1,0 +1,867 @@
+head	11.8;
+access;
+symbols
+	rel-4-5:11.7
+	ctj-4-5-post:11.7
+	ctj-4-5-pre:11.7
+	rel-4-4:11.1;
+locks; strict;
+comment	@ * @;
+
+
+11.8
+date	98.12.30.04.24.10;	author mike;	state dead;
+branches;
+next	11.7;
+
+11.7
+date	96.08.31.09.39.29;	author mike;	state Exp;
+branches;
+next	11.6;
+
+11.6
+date	95.09.20.13.51.46;	author pjt;	state Exp;
+branches;
+next	11.5;
+
+11.5
+date	95.09.20.12.11.26;	author pjt;	state Exp;
+branches;
+next	11.4;
+
+11.4
+date	95.09.19.17.44.51;	author pjt;	state Exp;
+branches;
+next	11.3;
+
+11.3
+date	95.07.10.20.16.29;	author pjt;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	95.04.19.19.05.14;	author pjt;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	95.01.04.10.05.55;	author mike;	state Rel4_4;
+branches;
+next	2.6;
+
+2.6
+date	94.12.30.16.41.04;	author stay;	state Exp;
+branches;
+next	2.5;
+
+2.5
+date	94.11.01.10.43.53;	author pjt;	state Exp;
+branches;
+next	2.4;
+
+2.4
+date	94.09.26.12.21.10;	author jra;	state Exp;
+branches;
+next	2.3;
+
+2.3
+date	94.09.22.15.34.46;	author pjt;	state Exp;
+branches;
+next	2.2;
+
+2.2
+date	94.09.22.15.27.02;	author pjt;	state Exp;
+branches;
+next	2.1;
+
+2.1
+date	93.03.25.11.03.21;	author pjt;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	93.03.25.11.00.23;	author pjt;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	93.01.21.14.32.07;	author pjt;	state zero_1;
+branches;
+next	;
+
+
+desc
+@
+     Routines to insert nodes into a red-black tree
+
+@
+
+
+11.8
+log
+@All moved to libbu
+@
+text
+@/*			R B _ I N S E R T . C
+ *
+ *		Routines to insert into a red-black tree
+ *
+ *	Author:	Paul Tanenbaum
+ *
+ */
+#ifndef lint
+static char RCSid[] = "@@(#) $Header: /c/CVS/brlcad/libredblack/rb_insert.c,v 11.7 1996/08/31 09:39:29 mike Exp mike $";
+#endif
+
+#include "conf.h"
+
+#include <stdio.h>
+#include <math.h>
+#include "machine.h"
+#include "bu.h"
+#include "redblack.h"
+#include "./rb_internals.h"
+
+/*			_ R B _ I N S E R T ( )
+ *
+ *	    Insert a node into one linear order of a red-black tree
+ *
+ *	This function has three parameters: the tree and linear order into
+ *	which to insert the new node and the new node itself.  If the node
+ *	is equal (modulo the linear order) to a node already in the tree,
+ *	_rb_insert() returns 1.  Otherwise, it returns 0.
+ */
+static int _rb_insert (tree, order, new_node)
+
+rb_tree		*tree;
+int		order;
+struct rb_node	*new_node;
+
+{
+    struct rb_node	*node;
+    struct rb_node	*parent;
+    struct rb_node	*grand_parent;
+    struct rb_node	*y;
+    int			(*compare)();
+    int			comparison;
+    int			direction;
+    int			result = 0;
+
+
+    RB_CKMAG(tree, RB_TREE_MAGIC, "red-black tree");
+    RB_CKORDER(tree, order);
+    RB_CKMAG(new_node, RB_NODE_MAGIC, "red-black node");
+
+    /*
+     *	Initialize the new node
+     */
+    rb_parent(new_node, order) =
+    rb_left_child(new_node, order) =
+    rb_right_child(new_node, order) = rb_null(tree);
+    rb_size(new_node, order) = 1;
+    if (tree -> rbt_debug & RB_DEBUG_OS)
+	bu_log("_rb_insert(%x): size(%x, %d)=%d\n",
+	    new_node, new_node, order, rb_size(new_node, order));
+
+    /*
+     *	Perform vanilla-flavored binary-tree insertion
+     */
+    parent = rb_null(tree);
+    node = rb_root(tree, order);
+    compare = rb_order_func(tree, order);
+    while (node != rb_null(tree))
+    {
+	parent = node;
+	++rb_size(parent, order);
+	if (tree -> rbt_debug & RB_DEBUG_OS)
+	    bu_log("_rb_insert(%x): size(%x, %d)=%d\n",
+		new_node, parent, order, rb_size(parent, order));
+	comparison = (*compare)(rb_data(new_node, order), rb_data(node, order));
+	if (comparison < 0)
+	{
+	    if (tree -> rbt_debug & RB_DEBUG_INSERT)
+		bu_log("_rb_insert(%x): <_%d <%x>, going left\n",
+		    new_node, order, node);
+	    node = rb_left_child(node, order);
+	}
+	else
+	{
+	    if (tree -> rbt_debug & RB_DEBUG_INSERT)
+		bu_log("_rb_insert(%x): >=_%d <%x>, going right\n",
+		    new_node, order, node);
+	    node = rb_right_child(node, order);
+	    if (comparison == 0)
+		result = 1;
+	}
+    }
+    rb_parent(new_node, order) = parent;
+    if (parent == rb_null(tree))
+	rb_root(tree, order) = new_node;
+    else if ((*compare)(rb_data(new_node, order), rb_data(parent, order)) < 0)
+	rb_left_child(parent, order) = new_node;
+    else
+	rb_right_child(parent, order) = new_node;
+
+    /*
+     *	Reestablish the red-black properties, as necessary
+     */
+    rb_set_color(new_node, order, RB_RED);
+    node = new_node;
+    parent = rb_parent(node, order);
+    grand_parent = rb_parent(parent, order);
+    while ((node != rb_root(tree, order))
+	&& (rb_get_color(parent, order) == RB_RED))
+    {
+	if (parent == rb_left_child(grand_parent, order))
+	    direction = RB_LEFT;
+	else
+	    direction = RB_RIGHT;
+
+	y = rb_other_child(grand_parent, order, direction);
+	if (rb_get_color(y, order) == RB_RED)
+	{
+	    rb_set_color(parent, order, RB_BLACK);
+	    rb_set_color(y, order, RB_BLACK);
+	    rb_set_color(grand_parent, order, RB_RED);
+	    node = grand_parent;
+	    parent = rb_parent(node, order);
+	    grand_parent = rb_parent(parent, order);
+	}
+	else
+	{
+	    if (node == rb_other_child(parent, order, direction))
+	    {
+		node = parent;
+		rb_rotate(node, order, direction);
+		parent = rb_parent(node, order);
+		grand_parent = rb_parent(parent, order);
+	    }
+	    rb_set_color(parent, order, RB_BLACK);
+	    rb_set_color(grand_parent, order, RB_RED);
+	    rb_other_rotate(grand_parent, order, direction);
+	}
+    }
+    rb_set_color(rb_root(tree, order), order, RB_BLACK);
+
+    if (tree -> rbt_debug & RB_DEBUG_INSERT)
+	bu_log("_rb_insert(%x): comparison = %d, returning %d\n",
+	    new_node, comparison, result);
+
+    return (result);
+}
+
+/*			R B _ I N S E R T ( )
+ *
+ *		Applications interface to _rb_insert()
+ *
+ *	This function has two parameters: the tree into which to insert
+ *	the new node and the contents of the node.  If a uniqueness
+ *	requirement would be violated, rb_insert() does nothing but return
+ *	a number from the set {-1, -2, ..., -nm_orders} of which the
+ *	absolute value is the first order for which a violation exists.
+ *	Otherwise, it returns the number of orders for which the new node
+ *	was equal to a node already in the tree.
+ */
+int rb_insert (tree, data)
+
+rb_tree	*tree;
+void	*data;
+
+{
+    int			nm_orders;
+    int			order;
+    int			result = 0;
+    struct rb_node	*node;
+    struct rb_package	*package;
+    struct rb_list	*rblp;
+
+    RB_CKMAG(tree, RB_TREE_MAGIC, "red-black tree");
+
+    nm_orders = tree -> rbt_nm_orders;
+
+    /*
+     *	Enforce uniqueness
+     *
+     *	NOTE: The approach is that for each order that requires uniqueness,
+     *	    we look for a match.  This is not the most efficient way to do
+     *	    things, since _rb_insert() is just going to turn around and
+     *	    search the tree all over again.
+     */
+    for (order = 0; order < nm_orders; ++order)
+	if (rb_get_uniqueness(tree, order) &&
+	    (rb_search(tree, order, data) != NULL))
+	{
+	    if (tree -> rbt_debug & RB_DEBUG_UNIQ)
+		bu_log("rb_insert(<%x>, <%x>, TBD) will return %d\n",
+		    tree, data, -(order + 1));
+	    return (-(order + 1));
+	}
+
+    /*
+     *	Make a new package
+     *	and add it to the list of all packages.
+     */
+    package = (struct rb_package *)
+		bu_malloc(sizeof(struct rb_package), "red-black package");
+    package -> rbp_node = (struct rb_node **)
+		bu_malloc(nm_orders * sizeof(struct rb_node *),
+			    "red-black package nodes");
+    rblp = (struct rb_list *)
+		bu_malloc(sizeof(struct rb_list), "red-black list element");
+    rblp -> rbl_magic = RB_LIST_MAGIC;
+    rblp -> rbl_package = package;
+    RT_LIST_PUSH(&(tree -> rbt_packages.l), rblp);
+    package -> rbp_list_pos = rblp;
+
+    /*
+     *	Make a new node
+     *	and add it to the list of all nodes.
+     */
+    node = (struct rb_node *)
+		bu_malloc(sizeof(struct rb_node), "red-black node");
+    node -> rbn_parent = (struct rb_node **)
+		bu_malloc(nm_orders * sizeof(struct rb_node *),
+			    "red-black parents");
+    node -> rbn_left = (struct rb_node **)
+		bu_malloc(nm_orders * sizeof(struct rb_node *),
+			    "red-black left children");
+    node -> rbn_right = (struct rb_node **)
+		bu_malloc(nm_orders * sizeof(struct rb_node *),
+			    "red-black right children");
+    node -> rbn_color = (char *)
+		bu_malloc((size_t) ceil((double) (nm_orders / 8.0)),
+			    "red-black colors");
+    node -> rbn_size = (int *)
+		bu_malloc(nm_orders * sizeof(int),
+			    "red-black subtree sizes");
+    node -> rbn_package = (struct rb_package **)
+		bu_malloc(nm_orders * sizeof(struct rb_package *),
+			    "red-black packages");
+    rblp = (struct rb_list *)
+		bu_malloc(sizeof(struct rb_list), "red-black list element");
+    rblp -> rbl_magic = RB_LIST_MAGIC;
+    rblp -> rbl_node = node;
+    RT_LIST_PUSH(&(tree -> rbt_nodes.l), rblp);
+    node -> rbn_list_pos = rblp;
+
+    /*
+     *	Fill in the package
+     */
+    package -> rbp_magic = RB_PKG_MAGIC;
+    package -> rbp_data = data;
+    for (order = 0; order < nm_orders; ++order)
+	(package -> rbp_node)[order] = node;
+
+    /*
+     *	Fill in the node
+     */
+    node -> rbn_magic = RB_NODE_MAGIC;
+    node -> rbn_tree = tree;
+    for (order = 0; order < nm_orders; ++order)
+	(node -> rbn_package)[order] = package;
+    node -> rbn_pkg_refs = nm_orders;
+
+    /*
+     *	If the tree was empty, install this node as the root
+     *	and give it a null parent and null children
+     */
+    if (rb_root(tree, 0) == rb_null(tree))
+	for (order = 0; order < nm_orders; ++order)
+	{
+	    rb_root(tree, order) = node;
+	    rb_parent(node, order) =
+	    rb_left_child(node, order) =
+	    rb_right_child(node, order) = rb_null(tree);
+	    rb_set_color(node, order, RB_BLACK);
+	    rb_size(node, order) = 1;
+	    if (tree -> rbt_debug & RB_DEBUG_OS)
+		bu_log("rb_insert(<%x>, <%x>, <%x>): size(%x, %d)=%d\n",
+		    tree, data, node, node, order, rb_size(node, order));
+	}
+    /*	Otherwise, insert the node into the tree */
+    else
+    {
+	for (order = 0; order < nm_orders; ++order)
+	    result += _rb_insert(tree, order, node);
+	if (tree -> rbt_debug & RB_DEBUG_UNIQ)
+	    bu_log("rb_insert(<%x>, <%x>, <%x>) will return %d\n",
+		tree, data, node, result);
+    }
+
+    ++(tree -> rbt_nm_nodes);
+    rb_current(tree) = node;
+    return (result);
+}
+
+/*		        _ R B _ S E T _ U N I Q ( )
+ *
+ *	    Raise or lower the uniqueness flag for one linear order
+ *			    of a red-black tree
+ *
+ *	This function has three parameters: the tree, the order for which
+ *	to modify the flag, and the new value for the flag.  _rb_set_uniq()
+ *	sets the specified flag to the specified value and returns the
+ *	previous value of the flag.
+ */
+static int _rb_set_uniq (tree, order, new_value)
+
+rb_tree	*tree;
+int	order;
+int	new_value;
+
+{
+    int	prev_value;
+
+    RB_CKMAG(tree, RB_TREE_MAGIC, "red-black tree");
+    RB_CKORDER(tree, order);
+    new_value = (new_value != 0);
+
+    prev_value = rb_get_uniqueness(tree, order);
+    rb_set_uniqueness(tree, order, new_value);
+    return (prev_value);
+}
+
+/*		         R B _ U N I Q _ O N ( )
+ *		        R B _ U N I Q _ O F F ( )
+ *
+ *		Applications interface to _rb_set_uniq()
+ *
+ *	These functions have two parameters: the tree and the order for
+ *	which to require uniqueness/permit nonuniqueness.  Each sets the
+ *	specified flag to the specified value and returns the previous
+ *	value of the flag.
+ */
+int rb_uniq_on (tree, order)
+
+rb_tree	*tree;
+int	order;
+
+{
+    return (_rb_set_uniq(tree, order, 1));
+}
+
+int rb_uniq_off (tree, order)
+
+rb_tree	*tree;
+int	order;
+
+{
+    return (_rb_set_uniq(tree, order, 0));
+}
+
+/*		         R B _ I S _ U N I Q ( )
+ *
+ *	  Query the uniqueness flag for one order of a red-black tree
+ *
+ *	This function has two parameters: the tree and the order for
+ *	which to query uniqueness.
+ */
+int rb_is_uniq (tree, order)
+
+rb_tree	*tree;
+int	order;
+
+{
+    RB_CKMAG(tree, RB_TREE_MAGIC, "red-black tree");
+    RB_CKORDER(tree, order);
+
+    return(rb_get_uniqueness(tree, order));
+}
+
+/*		        R B _ S E T _ U N I Q V ( )
+ *
+ *	    Set the uniqueness flags for all the linear orders
+ *			    of a red-black tree
+ *
+ *	This function has two parameters: the tree and a bitv_t
+ *	encoding the flag values.  rb_set_uniqv() sets the flags
+ *	according to the bits in flag_rep.  For example, if
+ *	flag_rep = 1011_2, then the first, second, and fourth
+ *	orders are specified unique, and the third is specified
+ *	not-necessarily unique.
+ */
+void rb_set_uniqv (tree, flag_rep)
+
+rb_tree	*tree;
+bitv_t	flag_rep;
+
+{
+    int	nm_orders;
+    int	order;
+
+    RB_CKMAG(tree, RB_TREE_MAGIC, "red-black tree");
+
+    nm_orders = tree -> rbt_nm_orders;
+    for (order = 0; order < nm_orders; ++order)
+	rb_set_uniqueness(tree, order, 0);
+    
+    for (order = 0; (flag_rep != 0) && (order < nm_orders); flag_rep >>= 1,
+							    ++order)
+	if (flag_rep & 0x1)
+	    rb_set_uniqueness(tree, order, 1);
+
+    if (flag_rep != 0)
+	bu_log("rb_set_uniqv(): Ignoring bits beyond rightmost %d\n",
+	    nm_orders);
+}
+
+/*		    _ R B _ S E T _ U N I Q _ A L L ( )
+ *
+ *	    Raise or lower the uniqueness flags for all the linear orders
+ *			    of a red-black tree
+ *
+ *	This function has two parameters: the tree, and the new value
+ *	for all the flags.
+ */
+static void _rb_set_uniq_all (tree, new_value)
+
+rb_tree	*tree;
+int	new_value;
+
+{
+    int	nm_orders;
+    int	order;
+
+    RB_CKMAG(tree, RB_TREE_MAGIC, "red-black tree");
+    new_value = (new_value != 0);
+
+    nm_orders = tree -> rbt_nm_orders;
+    for (order = 0; order < nm_orders; ++order)
+	rb_set_uniqueness(tree, order, new_value);
+}
+
+/*		     R B _ U N I Q _ A L L _ O N ( )
+ *		    R B _ U N I Q _ A L L _ O F F ( )
+ *
+ *	      Applications interface to _rb_set_uniq_all()
+ *
+ *	These functions have one parameter: the tree for which to
+ *	require uniqueness/permit nonuniqueness.
+ */
+void rb_uniq_all_on (tree)
+
+rb_tree	*tree;
+
+{
+    _rb_set_uniq_all(tree, 1);
+}
+
+void rb_uniq_all_off (tree)
+
+rb_tree	*tree;
+
+{
+    _rb_set_uniq_all(tree, 0);
+}
+@
+
+
+11.7
+log
+@Converted to LIBBU
+@
+text
+@d9 1
+a9 1
+static char RCSid[] = "@@(#) $Header: /m/cad/libredblack/RCS/rb_insert.c,v 11.6 1995/09/20 13:51:46 pjt Exp mike $";
+@
+
+
+11.6
+log
+@Added some diagnostics, removed others.
+Net result was simplified logical interplay in rb_insert
+between RB_DEBUG_UNIQ and calls to _rb_insert()
+@
+text
+@d9 1
+a9 1
+static char RCSid[] = "@@(#) $Header: /m/cad/libredblack/RCS/rb_insert.c,v 11.5 1995/09/20 12:11:26 pjt Exp pjt $";
+d17 1
+a17 2
+#include "vmath.h"
+#include "raytrace.h"
+d59 1
+a59 1
+	rt_log("_rb_insert(%x): size(%x, %d)=%d\n",
+d73 1
+a73 1
+	    rt_log("_rb_insert(%x): size(%x, %d)=%d\n",
+d79 1
+a79 1
+		rt_log("_rb_insert(%x): <_%d <%x>, going left\n",
+d86 1
+a86 1
+		rt_log("_rb_insert(%x): >=_%d <%x>, going right\n",
+d143 1
+a143 1
+	rt_log("_rb_insert(%x): comparison = %d, returning %d\n",
+d191 1
+a191 1
+		rt_log("rb_insert(<%x>, <%x>, TBD) will return %d\n",
+d201 1
+a201 1
+		rt_malloc(sizeof(struct rb_package), "red-black package");
+d203 1
+a203 1
+		rt_malloc(nm_orders * sizeof(struct rb_node *),
+d206 1
+a206 1
+		rt_malloc(sizeof(struct rb_list), "red-black list element");
+d217 1
+a217 1
+		rt_malloc(sizeof(struct rb_node), "red-black node");
+d219 1
+a219 1
+		rt_malloc(nm_orders * sizeof(struct rb_node *),
+d222 1
+a222 1
+		rt_malloc(nm_orders * sizeof(struct rb_node *),
+d225 1
+a225 1
+		rt_malloc(nm_orders * sizeof(struct rb_node *),
+d228 1
+a228 1
+		rt_malloc((size_t) ceil((double) (nm_orders / 8.0)),
+d231 1
+a231 1
+		rt_malloc(nm_orders * sizeof(int),
+d234 1
+a234 1
+		rt_malloc(nm_orders * sizeof(struct rb_package *),
+d237 1
+a237 1
+		rt_malloc(sizeof(struct rb_list), "red-black list element");
+d274 1
+a274 1
+		rt_log("rb_insert(<%x>, <%x>, <%x>): size(%x, %d)=%d\n",
+d283 1
+a283 1
+	    rt_log("rb_insert(<%x>, <%x>, <%x>) will return %d\n",
+d400 1
+a400 1
+	rt_log("rb_set_uniqv(): Ignoring bits beyond rightmost %d\n",
+@
+
+
+11.5
+log
+@Added maintenance of rbn_size member of struct rb_node
+@
+text
+@d9 1
+a9 1
+static char RCSid[] = "@@(#) $Header: /m/cad/libredblack/RCS/rb_insert.c,v 11.4 1995/09/19 17:44:51 pjt Exp pjt $";
+d190 6
+a195 1
+		return (-(order + 1));
+d275 2
+a276 2
+		rt_log("rb_insert(%x): size(%x, %d)=%d\n",
+		    node, node, order, rb_size(node, order));
+d281 2
+d284 2
+a285 17
+	{
+	    for (order = 0; order < nm_orders; ++order)
+		if (_rb_insert(tree, order, node))
+		{
+		    rt_log("_rb_insert(<%x>, %d, <%x>) compared SAME\n",
+			tree, order, node);
+		    ++result;
+		}
+		else
+		    rt_log("_rb_insert(<%x>, %d, <%x>) compared DIFFERENT\n",
+			tree, order, node);
+	    rt_log("rb_insert(<%x>, <%x>) will return %d\n",
+		tree, node, result);
+	}
+	else
+	    for (order = 0; order < nm_orders; ++order)
+		result += _rb_insert(tree, order, node);
+@
+
+
+11.4
+log
+@Added rbn_size member to struct rb_node
+@
+text
+@d9 1
+a9 1
+static char RCSid[] = "@@(#) $Header: /m/cad/libredblack/RCS/rb_insert.c,v 11.3 1995/07/10 20:16:29 pjt Exp pjt $";
+d58 4
+a61 1
+    rb_size(node, order) = 1;
+d72 4
+d268 4
+@
+
+
+11.3
+log
+@Now maintain lists of all nodes and all packages
+@
+text
+@d9 1
+a9 1
+static char RCSid[] = "@@(#) $Header: /m/cad/libredblack/RCS/rb_insert.c,v 11.2 1995/04/19 19:05:14 pjt Exp $";
+d58 1
+d219 3
+@
+
+
+11.2
+log
+@1. Fixed bug in return value of _rb_insert()
+2. Added uniqueness enforcement to rb_insert()
+3. Implemented _rb_set_uniq(), rb_uniq_on(), rb_uniq_off(),
+    rb_is_uniq(), rb_set_uniqv(), _rb_set_uniq_all(),
+    rb_uniq_all_on(), and rb_uniq_all_off().
+4. Added debug prints controlled by rbt_debug
+@
+text
+@d9 1
+a9 1
+static char RCSid[] = "@@(#) $Header: /m/cad/libredblack/RCS/rb_insert.c,v 11.1 95/01/04 10:05:55 mike Rel4_4 $";
+d165 1
+d186 1
+d193 6
+d202 1
+d221 6
+@
+
+
+11.1
+log
+@Release_4.4
+@
+text
+@d9 1
+a9 1
+static char RCSid[] = "@@(#) $Header: /m/cad/libredblack/RCS/rb_insert.c,v 2.6 94/12/30 16:41:04 stay Exp $";
+d45 1
+d70 4
+d75 1
+d77 4
+d82 3
+d135 5
+a139 1
+    return (comparison == 0);
+d147 6
+a152 3
+ *	the new node and the contents of the node.  rb_insert() returns
+ *	the number of orders for which the new node was equal to a node
+ *	already in the tree.
+d171 13
+d245 20
+a264 2
+	for (order = 0; order < nm_orders; ++order)
+	    result += _rb_insert(tree, order, node);
+d269 161
+@
+
+
+2.6
+log
+@deleted reference to stdlib, it wil be included in conf.h if
+it exists or is STDC
+@
+text
+@d9 1
+a9 1
+static char RCSid[] = "@@(#) $Header: /m/cad/libredblack/RCS/rb_insert.c,v 2.5 1994/11/01 10:43:53 pjt Exp stay $";
+@
+
+
+2.5
+log
+@Added rbt_nm_nodes to rb_tree
+@
+text
+@d9 1
+a9 1
+static char RCSid[] = "@@(#) $Header: /m/cad/libredblack/RCS/rb_insert.c,v 2.4 1994/09/26 12:21:10 jra Exp $";
+a13 1
+#include <stdlib.h>
+@
+
+
+2.4
+log
+@Added #include "conf.h"
+@
+text
+@d9 1
+a9 1
+static char RCSid[] = "@@(#) $Header: /m/cad/libredblack/RCS/rb_insert.c,v 2.3 94/09/22 15:34:46 pjt Exp Locker: jra $";
+d216 1
+@
+
+
+2.3
+log
+@Changed "#include "rt_internals.h" to "#include "./rt_internals.h"
+@
+text
+@d9 1
+a9 1
+static char RCSid[] = "@@(#) $Header: /m/cad/libredblack/RCS/rb_insert.c,v 2.2 94/09/22 15:27:02 pjt Exp Locker: pjt $";
+d11 2
+@
+
+
+2.2
+log
+@Replaced prototype-type definition with K&R type
+@
+text
+@d9 1
+a9 1
+static char RCSid[] = "@@(#) $Header: /m/cad/libredblack/RCS/rb_insert.c,v 2.1 93/03/25 11:03:21 pjt Exp $";
+d19 1
+a19 1
+#include "rb_internals.h"
+@
+
+
+2.1
+log
+@Installed into BRL CAD tree
+@
+text
+@d9 1
+a9 1
+static char RCSid[] = "@@(#) $Header: /m/cad/libredblack/RCS/rb_insert.c,v 1.2 93/03/25 11:00:23 pjt Exp Locker: pjt $";
+d30 6
+a35 1
+static int _rb_insert (rb_tree *tree, int order, struct rb_node *new_node)
+d133 5
+a137 1
+int rb_insert (rb_tree *tree, void *data)
+@
+
+
+1.2
+log
+@Added authorship comment
+@
+text
+@d9 1
+a9 1
+static char RCSid[] = "@@(#) $Header: /m/cad/libredblack/RCS/rb_insert.c,v 1.1 93/01/21 14:32:07 pjt zero_1 Locker: pjt $";
+@
+
+
+1.1
+log
+@Initial revision
+At the same time I broke these functions out of rb_create.c,
+I added code in _rb_insert() to reestablish red-black properties
+@
+text
+@d5 2
+d9 1
+a9 1
+static char RCSid[] = "@@(#) $Header: /arl/pjt/libredblack/RCS/rb_create.c,v 1.12 93/01/15 14:34:33 pjt Exp Locker: pjt $";
+@

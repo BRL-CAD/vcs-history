@@ -1,0 +1,970 @@
+head	11.14;
+access;
+symbols
+	ansi-20040405-merged:11.10.2.2
+	postmerge-20040405-ansi:11.12
+	premerge-20040404-ansi:11.11
+	postmerge-autoconf:11.11
+	autoconf-freeze:11.10.10.1
+	premerge-autoconf:11.11
+	ansi-20040316-freeze:11.10.2.1
+	postmerge-20040315-windows:11.11
+	premerge-20040315-windows:11.11
+	windows-20040315-freeze:11.10.4.1
+	autoconf-20031203:11.10
+	autoconf-20031202:11.10
+	autoconf-branch:11.10.0.10
+	phong-branch:11.10.0.8
+	photonmap-branch:11.10.0.6
+	rel-6-1-DP:11.10
+	windows-branch:11.10.0.4
+	rel-6-0-2:11.8
+	ansi-branch:11.10.0.2
+	rel-6-0-1-branch:11.8.0.2
+	hartley-6-0-post:11.9
+	hartley-6-0-pre:11.8
+	rel-6-0-1:11.8
+	rel-6-0:11.8
+	rel-5-4:11.7
+	offsite-5-3-pre:11.7
+	rel-5-3:11.7
+	rel-5-2:11.7
+	rel-5-1-branch:11.7.0.2
+	rel-5-1:11.7
+	rel-5-0:11.6
+	rel-5-0-beta:11.6
+	rel-4-5:11.6
+	ctj-4-5-post:11.6
+	ctj-4-5-pre:11.6
+	rel-4-4:11.1;
+locks; strict;
+comment	@ * @;
+
+
+11.14
+date	2004.05.24.04.17.00;	author morrison;	state dead;
+branches;
+next	11.13;
+
+11.13
+date	2004.05.10.15.30.41;	author erikg;	state Exp;
+branches;
+next	11.12;
+
+11.12
+date	2004.04.05.07.50.19;	author morrison;	state Exp;
+branches;
+next	11.11;
+
+11.11
+date	2004.02.02.17.38.57;	author morrison;	state Exp;
+branches;
+next	11.10;
+
+11.10
+date	2002.08.20.17.07.18;	author jra;	state Exp;
+branches
+	11.10.2.1
+	11.10.4.1
+	11.10.10.1;
+next	11.9;
+
+11.9
+date	2002.08.15.20.54.06;	author hartley;	state Exp;
+branches;
+next	11.8;
+
+11.8
+date	2001.08.21.19.12.20;	author jra;	state Exp;
+branches;
+next	11.7;
+
+11.7
+date	99.12.30.19.04.18;	author jra;	state Exp;
+branches;
+next	11.6;
+
+11.6
+date	97.03.24.14.51.26;	author jra;	state Exp;
+branches;
+next	11.5;
+
+11.5
+date	96.07.26.20.41.22;	author cnuzman;	state Exp;
+branches;
+next	11.4;
+
+11.4
+date	96.06.25.23.09.30;	author cnuzman;	state Exp;
+branches;
+next	11.3;
+
+11.3
+date	96.06.21.20.05.12;	author cnuzman;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	95.07.10.23.35.31;	author cnuzman;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	95.01.04.10.34.05;	author mike;	state Rel4_4;
+branches;
+next	1.2;
+
+1.2
+date	94.08.25.11.05.40;	author cnuzman;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	94.08.04.19.56.37;	author cnuzman;	state Exp;
+branches;
+next	;
+
+11.10.2.1
+date	2002.09.19.18.00.31;	author morrison;	state Exp;
+branches;
+next	11.10.2.2;
+
+11.10.2.2
+date	2004.03.17.21.15.48;	author morrison;	state Exp;
+branches;
+next	;
+
+11.10.4.1
+date	2004.03.11.23.40.25;	author morrison;	state Exp;
+branches;
+next	;
+
+11.10.10.1
+date	2004.02.12.19.40.40;	author erikg;	state Exp;
+branches;
+next	;
+
+
+desc
+@filter to convert orientation tables from one format to another
+@
+
+
+11.14
+log
+@moved to src/anim/
+@
+text
+@/*			A N I M _ O R I E N T . C
+ *
+ *	Convert between different orientation formats. The formats are:
+ *  quaternion, yaw-pitch-roll, azimuth-elevation-twist, xyz angles, 
+ *  pre-multiplication rotation matrices, and transposed matrices (inverses).
+ * 	By default, the information is assumed to represent a transformation
+ *  which should be an object which initially faces the x-axis, with the
+ *  z-axis going up. Alternatively, the information can be interpreted as 
+ *  transformations which should be applied to an object initially facing the
+ *  negative z-axis, with the y-axis going up.
+ *  	The conversion is done by converting each input form to a matrix, 
+ *  and then converting that matrix to the desired output form.
+ *	Angles may be specified in radians or degrees.
+ *
+ *  Author -
+ *	Carl J. Nuzman
+ *  
+ *  Source -
+ *      The U. S. Army Research Laboratory
+ *      Aberdeen Proving Ground, Maryland  21005-5068  USA
+ *  
+ *  Distribution Notice -
+ *      Re-distribution of this software is restricted, as described in
+ *      your "Statement of Terms and Conditions for the Release of
+ *      The BRL-CAD Pacakge" agreement.
+ *
+ *  Copyright Notice -
+ *      This software is Copyright (C) 1993-2004 by the United States Army
+ *      in all countries except the USA.  All rights reserved.
+ */
+
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+#include <stdlib.h>
+#include <unistd.h>
+#include <stdio.h>
+#include <math.h>
+#include "machine.h"
+#include "vmath.h"
+
+#ifndef M_PI
+#define M_PI	3.14159265358979323846
+#endif
+
+#define YPR		0
+#define XYZ		1
+#define AET		2
+#define QUAT		3
+#define MAT		4
+
+#define DEGREES		0
+#define RADIANS		1
+
+#define ANIM_NORMAL          0
+#define ANIM_ERROR1          1
+#define ANIM_ERROR2          2
+
+#define DTOR    M_PI/180.0
+#define RTOD    180.0/M_PI
+
+int		parse_args(int argc, char **argv);
+extern void	anim_y_p_r2mat(fastf_t *, double, double, double);
+extern void	anim_tran(fastf_t *);
+extern void	anim_v_unpermute(fastf_t *);
+extern void	anim_dirn2mat(fastf_t *, const fastf_t *, const fastf_t *);
+extern void	anim_v_permute(fastf_t *);
+
+extern int optind;
+extern char *optarg;
+
+int upright;
+int input_mode, output_mode, length, input_units, output_units;
+int input_perm, output_perm, input_inv, output_inv;
+
+int
+main(int argc, char **argv)
+{
+	int num_read;
+	fastf_t	temp[3], temp2[3],angle[3],quat[4],matrix[16];
+	void anim_zyx2mat(fastf_t *, const fastf_t *),anim_ypr2mat(fastf_t *, const fastf_t *),anim_quat2mat(fastf_t *, const fastf_t *), anim_mat_print(FILE *, const fastf_t *, int);
+	int anim_mat2ypr(fastf_t *, fastf_t *),anim_mat2zyx(const fastf_t *, fastf_t *),anim_mat2quat(fastf_t *, const fastf_t *);
+
+	if(!parse_args(argc,argv)) {
+		fprintf(stderr,"Get_args error.\n");
+		exit(0);
+	}
+
+	/* read data */
+	num_read = length;
+	while (1){
+
+		switch (input_mode) {
+		case YPR:
+		case XYZ:
+		case AET:
+			num_read = scanf("%lf %lf %lf",angle,angle+1,angle+2);
+			/* convert to radians if in degrees */
+		        if (input_units==DEGREES)  {
+		        	VSCALE(angle,angle,DTOR);
+		        }
+			break;
+		case QUAT:
+			num_read = scanf("%lf %lf %lf %lf", quat,quat+1,quat+2,quat+3);
+			break;
+		case MAT:
+			num_read = 0;
+			num_read += scanf("%lf %lf %lf %lf",matrix,matrix+1,matrix+2,matrix+3);
+			num_read += scanf("%lf %lf %lf %lf",matrix+4,matrix+5,matrix+6,matrix+7);
+			num_read += scanf("%lf %lf %lf %lf",matrix+8,matrix+9,matrix+10,matrix+11);
+			num_read += scanf("%lf %lf %lf %lf",matrix+12,matrix+13,matrix+14,matrix+15);
+			break;
+		}
+
+		if (num_read < length)
+			break;
+
+		/* convert to (object) matrix form */
+		switch (input_mode) {
+		case YPR:
+			anim_ypr2mat(matrix,angle);
+			break;
+		case AET:
+			anim_y_p_r2mat(matrix, angle[0]+M_PI, -angle[1],-angle[2]);
+			break;
+		case XYZ:
+			anim_zyx2mat(matrix,angle);
+			break;
+		case QUAT:
+			anim_quat2mat(matrix,quat);
+			break;
+		}
+
+		if (input_inv){
+			anim_tran(matrix);
+		}
+		if (input_perm){
+			anim_v_unpermute(matrix);
+		}
+		/* end of input conversion, begin output conversion*/
+
+		if (upright) { /* force right-side up */
+			VSET(temp, matrix[0], matrix[4], matrix[8]);
+			VSET(temp2, matrix[1], matrix[5], matrix[9]);
+			anim_dirn2mat(matrix,temp,temp2);
+		}
+		if (output_perm){
+			anim_v_permute(matrix);
+		}
+		if (output_inv){
+			anim_tran(matrix);
+		}
+
+		/* convert from matrix form and print result*/
+		switch (output_mode) {
+		case YPR:
+			anim_mat2ypr(angle,matrix);
+		        if (output_units==DEGREES)
+		                VSCALE(angle,angle,RTOD);
+			printf("%.12g\t%.12g\t%.12g\n",angle[0],angle[1],angle[2]);
+			break;
+		case AET:
+			anim_mat2ypr(angle,matrix);
+			if (angle[0] > 0.0) {
+				angle[0] -= M_PI;
+			} else {
+				angle[0] += M_PI;
+			}
+			angle[1] = -angle[1];
+			angle[2] = -angle[2];
+			if (output_units==DEGREES)
+				VSCALE(angle,angle,RTOD);
+			printf("%.12g\t%.12g\t%.12g\n",angle[0],angle[1],angle[2]);
+			break;
+		case XYZ:
+			anim_mat2zyx(angle,matrix);
+		        if (output_units==DEGREES)
+		                VSCALE(angle,angle,RTOD);
+			printf("%.12g\t%.12g\t%.12g\n",angle[0],angle[1],angle[2]);
+			break;
+		case QUAT:
+			anim_mat2quat(quat,matrix);
+			printf("%.12g\t%.12g\t%.12g\t%.12g\n",quat[0],quat[1],quat[2],quat[3]);
+			break;
+		case MAT:
+			anim_mat_print(stdout,matrix,0);
+			printf("\n");
+		}
+
+	}
+	return( 0 );
+}
+
+int parse_args(int argc, char **argv)
+{
+	int c;
+	char *cp;
+
+	/* defaults */
+	upright = 0;
+	input_mode = QUAT;
+	output_mode = QUAT;
+	input_units = DEGREES;
+	output_units = DEGREES;
+	input_perm = 0;
+	output_perm = 0;
+	input_inv = 0;
+	output_inv = 0;
+	length = 4;
+
+	if (argc > 2) { /*read output mode */
+		cp = argv[2];
+		while ( (c=*cp++) ) {
+			switch (c) {
+			case 'q':
+				output_mode = QUAT;
+				break;
+			case 'y':
+				output_mode = YPR;
+				break;
+			case 'a':
+				output_mode = AET;
+				break;
+			case 'z':
+				output_mode = XYZ;
+				break;
+			case 'm':
+				output_mode = MAT;
+				break;
+			case 'i':
+				output_inv = 1;
+				break;
+			case 'r':
+				output_units = RADIANS;
+				break;
+			case 'v':
+				output_perm = 1;
+				break;
+			case 'u':
+				upright = 1;
+				break;
+			default:
+				fprintf(stderr,"anim_orient: unknown output option: %c\n",c);
+				return(0);
+			}
+		}
+	}
+	if (argc > 1) { /*read input mode */
+		cp = argv[1];
+		while ( (c=*cp++) ) {
+			switch (c) {
+			case 'q':
+				input_mode = QUAT;
+				length = 4;
+				break;
+			case 'y':
+				input_mode = YPR;
+				length = 3;
+				break;
+			case 'a':
+				input_mode = AET;
+				length = 3;
+				break;
+			case 'z':
+				input_mode = XYZ;
+				length = 3;
+				break;
+			case 'm':
+				input_mode = MAT;
+				length = 16;
+				break;
+			case 'i':
+				input_inv = 1;
+				break;
+			case 'r':
+				input_units = RADIANS;
+				break;
+			case 'v':
+				input_perm = 1;
+				break;
+			default:
+				fprintf(stderr,"anim_orient: unknown input option: %c\n",c);
+				return(0);
+			}
+		}
+	}
+	return(1);
+}
+@
+
+
+11.13
+log
+@change conf.h to a wrapped config.h
+@
+text
+@@
+
+
+11.12
+log
+@merge of ansi-6-0-branch into HEAD
+@
+text
+@d32 5
+a36 1
+#include "conf.h"
+@
+
+
+11.11
+log
+@update copyright to include span through 2003
+@
+text
+@d60 6
+a65 6
+int		parse_args();
+extern void	anim_y_p_r2mat();
+extern void	anim_tran();
+extern void	anim_v_unpermute();
+extern void	anim_dirn2mat();
+extern void	anim_v_permute();
+d75 1
+a75 3
+main(argc,argv)
+int argc;
+char **argv;
+d79 2
+a80 2
+	void anim_zyx2mat(),anim_ypr2mat(),anim_quat2mat(), anim_mat_print();
+	int anim_mat2ypr(),anim_mat2zyx(),anim_mat2quat();
+d192 1
+a192 3
+int parse_args(argc,argv)
+int argc;
+char **argv;
+@
+
+
+11.10
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d28 1
+a28 1
+ *      This software is Copyright (C) 1993 by the United States Army
+@
+
+
+11.10.4.1
+log
+@sync to HEAD...
+@
+text
+@d28 1
+a28 1
+ *      This software is Copyright (C) 1993-2004 by the United States Army
+@
+
+
+11.10.10.1
+log
+@merge from HEAD
+@
+text
+@d28 1
+a28 1
+ *      This software is Copyright (C) 1993-2004 by the United States Army
+@
+
+
+11.10.2.1
+log
+@Initial ANSIfication
+@
+text
+@d60 6
+a65 6
+int		parse_args(int argc, char **argv);
+extern void	anim_y_p_r2mat(fastf_t *, double, double, double);
+extern void	anim_tran(fastf_t *);
+extern void	anim_v_unpermute(fastf_t *);
+extern void	anim_dirn2mat(fastf_t *, const fastf_t *, const fastf_t *);
+extern void	anim_v_permute(fastf_t *);
+d75 3
+a77 1
+main(int argc, char **argv)
+d81 2
+a82 2
+	void anim_zyx2mat(fastf_t *, const fastf_t *),anim_ypr2mat(fastf_t *, const fastf_t *),anim_quat2mat(fastf_t *, const fastf_t *), anim_mat_print(FILE *, const fastf_t *, int);
+	int anim_mat2ypr(fastf_t *, fastf_t *),anim_mat2zyx(const fastf_t *, fastf_t *),anim_mat2quat(fastf_t *, const fastf_t *);
+d194 3
+a196 1
+int parse_args(int argc, char **argv)
+@
+
+
+11.10.2.2
+log
+@sync branch with HEAD
+@
+text
+@d28 1
+a28 1
+ *      This software is Copyright (C) 1993-2004 by the United States Army
+@
+
+
+11.9
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d60 6
+a65 6
+int		parse_args(int argc, char **argv);
+extern void	anim_y_p_r2mat(fastf_t *, double, double, double);
+extern void	anim_tran(fastf_t *);
+extern void	anim_v_unpermute(fastf_t *);
+extern void	anim_dirn2mat(fastf_t *, const fastf_t *, const fastf_t *);
+extern void	anim_v_permute(fastf_t *);
+d75 3
+a77 1
+main(int argc, char **argv)
+d81 2
+a82 2
+	void anim_zyx2mat(fastf_t *, const fastf_t *),anim_ypr2mat(fastf_t *, const fastf_t *),anim_quat2mat(fastf_t *, const fastf_t *), anim_mat_print(FILE *, const fastf_t *, int);
+	int anim_mat2ypr(fastf_t *, fastf_t *),anim_mat2zyx(const fastf_t *, fastf_t *),anim_mat2quat(fastf_t *, const fastf_t *);
+d194 3
+a196 1
+int parse_args(int argc, char **argv)
+@
+
+
+11.8
+log
+@lint
+@
+text
+@d60 6
+a65 6
+int		parse_args();
+extern void	anim_y_p_r2mat();
+extern void	anim_tran();
+extern void	anim_v_unpermute();
+extern void	anim_dirn2mat();
+extern void	anim_v_permute();
+d75 1
+a75 3
+main(argc,argv)
+int argc;
+char **argv;
+d79 2
+a80 2
+	void anim_zyx2mat(),anim_ypr2mat(),anim_quat2mat(), anim_mat_print();
+	int anim_mat2ypr(),anim_mat2zyx(),anim_mat2quat();
+d192 1
+a192 3
+int parse_args(argc,argv)
+int argc;
+char **argv;
+@
+
+
+11.7
+log
+@Eliminated an unused variable
+@
+text
+@d33 2
+d60 7
+d74 1
+d191 1
+d215 1
+a215 1
+		while (c=*cp++) {
+d252 1
+a252 1
+		while (c=*cp++) {
+@
+
+
+11.6
+log
+@Mods for cahnge in caling sequence for anim_mat_print().
+@
+text
+@d70 1
+a70 1
+	fastf_t	temp[3], temp2[3],angle[3],quat[4],matrix[16],tmatrix[16];
+@
+
+
+11.5
+log
+@added force upright option
+@
+text
+@d176 1
+a176 1
+			anim_mat_print(matrix,0);
+@
+
+
+11.4
+log
+@replaced t format with more general i modifier
+@
+text
+@d61 1
+d70 1
+a70 1
+	fastf_t	angle[3],quat[4],matrix[16],tmatrix[16];
+a78 4
+	if (input_perm&&output_perm) {
+		input_perm = output_perm = 0;
+	}
+
+d130 7
+d191 1
+d229 3
+@
+
+
+11.3
+log
+@overhaul and clarification. also added aet.
+@
+text
+@a46 1
+#define TRAN		5
+d62 1
+a62 1
+int input_perm, output_perm;
+a98 7
+		case TRAN:
+			num_read = 0;
+			num_read += scanf("%lf %lf %lf %lf",matrix,matrix+4,matrix+8,matrix+12);
+			num_read += scanf("%lf %lf %lf %lf",matrix+1,matrix+5,matrix+9,matrix+13);
+			num_read += scanf("%lf %lf %lf %lf",matrix+2,matrix+6,matrix+10,matrix+14);
+			num_read += scanf("%lf %lf %lf %lf",matrix+3,matrix+7,matrix+11,matrix+15);
+			break;
+d127 3
+d136 3
+a170 5
+		case TRAN:
+			mat_trn(tmatrix,matrix);
+			anim_mat_print(tmatrix,0);
+			printf("\n");
+			break;
+d193 2
+d216 2
+a217 2
+			case 't':
+				output_mode = TRAN;
+d255 2
+a256 3
+			case 't':
+				input_mode = TRAN;
+				length = 16;
+@
+
+
+11.2
+log
+@updated to use mat_trn rather than anim.c transpose
+@
+text
+@d4 7
+a10 2
+ *  quaternion, yaw-pitch-roll, xyz angles, pre-multiplication
+ *  (object)  matrices, and post-multiplication (view) matrices.
+d13 1
+a13 3
+ *	Options include specifying angles in radians and applying a special
+ *  permutation to the interior matrix in order to handle the virtual camera
+ * correctly in yaw-pitch-roll form.
+d44 4
+a47 3
+#define QUAT		2
+#define V_MAT		3
+#define O_MAT		4
+d52 3
+a54 3
+#define NORMAL          0
+#define ERROR1          1
+#define ERROR2          2
+d62 2
+a63 1
+int input_mode, output_mode, length, input_units, output_units, permute;
+d70 1
+a70 1
+	fastf_t	angle[3],quat[4],matrix[16],vmatrix[16];
+d74 1
+a74 1
+	if(!get_args(argc,argv))
+d76 6
+d87 4
+a90 1
+		if ((input_mode==YPR)||(input_mode==XYZ)){
+d92 6
+a97 2
+		}
+		else if (input_mode==QUAT){
+d99 2
+a100 2
+		}
+		else if (input_mode==V_MAT) { /*transpose matrix as it's read in */
+d106 2
+a107 2
+		}
+		else if (input_mode==O_MAT){
+d113 1
+a118 7
+		/* convert to radians if in degrees */
+	        if (input_units==DEGREES)  {
+	                angle[0] *= DTOR;
+	                angle[1] *= DTOR;
+	                angle[2] *= DTOR;
+	        }
+
+d120 2
+a121 1
+		if (input_mode==YPR){
+d123 5
+a127 2
+		}
+		else if (input_mode==XYZ){
+d129 2
+a130 2
+		}
+		else if (input_mode==QUAT){
+d132 1
+d134 3
+a136 2
+		else if (input_mode==V_MAT){
+			;/* do nothing - already transposed on read */
+d138 2
+a139 6
+
+		if (permute){
+			if (input_mode==YPR)
+				anim_v_permute(matrix);
+			else if (output_mode==YPR)
+				anim_v_unpermute(matrix);
+d143 2
+a144 1
+		if (output_mode==YPR){
+d148 16
+a163 3
+			printf("%f\t%f\t%f\n",angle[0],angle[1],angle[2]);
+		}
+		else if (output_mode==XYZ){
+d167 3
+a169 3
+			printf("%f\t%f\t%f\n",angle[0],angle[1],angle[2]);
+		}
+		else if (output_mode==QUAT){
+d171 5
+a175 6
+			printf("%f\t%f\t%f\t%f\n",quat[0],quat[1],quat[2],quat[3]);
+		}
+		else if (output_mode==V_MAT){
+			mat_trn(vmatrix,matrix);
+/*			transpose(matrix);*/
+			anim_mat_print(vmatrix,0);
+d177 2
+a178 2
+		}
+		else if (output_mode==O_MAT){
+d186 1
+a186 3
+#define OPT_STR "i:o:pr"
+
+int get_args(argc,argv)
+d191 1
+d198 47
+a244 6
+	permute = 0;
+
+	while ( (c=getopt(argc,argv,OPT_STR)) != EOF) {
+		switch(c){
+		case 'i':
+			if (*optarg == 'y'){
+d247 6
+a252 4
+				if (*(optarg+1)=='r')
+					input_units = RADIANS;
+			}
+			else if (*optarg == 'z'){
+d255 3
+a257 9
+				if (*(optarg+1)=='r')
+					input_units = RADIANS;
+			}
+			else if (*optarg == 'q'){
+				input_mode = QUAT;
+				length = 4;
+			}
+			else if (*optarg == 'v'){
+				input_mode = V_MAT;
+d259 3
+a261 3
+			}
+			else if (*optarg == 'o'){
+				input_mode = O_MAT;
+d263 10
+a272 12
+			}
+			break;
+		case 'o':
+			if (*optarg == 'y'){
+				output_mode = YPR;
+				if (*(optarg+1)=='r')
+					output_units = RADIANS;
+			}
+			else if (*optarg == 'z'){
+				output_mode = XYZ;
+				if (*(optarg+1)=='r')
+					output_units = RADIANS;
+a273 17
+			else if (*optarg == 'q')
+				output_mode = QUAT;
+			else if (*optarg == 'v')
+				output_mode = V_MAT;
+			else if (*optarg == 'o')
+				output_mode = O_MAT;
+			break;
+		case 'p':
+			permute = 1;
+			break;
+		case 'r':
+			input_units = RADIANS;
+			output_units = RADIANS;
+			break;
+		default:
+			fprintf(stderr,"Unknown option: -%c\n",c);
+			return(0);
+a275 1
+
+@
+
+
+11.1
+log
+@Release_4.4
+@
+text
+@d65 3
+a67 3
+	fastf_t	angle[3],quat[4],matrix[16];
+	void zyx2mat(),ypr2mat(),quat2mat(), an_mat_print();
+	int mat2ypr(),mat2zyx(),mat2quat();
+d82 1
+a82 1
+		else if ((input_mode==V_MAT)||(input_mode==O_MAT)){
+d84 7
+d109 1
+a109 1
+			ypr2mat(matrix,angle);
+d112 1
+a112 1
+			zyx2mat(matrix,angle);
+d115 1
+a115 1
+			quat2mat(matrix,quat);
+d118 1
+a118 1
+			transpose(matrix);
+d123 1
+a123 1
+				v_permute(matrix);
+d125 1
+a125 1
+				un_v_permute(matrix);
+d130 1
+a130 1
+			mat2ypr(angle,matrix);
+d136 1
+a136 1
+			mat2zyx(angle,matrix);
+d142 1
+a142 1
+			mat2quat(quat,matrix);
+d146 3
+a148 2
+			transpose(matrix);
+			an_mat_print(matrix,0);
+d152 1
+a152 1
+			an_mat_print(matrix,0);
+@
+
+
+1.2
+log
+@included conf.h
+@
+text
+@@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d29 1
+@

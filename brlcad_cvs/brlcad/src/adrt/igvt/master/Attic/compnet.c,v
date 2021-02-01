@@ -1,0 +1,286 @@
+head	1.8;
+access;
+symbols;
+locks; strict;
+comment	@ * @;
+
+
+1.8
+date	2005.07.10.03.58.18;	author twingy;	state dead;
+branches;
+next	1.7;
+
+1.7
+date	2005.07.10.03.48.09;	author twingy;	state Exp;
+branches;
+next	1.6;
+
+1.6
+date	2005.07.10.03.06.16;	author twingy;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	2005.07.10.01.50.46;	author twingy;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	2005.07.08.20.00.47;	author twingy;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2005.07.07.06.32.13;	author twingy;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2005.07.06.22.10.05;	author twingy;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2005.07.06.21.31.54;	author twingy;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.8
+log
+@IGVT->ISST 90%
+@
+text
+@#include "compnet.h"
+#include <stdio.h>
+#include <sys/socket.h>
+#include <sys/types.h>
+#include <netinet/in.h>
+#include <netdb.h>
+#include "tienet.h"
+
+int ivat_master_compserv_socket;
+int ivat_master_compserv_active;
+
+
+#define LIST_BASE_ATTS		0
+#define LIST_DEP_ATTS		1
+#define LIST_ALL_ATTS		2
+#define LIST_METRICS		3
+#define GET_BASE_ATTS_STATE	4
+#define GET_ATTS_STATE		5
+#define GET_ATT_STATE		6
+#define SET_BASE_ATTS_01	7
+#define SET_BASE_ATTS_STATE	8
+#define RESET_BASE_ATTS		9
+#define	TERM			128
+
+
+/*
+* Establish a connection to the component server.
+*/
+void ivat_compnet_connect(char *host, int port) {
+  struct hostent hostent;
+  struct sockaddr_in compserv, master;
+
+  ivat_master_compserv_active = 0;
+
+  /* If no host name is supplied then do nothing */
+  if(!strlen(host))
+    return;
+
+  /* server address */
+  if(gethostbyname(host)) {
+    hostent = gethostbyname(host)[0];
+  } else {
+    fprintf(stderr, "hostname %s unknown, exiting.\n", host);
+    exit(1);
+  }
+
+  /* create a socket */
+  if((ivat_master_compserv_socket = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+    fprintf(stderr, "cannot create socket for component server connection, exiting.");
+    exit(1);
+  }
+  
+  /* client address */
+  master.sin_family = AF_INET;   
+  master.sin_addr.s_addr = INADDR_ANY;
+  master.sin_port = htons(0);
+  
+  compserv.sin_family = hostent.h_addrtype;
+  memcpy((char*)&compserv.sin_addr.s_addr, hostent.h_addr_list[0], hostent.h_length);
+  compserv.sin_port = htons(port);
+
+  if(bind(ivat_master_compserv_socket, (struct sockaddr *)&master, sizeof(master)) < 0) {
+    fprintf(stderr, "unable to bind component server connection socket, exiting.\n");
+    exit(1);
+  }
+
+  /* connect to master */
+  if(connect(ivat_master_compserv_socket, (struct sockaddr *)&compserv, sizeof(compserv)) < 0) {
+    fprintf(stderr, "cannot connect to component server, exiting.\n");
+    exit(1);
+  }
+
+  /* data may now be transmitted to the server */
+  ivat_master_compserv_active = 1;
+}
+
+/*
+* Update the status of a component
+*/
+void ivat_compnet_update(char *string, char status) {
+  char message[256];
+
+  if(!ivat_master_compserv_active)
+    return;
+
+  /* format message */
+  sprintf(message, "%c%s,%d%c", SET_BASE_ATTS_STATE, string, status, TERM);
+
+  /* Send string */
+  tienet_send(ivat_master_compserv_socket, message, strlen(message), 0);
+}
+
+
+void ivat_compnet_reset() {
+  char message;
+
+  if(!ivat_master_compserv_active)
+    return;
+
+  message = RESET_BASE_ATTS;
+  tienet_send(ivat_master_compserv_socket, &message, 1, 0);
+}
+@
+
+
+1.7
+log
+@75% done IGVT -> IVAT conversion.
+@
+text
+@@
+
+
+1.6
+log
+@updated the NEWS and README
+@
+text
+@d9 2
+a10 2
+int igvt_master_compserv_socket;
+int igvt_master_compserv_active;
+d29 1
+a29 1
+void igvt_compnet_connect(char *host, int port) {
+d33 1
+a33 1
+  igvt_master_compserv_active = 0;
+d48 1
+a48 1
+  if((igvt_master_compserv_socket = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+d62 1
+a62 1
+  if(bind(igvt_master_compserv_socket, (struct sockaddr *)&master, sizeof(master)) < 0) {
+d68 1
+a68 1
+  if(connect(igvt_master_compserv_socket, (struct sockaddr *)&compserv, sizeof(compserv)) < 0) {
+d74 1
+a74 1
+  igvt_master_compserv_active = 1;
+d80 1
+a80 1
+void igvt_compnet_update(char *string, char status) {
+d83 1
+a83 1
+  if(!igvt_master_compserv_active)
+d90 1
+a90 1
+  tienet_send(igvt_master_compserv_socket, message, strlen(message), 0);
+d94 1
+a94 1
+void igvt_compnet_reset() {
+d97 1
+a97 1
+  if(!igvt_master_compserv_active)
+d101 1
+a101 1
+  tienet_send(igvt_master_compserv_socket, &message, 1, 0);
+@
+
+
+1.5
+log
+@basic component server communication complete.
+@
+text
+@d92 11
+@
+
+
+1.4
+log
+@bug fix, adding more component net stuff.
+@
+text
+@d7 1
+d12 14
+d69 1
+a69 1
+    fprintf(stderr, "cannot connect to master, exiting.\n");
+d81 10
+@
+
+
+1.3
+log
+@Connection code in place.
+@
+text
+@d9 1
+d18 6
+d57 3
+d65 1
+a65 1
+void igvt_compnet_update(char *string, int status) {
+@
+
+
+1.2
+log
+@slowly adding hooks to talk to component server.
+@
+text
+@d4 3
+d8 1
+d14 10
+a23 1
+  int compserv_socket;
+d26 2
+a27 2
+  if((compserv_socket = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+    fprintf(stderr, "unable to create Component Server socket, exiting.\n");
+d30 9
+d40 4
+d45 5
+@
+
+
+1.1
+log
+@adding support to communicate with a component server, i.e fuzzy fault tree viewer.
+@
+text
+@d2 2
+d9 16
+a24 1
+void compnet_connect(char *host, int port) {
+@
+

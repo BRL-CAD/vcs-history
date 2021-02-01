@@ -1,0 +1,1091 @@
+head	1.20;
+access;
+symbols
+	rel-7-10-4:1.15
+	STABLE:1.15.0.2
+	rel-7-10-2:1.15;
+locks; strict;
+comment	@ * @;
+
+
+1.20
+date	2007.10.17.09.06.57;	author d_rossberg;	state Exp;
+branches;
+next	1.19;
+
+1.19
+date	2007.10.17.08.15.14;	author brlcad;	state Exp;
+branches;
+next	1.18;
+
+1.18
+date	2007.10.17.07.59.43;	author d_rossberg;	state Exp;
+branches;
+next	1.17;
+
+1.17
+date	2007.10.17.06.18.43;	author brlcad;	state Exp;
+branches;
+next	1.16;
+
+1.16
+date	2007.09.14.15.21.00;	author erikgreenwald;	state Exp;
+branches;
+next	1.15;
+
+1.15
+date	2007.07.13.20.24.51;	author jlowenz;	state Exp;
+branches;
+next	1.14;
+
+1.14
+date	2007.07.09.21.12.35;	author jlowenz;	state Exp;
+branches;
+next	1.13;
+
+1.13
+date	2007.06.28.17.37.12;	author jlowenz;	state Exp;
+branches;
+next	1.12;
+
+1.12
+date	2007.06.28.16.56.59;	author jlowenz;	state Exp;
+branches;
+next	1.11;
+
+1.11
+date	2007.06.26.21.21.33;	author jlowenz;	state Exp;
+branches;
+next	1.10;
+
+1.10
+date	2007.06.25.20.30.54;	author jlowenz;	state Exp;
+branches;
+next	1.9;
+
+1.9
+date	2007.06.20.20.48.11;	author jlowenz;	state Exp;
+branches;
+next	1.8;
+
+1.8
+date	2007.06.19.11.39.33;	author d_rossberg;	state Exp;
+branches;
+next	1.7;
+
+1.7
+date	2007.06.06.20.18.16;	author jlowenz;	state Exp;
+branches;
+next	1.6;
+
+1.6
+date	2007.06.05.20.35.23;	author jlowenz;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	2007.06.04.20.20.00;	author jlowenz;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	2007.05.31.21.01.54;	author jlowenz;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2007.05.30.20.48.20;	author jlowenz;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2007.05.30.18.38.24;	author jlowenz;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2007.05.29.20.36.18;	author jlowenz;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.20
+log
+@there was a segment -> BVSegment<BV> replacement missing
+@
+text
+@#ifndef __OPENNURBS_EXT
+#define __OPENNURBS_EXT
+
+/**-------------------------------------------------------------------------------
+ // brep/surface utilities
+ //
+ // XXX: these should probably be migrated to openNURBS package proper
+ // but there are a lot of dependency issues (e.g. where do the math
+ // routines go?)
+ */
+
+#include "opennurbs.h"
+#include <vector>
+#include <list>
+#include <limits>
+#include <iostream>
+
+/* Maximum per-surface BVH depth */
+#define BREP_MAX_FT_DEPTH 8
+/* Surface flatness parameter, Abert says between 0.8-0.9 */
+#define BREP_SURFACE_FLATNESS 0.9
+/* Max newton iterations when finding closest point */
+#define BREP_MAX_FCP_ITERATIONS 50
+/* Root finding epsilon */
+#define BREP_FCP_ROOT_EPSILON 1e-5
+
+static std::numeric_limits<double> real;
+
+// XXX debugging crapola (clean up later)
+#define ON_PRINT4(p) "[" << (p)[0] << "," << (p)[1] << "," << (p)[2] << "," << (p)[3] << "]"
+#define ON_PRINT3(p) "(" << (p)[0] << "," << (p)[1] << "," << (p)[2] << ")"
+#define ON_PRINT2(p) "(" << (p)[0] << "," << (p)[1] << ")"
+#define PT(p) ON_PRINT3(p)
+#define PT2(p) ON_PRINT2(p)
+#define IVAL(_ival) "[" << (_ival).m_t[0] << "," << (_ival).m_t[1] << "]"
+#define TRACE(s)
+//#define TRACE(s) std::cerr << s << std::endl;
+#define TRACE2(s) std::cerr << s << std::endl;
+#define TRACE1(s)
+//#define TRACE(s)
+
+namespace brlcad {
+
+  //--------------------------------------------------------------------------------
+  // Bounding volume hierarchy classes
+
+  template<class BV>
+  class BVNode;
+
+  template<class BV>
+  class BVSegment {
+  public:
+    BVNode<BV>* m_node;
+    double m_near;
+    double m_far;
+
+    BVSegment() {}
+    BVSegment(BVNode<BV>* node, double near, double far) :
+      m_node(node), m_near(near), m_far(far) {}
+    BVSegment(const BVSegment& seg) : m_node(seg.m_node),
+				      m_near(seg.m_near),
+				      m_far(seg.m_far) {}
+    BVSegment& operator=(const BVSegment& seg) {
+      m_node = seg.m_node;
+      m_near = seg.m_near;
+      m_far = seg.m_far;
+      return *this;
+    }
+
+    bool operator<(const BVSegment<BV>& seg) {
+      return m_near < seg.m_near;
+    }
+  };
+
+  using namespace std;
+
+  template<class BV>
+  class BVNode {
+  public:
+    typedef vector<BVNode<BV>*> ChildList;
+    typedef list<BVSegment<BV> > IsectList;
+
+    ChildList m_children;
+    BV m_node;
+    ON_3dPoint m_estimate;
+
+    BVNode();
+    BVNode(const BV& node);
+    virtual ~BVNode();
+
+    void addChild(const BV& child);
+    void addChild(BVNode<BV>* child);
+    void removeChild(const BV& child);
+    void removeChild(BVNode<BV>* child);
+    virtual bool isLeaf() const;
+
+    virtual int depth();
+    virtual void getLeaves(list<BVNode<BV>*>& out_leaves);
+    virtual ON_2dPoint getClosestPointEstimate(const ON_3dPoint& pt);
+    virtual ON_2dPoint getClosestPointEstimate(const ON_3dPoint& pt, ON_Interval& u, ON_Interval& v);
+    void GetBBox(double* min, double* max);
+
+    virtual bool intersectedBy(ON_Ray& ray, double* tnear = 0, double* tfar = 0);
+    virtual bool intersectsHierarchy(ON_Ray& ray, std::list<BVSegment<BV> >* results = 0);
+
+  private:
+    BVNode<BV>* closer(const ON_3dPoint& pt, BVNode<BV>* left, BVNode<BV>* right);
+  };
+
+  template<class BV>
+  class SubsurfaceBVNode : public BVNode<BV> {
+  public:
+    SubsurfaceBVNode(const BV& node,
+		     const ON_BrepFace* face,
+		     const ON_Interval& u,
+		     const ON_Interval& v,
+		     bool checkTrim = true,
+		     bool trimmed = false);
+
+    bool intersectedBy(ON_Ray& ray, double* tnear = 0, double* tfar = 0);
+    bool isLeaf() const;
+    bool doTrimming() const;
+    ON_2dPoint getClosestPointEstimate(const ON_3dPoint& pt);
+    ON_2dPoint getClosestPointEstimate(const ON_3dPoint& pt, ON_Interval& u, ON_Interval& v);
+
+    const ON_BrepFace* m_face;
+    ON_Interval m_u;
+    ON_Interval m_v;
+    bool m_checkTrim;
+    bool m_trimmed;
+  };
+
+  typedef BVNode<ON_BoundingBox> BBNode;
+  typedef SubsurfaceBVNode<ON_BoundingBox> SubsurfaceBBNode;
+
+  //--------------------------------------------------------------------------------
+  // Template Implementation
+  template<class BV>
+  inline
+  BVNode<BV>::BVNode() { }
+
+  template<class BV>
+  inline
+  BVNode<BV>::BVNode(const BV& node) : m_node(node) {
+    for (int i = 0; i < 3; i++) {
+      double d = m_node.m_max[i] - m_node.m_min[i];
+      if (ON_NearZero(d,ON_ZERO_TOLERANCE)) {
+	m_node.m_min[i] -= 0.001;
+	m_node.m_max[i] += 0.001;
+      }
+    }
+  }
+
+  template<class BV>
+  inline
+  BVNode<BV>::~BVNode() {
+    // delete the children
+    for (int i = 0; i < m_children.size(); i++) {
+      delete m_children[i];
+    }
+  }
+
+  template<class BV>
+  inline void
+  BVNode<BV>::addChild(const BV& child) {
+    m_children.push_back(new BVNode<BV>(child));
+  }
+
+  template<class BV>
+  inline void
+  BVNode<BV>::addChild(BVNode<BV>* child) {
+    m_children.push_back(child);
+  }
+
+  template<class BV>
+  inline void
+  BVNode<BV>::removeChild(const BV& child) {
+    // XXX implement
+  }
+
+  template<class BV>
+  inline void
+  BVNode<BV>::removeChild(BVNode<BV>* child) {
+    // XXX implement
+  }
+
+  template<class BV>
+  inline bool
+  BVNode<BV>::isLeaf() const { return false; }
+
+  template<class BV>
+  inline void
+  BVNode<BV>::GetBBox(double* min, double* max) {
+    min[0] = m_node.m_min[0];
+    min[1] = m_node.m_min[1];
+    min[2] = m_node.m_min[2];
+    max[0] = m_node.m_max[0];
+    max[1] = m_node.m_max[1];
+    max[2] = m_node.m_max[2];
+  }
+
+
+  template<class BV>
+  inline bool
+  BVNode<BV>::intersectedBy(ON_Ray& ray, double* tnear_opt, double* tfar_opt) {
+    double tnear = -real.infinity();
+    double tfar = real.infinity();
+    for (int i = 0; i < 3; i++) {
+      if (ON_NearZero(ray.m_dir[i])) {
+    	if (ray.m_origin[i] < m_node.m_min[i] || ray.m_origin[i] > m_node.m_max[i])
+    	  return false;
+      }
+      else {
+    	double t1 = (m_node.m_min[i]-ray.m_origin[i]) / ray.m_dir[i];
+    	double t2 = (m_node.m_max[i]-ray.m_origin[i]) / ray.m_dir[i];
+    	if (t1 > t2) { double tmp = t1; t1 = t2; t2 = tmp; } // swap
+    	if (t1 > tnear) tnear = t1;
+    	if (t2 < tfar) tfar = t2;
+    	if (tnear > tfar) /* box is missed */ return false;
+    	if (tfar < 0) /* box is behind ray */ return false;
+      }
+    }
+    if (tnear_opt != 0 && tfar_opt != 0) { *tnear_opt = tnear; *tfar_opt = tfar; }
+    return true;
+  }
+
+  template<class BV>
+  bool
+  BVNode<BV>::intersectsHierarchy(ON_Ray& ray, std::list<BVSegment<BV> >* results_opt) {
+    double tnear, tfar;
+    bool intersects = intersectedBy(ray, &tnear, &tfar);
+    if (intersects && isLeaf()) {
+      if (results_opt != 0) results_opt->push_back(BVSegment<BV>(this, tnear, tfar));
+    } else if (intersects) {
+      // XXX: bug in g++? had to typedef the below to get it to work!
+      //       for (std::list<BVNode<BV>*>::iterator j = m_children.begin(); j != m_children.end(); j++) {
+      // 	(*j)->intersectsHierarchy(ray, results_opt);
+      //       }
+      for (int i = 0; i < m_children.size(); i++) {
+	m_children[i]->intersectsHierarchy(ray, results_opt);
+      }
+    }
+
+    return intersects;
+  }
+
+  template<class BV>
+  int
+  BVNode<BV>::depth() {
+    int d = 0;
+    for (int i = 0; i < m_children.size(); i++) {
+      d = 1 + max(d, m_children[i]->depth());
+    }
+    return d;
+  }
+
+  template<class BV>
+  void
+  BVNode<BV>::getLeaves(list<BVNode<BV>*>& out_leaves) {
+    if (m_children.size() > 0) {
+      for (int i = 0; i < m_children.size(); i++) {
+	m_children[i]->getLeaves(out_leaves);
+      }
+    } else {
+      out_leaves.push_back(this);
+    }
+  }
+
+
+  template<class BV>
+  BVNode<BV>*
+  BVNode<BV>::closer(const ON_3dPoint& pt, BVNode<BV>* left, BVNode<BV>* right) {
+    double ldist = pt.DistanceTo(left->m_estimate);
+    double rdist = pt.DistanceTo(right->m_estimate);
+    TRACE("\t" << ldist << " < " << rdist);
+    if (ldist < rdist) return left;
+    else return right;
+  }
+
+  template<class BV>
+  ON_2dPoint
+  BVNode<BV>::getClosestPointEstimate(const ON_3dPoint& pt) {
+    ON_Interval u, v;
+    return getClosestPointEstimate(pt, u, v);
+  }
+
+  template<class BV>
+  ON_2dPoint
+  BVNode<BV>::getClosestPointEstimate(const ON_3dPoint& pt, ON_Interval& u, ON_Interval& v) {
+    TRACE("getClosestPointEstimate(" << PT(pt) << ")");
+    if (m_children.size() > 0) {
+      BBNode* closestNode = m_children[0];
+      for (int i = 1; i < m_children.size(); i++) {
+	closestNode = closer(pt, closestNode, m_children[i]);
+	TRACE("\t" << PT(closestNode->m_estimate));
+      }
+      return closestNode->getClosestPointEstimate(pt, u, v);
+    }
+    throw new exception();
+  }
+
+  template<class BV>
+  inline SubsurfaceBVNode<BV>::SubsurfaceBVNode(const BV& node,
+						const ON_BrepFace* face,
+						const ON_Interval& u,
+						const ON_Interval& v,
+						bool checkTrim,
+						bool trimmed)
+    : BVNode<BV>(node), m_face(face), m_u(u), m_v(v), m_checkTrim(checkTrim), m_trimmed(trimmed)
+  {
+  }
+
+  template<class BV>
+  inline bool
+  SubsurfaceBVNode<BV>::intersectedBy(ON_Ray& ray, double *tnear, double *tfar) {
+    return !m_trimmed && BVNode<BV>::intersectedBy(ray, tnear, tfar);
+  }
+
+  template<class BV>
+  inline bool
+  SubsurfaceBVNode<BV>::isLeaf() const {
+    return true;
+  }
+
+  template<class BV>
+  inline bool
+  SubsurfaceBVNode<BV>::doTrimming() const {
+    return m_checkTrim;
+  }
+
+  template<class BV>
+  ON_2dPoint
+  SubsurfaceBVNode<BV>::getClosestPointEstimate(const ON_3dPoint& pt) {
+    ON_Interval u, v;
+    return getClosestPointEstimate(pt, u, v);
+  }
+
+  template<class BV>
+  ON_2dPoint
+  SubsurfaceBVNode<BV>::getClosestPointEstimate(const ON_3dPoint& pt, ON_Interval& u, ON_Interval& v) {
+    double uvs[5][2] = {{m_u.Min(),m_v.Min()},  // include the corners for an easy refinement
+			{m_u.Max(),m_v.Min()},
+			{m_u.Max(),m_v.Max()},
+			{m_u.Min(),m_v.Max()},
+			{m_u.Mid(),m_v.Mid()}}; // include the estimate
+    ON_3dPoint corners[5];
+    const ON_Surface* surf = m_face->SurfaceOf();
+
+    u = m_u;
+    v = m_v;
+
+    // XXX - pass these in from SurfaceTree::surfaceBBox() to avoid this recalculation?
+    if (!surf->EvPoint(uvs[0][0],uvs[0][1],corners[0]) ||
+	!surf->EvPoint(uvs[1][0],uvs[1][1],corners[1]) ||
+	!surf->EvPoint(uvs[2][0],uvs[2][1],corners[2]) ||
+	!surf->EvPoint(uvs[3][0],uvs[3][1],corners[3])) {
+      throw new exception(); // XXX - fix this
+    }
+    corners[4] = BVNode<BV>::m_estimate;
+
+    // find the point on the surface closest to pt
+    int mini = 0;
+    double mindist = pt.DistanceTo(corners[mini]);
+    double tmpdist;
+    for (int i = 1; i < 5; i++) {
+      tmpdist = pt.DistanceTo(corners[i]);
+      TRACE("\t" << mindist << " < " << tmpdist);
+      if (tmpdist < mindist) {
+	mini = i;
+	mindist = tmpdist;
+      }
+    }
+    TRACE("Closest: " << mindist << "; " << PT2(uvs[mini]));
+    return ON_2dPoint(uvs[mini][0], uvs[mini][1]);
+  }
+
+  //--------------------------------------------------------------------------------
+  // SurfaceTree declaration
+  class SurfaceTree {
+  public:
+    SurfaceTree(ON_BrepFace* face);
+    ~SurfaceTree();
+
+    BBNode* getRootNode() const;
+    /**
+     * Calculate, using the surface bounding volume hierarchy, a uv
+     * estimate for the closest point on the surface to the point in
+     * 3-space.
+     */
+    ON_2dPoint getClosestPointEstimate(const ON_3dPoint& pt);
+    ON_2dPoint getClosestPointEstimate(const ON_3dPoint& pt, ON_Interval& u, ON_Interval& v);
+    /**
+     * Return just the leaves of the surface tree
+     */
+    void getLeaves(list<BBNode*>& out_leaves);
+    int depth();
+
+  private:
+    bool isFlat(const ON_Surface* surf, const ON_Interval& u, const ON_Interval& v);
+    BBNode* subdivideSurface(const ON_Interval& u, const ON_Interval& v, int depth);
+    BBNode* surfaceBBox(bool leaf, const ON_Interval& u, const ON_Interval& v);
+
+    ON_BrepFace* m_face;
+    BBNode* m_root;
+  };
+
+
+  /**-------------------------------------------------------------------------------
+   *                    g e t _ c l o s e s t _ p o i n t
+   *
+   * approach:
+   *
+   * - get an estimate using the surface tree (if non-null, create
+   * one otherwise)
+   *
+   * - find a point (u,v) for which S(u,v) is closest to _point_
+   *                                                     _      __
+   *   -- minimize the distance function: D(u,v) = sqrt(|S(u,v)-pt|^2)
+   *                                       _      __
+   *   -- simplify by minimizing f(u,v) = |S(u,v)-pt|^2
+   *
+   *   -- minimum occurs when the gradient is zero, i.e.
+   *     \f[ \nabla f(u,v) = |\vec{S}(u,v)-\vec{p}|^2 = 0 \f]
+   */
+  bool
+  get_closest_point(ON_2dPoint& outpt,
+		    ON_BrepFace* face,
+		    const ON_3dPoint& point,
+		    SurfaceTree* tree = NULL,
+		    double tolerance = -1.0);
+
+
+  /**                  p u l l b a c k _ c u r v e
+   *
+   * Pull an arbitrary model-space *curve* onto the given *surface* as a
+   * curve within the surface's domain when, for each point c = C(t) on
+   * the curve and the closest point s = S(u,v) on the surface, we have:
+   * distance(c,s) <= *tolerance*.
+   *
+   * The resulting 2-dimensional curve will be approximated using the
+   * following process:
+   *
+   * 1. Adaptively sample the 3d curve in the domain of the surface
+   * (ensure tolerance constraint). Sampling terminates when the
+   * following flatness criterion is met:
+   *    given two parameters on the curve t1 and t2 (which map to points p1 and p2 on the curve)
+   *    let m be a parameter randomly chosen near the middle of the interval [t1,t2]
+   *                                                              ____
+   *    then the curve between t1 and t2 is flat if distance(C(m),p1p2) < flatness
+   *
+   * 2. Use the sampled points to perform a global interpolation using
+   *    universal knot generation to build a B-Spline curve.
+   *
+   * 3. If the curve is a line or an arc (determined with openNURBS routines),
+   *    return the appropriate ON_Curve subclass (otherwise, return an ON_NurbsCurve).
+   *
+   *
+   */
+  extern ON_Curve*
+  pullback_curve(ON_BrepFace* face,
+		 const ON_Curve* curve,
+		 SurfaceTree* tree = NULL,
+		 double tolerance = 1.0e-6,
+		 double flatness = 1.0e-3);
+
+
+
+}
+
+
+#endif
+@
+
+
+1.19
+log
+@try just getting rid of the typedef -- does this work in vc6?
+@
+text
+@d233 1
+a233 1
+      if (results_opt != 0) results_opt->push_back(segment(this, tnear, tfar));
+@
+
+
+1.18
+log
+@the last change crashed the build with MSVC V6.0 compiler
+made an ifdef for this compiler
+@
+text
+@a80 1
+    typedef BVSegment<BV> segment;
+d104 1
+a104 1
+    virtual bool intersectsHierarchy(ON_Ray& ray, std::list<segment>* results = 0);
+d229 1
+a229 5
+#if defined(_WIN32) && defined(_MSC_VER) defined(_MSC_VER) && (_MSC_VER <= 1200) /* MSVC 6.0 and before */
+  BVNode<BV>::intersectsHierarchy(ON_Ray& ray, std::list<BVNode<BV>::segment>* results_opt) {
+#else
+  BVNode<BV>::intersectsHierarchy(ON_Ray& ray, std::list<typename BVNode<BV>::segment>* results_opt) {
+#endif
+@
+
+
+1.17
+log
+@fix a truely bizarre VC8 compilation error (spawning from warning C4346) where we either have to get rid of the typdefs or add this typename qualifier.  docs purport that this is actually compliance required, so go with it.
+@
+text
+@d230 3
+d234 1
+@
+
+
+1.16
+log
+@removed trailing whitespace
+@
+text
+@d230 1
+a230 1
+  BVNode<BV>::intersectsHierarchy(ON_Ray& ray, std::list<BVNode<BV>::segment>* results_opt) {
+@
+
+
+1.15
+log
+@tightened up the surface flatness (trying to solve the problem where bboxes don't fully enclose all points on their subsurface); expanded degenerate bboxes (i.e. for planar surfaces)
+@
+text
+@d39 2
+a40 2
+#define TRACE1(s) 
+//#define TRACE(s) 
+d43 1
+a43 1
+  
+d60 1
+a60 1
+    BVSegment(const BVSegment& seg) : m_node(seg.m_node), 
+d106 1
+a106 1
+    
+d114 3
+a116 3
+    SubsurfaceBVNode(const BV& node, 
+		     const ON_BrepFace* face, 
+		     const ON_Interval& u, 
+d126 1
+a126 1
+    
+d132 2
+a133 2
+  };  
+  
+d140 1
+a140 1
+  inline 
+d142 1
+a142 1
+  
+d145 1
+a145 1
+  BVNode<BV>::BVNode(const BV& node) : m_node(node) {     
+d154 1
+a154 1
+  
+d165 1
+a165 1
+  inline void 
+d171 1
+a171 1
+  inline void 
+d177 1
+a177 1
+  inline void 
+d183 1
+a183 1
+  inline void 
+d189 1
+a189 1
+  inline bool 
+d191 1
+a191 1
+  
+d203 1
+a203 1
+  
+d240 1
+a240 1
+      for (int i = 0; i < m_children.size(); i++) {	
+d249 1
+a249 1
+  int 
+d259 1
+a259 1
+  void 
+d269 2
+a270 2
+  
+  
+d299 1
+a299 1
+    } 
+d304 3
+a306 3
+  inline SubsurfaceBVNode<BV>::SubsurfaceBVNode(const BV& node, 
+						const ON_BrepFace* face, 
+						const ON_Interval& u, 
+d309 1
+a309 1
+						bool trimmed) 
+d313 1
+a313 1
+  
+d321 1
+a321 1
+  inline bool 
+d327 1
+a327 1
+  inline bool 
+d352 1
+a352 1
+    
+d361 1
+a361 1
+			
+d385 2
+a386 2
+    BBNode* getRootNode() const;    
+    /** 
+d398 1
+a398 1
+        
+d412 2
+a413 2
+   * approach: 
+   * 
+d416 1
+a416 1
+   * 
+d422 1
+a422 1
+   *   
+d426 1
+a426 1
+  bool  
+d433 1
+a433 1
+    
+d452 1
+a452 1
+   * 2. Use the sampled points to perform a global interpolation using 
+d455 1
+a455 1
+   * 3. If the curve is a line or an arc (determined with openNURBS routines), 
+d458 1
+a458 1
+   * 
+d461 2
+a462 2
+  pullback_curve(ON_BrepFace* face, 
+		 const ON_Curve* curve, 
+d464 1
+a464 1
+		 double tolerance = 1.0e-6, 
+d466 1
+a466 1
+  
+@
+
+
+1.14
+log
+@duh, destructor virtual for virtual methods
+@
+text
+@d21 1
+a21 1
+#define BREP_SURFACE_FLATNESS 0.8
+d35 4
+a38 2
+//#define TRACE(s)
+#define TRACE(s) std::cerr << s << std::endl;
+d145 9
+a153 1
+  BVNode<BV>::BVNode(const BV& node) : m_node(node) { }
+@
+
+
+1.13
+log
+@add closest point estimate method extensions (i.e. returning the subdomain where the estimate resides)
+@
+text
+@d36 1
+a36 1
+#define TRACE(s) std::cout << s << endl;
+d88 1
+a88 1
+    ~BVNode();
+@
+
+
+1.12
+log
+@move ON_Ray to opennurbs_curve.h, since only curves need to know about rays for now (CloseTo operation)
+@
+text
+@d25 1
+a25 1
+#define BREP_FCP_ROOT_EPSILON 0.00001
+d99 1
+d123 1
+d274 7
+d288 1
+a288 1
+      return closestNode->getClosestPointEstimate(pt);
+d325 7
+d339 3
+d382 1
+@
+
+
+1.11
+log
+@Change the number of iterations for debugging purposes...
+@
+text
+@a43 12
+  class ON_Ray {
+  public:
+    ON_3dPoint m_origin;
+    ON_3dVector m_dir;
+
+    ON_Ray(ON_3dPoint& origin, ON_3dVector& dir) : m_origin(origin), m_dir(dir) {}
+    ON_Ray(const ON_Ray& r) : m_origin(r.m_origin), m_dir(r.m_dir)  {}
+    ON_Ray& operator=(const ON_Ray& r) {
+      m_origin = r.m_origin;
+      m_dir = r.m_dir;
+    }
+  };  
+@
+
+
+1.10
+log
+@Fix a bug causing getLeaves to not work... reference typo
+@
+text
+@d23 1
+a23 1
+#define BREP_MAX_FCP_ITERATIONS 10
+@
+
+
+1.9
+log
+@move the debugging defines into one place; implement correct ON_Ray copy ctor/asst operator; fix node intersection
+@
+text
+@d35 1
+d109 1
+a109 1
+    virtual void getLeaves(list<BVNode<BV>*> out_leaves);
+a230 1
+    TRACE("intersectsHierarchy ");
+d260 1
+a260 1
+  BVNode<BV>::getLeaves(list<BVNode<BV>*> out_leaves) {
+d378 1
+a378 1
+    void getLeaves(list<BBNode*> out_leaves);
+@
+
+
+1.8
+log
+@VC++ 6.0 adaptions: missing return statement, parent class, etc.
+@
+text
+@d29 6
+a34 2
+#define PT(p) "(" << (p)[0] << "," << (p)[1] << "," << (p)[2] << ")"
+#define PT2(p) "(" << (p)[0] << "," << (p)[1] << ")"
+d36 2
+d49 5
+d206 2
+a207 2
+    double tnear = real.min();
+    double tfar = real.max();
+d230 1
+@
+
+
+1.7
+log
+@Implement getLeaves and depth support on SurfaceTree for trim preprocessing
+@
+text
+@d102 1
+a102 1
+    virtual bool intersectsHierarchy(ON_Ray& ray, std::list<BVNode<BV>::segment>* results = 0);
+d232 2
+@
+
+
+1.6
+log
+@debug to stdout instead of error (easier to log everything together)
+@
+text
+@d96 2
+d233 23
+d361 5
+@
+
+
+1.5
+log
+@Debug IGES parsing/handling and openNURBS extensions. Still not building a simple B-Rep correctly (trim vertices not agreeing)
+@
+text
+@d31 1
+a31 1
+#define TRACE(s) std::cerr << s << endl;
+@
+
+
+1.4
+log
+@Add get_closest_point function declaration
+@
+text
+@d16 1
+d29 4
+d235 4
+a238 2
+    double dist = pt.DistanceTo(left->m_estimate);
+    if (dist < pt.DistanceTo(right->m_estimate)) return left;
+d245 1
+d250 1
+d310 1
+a310 1
+    for (int i = 1; i < 5; i++) {      
+d312 1
+d318 1
+@
+
+
+1.3
+log
+@Add closestPointEstimate support to bounding volumes
+@
+text
+@d4 7
+a10 6
+//--------------------------------------------------------------------------------
+// brep/surface utilities
+//
+// XXX: these should probably be migrated to openNURBS package proper
+// but there are a lot of dependency issues (e.g. where do the math
+// routines go?)
+d21 4
+d105 1
+a105 1
+		     const ON_BrepFace& face, 
+d116 1
+a116 1
+    const ON_BrepFace& m_face;
+d250 1
+a250 1
+						const ON_BrepFace& face, 
+d286 1
+a286 1
+    const ON_Surface* surf = m_face.SurfaceOf();
+d311 6
+d318 44
+a361 1
+  /*                  p u l l b a c k _ c u r v e
+d388 1
+a388 1
+  pullback_curve(const ON_Surface* surface, 
+d390 1
+a394 23
+  //--------------------------------------------------------------------------------
+  // SurfaceTree declaration
+  class SurfaceTree {
+  public:
+    SurfaceTree(ON_BrepFace* face);
+    ~SurfaceTree();
+
+    BBNode* getRootNode() const;    
+    /** 
+     * Calculate, using the surface bounding volume hierarchy, a uv
+     * estimate for the closest point on the surface to the point in
+     * 3-space.
+     */
+    ON_2dPoint getClosestPointEstimate(const ON_3dPoint& pt);
+        
+  private:
+    bool isFlat(const ON_Surface* surf, const ON_Interval& u, const ON_Interval& v);
+    BBNode* subdivideSurface(const ON_BrepFace& face, const ON_Interval& u, const ON_Interval& v, int depth);
+    BBNode* surfaceBBox(bool leaf, const ON_BrepFace& face, const ON_Interval& u, const ON_Interval& v);
+
+    ON_BrepFace* m_face;
+    BBNode* m_root;
+  };
+@
+
+
+1.2
+log
+@Fix bugs (no inlining for intersection method, make root bv access const)
+@
+text
+@a67 2
+    BV m_node;
+
+a68 2
+    ChildList m_children;
+    
+d72 4
+d86 1
+d91 3
+d109 1
+d221 21
+d272 35
+@
+
+
+1.1
+log
+@Add some "extensions" to opennurbs (currently residing in librt) to support pullback curves and closest point functionality
+@
+text
+@d84 1
+a84 1
+    virtual bool isLeaf();
+d89 1
+a89 1
+    bool intersectsHierarchy(ON_Ray& ray, std::list<BVNode<BV>::segment>* results = 0);
+d137 3
+a139 1
+  BVNode<BV>::addChild(const BV& child) {}
+d143 3
+a145 1
+  BVNode<BV>::addChild(BVNode<BV>* child) {}
+d149 3
+a151 1
+  BVNode<BV>::removeChild(const BV& child) {}
+d155 3
+a157 1
+  BVNode<BV>::removeChild(BVNode<BV>* child) {}
+d161 1
+a161 1
+  BVNode<BV>::isLeaf() { return false; }
+d166 6
+a171 2
+    min = (double*)m_node.m_min;
+    max = (double*)m_node.m_max;
+d200 1
+a200 1
+  inline bool
+d286 1
+a286 1
+    BBNode* getRootNode();    
+@
+

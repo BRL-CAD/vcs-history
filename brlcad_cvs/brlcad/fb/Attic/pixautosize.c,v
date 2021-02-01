@@ -1,0 +1,376 @@
+head	11.8;
+access;
+symbols
+	ansi-20040405-merged:11.5.2.1
+	postmerge-20040405-ansi:11.6
+	premerge-20040404-ansi:11.5
+	postmerge-autoconf:11.5
+	autoconf-freeze:11.5
+	premerge-autoconf:11.5
+	ansi-20040316-freeze:11.5.2.1
+	postmerge-20040315-windows:11.5
+	premerge-20040315-windows:11.5
+	windows-20040315-freeze:11.5
+	autoconf-20031203:11.5
+	autoconf-20031202:11.5
+	autoconf-branch:11.5.0.10
+	phong-branch:11.5.0.8
+	photonmap-branch:11.5.0.6
+	rel-6-1-DP:11.5
+	windows-branch:11.5.0.4
+	rel-6-0-2:11.3
+	ansi-branch:11.5.0.2
+	rel-6-0-1-branch:11.3.0.2
+	hartley-6-0-post:11.4
+	hartley-6-0-pre:11.3
+	rel-6-0-1:11.3
+	rel-6-0:11.3
+	rel-5-4:11.2
+	offsite-5-3-pre:11.3
+	rel-5-3:11.2
+	rel-5-2:11.2
+	rel-5-1-branch:11.2.0.2
+	rel-5-1:11.2
+	rel-5-0:11.2
+	rel-5-0-beta:11.2
+	rel-4-5:11.2
+	ctj-4-5-post:11.2
+	ctj-4-5-pre:11.2
+	rel-4-4:11.1;
+locks; strict;
+comment	@ * @;
+
+
+11.8
+date	2004.05.24.04.13.26;	author morrison;	state dead;
+branches;
+next	11.7;
+
+11.7
+date	2004.05.10.15.30.42;	author erikg;	state Exp;
+branches;
+next	11.6;
+
+11.6
+date	2004.04.05.07.49.23;	author morrison;	state Exp;
+branches;
+next	11.5;
+
+11.5
+date	2002.08.20.17.07.25;	author jra;	state Exp;
+branches
+	11.5.2.1;
+next	11.4;
+
+11.4
+date	2002.08.15.20.54.38;	author hartley;	state Exp;
+branches;
+next	11.3;
+
+11.3
+date	2000.08.24.03.58.33;	author mike;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	96.12.31.17.43.53;	author jra;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	95.01.04.10.09.40;	author mike;	state Rel4_4;
+branches;
+next	1.2;
+
+1.2
+date	94.08.23.18.49.16;	author gdurf;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	92.10.27.20.31.40;	author mike;	state Exp;
+branches;
+next	;
+
+11.5.2.1
+date	2002.09.19.18.00.43;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@Program to autosize an image
+@
+
+
+11.8
+log
+@moved to src/fb/
+@
+text
+@/*
+ *  			P I X A U T O S I Z E . C
+ *  
+ *  Program to determine if a given file is one of the "standard"
+ *  sizes as known by the framebuffer library.
+ *
+ *  Used by pixinfo.sh to determine size of .pix and .bw files.
+ *  
+ *  Author -
+ *	Michael John Muuss
+ *  
+ *  Source -
+ *	SECAD/VLD Computing Consortium, Bldg 394
+ *	The U. S. Army Ballistic Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005-5066
+ *  
+ *  Distribution Status -
+ *	Public Domain, Distribution Unlimitied.
+ */
+#ifndef lint
+static const char RCSid[] = "@@(#)$Header: /n/xoff/cvs/brlcad/fb/pixautosize.c,v 11.7 2004/05/10 15:30:42 erikg Exp $ (BRL)";
+#endif
+
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+
+#include <stdio.h>
+
+#include "machine.h"
+#include "externs.h"
+#include "bu.h"
+#include "vmath.h"
+#include "bn.h"
+#include "fb.h"
+
+static int	bytes_per_sample = 3;
+static int	file_length = 0;
+static char	*file_name;
+
+static int	width;
+static int	height;
+
+static char usage[] = "\
+Usage:	pixautosize [-b bytes_per_sample] [-f file_name]\n\
+or	pixautosize [-b bytes_per_sample] [-l file_length]\n";
+
+int
+get_args(int argc, register char **argv)
+{
+	register int c;
+
+	while ( (c = getopt( argc, argv, "b:f:l:" )) != EOF )  {
+		switch( c )  {
+		case 'b':
+			bytes_per_sample = atoi(optarg);
+			break;
+		case 'f':
+			file_name = optarg;
+			break;
+		case 'l':
+			file_length = atoi(optarg);
+			break;
+		default:		/* '?' */
+			return(0);
+		}
+	}
+
+	if ( argc > ++optind )
+		(void)fprintf( stderr, "pixautosize: excess argument(s) ignored\n" );
+
+	return(1);		/* OK */
+}
+
+int
+main(int argc, char **argv)
+{
+	int	ret = 0;
+	int	nsamp;
+
+	if ( !get_args( argc, argv ) || bytes_per_sample <= 0 )  {
+		(void)fputs(usage, stderr);
+		exit( 1 );
+	}
+
+	if ( !file_name && file_length <= 0 )  {
+		(void)fputs(usage, stderr);
+		exit( 1 );
+	}
+
+	if( file_name ) {
+		if( !bn_common_file_size(&width, &height, file_name, bytes_per_sample) ) {
+			fprintf(stderr,"pixautosize: unable to autosize file '%s'\n", file_name);
+			ret = 1;		/* ERROR */
+		}
+	} else {
+		nsamp = file_length/bytes_per_sample;
+		if( !bn_common_image_size(&width, &height, nsamp) ) {
+			fprintf(stderr,"pixautosize: unable to autosize nsamples=%d\n", nsamp);
+			ret = 2;		/* ERROR */
+		}
+	}
+
+	/*
+	 *  Whether or not an error message was printed to stderr above,
+	 *  print out the width and height on stdout.
+	 *  They will be zero on error.
+	 */
+	printf("WIDTH=%d; HEIGHT=%d\n", width, height);
+	return ret;
+}
+@
+
+
+11.7
+log
+@change conf.h to a wrapped config.h
+@
+text
+@d21 1
+a21 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/fb/pixautosize.c,v 11.6 2004/04/05 07:49:23 morrison Exp $ (BRL)";
+@
+
+
+11.6
+log
+@merge of ansi-6-0-branch into HEAD
+@
+text
+@d21 1
+a21 1
+static const char RCSid[] = "@@(#)$Header$ (BRL)";
+d24 5
+a28 1
+#include "conf.h"
+@
+
+
+11.5
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d21 1
+a21 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/fb/pixautosize.c,v 11.3 2000/08/24 03:58:33 mike Exp $ (BRL)";
+d47 1
+a47 2
+get_args( argc, argv )
+register char **argv;
+d74 1
+a74 3
+main(argc, argv)
+int argc;
+char **argv;
+@
+
+
+11.5.2.1
+log
+@Initial ANSIfication
+@
+text
+@d21 1
+a21 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/fb/pixautosize.c,v 11.5 2002/08/20 17:07:25 jra Exp $ (BRL)";
+d47 2
+a48 1
+get_args(int argc, register char **argv)
+d75 3
+a77 1
+main(int argc, char **argv)
+@
+
+
+11.4
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d47 2
+a48 1
+get_args(int argc, register char **argv)
+d75 3
+a77 1
+main(int argc, char **argv)
+@
+
+
+11.3
+log
+@
+const RCSid
+@
+text
+@d21 1
+a21 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/fb/pixautosize.c,v 11.2 1996/12/31 17:43:53 jra Exp $ (BRL)";
+d47 1
+a47 2
+get_args( argc, argv )
+register char **argv;
+d74 1
+a74 3
+main(argc, argv)
+int argc;
+char **argv;
+@
+
+
+11.2
+log
+@changed call to fb_common_file_size to bn_common_file_size.
+@
+text
+@d21 1
+a21 1
+static char RCSid[] = "@@(#)$Header: /m/cad/fb/RCS/pixautosize.c,v 11.1 1995/01/04 10:09:40 mike Rel4_4 jra $ (BRL)";
+d30 3
+d46 1
+d74 1
+@
+
+
+11.1
+log
+@Release_4.4
+@
+text
+@d21 1
+a21 1
+static char RCSid[] = "@@(#)$Header: /m/cad/fb/RCS/pixautosize.c,v 1.2 94/08/23 18:49:16 gdurf Exp $ (BRL)";
+d88 1
+a88 1
+		if( !fb_common_file_size(&width, &height, file_name, bytes_per_sample) ) {
+d94 1
+a94 1
+		if( !fb_common_image_size(&width, &height, nsamp) ) {
+@
+
+
+1.2
+log
+@Added includes, factored ifdefs
+@
+text
+@d21 1
+a21 1
+static char RCSid[] = "@@(#)$Header: /m/cad/fb/RCS/pixautosize.c,v 1.1 1992/10/27 20:31:40 mike Exp gdurf $ (BRL)";
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d21 1
+a21 1
+static char RCSid[] = "@@(#)$Header: /m/cad/fb/RCS/pix-fb.c,v 10.1 91/10/12 06:46:43 mike Rel4_0 $ (BRL)";
+d24 2
+d27 2
+@

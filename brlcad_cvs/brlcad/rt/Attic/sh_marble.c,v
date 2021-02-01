@@ -1,0 +1,1943 @@
+head	11.8;
+access;
+symbols
+	rel-4-5:11.6
+	ctj-4-5-post:11.4
+	ctj-4-5-pre:11.4
+	rel-4-4:11.1
+	rel-4-0:10.1
+	rel-3-5:9.1
+	rel-3-0:8.1;
+locks; strict;
+comment	@ * @;
+
+
+11.8
+date	98.09.22.01.43.11;	author mike;	state dead;
+branches;
+next	11.7;
+
+11.7
+date	98.06.30.22.54.18;	author mike;	state Exp;
+branches;
+next	11.6;
+
+11.6
+date	97.12.31.09.01.40;	author mike;	state Exp;
+branches;
+next	11.5;
+
+11.5
+date	97.11.25.22.16.43;	author butler;	state Exp;
+branches;
+next	11.4;
+
+11.4
+date	96.08.31.08.29.28;	author butler;	state Exp;
+branches;
+next	11.3;
+
+11.3
+date	96.08.30.00.08.21;	author butler;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	95.10.20.04.43.53;	author butler;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	95.01.04.10.01.07;	author mike;	state Rel4_4;
+branches;
+next	10.9;
+
+10.9
+date	94.11.21.19.11.18;	author stay;	state Exp;
+branches;
+next	10.8;
+
+10.8
+date	94.11.19.01.21.19;	author mike;	state Exp;
+branches;
+next	10.7;
+
+10.7
+date	94.11.05.02.57.31;	author mike;	state Exp;
+branches;
+next	10.6;
+
+10.6
+date	94.11.01.07.15.49;	author butler;	state Exp;
+branches;
+next	10.5;
+
+10.5
+date	94.10.31.23.02.39;	author mike;	state Exp;
+branches;
+next	10.4;
+
+10.4
+date	94.10.31.23.01.14;	author mike;	state Exp;
+branches;
+next	10.3;
+
+10.3
+date	94.10.31.22.13.24;	author mike;	state Exp;
+branches;
+next	10.2;
+
+10.2
+date	94.08.11.02.23.05;	author gdurf;	state Exp;
+branches;
+next	10.1;
+
+10.1
+date	91.10.12.06.42.09;	author mike;	state Rel4_0;
+branches;
+next	9.7;
+
+9.7
+date	91.07.06.00.35.20;	author mike;	state Exp;
+branches;
+next	9.6;
+
+9.6
+date	91.01.05.03.09.12;	author mike;	state Exp;
+branches;
+next	9.5;
+
+9.5
+date	90.12.12.16.35.06;	author butler;	state Exp;
+branches;
+next	9.4;
+
+9.4
+date	90.12.08.08.58.10;	author butler;	state Exp;
+branches;
+next	9.3;
+
+9.3
+date	90.12.07.00.52.41;	author mike;	state Exp;
+branches;
+next	9.2;
+
+9.2
+date	90.04.27.02.19.27;	author mike;	state Exp;
+branches;
+next	9.1;
+
+9.1
+date	89.05.19.05.59.35;	author mike;	state Rel3_5;
+branches;
+next	8.4;
+
+8.4
+date	89.04.30.21.26.19;	author mike;	state Exp;
+branches;
+next	8.3;
+
+8.3
+date	89.04.04.05.02.00;	author mike;	state Exp;
+branches;
+next	8.2;
+
+8.2
+date	88.12.27.16.34.15;	author mike;	state Exp;
+branches;
+next	8.1;
+
+8.1
+date	88.10.05.00.32.47;	author mike;	state Rel3_0;
+branches;
+next	1.3;
+
+1.3
+date	88.09.09.01.56.21;	author mike;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	88.06.21.00.58.43;	author mike;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	88.06.16.03.47.43;	author mike;	state Exp;
+branches;
+next	;
+
+
+desc
+@Marble Texture
+@
+
+
+11.8
+log
+@Moved sh_*.c shaders from rt/ to liboptical/ directory.
+Moved and split rt/material.h into h/shadefuncs.h and h/shadework.h
+Changed calling sequence of mlib_setup() to get shader list head explicitly.
+Initialization of shader library is now via optical_shader_init().
+
+Note that the "proper" location of shade.c, material.c, and refract.c
+(presently in the rt/ directory) are a bit muddled, as they will be
+shared with libmultispectral/ shader functions, but aren't quite
+wholesome and pure yet.  To minimize impact to Lee's ongoing shader
+developments, they haven't been changed.
+@
+text
+@/*
+ *			M A R B L E . C
+ *
+ *	A marble texture shader.  Note that this version has been
+ *	altered from the original BRL-CAD release, and may produce
+ *	results differently than may be expected.
+ *
+ *  Author -
+ *	Tom DiGiacinto
+ *
+ *  Modified by -
+ *	Bill Laut, Gull Island Consultants, Inc.
+ *
+ *  Modification Notes -
+ *	This version of Tom's shader has been slightly enhanced to improve
+ *	its utility.  The most notable difference is that the noise table is
+ *	now approximately double the size on all three axis.  This is to allow
+ *	each marble region's starting point to be "dithered" within the table,
+ *	so that no two pieces of marble look exactly alike.
+ *
+ *	Another enhancement (primarily for "sculptured" effects) is the "id"
+ *	qualifier.  This binds all of bounding RPPs for a given combination(s)
+ *	during setup, to compute the overall bounding RPP for distributing the
+ *	noise table.
+ *
+ *	Finally, "scale" and "range" are used to control the amplitude of
+ *	the noise, as well as to extract a subset range which is then normalized.
+ *
+ *	N.B.:  The "Marble_Chain" list is purged by marble_free().
+ *
+ *	N.B.2: This version of sh_marble uses the extended noise table built
+ *	       in module "turb.c" to insure that turbulence textures are
+ *	       consistent from frame to frame, regardless of RT hacking.
+ *
+ *
+ *  MATPARM Qualifiers -
+ *	id=n			Bundles regions together to blend turbulence
+ *				over region boundaries.  Negative id number
+ *				causes the region's instance number to be used,
+ *				which is helpful for instanced copies of a
+ *				given combination.
+ *
+ *	m{atte}={0,1,2}		Specifying a matte operation.  The lt_rgb or
+ *				dk_rgb will be taken from swp->sw_color.
+ *
+ *	ns=n			Number of noise samples to sum per pixel.
+ *				Increasing this tends to "smooth out" the texture.
+ *
+ *	j{itter}=n		Adds "graininess" to the marble texture.
+ *
+ *	s{cale}=n		Exponent applied to returned noise value before
+ *				range limiting is done. 
+ *
+ *	t{ensor}=n		Controls how the noise value is interpreted:
+ *					0 - linear
+ *					1 - new algorithm
+ *					2 - Tom's original algorithm
+ *
+ *	a{ngle}=n		"Angle" of noise.  Useful for slightly shifting
+ *				the texture's color.
+ *
+ *	r{ange}=lo/hi		Specifies a low- and high-limit range of
+ *				acceptable noise values, the result of which is
+ *				normalized.  Noise values outside of range are
+ *				clamped at zero or one.
+ *
+ *	e{xponent}=n		Exponent applied to individual noise frequencies
+ *				before they are summed together.
+ *
+ *	c{ompression}=n		Coefficient applied to normalized value to do
+ *				post-normalized compression/expansion.
+ *
+ *	d{ither}=x/y/z		Specifies starting point of overall RPP in the
+ *				noise table; range of [0..1].
+ *
+ *	lt{_rgb}=a/b/c		Color for light portions of texture
+ *
+ *	dk{_rgb}=a/b/c		Color for dark portions of texture
+ *
+ *  Status:  experimental
+ *  
+ *  Source -
+ *	SECAD/VLD Computing Consortium, Bldg 394
+ *	The U. S. Army Ballistic Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005-5066
+ *  
+ *  Copyright Notice -
+ *	This software is Copyright (C) 1988 by the United States Army.
+ *	All rights reserved.
+ */
+#ifndef lint
+static char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/rt/sh_marble.c,v 11.7 1998/06/30 22:54:18 mike Exp mike $ (BRL)";
+#endif
+
+#include "conf.h"
+
+#include <stdio.h>
+#include <math.h>
+#include "machine.h"
+#include "externs.h"
+#include "vmath.h"
+#include "raytrace.h"
+#include "./material.h"
+#include "./mathtab.h"
+#include "./rdebug.h"
+#include "./light.h"
+
+/* from turb.c */
+extern CONST fastf_t	turb_table[20][20][20];
+
+#define IPOINTS 10		/* Undithered number of points */
+#define TPOINTS 20		/* Total number of points */
+
+/*
+ *	User parameters block for a given marble region
+ */
+
+struct	marble_specific  {
+	struct marble_specific	*forw;
+	struct region		*rp;
+	int			flags;
+	int			ident;
+	int			tensor;
+	int			ns;
+	int			matte;
+	fastf_t			e;
+	fastf_t			scale;
+	fastf_t			range[2];
+	fastf_t			clamp[2];
+	fastf_t			angle;
+	fastf_t			compression;
+	fastf_t			jitter;
+	fastf_t			bias;
+	vect_t			mar_min;
+	vect_t			mar_max;
+	vect_t			dither;
+	vect_t			lt_rgb;
+	vect_t			dk_rgb;
+};
+
+/*
+ *	Flag bits which may appear in the "flags" integer
+ */
+
+#define	MP_IDENT	0x00000001
+#define MP_MATTE	0x00000002
+#define MP_STACK	0x00000004
+#define MP_RANGE	0x00000008
+#define MP_T2		0x00000010
+#define	MP_CLAMP	0x00000020
+#define MP_DITHER	0x00000040
+
+/*
+ *	Offset declarations
+ */
+
+#define MARB_NULL	((struct marble_specific *)0)
+#define MARB_O(m)	offsetof(struct marble_specific, m)
+#define MARB_OA(m)	offsetofarray(struct marble_specific, m)
+
+/*
+ *	Listheads and sundry statics
+ */
+
+static struct marble_specific	*Marble_Chain;
+static int			Marble_Prepped = 0;
+
+/*
+ *      Internal procedural prototypes
+ */
+
+HIDDEN int	marble_setup(), marble_render(), marble_prep();
+extern int	mlib_zero(), mlib_one();
+extern void	mlib_void();
+
+HIDDEN void	marble_check_flags RT_ARGS((CONST struct bu_structparse *sdp,
+			CONST char *name, CONST char *base, char *value));
+
+HIDDEN void	marble_free RT_ARGS(( char * ));
+
+/*
+ *	Marble-specific user data
+ */
+
+struct	bu_structparse marble_parse[] = {
+	{"%d",	1,	"id",		MARB_O(ident),		marble_check_flags },
+	{"%d",	1,	"ns",		MARB_O(ns),		FUNC_NULL },
+	{"%d",	1,	"matte",	MARB_O(matte),		marble_check_flags },
+	{"%d",	1,	"m",		MARB_O(matte),		marble_check_flags },
+	{"%f",	1,	"exponent",	MARB_O(e),		FUNC_NULL },
+	{"%f",	1,	"e",		MARB_O(e),		FUNC_NULL },
+	{"%f",	1,	"scale",	MARB_O(scale),		FUNC_NULL },
+	{"%f",	1,	"s",		MARB_O(scale),		FUNC_NULL },
+	{"%f",	2,	"range",	MARB_OA(range),		marble_check_flags },
+	{"%f",	2,	"r",		MARB_OA(range),		marble_check_flags },
+	{"%f",	2,	"clamp",	MARB_OA(clamp),		marble_check_flags },
+	{"%f",	2,	"cl",		MARB_OA(clamp),		marble_check_flags },
+	{"%f",	3,	"dither",	MARB_OA(dither),	marble_check_flags },
+	{"%f",	3,	"d",		MARB_OA(dither),	marble_check_flags },
+	{"%f",	1,	"jitter",	MARB_O(jitter),		FUNC_NULL },
+	{"%f",	1,	"j",		MARB_O(jitter),		FUNC_NULL },
+	{"%d",	1,	"tensor",	MARB_O(tensor),		marble_check_flags },
+	{"%d",	1,	"t",		MARB_O(tensor),		marble_check_flags },
+	{"%f",	1,	"angle",	MARB_O(angle),		FUNC_NULL },
+	{"%f",	1,	"a",		MARB_O(angle),		FUNC_NULL },
+	{"%f",	1,	"compression",	MARB_O(compression),	FUNC_NULL },
+	{"%f",	1,	"c",		MARB_O(compression),	FUNC_NULL },
+	{"%f",	3,	"lt_rgb",	MARB_OA(lt_rgb),	FUNC_NULL },
+	{"%f",	3,	"lt",		MARB_OA(lt_rgb),	FUNC_NULL },
+	{"%f",	3,	"dk_rgb",	MARB_OA(dk_rgb),	FUNC_NULL },
+	{"%f",	3,	"dk",		MARB_OA(dk_rgb),	FUNC_NULL },
+	{"",	0,	(char *)0,	0,			FUNC_NULL }
+};
+
+/*
+ *	mfuncs parsing structure
+ */
+
+#ifdef eRT
+struct	mfuncs marble_mfuncs[] = {
+	{MF_MAGIC,	"marble",	0,		MFI_HIT|MFI_NORMAL|MFI_LIGHT,	0,
+	marble_prep,	marble_setup,	marble_render,	mlib_void,	marble_free },
+
+	{MF_MAGIC,	"m",		0,		MFI_HIT|MFI_NORMAL|MFI_LIGHT,	0,
+	marble_prep,    marble_setup,   marble_render,  mlib_void,      marble_free },
+
+	{0,		(char *)0,	0,		0,
+	0,		0,		0,		0,		0 }
+};
+#else
+struct mfuncs marble_mfuncs[] = {
+	{MF_MAGIC,	"marble",	0,		MFI_HIT|MFI_NORMAL|MFI_LIGHT,	0,
+	marble_setup,	marble_render,	mlib_void,	marble_free},
+
+	{MF_MAGIC,	"m",		0,		MFI_HIT|MFI_NORMAL|MFI_LIGHT,	0,
+	marble_setup,   marble_render,  mlib_void,      marble_free},
+
+	{0,		(char *)0,	0,		0,	0,
+	0,		0,		0,		0}
+};
+#endif
+
+/*
+ *			M A R B L E _ P R E P
+ *
+ *	This routine was originally used to initialize the noise table,
+ *	until we moved to using the static turb_table.  This hook has
+ *	been left in to accomodate future expansion of mf_init().
+ */
+HIDDEN int marble_prep ()
+{
+	/*
+	 *	Initialize the marble region chain
+	 */
+
+	Marble_Chain = MARB_NULL;
+
+	/*
+	 *	return to caller
+	 */
+
+	return (1);
+}
+
+/*
+ *		S e t u p   H o o k   R o u t i n e s
+ *
+ *	The following are routines which are called by bu_struct_parse()
+ *	while parsing the MATPARM field.  These are currently limited to
+ *	setting flag bits, indicating the presence of certain options.
+ */
+
+HIDDEN void marble_check_flags (sdp, name, base, value)
+CONST struct bu_structparse *sdp;
+CONST char *name;
+CONST char *base;
+char *value;
+{
+	register struct marble_specific *mp =
+		(struct marble_specific *)base;
+
+	if (!strcmp (name, "id")) {
+		mp->flags |= MP_IDENT;
+		}
+
+	if (!strcmp(name, "m") || !strcmp(name, "matte")) {
+		mp->flags |= MP_MATTE;
+		}
+
+	if (!strcmp(name, "r") || !strcmp(name, "range")) {
+		mp->flags |= MP_RANGE;
+		}
+
+	if (!strcmp(name, "cl") || !strcmp(name, "clamp")) {
+		mp->flags |= MP_CLAMP;
+		}
+
+	if (!strcmp(name, "d") || !strcmp(name, "dither")) {
+		mp->flags |= MP_DITHER;
+		}
+
+	if (!strcmp(name, "t") || !strcmp(name, "tensor")) {
+		mp->flags |= MP_T2;
+		}
+}
+
+/*
+ *			M A R B L E _ S E T U P
+ *
+ * Initialize the table of noise points
+ */
+HIDDEN int
+marble_setup( rp, matparm, dpp, mfp, rtip )
+register struct region *rp;
+struct rt_vls	*matparm;
+char	**dpp;
+struct mfuncs           *mfp;
+struct rt_i             *rtip;  /* New since 4.4 release */
+{
+	register struct marble_specific *mp, *mc;
+	vect_t c_min, c_max;
+	extern struct resource		rt_uniresource;
+	register struct resource	*resp = &rt_uniresource;
+	int i;
+
+#ifndef eRT
+	/*
+	 *	If this is the release-issue RT, then call the
+	 *	prep routine.
+	 */
+
+	if (!(Marble_Prepped)) 
+		Marble_Prepped = marble_prep();
+#endif
+
+	/*
+	 *	Check the parameters, and allocate space for impure
+	 */
+
+	RT_VLS_CHECK( matparm );
+	GETSTRUCT( mp, marble_specific );
+	*dpp = (char *)mp;
+
+	/*
+	 *	Set the default values for this region
+	 */
+
+	mp->forw         = MARB_NULL;
+	mp->rp		 = rp;
+	mp->flags	 = 0;
+	mp->ident        = 0;
+	mp->matte	 = 0;
+	mp->ns		 = 10;
+	mp->tensor	 = 1;
+	mp->e		 = 1.0;
+	mp->scale        = 1.0;
+	mp->angle	 = 180.0;
+	mp->compression	 = 0.0;
+	mp->range[0]     = 0.0;
+	mp->range[1]     = 1.0;
+	mp->clamp[0]	 = -1.0;
+	mp->clamp[1]     = 1.0;
+	mp->jitter	 = 0.0;
+	mp->bias	 = 0.0;
+
+	VSETALL (mp->lt_rgb, 255);
+	VSETALL (mp->dk_rgb, 0);
+
+	/*
+	 *	See if this region has been processed before, and if
+	 *	so flag this iteration as stacked (and use the previous
+	 *	iteration's dither values).
+	 */
+
+	for (mc = Marble_Chain; mc != MARB_NULL; mc = mc->forw) {
+		if (mc->rp == rp) {
+			mc->flags |= MP_STACK;
+			mp->flags |= MP_STACK;
+
+			VMOVE (mp->dither, mc->dither);
+			mp->flags |= MP_DITHER;
+
+			if (mc->flags & MP_IDENT) {
+				mp->flags |= MP_IDENT;
+				mp->ident  = mc->ident;
+				}
+			break;
+			}
+		}
+
+	/*
+	 *	Parse the parameter block
+	 */
+
+	if (bu_struct_parse(matparm, marble_parse, (char *)mp) < 0)
+		return(-1);
+
+	/*
+	 *	If the user didn't specify a dither, add one in.
+	 *	If specificed, then range-check it
+	 */
+
+	if (!(mp->flags & MP_DITHER)) {
+		mp->dither[X] = rand0to1 (resp->re_randptr);
+		mp->dither[Y] = rand0to1 (resp->re_randptr);
+		mp->dither[Z] = rand0to1 (resp->re_randptr);
+		}
+
+	   else {
+		for (i=0; i<3; i++) {
+			if (mp->dither[i] < 0.0 || mp->dither[i] > 1.0) {
+				rt_log ("marble_setup(%s):  dither is out of range.\n",
+					rp->reg_name);
+				return (-1);
+				}
+			}
+		}
+
+	/*
+	 *	Add the block to the marble chain
+	 */
+
+	mp->forw     = Marble_Chain;
+	Marble_Chain = mp;
+
+	/*
+	 *	Do sundry tasks
+	 */
+
+	mp->angle       *= rt_degtorad;
+	mp->compression *= rt_pi;
+
+	for (i=0; i<3; i++) {
+		mp->lt_rgb[i] *= rt_inv255;
+		mp->dk_rgb[i] *= rt_inv255;
+		}
+
+	if (mp->ns < 1) {
+		rt_log ("marble_setup(%s):  number-of-samples must be greater than zero.\n",
+				rp->reg_name);
+		return (-1);
+		}
+
+	/*
+	 *	Compensate for a negative low range
+	 */
+
+	if (mp->range[0] < 0.0) {
+		mp->bias      = fabs (mp->range[0]);
+		mp->range[0]  = 0.0;
+		mp->range[1] += mp->bias;
+		}
+
+	/*
+	 *	See if we're already inited the marble texture and return
+	 *	if so.  Else, begin the process by getting the bounding size
+	 *	of the model.
+	 */
+
+	if( rt_bound_tree(rp->reg_treetop,mp->mar_min,mp->mar_max) < 0 )
+		return(-1);	/* FAIL */
+
+	/*
+	 *	Exit if this is not part of a multi-region combination
+	 */
+
+	if (!(mp->flags & MP_IDENT)) return (1);
+
+	/*
+	 *	If the ident is negative, use the region's instance #
+	 */
+
+	if (mp->ident < 0) mp->ident = (int)rp->reg_instnum;
+
+	/*
+	 *	Add the setup to the marble chain.  Note that this should
+	 *	properly be resource-synced to work fully with parallelized
+	 *	tree walkers and preppers.
+	 */
+
+	VMOVE (c_min, mp->mar_min);
+	VMOVE (c_max, mp->mar_max);
+
+	for (mc = Marble_Chain; mc != MARB_NULL; mc = mc->forw) {
+		if ((mc->flags & MP_IDENT) && mc->ident == mp->ident) {
+			VMIN (c_min, mc->mar_min);
+			VMAX (c_max, mc->mar_max);
+			}
+		}
+
+	/*
+	 *	Update the matching regions' RPP
+	 */
+
+	for (mc = Marble_Chain; mc != MARB_NULL; mc = mc->forw) {
+		if ((mc->ident & MP_IDENT) && mc->ident == mp->ident) {
+			VMOVE (mc->mar_min, c_min);
+			VMOVE (mc->mar_max, c_max);
+			VMOVE (mc->dither, mp->dither);
+			}
+		}
+
+	/*
+	 * Duplicate the three initial faces
+	 *  beyond the last three faces so we can interpolate
+	 *  back to zero.  NOT DONE YET.
+	 */
+
+	return(1);
+}
+
+/*
+ *		M A R B L E _ F R E E
+ *
+ *	This routine is called to free up the user data blocks at
+ *	the end of a frame, as well as clean up any references to
+ *	objects on the Marble_Chain list.
+ */
+
+HIDDEN void marble_free (cp)
+char *cp;
+{
+	register struct marble_specific *mp =
+		(struct marble_specific *)cp;
+
+	register struct marble_specific *mc;
+
+/*	rt_log ("marble_free(%s):  Invoked.\n", mp->rp->reg_name); */
+
+	if (Marble_Chain == mp) {
+/*		rt_log ("Releasing marble (at head) for region %s.\n", mp->rp->reg_name); */
+		Marble_Chain = mp->forw;
+		rt_free ((char *)mp, "marble_specific");
+		return;
+		}
+
+	for (mc = Marble_Chain; mc != MARB_NULL; mc = mc->forw) {
+		if (mc->forw == mp) {
+/*			rt_log ("Releasing marble for region %s.\n", mp->rp->reg_name); */
+			mc->forw = mp->forw;
+			rt_free ((char *)mp, "marble_specific");
+			return;
+			}
+		}
+
+}
+
+/*
+ *		M a r b l e _ N o i s e
+ *
+ * Return a linearly interpolated noise point for
+ *  0 <= x < 1 and 0 <= y < 1 and 0 <= z < 1.
+ *  Noise returned is also between 0 and 1.
+ */
+HIDDEN double marble_noise(x, y, z, mp)
+double x, y, z;
+struct marble_specific *mp;
+{
+	int	xi, yi, zi;		/* Integer portions of x and y */
+	double	xr, yr, zr;		/* Remainders */
+	double	n1, n2, noise1, noise2, noise3, noise;	/* temps */
+
+	xi = (x * IPOINTS) + (mp->dither[X] * IPOINTS);
+	xr = ((x * IPOINTS) + (mp->dither[X] * IPOINTS)) - xi;
+
+	yi = (y * IPOINTS) + (mp->dither[Y] * IPOINTS);
+	yr = ((y * IPOINTS) + (mp->dither[Y] * IPOINTS)) - yi;
+
+	zi = (z * IPOINTS) + (mp->dither[Z] * IPOINTS);
+	zr = ((z * IPOINTS) + (mp->dither[Z] * IPOINTS)) - zi;
+
+	n1     = (1 - xr) * pow (turb_table[xi][yi][zi], mp->e) +
+		       xr * pow (turb_table[xi + 1][yi][zi], mp->e);
+	n2     = (1 - xr) * pow (turb_table[xi][yi + 1][zi], mp->e) +
+		       xr * pow (turb_table[xi + 1][yi + 1][zi], mp->e);
+	noise1 = (1 - yr) * n1 + yr * n2;
+
+	n1     = (1 - xr) * pow (turb_table[xi][yi][zi + 1], mp->e) +
+		       xr * pow (turb_table[xi + 1][yi][zi + 1], mp->e);
+	n2     = (1 - xr) * pow (turb_table[xi][yi + 1][zi + 1], mp->e) +
+		       xr * pow (turb_table[xi + 1][yi + 1][zi + 1], mp->e);
+	noise2 = (1 - yr) * n1 + yr * n2;
+
+	noise3 = (1 - zr) * noise1 + zr * noise2;
+	noise  = pow (noise3, mp->scale);
+
+/*rt_log("noise3(%g,%g,%g) = %g\n",x,y,z,noise);*/
+	return( noise );
+}
+
+/*
+ *		T u r b u l e n c e   R o u t i n e
+ *
+ *	This routine is called to sum a collection of noise
+ *	frequencies, and does so by going through the noise array
+ *	at regular, though dithered, intervals.
+ */
+
+HIDDEN double marble_turb(x, y, z, mp)
+double x, y, z;
+struct marble_specific *mp;
+{
+	extern struct resource		rt_uniresource;
+	register struct resource	*resp = &rt_uniresource;
+
+	int	i;
+	double	a, b, c, turb = 0.0, scale = 1.0;
+
+	for (i=0; i<mp->ns; i++) {
+		scale = (double)(mp->ns - i) / (double)mp->ns;
+
+		a = (x * scale) + 
+		    (rand_half (resp->re_randptr) * mp->jitter);
+
+		b = (y * scale) +
+		    (rand_half (resp->re_randptr) * mp->jitter);
+
+		c = (z * scale) +
+		    (rand_half (resp->re_randptr) * mp->jitter);
+
+		turb  += (marble_noise (a, b, c, mp) * scale);
+		}
+
+
+/* rt_log("turb(%g,%g,%g) = %g (%g, %g)\n",x,y,z,turb,bottom,ms); */
+	return( turb );
+}
+
+/*
+ *			M A R B L E _ R E N D E R
+ */
+HIDDEN
+marble_render( ap, pp, swp, dp )
+struct application	*ap;
+struct partition	*pp;
+register struct shadework	*swp;
+char	*dp;
+{
+	register struct marble_specific *mp =
+		(struct marble_specific *)dp;
+	point_t	mat_lt, mat_dk;
+	double	value;
+	fastf_t	x,y,z;
+	fastf_t xd,yd,zd;
+	int	i;
+
+	/*
+	 *	Prep the light and dark colors
+	 */
+
+	switch (mp->matte) {
+
+		case 0:
+		default:
+			VMOVE (mat_lt, mp->lt_rgb);
+			VMOVE (mat_dk, mp->dk_rgb);
+			break;
+
+		case 1:
+			VMOVE (mat_lt, swp->sw_color);
+			VMOVE (mat_dk, mp->dk_rgb);
+			break;
+
+		case 2:
+			VMOVE (mat_lt, mp->lt_rgb);
+			VMOVE (mat_dk, swp->sw_color);
+			break;
+
+		}
+
+	/*
+	 *	Normalize the hit point to [0..1]
+	 */
+
+	xd = mp->mar_max[0] - mp->mar_min[0] + 1.0;
+	yd = mp->mar_max[1] - mp->mar_min[1] + 1.0;
+	zd = mp->mar_max[2] - mp->mar_min[2] + 1.0;
+
+	x = (swp->sw_hit.hit_point[0] - mp->mar_min[0]) / xd;
+	y = (swp->sw_hit.hit_point[1] - mp->mar_min[1]) / yd;
+	z = (swp->sw_hit.hit_point[2] - mp->mar_min[2]) / zd;
+
+	/*
+	 *	Obtain the raw value
+	 */
+
+	value = marble_turb (x,y,z,mp) + mp->bias;
+
+	/*
+	 *	Apply the clamp
+	 */
+
+	if (mp->flags & MP_CLAMP) {
+		if (value < mp->clamp[0]) value = mp->clamp[0];
+		if (value > mp->clamp[1]) value = mp->clamp[1];
+		}
+
+	/*
+	 *	Normalize the raw value
+	 */
+
+	if (mp->flags & MP_RANGE) {
+		if (value < mp->range[0]) value  = 0.0;
+				    else  value -= mp->range[0];
+
+		if (value > mp->range[1]) value  = 1.0;
+				    else  value /= mp->range[1];
+		}
+
+	/*
+	 *	Remove the bias
+	 */
+
+	if (mp->bias != 0.0) value -= mp->bias;
+
+	/*
+	 *	If we are emulating Tom's original algorithm, do his
+	 *	code here and return the value.
+	 */
+
+	if (mp->tensor == 2) {
+		value = sin (value + x);
+		if (value <= 0.25)
+			value *= 4.0;
+		else
+			if (value > 0.25 && value <= 0.5)
+				value = -((value-0.5) * 4.0);
+			else
+				if (value > 0.5 && value <= 0.75)
+					value = (value-0.5) * 4.0;
+				else
+					value = -((value-1.0) * 4.0);
+
+		VCOMB2 (swp->sw_color,
+				value,         mat_lt,
+				(1.0 - value), mat_dk);
+		return (1);
+		}
+
+	/*
+	 *	Apply any scaling effects
+	 */
+
+	if (mp->angle != 0.0) value *= mp->angle;
+	if (mp->compression != 0.0) value *= mp->compression;
+
+	/*
+	 *	Convert the normalized value into a curve
+	 */
+
+	if (mp->tensor) value = sin (value);
+
+	/*
+	 *	Compute the color
+	 */
+
+	VCOMB2 (swp->sw_color,
+			value,         mat_dk,
+			(1.0 - value), mat_lt);
+
+	/*
+	 *	Apply final range checking
+	 */
+
+	for (i=0; i<3; i++) {
+		if (swp->sw_color[i] < 0.0) swp->sw_color[i] = 0.0;
+		if (swp->sw_color[i] > 1.0) swp->sw_color[i] = 1.0;
+		}
+
+	/*
+	 *	exit
+	 */
+
+	return (1);
+}
+@
+
+
+11.7
+log
+@Can't make "struct mfuncs" a CONST, because the forward link needs
+to be filled in at runtime, and some compilers put CONST data into
+read-only pages (like FreeBSD).
+@
+text
+@d92 1
+a92 1
+static char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/rt/sh_marble.c,v 11.6 1997/12/31 09:01:40 mike Exp $ (BRL)";
+@
+
+
+11.6
+log
+@Required magic number to be first in mfunc table,
+consistent with all other BRL-CAD magic numbers.
+Required magic number to be initialized at compile time.
+Added code to check the magic numbers.
+Made the xxx_mfunc arrays CONST, so they can't get trashed by
+runtime runaway pointer problems.
+@
+text
+@d92 1
+a92 1
+static char RCSid[] = "@@(#)$Header: /m/cad/rt/RCS/sh_marble.c,v 11.5 1997/11/25 22:16:43 butler Exp mike $ (BRL)";
+d220 1
+a220 1
+CONST struct	mfuncs marble_mfuncs[] = {
+d231 1
+a231 1
+CONST struct mfuncs marble_mfuncs[] = {
+@
+
+
+11.5
+log
+@updated all shaders so that _setup had mfp and rtip parameters
+@
+text
+@d92 1
+a92 1
+static char RCSid[] = "@@(#)$Header: /m/cad/rt/RCS/sh_marble.c,v 11.4 1996/08/31 08:29:28 butler Exp butler $ (BRL)";
+d220 2
+a221 2
+struct	mfuncs marble_mfuncs[] = {
+	{"marble",	0,		0,		MFI_HIT|MFI_NORMAL|MFI_LIGHT,	0,
+d224 1
+a224 1
+	{"m",		0,		0,		MFI_HIT|MFI_NORMAL|MFI_LIGHT,	0,
+d227 1
+a227 1
+	{(char *)0,	0,		0,		0,
+d231 2
+a232 2
+struct mfuncs marble_mfuncs[] = {
+	{"marble",	0,		0,		MFI_HIT|MFI_NORMAL|MFI_LIGHT,	0,
+d235 1
+a235 1
+	{"m",		0,		0,		MFI_HIT|MFI_NORMAL|MFI_LIGHT,	0,
+d238 1
+a238 1
+	{(char *)0,	0,		0,		0,	0,
+@
+
+
+11.4
+log
+@bu_struct_parse
+@
+text
+@d92 1
+a92 1
+static char RCSid[] = "@@(#)$Header: /m/cad/rt/RCS/sh_marble.c,v 11.3 1996/08/30 00:08:21 butler Exp butler $ (BRL)";
+d313 1
+a313 1
+marble_setup( rp, matparm, dpp )
+d317 2
+@
+
+
+11.3
+log
+@structparse moved to libbu
+@
+text
+@d92 1
+a92 1
+static char RCSid[] = "@@(#)$Header: /m/cad/rt/RCS/sh_marble.c,v 11.2 1995/10/20 04:43:53 butler Exp butler $ (BRL)";
+d268 1
+a268 1
+ *	The following are routines which are called by bu_structparse()
+d393 1
+a393 1
+	if (bu_structparse (matparm, marble_parse, (char *)mp) < 0)
+@
+
+
+11.2
+log
+@edited mfuncs table to account for new "mf_flags" element in struct mfuncs.
+@
+text
+@d92 1
+a92 1
+static char RCSid[] = "@@(#)$Header: /m/cad/rt/RCS/sh_marble.c,v 11.1 1995/01/04 10:01:07 mike Rel4_4 butler $ (BRL)";
+d176 1
+a176 1
+HIDDEN void	marble_check_flags RT_ARGS((CONST struct structparse *sdp,
+d185 1
+a185 1
+struct	structparse marble_parse[] = {
+d268 1
+a268 1
+ *	The following are routines which are called by rt_structparse()
+d274 1
+a274 1
+CONST struct structparse *sdp;
+d393 1
+a393 1
+	if (rt_structparse (matparm, marble_parse, (char *)mp) < 0)
+@
+
+
+11.1
+log
+@Release_4.4
+@
+text
+@d92 1
+a92 1
+static char RCSid[] = "@@(#)$Header: /m/cad/rt/RCS/sh_marble.c,v 10.9 94/11/21 19:11:18 stay Exp $ (BRL)";
+d221 1
+a221 1
+	{"marble",	0,		0,		MFI_HIT|MFI_NORMAL|MFI_LIGHT,
+d224 1
+a224 1
+	{"m",		0,		0,		MFI_HIT|MFI_NORMAL|MFI_LIGHT,
+d232 1
+a232 1
+	{"marble",	0,		0,		MFI_HIT|MFI_NORMAL|MFI_LIGHT,
+d235 1
+a235 1
+	{"m",		0,		0,		MFI_HIT|MFI_NORMAL|MFI_LIGHT,
+d238 1
+a238 1
+	{(char *)0,	0,		0,		0,
+@
+
+
+10.9
+log
+@fixed decleration by using RT_ARGS
+@
+text
+@d92 1
+a92 1
+static char RCSid[] = "@@(#)$Header: /m/cad/rt/RCS/sh_marble.c,v 10.8 1994/11/19 01:21:19 mike Exp stay $ (BRL)";
+@
+
+
+10.8
+log
+@Latest version from Bill Laut.
+@
+text
+@d92 1
+a92 1
+static char RCSid[] = "@@(#)$Header: /m/cad/rt/RCS/sh_marble.c,v 10.1 91/10/12 06:42:09 mike Rel4_0 $ (BRL)";
+a172 1
+HIDDEN void	marble_free( char * );
+d178 2
+@
+
+
+10.7
+log
+@Irix 6
+@
+text
+@d43 2
+a44 4
+ *	m{atte}={0,1}		Specifying a one indicates a matte operation.  The
+ *				shader will take its "lt_rgb[]" values from sw_color.
+ *				This is used in conjunction with sh_stack to overlay
+ *				multiple marble textures.
+d54 4
+a57 2
+ *	t{ensor}=n		Controls how the raw value is interpreted:
+ *					0 - linear, 1 - sin, 2 - cosin
+d73 1
+a73 1
+ *	dither=x/y/z		Specifies starting point of overall RPP in the
+d92 1
+a92 1
+static char RCSid[] = "@@(#)$Header: /m/cad/rt/RCS/sh_marble.c,v 10.6 94/11/01 07:15:49 butler Exp Locker: mike $ (BRL)";
+d126 8
+a133 6
+	double			e;
+	double			scale;
+	double			range[2];
+	double			angle;
+	double			compression;
+	double			jitter;
+d148 4
+d177 2
+a178 2
+HIDDEN void	marble_ident_set (CONST struct structparse *, CONST char *, CONST char *, char *);
+HIDDEN void	marble_matte_set (CONST struct structparse *, CONST char *, CONST char *, char *);
+d185 1
+a185 1
+	{"%d",	1,	"id",		MARB_O(ident),		marble_ident_set },
+d187 2
+a188 2
+	{"%d",	1,	"matte",	MARB_O(matte),		marble_matte_set },
+	{"%d",	1,	"m",		MARB_O(matte),		marble_matte_set },
+d193 6
+a198 4
+	{"%f",	2,	"range",	MARB_OA(range),		FUNC_NULL },
+	{"%f",	2,	"r",		MARB_OA(range),		FUNC_NULL },
+	{"%f",	3,	"dither",	MARB_OA(dither),	FUNC_NULL },
+	{"%f",	3,	"d",		MARB_OA(dither),	FUNC_NULL },
+d201 2
+a202 2
+	{"%d",	1,	"tensor",	MARB_O(tensor),		FUNC_NULL },
+	{"%d",	1,	"t",		MARB_O(tensor),		FUNC_NULL },
+d245 3
+a247 1
+ *	Initialize the static noise arrays.
+d272 1
+a272 1
+HIDDEN void marble_ident_set (sdp, name, base, value)
+d281 3
+a283 2
+	mp->flags |= MP_IDENT;
+}
+d285 3
+a287 8
+HIDDEN void marble_matte_set (sdp, name, base, value)
+CONST struct structparse *sdp;
+CONST char *name;
+CONST char *base;
+char *value;
+{
+	register struct marble_specific *mp =
+		(struct marble_specific *)base;
+d289 15
+a303 1
+	mp->flags |= MP_MATTE;
+d358 2
+d361 1
+d374 1
+d376 1
+d378 6
+d389 1
+a389 2
+	 *	If this is the first iteration of a user block for
+	 *	this region, go ahead and init the dither field
+d392 9
+a400 1
+	if (!(mp->flags & MP_STACK)) {
+d406 9
+a414 3
+	/*
+	 *	Parse the parameter block
+	 */
+a415 3
+	if (rt_structparse (matparm, marble_parse, (char *)mp) < 0)
+		return(-1);
+
+d424 1
+a424 1
+	 *	Do sundry limit range checking
+d441 8
+a448 6
+	for (i=0; i<3; i++) {
+		if (mp->dither[i] < 0) {
+			rt_log ("marble_setup(%s):  dither is negative.\n",
+				rp->reg_name);
+			return (-1);
+			}
+d560 2
+a561 6
+	xi = x * IPOINTS;
+	xr = (x * IPOINTS) - xi;
+	yi = y * IPOINTS;
+	yr = (y * IPOINTS) - yi;
+	zi = z * IPOINTS;
+	zr = (z * IPOINTS) - zi;
+d563 6
+d607 1
+a607 1
+		scale = (double)i / (double)mp->ns;
+d610 1
+a610 2
+		    (rand_half (resp->re_randptr) * mp->jitter) +
+		    mp->dither[X];
+d613 1
+a613 2
+		    (rand_half (resp->re_randptr) * mp->jitter) +
+		    mp->dither[Y];
+d616 1
+a616 2
+		    (rand_half (resp->re_randptr) * mp->jitter) +
+		    mp->dither[Z];
+d618 1
+a618 1
+		turb += marble_noise (a, b, c, mp);
+d638 1
+a640 1
+	vect_t	color;
+d645 24
+d684 1
+a684 1
+	value = marble_turb (x,y,z,mp);
+d687 9
+d699 3
+a701 2
+	if (value < mp->range[0]) value = 0;
+			    else  value -= mp->range[0];
+d703 3
+a705 2
+	if (value > mp->range[1]) value = 1.0;
+			    else  value /= mp->range[1];
+d708 1
+a708 1
+	 *	Convert the normalized value into a curve
+d711 1
+a711 3
+	if (mp->compression != 0.0)
+		value = value * mp->angle * mp->compression;
+	   else value = value * mp->angle;
+d713 4
+a716 2
+	if (mp->tensor == 1) value = sin (value);
+	if (mp->tensor == 2) value = cos (value);
+d718 12
+a729 1
+	if (value < 0.0) value = 0.0;
+d731 6
+d738 13
+d754 8
+d763 2
+a764 5
+		if (!(mp->flags & MP_MATTE))
+			color[i] = (value * mp->dk_rgb[i]) +
+				   ((1.0 - value) * mp->lt_rgb[i]);
+		   else color[i] = (value * mp->dk_rgb[i]) +
+				   ((1.0 - value) * swp->sw_color[i]);
+d768 1
+a768 1
+	 *	Return the color and exit
+a770 1
+	VMOVE (swp->sw_color, color);
+@
+
+
+10.6
+log
+@fixed function prototypes
+@
+text
+@d92 1
+a92 1
+static char RCSid[] = "@@(#)$Header: /m/cad/rt/RCS/sh_marble.c,v 10.5 1994/10/31 23:02:39 mike Exp butler $ (BRL)";
+a240 3
+	register int	i, j, k;
+	register double	a;
+
+d298 1
+a298 2
+	register vect_t c_min, c_max;
+	register double d;
+d596 3
+a598 5
+	register struct light_specific *lp;
+	register struct lightwork *lw;
+	double	hi,newx,value;
+	fastf_t	cosine,x,y,z;
+	vect_t	color, min, max;
+d600 1
+a600 1
+	int	j, i, lc;
+@
+
+
+10.5
+log
+@Added local tweaks.
+@
+text
+@d92 1
+a92 1
+static char RCSid[] = "@@(#)$Header: /m/cad/rt/RCS/sh_marble.c,v 10.4 94/10/31 23:01:14 mike Exp Locker: mike $ (BRL)";
+d171 2
+a172 2
+HIDDEN void	marble_ident_set (struct structparse *, char *, char *, char *);
+HIDDEN void	marble_matte_set (struct structparse *, char *, char *, char *);
+@
+
+
+10.4
+log
+@V2 of the shader from Bill Laut
+@
+text
+@d92 1
+a92 1
+static char RCSid[] = "@@(#)$Header: /m/cad/rt/RCS/sh_marble.c,v 10.1 91/10/12 06:42:09 mike Rel4_0 $ (BRL)";
+d95 2
+d100 1
+a107 6
+/* from opt.c */
+extern double	rt_pi;
+extern double   mat_degtorad;
+extern double	rt_inv255;
+extern int	curframe;
+
+d109 1
+a109 1
+extern fastf_t	turb_table[20][20][20];
+d390 1
+a390 1
+	mp->angle       *= mat_degtorad;
+@
+
+
+10.3
+log
+@Contributed by Bill Laut.  See "bug" #156 for reference.
+an enhancement of Tom's marble
+shader that has new MATPARMs for controlling the texturing
+and for smoothly mapping the turbulence across all regions
+of a given combination.
+@
+text
+@d29 1
+a29 5
+ *	N.B.:  This routine has NOT been "animation-tested," and so I 
+ *	cannot guarantee that any bundled regions will be properly cleared out
+ *	of the "Marble_Chain" link when rt_clean() is invoked.  Also, the code
+ *	for managing the RPP bundling has not been blessed with RES_ACQUIRE or
+ *	RES_RELEASE, and so may have trouble if material.c ever gets paralleled.
+d31 5
+d43 5
+d67 3
+d76 4
+a97 1
+#include "externs.h"
+d105 9
+d118 1
+a118 5
+ *	Noise table for turbulence pattern.  Note that this is
+ *	approximately double the size over Tom's original table,
+ *	so that the setup routine can dither the starting point
+ *	on a per-region basis, so that no two marble regions have
+ *	the same default pattern.
+a120 2
+static	double	mar_n[TPOINTS+1][TPOINTS+1][TPOINTS+1];
+
+d123 2
+d128 2
+a133 1
+	double			distance;
+d138 2
+d141 13
+d158 4
+d165 16
+d182 1
+a182 1
+	{"%d",	1,	"id",		MARB_O(ident),		FUNC_NULL },
+d184 4
+d202 4
+d209 3
+a212 4
+HIDDEN int  marble_setup(), marble_render(), marble_prep();
+extern int	mlib_zero(), mlib_one();
+extern void	mlib_void();
+
+d216 1
+a216 1
+	marble_prep,	marble_setup,	marble_render,	mlib_void,	mlib_void },
+d218 3
+d227 1
+a227 1
+	marble_setup,	marble_render,	mlib_void,	mlib_void},
+d229 3
+a245 2
+	extern struct resource		rt_uniresource;
+	register struct resource	*resp = &rt_uniresource;
+a247 9
+	 *	Initialize the static noise array
+	 */
+
+	for (i=0; i<TPOINTS+1; i++)
+		for (j=0; j<TPOINTS+1; j++)
+			for (k=0; k<TPOINTS+1; k++)
+				mar_n[i][j][k] = rand_half (resp->re_randptr);
+
+	/*
+d261 32
+d304 2
+a305 2
+	register vect_t c_min, c_max, distance_vector;
+	register double c_distance, d;
+d333 2
+d336 1
+d339 1
+d347 2
+a348 3
+	mp->dither[X]    = rand0to1 (resp->re_randptr);
+	mp->dither[Y]    = rand0to1 (resp->re_randptr);
+	mp->dither[Z]    = rand0to1 (resp->re_randptr);
+d351 25
+d382 12
+a393 1
+	mp->angle       *= rt_degtorad;
+d396 5
+d428 1
+a428 2
+	VSUB2 (distance_vector, mp->mar_max, mp->mar_min);
+	mp->distance = MAGNITUDE (distance_vector);
+a429 2
+	if (!(mp->ident)) return (1);
+
+d442 2
+a443 7
+	if ((mc = Marble_Chain) == MARB_NULL) {
+		Marble_Chain = mp;
+		return (1);
+		}
+	   else {
+		VMOVE (c_min, mp->mar_min);
+		VMOVE (c_max, mp->mar_max);
+d445 4
+a448 10
+		while (mc != MARB_NULL) {
+			if (mc->ident == mp->ident) {
+				VMIN (c_min, mc->mar_min);
+				VMAX (c_max, mc->mar_max);
+				}
+			if (mc->forw == MARB_NULL) {
+				mc->forw = mp;
+				mc = MARB_NULL;
+				}
+			   else mc = mc->forw;
+a451 3
+	VSUB2 (distance_vector, c_max, c_min);
+	c_distance = MAGNITUDE (distance_vector);
+
+d457 1
+a457 2
+		if (mc->ident == mp->ident) {
+			mc->distance = c_distance;
+d474 1
+a474 1
+ *	N O I S E 3
+d476 36
+d531 4
+a534 4
+	n1     = (1 - xr) * mar_n[xi][yi][zi] +
+		       xr * mar_n[xi + 1][yi][zi];
+	n2     = (1 - xr) * mar_n[xi][yi + 1][zi] +
+		       xr * mar_n[xi + 1][yi + 1][zi];
+d537 4
+a540 4
+	n1     = (1 - xr) * mar_n[xi][yi][zi + 1] +
+		       xr * mar_n[xi + 1][yi][zi + 1];
+	n2     = (1 - xr) * mar_n[xi][yi + 1][zi + 1] +
+		       xr * mar_n[xi + 1][yi + 1][zi + 1];
+d558 1
+a558 1
+HIDDEN double marble_turb(x, y, z, mp, ap, swp)
+a560 2
+struct application *ap;
+register struct shadework *swp;
+d607 1
+a607 1
+	vect_t	min,max;
+d627 1
+a627 1
+	value = marble_turb (x,y,z,mp,ap,swp);
+d650 2
+d653 12
+d668 1
+a668 1
+	VSETALL (swp->sw_color, value);
+@
+
+
+10.2
+log
+@Added include of conf.h
+@
+text
+@d4 4
+d11 56
+d79 1
+a79 1
+static char RCSid[] = "@@(#)$Header: /m/cad/rt/RCS/sh_marble.c,v 10.1 1991/10/12 06:42:09 mike Rel4_0 gdurf $ (BRL)";
+a81 2
+#include "conf.h"
+
+d85 1
+d91 1
+d93 13
+d107 13
+a119 2
+	vect_t	mar_min;
+	vect_t	mar_max;
+d123 1
+d125 3
+d129 17
+a145 1
+	{"",	0,	(char *)0,	0,		FUNC_NULL }
+d149 1
+a149 1
+HIDDEN int  marble_setup(), marble_render();
+d153 1
+d155 2
+a156 2
+	{"marble",	0,		0,		MFI_HIT,
+	marble_setup,	marble_render,	mlib_void,	mlib_void },
+d159 1
+a159 1
+	0,		0,		0,		0 }
+d161 4
+d166 4
+d171 11
+a181 2
+#define	IPOINTS	10
+HIDDEN double	n[IPOINTS+1][IPOINTS+1][IPOINTS+1];
+d183 22
+d216 3
+a218 2
+	int	i, j, k;
+	register struct marble_specific *mp;
+d220 2
+a221 1
+	register struct resource	*resp = &rt_uniresource;;
+d223 14
+d241 49
+d293 3
+a295 4
+	for( i = 0; i < IPOINTS+1; i++ )
+		for( j = 0; j < IPOINTS+1; j++ )
+			for( k = 0; k < IPOINTS+1; k++ )
+				n[i][j][k] = rand0to1(resp->re_randptr);
+d297 5
+d303 49
+d356 1
+d367 1
+a367 2
+double
+noise3(x, y, z)
+d369 1
+d373 1
+a373 1
+	double	n1, n2, noise1, noise2, noise;	/* temps */
+a374 1
+
+d381 5
+a385 3
+/*rt_log("xi= %d, yi= %d, zi= %d\n",xi,yi,zi);*/
+	n1 = (1 - xr) * n[xi][yi][zi] + xr * n[xi + 1][yi][zi];
+	n2 = (1 - xr) * n[xi][yi + 1][zi] + xr * n[xi + 1][yi + 1][zi];
+d387 5
+a391 2
+	n1 = (1 - xr) * n[xi][yi][zi + 1] + xr * n[xi + 1][yi][zi + 1];
+	n2 = (1 - xr) * n[xi][yi + 1][zi + 1] + xr * n[xi + 1][yi + 1][zi + 1];
+a392 1
+	noise = (1 - zr) * noise1 + zr * noise2;
+d394 3
+d402 5
+a406 1
+ * Turbulence Routine
+a407 1
+#define	Pixelsize	0.005
+d409 1
+a409 2
+HIDDEN double
+turb3(x, y, z)
+d411 3
+d415 2
+a416 2
+	double	turb, temp;
+	double	scale;
+d418 2
+a419 3
+	turb = 0;
+	scale = 1.0;
+	temp = 0.0;
+d421 2
+a422 5
+	while( scale > Pixelsize ) {
+		temp = ( ( noise3( x * scale, y * scale, z * scale ) - 0.5 ) * scale );
+		turb += ( temp > 0 ) ? temp : - temp;
+		scale /= 2.0;
+	}
+d424 17
+a440 1
+/*rt_log("turb(%g,%g,%g) = %g\n",x,y,z,turb);*/
+a445 3
+ *
+ *
+ *
+d456 7
+a462 4
+	double	newx, value;
+	fastf_t x, y, z;
+	vect_t min, max;
+	fastf_t xd, yd, zd;
+d464 4
+a471 1
+	/* NORMALIZE x,y,z to [0..1) */
+d476 3
+a478 1
+	newx = x + turb3( x, y, z );
+d480 1
+a480 1
+	value = sin(newx);
+d482 3
+a484 10
+	if( value <= 0.25 )
+		value *= 4.0;
+	else
+		if( value > 0.25 && value <= 0.5 )
+			value = -((value-0.5) * 4.0);
+		else
+			if( value > 0.5 && value <= 0.75 )
+				value = (value-0.5) * 4.0;
+			else
+				value = -((value-1.0) * 4.0);
+d486 23
+a508 2
+	VSETALL( swp->sw_color, value );
+	return(1);
+@
+
+
+10.1
+log
+@Release_4.0
+@
+text
+@d19 1
+a19 1
+static char RCSid[] = "@@(#)$Header: /m/cad/rt/RCS/sh_marble.c,v 9.7 91/07/06 00:35:20 mike Exp $ (BRL)";
+d21 2
+@
+
+
+9.7
+log
+@ANSI structure initialization
+@
+text
+@d19 1
+a19 1
+static char RCSid[] = "@@(#)$Header: /m/cad/rt/RCS/sh_marble.c,v 9.6 91/01/05 03:09:12 mike Exp $ (BRL)";
+@
+
+
+9.6
+log
+@Converted to new format for fmt entry in structparse
+@
+text
+@d19 1
+a19 1
+static char RCSid[] = "@@(#)$Header: /m/cad/rt/RCS/sh_marble.c,v 9.5 90/12/12 16:35:06 butler Exp $ (BRL)";
+d39 1
+a39 1
+	"",	0,	(char *)0,	0,		FUNC_NULL
+d48 2
+a49 2
+	"marble",	0,		0,		MFI_HIT,
+	marble_setup,	marble_render,	mlib_void,	mlib_void,
+d51 2
+a52 2
+	(char *)0,	0,		0,		0,
+	0,		0,		0,		0
+@
+
+
+9.5
+log
+@modified to reflect changes in structparse format
+@
+text
+@d19 1
+a19 1
+static char RCSid[] = "@@(#)$Header: /m/cad/rt/RCS/sh_marble.c,v 9.4 90/12/08 08:58:10 butler Exp $ (BRL)";
+d39 1
+a39 1
+	(char *)0, 0, (char *)0,	0,		FUNC_NULL
+@
+
+
+9.4
+log
+@changed material property parameter to be struct rt_vls
+@
+text
+@d19 1
+a19 1
+static char RCSid[] = "@@(#)$Header: /m/cad/rt/RCS/sh_marble.c,v 9.3 90/12/07 00:52:41 mike Exp $ (BRL)";
+d39 1
+a39 1
+	(char *)0,(char *)0,	0,		FUNC_NULL
+@
+
+
+9.3
+log
+@Needed random number table pointer!
+@
+text
+@d19 1
+a19 1
+static char RCSid[] = "@@(#)$Header: /m/cad/rt/RCS/sh_marble.c,v 9.2 90/04/27 02:19:27 mike Exp $ (BRL)";
+d67 1
+a67 1
+char	*matparm;
+d75 1
+@
+
+
+9.2
+log
+@Changed from using rt_rpp_tree to rt_bound_tree().
+@
+text
+@d19 1
+a19 1
+static char RCSid[] = "@@(#)$Header: sh_marble.c,v 9.1 89/05/19 05:59:35 mike Locked $ (BRL)";
+d72 2
+a73 1
+	register float	*randp;
+d84 1
+a84 1
+				n[i][j][k] = rand0to1(randp);
+@
+
+
+9.1
+log
+@Release_3.5
+@
+text
+@d19 1
+a19 1
+static char RCSid[] = "@@(#)$Header: sh_marble.c,v 8.4 89/04/30 21:26:19 mike Exp $ (BRL)";
+d77 2
+a78 3
+	VSETALL(mp->mar_min,  INFINITY);
+	VSETALL(mp->mar_max, -INFINITY);
+	rt_rpp_tree(rp->reg_treetop,mp->mar_min,mp->mar_max);
+@
+
+
+8.4
+log
+@The rand() macros now require a parameter which is the random number
+table pointer to be used.  This provides perfectly "safe" access to
+the random number tables in a parallel processing environment.
+Each processor is seeded differently in worker.c
+@
+text
+@d19 1
+a19 1
+static char RCSid[] = "@@(#)$Header: sh_marble.c,v 8.3 89/04/04 05:02:00 mike Locked $ (BRL)";
+@
+
+
+8.3
+log
+@Converted to new way of representing structure offsets.
+@
+text
+@d19 1
+a19 1
+static char RCSid[] = "@@(#)$Header: marble.c,v 8.2 88/12/27 16:34:15 mike Locked $ (BRL)";
+d72 1
+d84 1
+a84 1
+				n[i][j][k] = rand0to1();
+@
+
+
+8.2
+log
+@Converted matparse --> structparse
+@
+text
+@d19 1
+a19 1
+static char RCSid[] = "@@(#)$Header: marble.c,v 8.1 88/10/05 00:32:47 mike Locked $ (BRL)";
+d35 2
+a36 1
+#define MARB_NULL ((struct marble_specific *)0)
+a37 1
+
+d39 1
+a39 1
+	(char *)0,(char *)0,	(stroff_t)0,			FUNC_NULL
+@
+
+
+8.1
+log
+@Release_3.0
+@
+text
+@d19 1
+a19 1
+static char RCSid[] = "@@(#)$Header: marble.c,v 1.3 88/09/09 01:56:21 mike Exp $ (BRL)";
+d38 2
+a39 2
+struct	matparse marble_parse[] = {
+	(char *)0,	(mp_off_ty)0,				(char *)0
+@
+
+
+1.3
+log
+@added return code
+@
+text
+@d19 1
+a19 1
+static char RCSid[] = "@@(#)$Header: marble.c,v 1.2 88/06/21 00:58:43 mike Locked $ (BRL)";
+@
+
+
+1.2
+log
+@Removed local routine "rpp_tree" and changed to using library
+routine "rt_rpp_tree".
+@
+text
+@d19 1
+a19 1
+static char RCSid[] = "@@(#)$Header: marble.c,v 1.1 88/06/16 03:47:43 mike Locked $ (BRL)";
+d60 1
+a60 1
+ * (marble_setup)
+d90 1
+d169 1
+a169 1
+	double	newx, value, sin();
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d19 1
+a19 1
+static char RCSid[] = "@@(#)$Header$ (BRL)";
+d44 2
+a45 2
+extern int mlib_zero();
+extern HIDDEN int rpp_tree();
+d49 1
+a49 1
+	marble_setup,	marble_render,	mlib_zero,	mlib_zero,
+d57 1
+a57 1
+double	n[IPOINTS+1][IPOINTS+1][IPOINTS+1];
+d78 1
+a78 1
+	rpp_tree(rp->reg_treetop,mp->mar_min,mp->mar_max);
+@

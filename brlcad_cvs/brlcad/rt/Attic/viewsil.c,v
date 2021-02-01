@@ -1,0 +1,670 @@
+head	1.13;
+access;
+symbols
+	ansi-20040405-merged:1.10.2.1
+	postmerge-20040405-ansi:1.11
+	premerge-20040404-ansi:1.10
+	postmerge-autoconf:1.10
+	autoconf-freeze:1.10
+	premerge-autoconf:1.10
+	postmerge-20040315-windows:1.10
+	premerge-20040315-windows:1.10
+	windows-20040315-freeze:1.10
+	autoconf-20031203:1.10
+	autoconf-20031202:1.10
+	autoconf-branch:1.10.0.10
+	phong-branch:1.10.0.8
+	photonmap-branch:1.10.0.6
+	rel-6-1-DP:1.10
+	windows-branch:1.10.0.4
+	rel-6-0-2:1.8
+	ansi-branch:1.10.0.2
+	rel-6-0-1-branch:1.8.0.2
+	hartley-6-0-post:1.9
+	hartley-6-0-pre:1.8
+	rel-6-0-1:1.8
+	rel-6-0:1.8
+	rel-5-4:1.5
+	offsite-5-3-pre:1.8
+	rel-5-3:1.5
+	rel-5-2:1.5
+	rel-5-1-branch:1.5.0.2
+	rel-5-1:1.5
+	rel-5-0:1.5
+	rel-5-0-beta:1.4
+	rel-4-5:1.3
+	ctj-4-5-post:1.2
+	ctj-4-5-pre:1.2;
+locks; strict;
+comment	@ * @;
+
+
+1.13
+date	2004.05.21.17.31.10;	author morrison;	state dead;
+branches;
+next	1.12;
+
+1.12
+date	2004.05.10.15.30.49;	author erikg;	state Exp;
+branches;
+next	1.11;
+
+1.11
+date	2004.04.05.05.45.59;	author morrison;	state Exp;
+branches;
+next	1.10;
+
+1.10
+date	2002.08.20.17.08.40;	author jra;	state Exp;
+branches
+	1.10.2.1;
+next	1.9;
+
+1.9
+date	2002.08.15.20.55.51;	author hartley;	state Exp;
+branches;
+next	1.8;
+
+1.8
+date	2000.08.17.02.41.42;	author mike;	state Exp;
+branches;
+next	1.7;
+
+1.7
+date	2000.07.27.19.32.53;	author butler;	state Exp;
+branches;
+next	1.6;
+
+1.6
+date	2000.07.25.16.39.49;	author butler;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	99.07.02.22.19.47;	author mike;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	99.05.28.01.19.31;	author mike;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	97.12.16.00.20.11;	author mike;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	96.08.30.00.08.21;	author butler;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	96.08.30.00.06.36;	author butler;	state Exp;
+branches;
+next	;
+
+1.10.2.1
+date	2002.09.19.18.02.17;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@Original
+@
+
+
+1.13
+log
+@moved to src/rt/
+@
+text
+@/*
+ *			V I E W S I L . C
+ *
+ *  Application-specific code for rtsil(1)
+ *
+ *  For more details, see:
+ *  S. Muuss, ``Rapid Creation of Analysis Codes Using BRL-CAD:
+ *  The RT View-Module Interface'', in the Proceedings of the
+ *  BRL-CAD Symposium 1991.
+ *
+ *  
+ *  Source -
+ *	SECAD/VLD Computing Consortium, Bldg 394
+ *	The U. S. Army Ballistic Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005
+ */
+#ifndef lint
+static const char RCSview[] = "@@(#)$Header: /n/xoff/cvs/brlcad/rt/viewsil.c,v 1.12 2004/05/10 15:30:49 erikg Exp $ (BRL)";
+#endif
+
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+
+#include <stdio.h>
+#include "machine.h"
+#include "vmath.h"
+#include "raytrace.h"
+
+#include "rtprivate.h"
+
+/*
+ *  If this variable is set to zero, then "air" solids in the model
+ *  will be entirely discarded.
+ *  If this variable is set non-zero, then "air" solids will be
+ *  retained, and can be expected to show up in the partition lists.
+ */
+int	use_air = 0;		/* Handling of air in librt */
+
+extern	FILE	*outfp;
+extern	int	width, height;
+static	unsigned char *scanbuf;
+
+/*
+ *  Viewing module specific "set" variables.
+ *  Any additional variables that the user may be allowed to change
+ *  should be listed here.
+ *  They can then be accessed via a "set" command, either from
+ *  the command line, or from within an animation script.
+ */
+struct bu_structparse view_parse[] = {
+	{"",	0, (char *)0,	0,	BU_STRUCTPARSE_FUNC_NULL}
+};
+
+/*
+ *  The usage message for this application.
+ */
+char usage[] = "\
+Usage:  rtsil [options] model.g objects... [> file.pix]\n\
+Options:\n\
+ -s #		Grid size in pixels, default 512\n\
+ -a Az		Azimuth in degrees\n\
+ -e Elev	Elevation in degrees\n\
+ -M		Read matrix, cmds on stdin\n\
+ -o file.pix	Output file name, else stdout\n\
+ -x #		Set librt debug flags\n\
+";
+
+int	rayhit(register struct application *ap, struct partition *PartHeadp);
+int	raymiss(register struct application *ap);
+
+/*
+ *  			V I E W _ I N I T
+ *
+ *  Called by main() at the start of a run.
+ *  Returns 1 if framebuffer should be opened, else 0.
+ */
+int
+view_init(register struct application *ap, char *file, char *obj, int minus_o)
+{
+	if (rt_g.rtg_parallel) {
+		rt_g.rtg_parallel = 0;
+		bu_log("rtsil: Can't do parallel yet, using one CPU\n");
+	}
+	scanbuf = (unsigned char *)
+		bu_malloc( width, "scanline buffer" );
+	return(0);		/* no framebuffer needed */
+}
+
+/*
+ *			V I E W _ 2 I N I T
+ *
+ *  The beginning of a frame.
+ *  Called by do_frame() just before raytracing starts.
+ */
+void
+view_2init(struct application *ap)
+{
+	ap->a_hit = rayhit;
+	ap->a_miss = raymiss;
+	ap->a_onehit = 1;
+}
+
+/*
+ *			V I E W _ P I X E L
+ *
+ *  Called by worker() after the end of proccessing for each pixel.
+ */
+void
+view_pixel(register struct application *ap)
+{
+}
+
+/*
+ *			V I E W _ E O L
+ *
+ *  Called by worker() at the end of each line.  Depricated.
+ *  Any end-of-line processing should be done in view_pixel().
+ */
+void
+view_eol(register struct application *ap)
+{
+	bu_semaphore_acquire( BU_SEM_SYSCALL );
+	if( outfp != NULL )
+		fwrite( scanbuf, 1, width, outfp );
+#if 0
+	else if( fbp != FBIO_NULL )
+		fb_write( fbp, 0, ap->a_y, scanbuf, width );
+#endif
+	bu_semaphore_release( BU_SEM_SYSCALL );
+}
+
+/*
+ *			V I E W _ E N D
+ *
+ *  Called in do_frame() at the end of a frame,
+ *  just after raytracing completes.
+ */
+void
+view_end(register struct application *ap)
+{
+}
+
+/*
+ *			V I E W _ S E T U P 
+ *
+ *  Called by do_prep(), just before rt_prep() is called, in do.c
+ *  This allows the lighting model to get set up for this frame,
+ *  e.g., generate lights, associate materials routines, etc.
+ */
+void
+view_setup(struct rt_i *rtip)
+{
+}
+
+/*
+ *			V I E W _ C L E A N U P
+ *
+ *  Called by "clean" command, just before rt_clean() is called, in do.c
+ */
+void
+view_cleanup(struct rt_i *rtip)
+{
+}
+
+/*
+ *			R A Y H I T
+ *
+ *  Called via a_hit linkage from rt_shootray() when ray hits.
+ */
+int
+rayhit(register struct application *ap, struct partition *PartHeadp)
+{
+	bu_semaphore_acquire( RT_SEM_RESULTS );
+	scanbuf[ap->a_x] = 1;
+	bu_semaphore_release( RT_SEM_RESULTS );
+	return(1);	/* report hit to main routine */
+}
+
+/*
+ *			R A Y M I S S
+ *
+ *  Called via a_miss linkage from rt_shootray() when ray misses.
+ */
+int
+raymiss(register struct application *ap)
+{
+	bu_semaphore_acquire( RT_SEM_RESULTS );
+	scanbuf[ap->a_x] = 255;
+	bu_semaphore_release( RT_SEM_RESULTS );
+	return(0);
+}
+
+void application_init (void) {}
+
+
+
+
+@
+
+
+1.12
+log
+@change conf.h to a wrapped config.h
+@
+text
+@d18 1
+a18 1
+static const char RCSview[] = "@@(#)$Header: /cvs/brlcad/rt/viewsil.c,v 1.11 2004/04/05 05:45:59 morrison Exp $ (BRL)";
+@
+
+
+1.11
+log
+@merge of ansi-6-0-branch into head
+@
+text
+@d18 1
+a18 1
+static const char RCSview[] = "@@(#)$Header$ (BRL)";
+d21 5
+a25 1
+#include "conf.h"
+@
+
+
+1.10
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d18 1
+a18 1
+static const char RCSview[] = "@@(#)$Header: /c/CVS/brlcad/rt/viewsil.c,v 1.8 2000/08/17 02:41:42 mike Exp $ (BRL)";
+d67 2
+a68 2
+int	rayhit();
+int	raymiss();
+d77 1
+a77 5
+view_init( ap, file, obj, minus_o )
+register struct application *ap;
+char	*file;
+char	*obj;
+int	minus_o;
+d95 1
+a95 2
+view_2init( ap )
+struct application *ap;
+d108 1
+a108 2
+view_pixel( ap )
+register struct application *ap;
+d119 1
+a119 2
+view_eol( ap )
+register struct application *ap;
+d138 1
+a138 2
+view_end( ap )
+register struct application	*ap;
+d150 1
+a150 2
+view_setup( rtip )
+struct rt_i	*rtip;
+d160 1
+a160 2
+view_cleanup( rtip )
+struct rt_i	*rtip;
+d170 1
+a170 3
+rayhit( ap, PartHeadp )
+register struct application *ap;
+struct partition *PartHeadp;
+d184 1
+a184 2
+raymiss( ap )
+register struct application *ap;
+d192 1
+a192 1
+void application_init () {}
+@
+
+
+1.10.2.1
+log
+@Initial ANSIfication
+@
+text
+@d18 1
+a18 1
+static const char RCSview[] = "@@(#)$Header: /c/CVS/brlcad/rt/viewsil.c,v 1.10 2002/08/20 17:08:40 jra Exp $ (BRL)";
+d67 2
+a68 2
+int	rayhit(register struct application *ap, struct partition *PartHeadp);
+int	raymiss(register struct application *ap);
+d77 5
+a81 1
+view_init(register struct application *ap, char *file, char *obj, int minus_o)
+d99 2
+a100 1
+view_2init(struct application *ap)
+d113 2
+a114 1
+view_pixel(register struct application *ap)
+d125 2
+a126 1
+view_eol(register struct application *ap)
+d145 2
+a146 1
+view_end(register struct application *ap)
+d158 2
+a159 1
+view_setup(struct rt_i *rtip)
+d169 2
+a170 1
+view_cleanup(struct rt_i *rtip)
+d180 3
+a182 1
+rayhit(register struct application *ap, struct partition *PartHeadp)
+d196 2
+a197 1
+raymiss(register struct application *ap)
+d205 1
+a205 1
+void application_init (void) {}
+@
+
+
+1.9
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d67 2
+a68 2
+int	rayhit(register struct application *ap, struct partition *PartHeadp);
+int	raymiss(register struct application *ap);
+d77 5
+a81 1
+view_init(register struct application *ap, char *file, char *obj, int minus_o)
+d99 2
+a100 1
+view_2init(struct application *ap)
+d113 2
+a114 1
+view_pixel(register struct application *ap)
+d125 2
+a126 1
+view_eol(register struct application *ap)
+d145 2
+a146 1
+view_end(register struct application *ap)
+d158 2
+a159 1
+view_setup(struct rt_i *rtip)
+d169 2
+a170 1
+view_cleanup(struct rt_i *rtip)
+d180 3
+a182 1
+rayhit(register struct application *ap, struct partition *PartHeadp)
+d196 2
+a197 1
+raymiss(register struct application *ap)
+d205 1
+a205 1
+void application_init (void) {}
+@
+
+
+1.8
+log
+@
+Added "const" to RCSid, to quiet Gnu C compilers.
+@
+text
+@d18 1
+a18 1
+static const char RCSview[] = "@@(#)$Header: /c/CVS/brlcad/rt/viewsil.c,v 1.7 2000/07/27 19:32:53 butler Exp $ (BRL)";
+d67 2
+a68 2
+int	rayhit();
+int	raymiss();
+d77 1
+a77 5
+view_init( ap, file, obj, minus_o )
+register struct application *ap;
+char	*file;
+char	*obj;
+int	minus_o;
+d95 1
+a95 2
+view_2init( ap )
+struct application *ap;
+d108 1
+a108 2
+view_pixel( ap )
+register struct application *ap;
+d119 1
+a119 2
+view_eol( ap )
+register struct application *ap;
+d138 1
+a138 2
+view_end( ap )
+register struct application	*ap;
+d150 1
+a150 2
+view_setup( rtip )
+struct rt_i	*rtip;
+d160 1
+a160 2
+view_cleanup( rtip )
+struct rt_i	*rtip;
+d170 1
+a170 3
+rayhit( ap, PartHeadp )
+register struct application *ap;
+struct partition *PartHeadp;
+d184 1
+a184 2
+raymiss( ap )
+register struct application *ap;
+d192 1
+a192 1
+void application_init () {}
+@
+
+
+1.7
+log
+@Added -Q flag to rt, misc compilation warning fixes
+@
+text
+@d18 1
+a18 1
+static char RCSview[] = "@@(#)$Header: /c/CVS/brlcad/rt/viewsil.c,v 1.6 2000/07/25 16:39:49 butler Exp $ (BRL)";
+@
+
+
+1.6
+log
+@Many patches for warning-free compilation on Linux.
+Moved rdebug.h to h/rtprivate.h
+@
+text
+@d18 1
+a18 1
+static char RCSview[] = "@@(#)$Header: /c/CVS/brlcad/rt/viewsil.c,v 1.5 1999/07/02 22:19:47 mike Exp $ (BRL)";
+d50 1
+a50 1
+	"",	0, (char *)0,	0,	BU_STRUCTPARSE_FUNC_NULL
+d76 1
+@
+
+
+1.5
+log
+@
+Removed dependence on compat4.h
+@
+text
+@d18 1
+a18 1
+static char RCSview[] = "@@(#)$Header: /c/CVS/brlcad/rt/viewsil.c,v 1.4 1999/05/28 01:19:31 mike Exp $ (BRL)";
+d28 1
+a28 1
+#include "./rdebug.h"
+@
+
+
+1.4
+log
+@
+sed4
+@
+text
+@d18 1
+a18 1
+static char RCSview[] = "@@(#)$Header: /c/CVS/brlcad/rt/viewsil.c,v 1.3 1997/12/16 00:20:11 mike Exp $ (BRL)";
+d50 1
+a50 1
+	"",	0, (char *)0,	0,	FUNC_NULL
+@
+
+
+1.3
+log
+@Converted to bu_semaphore_acquire()
+@
+text
+@d18 1
+a18 1
+static char RCSview[] = "@@(#)$Header: /m/cad/rt/RCS/viewsil.c,v 1.2 1996/08/30 00:08:21 butler Exp mike $ (BRL)";
+d84 1
+a84 1
+		rt_log("rtsil: Can't do parallel yet, using one CPU\n");
+d87 1
+a87 1
+		rt_malloc( width, "scanline buffer" );
+@
+
+
+1.2
+log
+@structparse moved to libbu
+@
+text
+@d18 1
+a18 1
+static char RCSview[] = "@@(#)$Header: /m/cad/rt/RCS/viewsil.c,v 1.1 1996/08/30 00:06:36 butler Exp butler $ (BRL)";
+d127 1
+a127 1
+	RES_ACQUIRE( &rt_g.res_syscall );
+d134 1
+a134 1
+	RES_RELEASE( &rt_g.res_syscall );
+d183 1
+a183 1
+	RES_ACQUIRE( &rt_g.res_results );
+d185 1
+a185 1
+	RES_RELEASE( &rt_g.res_results );
+d198 1
+a198 1
+	RES_ACQUIRE( &rt_g.res_results );
+d200 1
+a200 1
+	RES_RELEASE( &rt_g.res_results );
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d18 1
+a18 1
+static char RCSview[] = "@@(#)$Header: /m/cad/rt/RCS/viewdummy.c,v 11.2 1995/12/06 17:57:53 pjt Exp $ (BRL)";
+d49 1
+a49 1
+struct structparse view_parse[] = {
+@

@@ -1,0 +1,437 @@
+head	11.6;
+access;
+symbols
+	ansi-20040405-merged:11.3.2.1
+	postmerge-20040405-ansi:11.4
+	premerge-20040404-ansi:11.3
+	postmerge-autoconf:11.3
+	autoconf-freeze:11.3
+	premerge-autoconf:11.3
+	ansi-20040316-freeze:11.3.2.1
+	postmerge-20040315-windows:11.3
+	premerge-20040315-windows:11.3
+	windows-20040315-freeze:11.3
+	autoconf-20031203:11.3
+	autoconf-20031202:11.3
+	autoconf-branch:11.3.0.10
+	phong-branch:11.3.0.8
+	photonmap-branch:11.3.0.6
+	rel-6-1-DP:11.3
+	windows-branch:11.3.0.4
+	rel-6-0-2:11.1
+	ansi-branch:11.3.0.2
+	rel-6-0-1-branch:11.1.0.4
+	hartley-6-0-post:11.2
+	hartley-6-0-pre:11.1
+	rel-6-0-1:11.1
+	rel-6-0:11.1
+	rel-5-4:11.1
+	offsite-5-3-pre:11.1
+	rel-5-3:11.1
+	rel-5-2:11.1
+	rel-5-1-branch:11.1.0.2
+	rel-5-1:11.1
+	rel-5-0:11.1
+	rel-5-0-beta:11.1
+	rel-4-5:11.1
+	ctj-4-5-post:11.1
+	ctj-4-5-pre:11.1
+	rel-4-4:11.1
+	rel-4-0:10.1
+	rel-3-5:9.1
+	rel-3-0:8.1;
+locks; strict;
+comment	@ * @;
+
+
+11.6
+date	2004.05.21.18.06.22;	author morrison;	state dead;
+branches;
+next	11.5;
+
+11.5
+date	2004.05.10.15.30.43;	author erikg;	state Exp;
+branches;
+next	11.4;
+
+11.4
+date	2004.04.05.07.46.41;	author morrison;	state Exp;
+branches;
+next	11.3;
+
+11.3
+date	2002.08.20.17.07.36;	author jra;	state Exp;
+branches
+	11.3.2.1;
+next	11.2;
+
+11.2
+date	2002.08.15.20.54.48;	author hartley;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	95.01.04.09.51.12;	author mike;	state Rel4_4;
+branches;
+next	10.3;
+
+10.3
+date	94.08.11.13.21.31;	author gdurf;	state Exp;
+branches;
+next	10.2;
+
+10.2
+date	94.08.11.13.21.10;	author gdurf;	state Exp;
+branches;
+next	10.1;
+
+10.1
+date	91.10.12.06.36.33;	author mike;	state Rel4_0;
+branches;
+next	9.1;
+
+9.1
+date	89.05.19.05.49.13;	author mike;	state Rel3_5;
+branches;
+next	8.1;
+
+8.1
+date	88.10.05.00.28.27;	author mike;	state Rel3_0;
+branches;
+next	1.1;
+
+1.1
+date	88.09.08.00.49.09;	author mike;	state Exp;
+branches;
+next	;
+
+11.3.2.1
+date	2002.09.19.18.01.08;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@program to test htond() and ntohd().
+@
+
+
+11.6
+log
+@moved to src/
+@
+text
+@/*
+ *			H T E S T E R  . C
+ *
+ *  Test network float conversion.
+ *  Expected to be used in pipes, or with TTCP links to other machines,
+ *  or with files RCP'ed between machines.
+ *
+ *  Author -
+ *	Michael John Muuss
+ *  
+ *  Source -
+ *	SECAD/VLD Computing Consortium, Bldg 394
+ *	The U. S. Army Ballistic Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005-5066
+ *  
+ *  Distribution Status -
+ *	Public Domain, Distribution Unlimitied.
+ */
+#ifndef lint
+static char RCSid[] = "@@(#)$Header: /n/xoff/cvs/brlcad/libbn/htester.c,v 11.5 2004/05/10 15:30:43 erikg Exp $ (BRL)";
+#endif
+
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+
+#include <stdio.h>
+
+#define	NUM	3000
+double	orig[NUM], after[NUM];
+
+char	buf[NUM*8];
+
+main(int argc, char **argv)
+{
+	register int i;
+	register int nbytes;
+
+	if( argc != 2 || argv[1][0] != '-' )  {
+		fprintf(stderr,"Usage:  htester [-i|-o]\n");
+		exit(1);
+	}
+
+	/* First stage, generate the reference pattern */
+	for( i=0; i<1000; i++ )  {
+		orig[i] = ((double)i)/(7*16);
+	}
+	for( i=1000; i<2000; i++ )  {
+		orig[i] = -1.0/(i-1000+1);
+	}
+	orig[2000] = -1;
+	for( i=2001; i<2035; i++ )  {
+		orig[i] = orig[i-1] * -0.1;
+	}
+	for( i=2035; i<3000; i++ )  {
+		orig[i] = orig[i-1000] + (i&1)?(-1):1;
+	}
+
+	/* Second stage, write out, or read and compare */
+	if( argv[1][1] == 'o' )  {
+		/* Write out */
+		htond( buf, (char *)orig, NUM );
+		fwrite( buf, 8, NUM, stdout );
+		exit(0);
+	}
+
+	/* Read and compare */
+	if( sizeof(double) >= 8 )
+		nbytes = 6;
+	else
+		nbytes = 4;
+	fread( buf, 8, NUM, stdin );
+/*	ntohd( (char *)after, buf, NUM );	/* bulk conversion */
+	for( i=0; i<NUM; i++ )  {
+		ntohd( (char *)&after[i], &buf[i*8], 1 );	/* incremental */
+		/* Floating point compare */
+		if( orig[i] == after[i] )  continue;
+
+		/* Byte-for-byte compare */
+		if( ckbytes( &orig[i], &after[i], nbytes ) == 0 )
+			continue;
+
+		/* Wrong */
+		printf("%4d: calc ", i);
+		flpr( &orig[i] );
+		printf(" %g\n", orig[i]);
+		printf("      aftr ");
+		flpr( &after[i] );
+		printf(" %g\n", after[i] );
+		printf("      buf  ");
+		flpr( &buf[i*8] );
+		printf("\n");
+	}
+	exit(0);
+}
+
+flpr(register unsigned char *cp)
+{
+	register int i;
+	for( i=0; i<sizeof(double); i++ )  {
+		putchar("0123456789ABCDEFx"[*cp>>4]);
+		putchar("0123456789ABCDEFx"[*cp&0xF]);
+		cp++;
+	}
+}
+
+ckbytes(register unsigned char *a, register unsigned char *b, register int n)
+{
+#ifndef vax
+	while( n-- > 0 )  {
+		if( *a++ != *b++ )
+			return(-1);	/* BAD */
+	}
+	return(0);			/* OK */
+#else
+	/* VAX floating point has bytes swapped, vis-a-vis normal VAX order */
+	register int i;
+	for( i=0; i<n; i++ )  {
+		if( a[i^1] != b[i^1] )
+			return(-1);	/* BAD */
+	}
+	return(0);			/* OK */
+#endif
+}
+@
+
+
+11.5
+log
+@change conf.h to a wrapped config.h
+@
+text
+@d20 1
+a20 1
+static char RCSid[] = "@@(#)$Header: /cvs/brlcad/libbn/htester.c,v 11.4 2004/04/05 07:46:41 morrison Exp $ (BRL)";
+@
+
+
+11.4
+log
+@merge of ansi-6-0-branch into HEAD
+@
+text
+@d20 11
+a30 1
+static char RCSid[] = "@@(#)$Header$ (BRL)";
+a32 1
+#include "conf.h"
+a33 1
+#include "conf.h"
+@
+
+
+11.3
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d20 1
+a20 1
+static char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/libbn/htester.c,v 11.1 1995/01/04 09:51:12 mike Rel4_4 $ (BRL)";
+d34 1
+a34 2
+main(argc, argv)
+char	**argv;
+d97 1
+a97 2
+flpr( cp )
+register unsigned char *cp;
+d107 1
+a107 4
+ckbytes( a, b, n )
+register unsigned char *a;
+register unsigned char *b;
+register int n;
+@
+
+
+11.3.2.1
+log
+@Initial ANSIfication
+@
+text
+@d20 1
+a20 1
+static char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/libbn/htester.c,v 11.3 2002/08/20 17:07:36 jra Exp $ (BRL)";
+d34 2
+a35 1
+main(int argc, char **argv)
+d98 2
+a99 1
+flpr(register unsigned char *cp)
+d109 4
+a112 1
+ckbytes(register unsigned char *a, register unsigned char *b, register int n)
+@
+
+
+11.2
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d34 2
+a35 1
+main(int argc, char **argv)
+d98 2
+a99 1
+flpr(register unsigned char *cp)
+d109 4
+a112 1
+ckbytes(register unsigned char *a, register unsigned char *b, register int n)
+@
+
+
+11.1
+log
+@Release_4.4
+@
+text
+@d20 1
+a20 1
+static char RCSid[] = "@@(#)$Header: /m/cad/libplot3/RCS/htester.c,v 10.3 94/08/11 13:21:31 gdurf Exp $ (BRL)";
+d34 1
+a34 2
+main(argc, argv)
+char	**argv;
+d97 1
+a97 2
+flpr( cp )
+register unsigned char *cp;
+d107 1
+a107 4
+ckbytes( a, b, n )
+register unsigned char *a;
+register unsigned char *b;
+register int n;
+@
+
+
+10.3
+log
+@Added include of conf.h
+@
+text
+@d20 1
+a20 1
+static char RCSid[] = "@@(#)$Header: /m/cad/libplot3/RCS/htester.c,v 10.2 1994/08/11 13:21:10 gdurf Exp gdurf $ (BRL)";
+@
+
+
+10.2
+log
+@Added include of conf.h
+@
+text
+@d20 1
+a20 1
+static char RCSid[] = "@@(#)$Header: /m/cad/libplot3/RCS/htester.c,v 10.1 1991/10/12 06:36:33 mike Rel4_0 gdurf $ (BRL)";
+d22 2
+@
+
+
+10.1
+log
+@Release_4.0
+@
+text
+@d20 1
+a20 1
+static char RCSid[] = "@@(#)$Header: /m/cad/libplot3/RCS/htester.c,v 9.1 89/05/19 05:49:13 mike Rel3_5 $ (BRL)";
+d22 2
+@
+
+
+9.1
+log
+@Release_3.5
+@
+text
+@d20 1
+a20 1
+static char RCSid[] = "@@(#)$Header: htester.c,v 8.1 88/10/05 00:28:27 mike Rel3_0 $ (BRL)";
+@
+
+
+8.1
+log
+@Release_3.0
+@
+text
+@d20 1
+a20 1
+static char RCSid[] = "@@(#)$Header: htester.c,v 1.1 88/09/08 00:49:09 mike Exp $ (BRL)";
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d20 1
+a20 1
+static char RCSid[] = "@@(#)$Header$ (BRL)";
+@

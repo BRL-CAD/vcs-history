@@ -1,0 +1,759 @@
+head	11.9;
+access;
+symbols
+	ansi-20040405-merged:11.6.2.1
+	postmerge-20040405-ansi:11.7
+	premerge-20040404-ansi:11.6
+	postmerge-autoconf:11.6
+	autoconf-freeze:11.6
+	premerge-autoconf:11.6
+	ansi-20040316-freeze:11.6.2.1
+	postmerge-20040315-windows:11.6
+	premerge-20040315-windows:11.6
+	windows-20040315-freeze:11.6
+	autoconf-20031203:11.6
+	autoconf-20031202:11.6
+	autoconf-branch:11.6.0.10
+	phong-branch:11.6.0.8
+	photonmap-branch:11.6.0.6
+	rel-6-1-DP:11.6
+	windows-branch:11.6.0.4
+	rel-6-0-2:11.4
+	ansi-branch:11.6.0.2
+	rel-6-0-1-branch:11.4.0.2
+	hartley-6-0-post:11.5
+	hartley-6-0-pre:11.4
+	rel-6-0-1:11.4
+	rel-6-0:11.4
+	rel-5-4:11.2
+	offsite-5-3-pre:11.4
+	rel-5-3:11.2
+	rel-5-2:11.2
+	rel-5-1-branch:11.2.0.2
+	rel-5-1:11.2
+	rel-5-0:11.2
+	rel-5-0-beta:11.2
+	rel-4-5:11.2
+	ctj-4-5-post:11.2
+	ctj-4-5-pre:11.2
+	rel-4-4:11.1
+	rel-4-0:10.1;
+locks; strict;
+comment	@ * @;
+
+
+11.9
+date	2004.05.21.18.07.26;	author morrison;	state dead;
+branches;
+next	11.8;
+
+11.8
+date	2004.05.10.15.30.45;	author erikg;	state Exp;
+branches;
+next	11.7;
+
+11.7
+date	2004.04.05.07.44.18;	author morrison;	state Exp;
+branches;
+next	11.6;
+
+11.6
+date	2002.08.20.17.07.48;	author jra;	state Exp;
+branches
+	11.6.2.1;
+next	11.5;
+
+11.5
+date	2002.08.15.20.55.02;	author hartley;	state Exp;
+branches;
+next	11.4;
+
+11.4
+date	2000.11.01.21.36.00;	author mike;	state Exp;
+branches;
+next	11.3;
+
+11.3
+date	2000.08.24.22.29.44;	author mike;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	96.07.15.15.37.57;	author jra;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	95.01.04.10.05.43;	author mike;	state Rel4_4;
+branches;
+next	10.4;
+
+10.4
+date	94.12.07.21.52.23;	author mike;	state Exp;
+branches;
+next	10.3;
+
+10.3
+date	94.11.05.00.10.02;	author mike;	state Exp;
+branches;
+next	10.2;
+
+10.2
+date	93.10.26.00.16.49;	author mike;	state Exp;
+branches;
+next	10.1;
+
+10.1
+date	91.10.12.06.38.55;	author mike;	state Rel4_0;
+branches;
+next	1.1;
+
+1.1
+date	91.07.02.01.26.01;	author mike;	state Exp;
+branches;
+next	;
+
+11.6.2.1
+date	2002.09.19.18.01.22;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@libfft module
+@
+
+
+11.9
+log
+@moved to src/
+@
+text
+@/*
+ * Complex Number and FFT Library
+ *
+ * "Fast" Version - Function calls to complex math routines removed.
+ *      Uses pre-computed sine/cosine tables.
+ *
+ *  The FFT is:
+ *
+ *	        N-1
+ *	Xf(k) = Sum x(n)( cos(2PI(nk/N)) - isin(2PI(nk/N)) )
+ *	        n=0
+ *
+ *  Author -
+ *	Phil Dykstra, 12 Oct 84 and beyond.
+ *  
+ *  Source -
+ *	The U. S. Army Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005-5068  USA
+ *  
+ *  Distribution Status -
+ *	Public Domain, Distribution Unlimited.
+ */
+#ifndef lint
+static const char RCSid[] = "@@(#)$Header: /n/xoff/cvs/brlcad/libfft/fftfast.c,v 11.8 2004/05/10 15:30:45 erikg Exp $ (ARL)";
+#endif
+
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+
+#include <stdio.h>	/* for stderr */
+#include <math.h>	/* for double sin(), cos() */
+
+#include "externs.h"
+
+#define	MAXSIZE	65536	/* Needed for sin/cos tables */
+int	_init_size = 0;	/* Internal: shows last initialized size */
+
+#if !defined(PI)
+#	define	PI	3.141592653589793238462643
+#endif
+
+/* The COMPLEX type used throughout */
+typedef struct {
+	double	re;	/* Real Part */
+	double	im;	/* Imaginary Part */
+} COMPLEX;
+
+void	scramble(int numpoints, COMPLEX *dat);
+void	butterflies(int numpoints, int inverse, COMPLEX *dat);
+int	init_sintab( int size );
+
+/*
+ * Forward Complex Fourier Transform
+ */
+void
+cfft(COMPLEX *dat, int num)
+{
+	/* Check for trig table initialization */
+	if( num != _init_size ) {
+		if( init_sintab( num ) == 0 ) {
+			/* Can't do requested size */
+			return;
+		}
+	}
+
+	scramble( num, dat );
+	butterflies( num, -1, dat );
+}
+
+/*
+ * Inverse Complex Fourier Transform
+ */
+void
+icfft(COMPLEX *dat, int num)
+{
+	/* Check for trig table initialization */
+	if( num != _init_size ) {
+		if( init_sintab( num ) == 0 ) {
+			/* Can't do requested size */
+			return;
+		}
+	}
+
+	scramble(num, dat);
+	butterflies(num, 1, dat);
+}
+
+/******************* INTERNAL FFT ROUTINES ********************/
+
+/* The trig tables */
+double	*sintab;
+double	*costab;
+
+/*
+ *		I N I T _ S I N T A B
+ *
+ * Internal routine to initialize the sine/cosine table for
+ *  transforms of a given size.  Checks size for power of two
+ *  and within table limits.
+ *
+ * Note that once initialized for one size it ready for one
+ *  smaller than that also, but it is convenient to do power of
+ *  two checking here so we change the _init_size every time
+ *  (We *could* pick up where ever we left off by keeping a
+ *  _max_init_size but forget that for now).
+ *
+ * Note that we need sin and cos values for +/- (PI * (m / col))
+ *  where col = 1, 2, 4, ..., N/2
+ *          m = 0, 1, 2, ..., col-1
+ *
+ *  Thus we can subscript by: table[(m / col) * N/2]  
+ *   or with twice as many values by: table[m + col]
+ *   We chose the later. (but N.B. this doesn't allow sub
+ *   _init_size requests to use existing numbers!)
+ */
+int
+init_sintab(int size)
+{
+	double	theta;
+	int	col, m;
+
+	/*
+	 * Check whether the requested size is within our compiled
+	 *  limit and make sure it's a power of two.
+	 */
+	if( size > MAXSIZE ) {
+		fprintf( stderr, "fft: Only compiled for max size of %d\n", MAXSIZE );
+		fprintf( stderr, "fft: Can't do the requested %d\n", size );
+		return( 0 );
+	}
+	for( m = size; (m & 1) == 0; m >>= 1 )
+		;
+	if( m != 1 ) {
+		fprintf( stderr, "fft: Can only do powers of two, not %d\n", size );
+		fprintf( stderr, "fft: What do you think this is, a Winograd transform?\n" );
+		return( 0 );
+	}
+
+	/* Get some buffer space */
+	if( sintab != NULL ) free( sintab );
+	if( costab != NULL ) free( costab );
+	sintab = (double *)calloc( sizeof(*sintab), size );
+	costab = (double *)calloc( sizeof(*costab), size );
+
+	/*
+	 * Size is okay.  Set up tables.
+	 */
+	for( col = 1; col < size; col <<= 1 ) {
+		for( m = 0; m < col; m++ ) {
+			theta = PI * (double)m / (double)col;
+			sintab[ m + col ] = sin( theta );
+			costab[ m + col ] = cos( theta );
+		}
+	}
+
+	/*
+	 * Mark size and return success.
+	 */
+	_init_size = size;
+/*	fprintf( stderr, "fft: table init, size = %d\n", size );*/
+	return( 1 );
+}
+
+/*
+ * This section implements the Cooley-Tukey Complex
+ * Fourier transform.
+ * Reference: Nov 84 Dr. Dobbs [#97], and
+ *   "Musical Applications of Microprocessors", Hal Chamberlin.
+ */
+
+/*
+ * SCRAMBLE - put data in bit reversed order
+ *
+ * Note: Could speed this up with pointers if necessary,
+ *   but the butterflies take much longer.
+ */
+void
+scramble(int numpoints, COMPLEX *dat)
+{
+	register int	i, j, m;
+	COMPLEX	temp;
+
+	j = 0;
+	for( i = 0; i < numpoints; i++, j += m ) {
+		if( i < j ) {
+			/* Switch nodes i and j */
+			temp.re = dat[j].re;
+			temp.im = dat[j].im;
+			dat[j].re = dat[i].re;
+			dat[j].im = dat[i].im;
+			dat[i].re = temp.re;
+			dat[i].im = temp.im;
+		}
+		m = numpoints/2;
+		while( m-1 < j ) {
+			j -= m;
+			m = (m + 1) / 2;
+		}
+	}
+}
+
+void
+butterflies(int numpoints, int inverse, COMPLEX *dat)
+{
+	register COMPLEX *node1, *node2;
+	register int step, column, m;
+	COMPLEX	w, temp;
+
+	/*
+	 * For each column of the butterfly
+	 */
+	for( column = 1; column < numpoints; column = step ) {
+		step = 2 * column;	/* step is size of "cross-hatch" */
+		/*
+		 * For each principle value of W  (roots on units).
+		 */
+		for( m = 0; m < column; m++ ) {
+			/*
+			 * Do these by table lookup:
+			 *	theta = PI*(inverse*m)/column;
+			 *	w.re = cos( theta );
+			 *	w.im = sin( theta );
+			 */
+			w.re = costab[ column + m ];
+			w.im = sintab[ column + m ] * inverse;
+			/* Do all pairs of nodes */
+			for( node1 = &dat[m]; node1 < &dat[numpoints]; node1 += step ) {
+				node2 = node1 + column;
+				/*
+				 * Want to compute:
+				 *  dat[node2] = dat[node1] - w * dat[node2];
+				 *  dat[node1] = dat[node1] + w * dat[node2];
+				 *
+				 * We do all this with pointers now.
+				 */
+
+				/*cmult(&w, &dat[node2], &temp);*/
+				temp.re = w.re*node2->re - w.im*node2->im;
+				temp.im = w.im*node2->re + w.re*node2->im;
+
+				/*csub(&dat[node1], &temp, &dat[node2]);*/
+				node2->re = node1->re - temp.re;
+				node2->im = node1->im - temp.im;
+			
+				/*cadd(&dat[node1], &temp, &dat[node1]);*/
+				node1->re += temp.re;
+				node1->im += temp.im;
+			}
+		}
+	}
+
+	/* Scale Data (on forward transform only) */
+	/*
+	 * Technically speaking this gives us the periodogram. XXX
+	 * The canonical definition does the scaleing only
+	 * after the inverse xform.  Our method may hurt certain
+	 * other forms of analysis, e.g. cepstrum.
+	 *   **** We Now Do It The Canonical Way! ****
+	 */
+	if( inverse > 0 ) {
+		for( node1 = &dat[0]; node1 < &dat[numpoints]; node1++ ) {
+			/* cdiv( &dat[i], &const, &dat[i] ); */
+			node1->re /= (double)numpoints;
+			node1->im /= (double)numpoints;
+		}
+	}
+}
+
+/**** COMPLEX ARITHMETIC ROUTINES ****/
+/**** NO LONGER USED BY TRANSFORMS ***/
+/*
+ * CADD - Complex ADDition
+ */
+void
+cadd(COMPLEX *result, COMPLEX *val1, COMPLEX *val2)
+{
+	result->re = val1->re + val2->re;
+	result->im = val1->im + val2->im;
+}
+
+/*
+ * CSUB - Complex SUBtraction
+ */
+void
+csub(COMPLEX *result, COMPLEX *val1, COMPLEX *val2)
+{
+	result->re = val1->re - val2->re;
+	result->im = val1->im - val2->im;
+}
+
+/*
+ * CMULT - Complex MULTiply
+ */
+void
+cmult(COMPLEX *result, COMPLEX *val1, COMPLEX *val2)
+{
+	result->re = val1->re*val2->re - val1->im*val2->im;
+	result->im = val1->im*val2->re + val1->re*val2->im;
+}
+
+/*
+ * CDIV - Complex DIVide
+ */
+void
+cdiv(COMPLEX *result, COMPLEX *val1, COMPLEX *val2)
+{
+	double	denom;
+
+	denom = val2->re*val2->re + val2->im*val2->im;
+	result->re = (val1->re*val2->re + val1->im*val2->im)/denom;
+	result->im = (val1->im*val2->re - val1->re*val2->im)/denom;
+}
+@
+
+
+11.8
+log
+@change conf.h to a wrapped config.h
+@
+text
+@d24 1
+a24 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/libfft/fftfast.c,v 11.7 2004/04/05 07:44:18 morrison Exp $ (ARL)";
+@
+
+
+11.7
+log
+@merge of ansi-6-0-branch into HEAD
+@
+text
+@d24 1
+a24 1
+static const char RCSid[] = "@@(#)$Header$ (ARL)";
+d27 5
+a31 1
+#include "conf.h"
+@
+
+
+11.6
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d24 1
+a24 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/libfft/fftfast.c,v 11.4 2000/11/01 21:36:00 mike Exp $ (ARL)";
+d47 2
+a48 2
+void	scramble();
+void	butterflies();
+d55 1
+a55 2
+cfft( dat, num )
+COMPLEX dat[]; int num;
+d73 1
+a73 2
+icfft(dat, num)
+COMPLEX dat[]; int num;
+d116 1
+a116 2
+init_sintab( size )
+int size;
+d177 1
+a177 3
+scramble(numpoints, dat)
+int numpoints;
+COMPLEX dat[];
+d202 1
+a202 3
+butterflies(numpoints, inverse, dat)
+int numpoints, inverse;
+COMPLEX dat[];
+d274 1
+a274 2
+cadd(result, val1, val2)
+COMPLEX *val1, *val2, *result;
+d284 1
+a284 2
+csub(result, val1, val2)
+COMPLEX *val1, *val2, *result;
+d294 1
+a294 2
+cmult(result, val1, val2)
+COMPLEX *val1, *val2, *result;
+d304 1
+a304 2
+cdiv(result, val1, val2)
+COMPLEX *val1, *val2, *result;
+@
+
+
+11.6.2.1
+log
+@Initial ANSIfication
+@
+text
+@d24 1
+a24 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/libfft/fftfast.c,v 11.6 2002/08/20 17:07:48 jra Exp $ (ARL)";
+d47 2
+a48 2
+void	scramble(int numpoints, COMPLEX *dat);
+void	butterflies(int numpoints, int inverse, COMPLEX *dat);
+d55 2
+a56 1
+cfft(COMPLEX *dat, int num)
+d74 2
+a75 1
+icfft(COMPLEX *dat, int num)
+d118 2
+a119 1
+init_sintab(int size)
+d180 3
+a182 1
+scramble(int numpoints, COMPLEX *dat)
+d207 3
+a209 1
+butterflies(int numpoints, int inverse, COMPLEX *dat)
+d281 2
+a282 1
+cadd(COMPLEX *result, COMPLEX *val1, COMPLEX *val2)
+d292 2
+a293 1
+csub(COMPLEX *result, COMPLEX *val1, COMPLEX *val2)
+d303 2
+a304 1
+cmult(COMPLEX *result, COMPLEX *val1, COMPLEX *val2)
+d314 2
+a315 1
+cdiv(COMPLEX *result, COMPLEX *val1, COMPLEX *val2)
+@
+
+
+11.5
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d47 2
+a48 2
+void	scramble(int numpoints, COMPLEX *dat);
+void	butterflies(int numpoints, int inverse, COMPLEX *dat);
+d55 2
+a56 1
+cfft(COMPLEX *dat, int num)
+d74 2
+a75 1
+icfft(COMPLEX *dat, int num)
+d118 2
+a119 1
+init_sintab(int size)
+d180 3
+a182 1
+scramble(int numpoints, COMPLEX *dat)
+d207 3
+a209 1
+butterflies(int numpoints, int inverse, COMPLEX *dat)
+d281 2
+a282 1
+cadd(COMPLEX *result, COMPLEX *val1, COMPLEX *val2)
+d292 2
+a293 1
+csub(COMPLEX *result, COMPLEX *val1, COMPLEX *val2)
+d303 2
+a304 1
+cmult(COMPLEX *result, COMPLEX *val1, COMPLEX *val2)
+d314 2
+a315 1
+cdiv(COMPLEX *result, COMPLEX *val1, COMPLEX *val2)
+@
+
+
+11.4
+log
+@
+Fixed compiler lint
+@
+text
+@d24 1
+a24 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/libfft/fftfast.c,v 11.3 2000/08/24 22:29:44 mike Exp $ (ARL)";
+d47 2
+a48 2
+void	scramble();
+void	butterflies();
+d55 1
+a55 2
+cfft( dat, num )
+COMPLEX dat[]; int num;
+d73 1
+a73 2
+icfft(dat, num)
+COMPLEX dat[]; int num;
+d116 1
+a116 2
+init_sintab( size )
+int size;
+d177 1
+a177 3
+scramble(numpoints, dat)
+int numpoints;
+COMPLEX dat[];
+d202 1
+a202 3
+butterflies(numpoints, inverse, dat)
+int numpoints, inverse;
+COMPLEX dat[];
+d274 1
+a274 2
+cadd(result, val1, val2)
+COMPLEX *val1, *val2, *result;
+d284 1
+a284 2
+csub(result, val1, val2)
+COMPLEX *val1, *val2, *result;
+d294 1
+a294 2
+cmult(result, val1, val2)
+COMPLEX *val1, *val2, *result;
+d304 1
+a304 2
+cdiv(result, val1, val2)
+COMPLEX *val1, *val2, *result;
+@
+
+
+11.3
+log
+@
+Lint
+@
+text
+@d24 1
+a24 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/libfft/fftfast.c,v 11.2 1996/07/15 15:37:57 jra Exp $ (ARL)";
+d49 1
+@
+
+
+11.2
+log
+@Minor Mods for IRIX 6.2
+@
+text
+@d24 1
+a24 1
+static char RCSid[] = "@@(#)$Header: /m/cad/libfft/RCS/fftfast.c,v 11.1 1995/01/04 10:05:43 mike Rel4_4 jra $ (ARL)";
+d116 1
+@
+
+
+11.1
+log
+@Release_4.4
+@
+text
+@d24 1
+a24 1
+static char RCSid[] = "@@(#)$Header: /m/cad/libfft/RCS/fftfast.c,v 10.4 94/12/07 21:52:23 mike Exp $ (ARL)";
+d47 3
+d177 1
+d204 1
+d278 1
+d289 1
+d300 1
+d311 1
+@
+
+
+10.4
+log
+@Linux
+@
+text
+@d24 1
+a24 1
+static char RCSid[] = "@@(#)$Header: /m/cad/libfft/RCS/fftfast.c,v 10.3 94/11/05 00:10:02 mike Exp Locker: mike $ (ARL)";
+@
+
+
+10.3
+log
+@Irix 6
+@
+text
+@d24 1
+a24 1
+static char RCSid[] = "@@(#)$Header$ (ARL)";
+d37 3
+a39 1
+#define	PI	3.141592653589793238462643
+@
+
+
+10.2
+log
+@2 void functions
+@
+text
+@d13 9
+a21 1
+ *  Phil Dykstra, 12 Oct 84 and beyond.
+d23 6
+d31 2
+@
+
+
+10.1
+log
+@Release_4.0
+@
+text
+@d32 1
+d51 1
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@@

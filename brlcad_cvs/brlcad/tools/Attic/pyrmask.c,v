@@ -1,0 +1,674 @@
+head	11.7;
+access;
+symbols
+	ansi-20040405-merged:11.4.2.1
+	postmerge-20040405-ansi:11.5
+	premerge-20040404-ansi:11.4
+	postmerge-autoconf:11.4
+	autoconf-freeze:11.4
+	premerge-autoconf:11.4
+	postmerge-20040315-windows:11.4
+	premerge-20040315-windows:11.4
+	windows-20040315-freeze:11.4
+	autoconf-20031203:11.4
+	autoconf-20031202:11.4
+	autoconf-branch:11.4.0.10
+	phong-branch:11.4.0.8
+	photonmap-branch:11.4.0.6
+	rel-6-1-DP:11.4
+	windows-branch:11.4.0.4
+	rel-6-0-2:11.2
+	ansi-branch:11.4.0.2
+	rel-6-0-1-branch:11.2.0.2
+	hartley-6-0-post:11.3
+	hartley-6-0-pre:11.2
+	rel-6-0-1:11.2
+	rel-6-0:11.2
+	rel-5-4:11.1
+	offsite-5-3-pre:11.2
+	rel-5-3:11.1
+	rel-5-2:11.1
+	rel-5-1-branch:11.1.0.2
+	rel-5-1:11.1
+	rel-5-0:11.1
+	rel-5-0-beta:11.1
+	rel-4-5:11.1
+	ctj-4-5-post:11.1
+	ctj-4-5-pre:11.1
+	rel-4-4:11.1
+	rel-4-0:10.1;
+locks; strict;
+comment	@ * @;
+
+
+11.7
+date	2004.05.21.16.38.48;	author morrison;	state dead;
+branches;
+next	11.6;
+
+11.6
+date	2004.05.10.15.30.50;	author erikg;	state Exp;
+branches;
+next	11.5;
+
+11.5
+date	2004.04.05.05.46.00;	author morrison;	state Exp;
+branches;
+next	11.4;
+
+11.4
+date	2002.08.20.17.08.48;	author jra;	state Exp;
+branches
+	11.4.2.1;
+next	11.3;
+
+11.3
+date	2002.08.15.20.56.00;	author hartley;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	2000.08.24.22.46.19;	author mike;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	95.01.04.10.20.41;	author mike;	state Rel4_4;
+branches;
+next	10.2;
+
+10.2
+date	94.08.11.20.08.52;	author gdurf;	state Exp;
+branches;
+next	10.1;
+
+10.1
+date	91.10.12.06.52.22;	author mike;	state Rel4_0;
+branches;
+next	1.1;
+
+1.1
+date	91.01.03.20.45.16;	author butler;	state Exp;
+branches;
+next	;
+
+11.4.2.1
+date	2002.09.19.18.02.28;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@dist
+@
+
+
+11.7
+log
+@moved to src/tools/
+@
+text
+@/* 
+ * pyrhalf.c - Create bandpass pyramid for pyramid operations.
+ * 
+ * Author:	Rod Bogart
+ * 		Computer Science Dept.
+ * 		University of Utah
+ * Date:	Wed Oct 15 1986
+ * Copyright (c) 1986, University of Utah
+ * 
+ */
+#ifndef lint
+static const char rcs_ident[] = "$Header: /n/xoff/cvs/brlcad/tools/pyrmask.c,v 11.6 2004/05/10 15:30:50 erikg Exp $";
+#endif
+
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+
+#include <stdio.h>
+
+#include "machine.h"
+#include "externs.h"
+#include "rle.h"
+#include "pyramid.h"
+
+int rle_to_pyramids(FILE *infile, pyramid *gausspyr, pyramid *bandpyr, rle_hdr *in_hdr, int levellimit, float *mask_mult_table);
+void alloc_pyramid(pyramid *pyr);
+void copy_mask_bands(int level, pyramid *leftbandpyr, pyramid *rightbandpyr, pyramid *splitbandpyr, pyramid *maskgausspyr);
+void rebuild_image(rle_pixel **imgcorner, pyramid *bandpyr, float *mask_mult_table);
+void dump_pyramid(FILE *outfile, int levels, rle_pixel **corners, int xlen, int ylen, int channels, rle_hdr in_hdr);
+void copy_half_bands(int level, pyramid *leftbandpyr, pyramid *rightbandpyr, pyramid *splitbandpyr);
+
+int
+main(int argc, char **argv)
+{
+    char * leftname = NULL, * rightname = NULL, * outfname = NULL;
+    char * maskname = NULL, * errname;
+    FILE * leftfile, * rightfile, *maskfile, * outfile;
+    int oflag = 0, lflag = 0;
+    int i, j, k;
+    int rle_cnt, rle_err;
+
+    float *maskmult;
+    float *mask_mult_table;
+    float *mask;
+    int level, levels = 0;
+    rle_pixel *imgcorner;
+    pyramid leftgausspyr, leftbandpyr;
+    pyramid rightgausspyr, rightbandpyr;
+    pyramid maskgausspyr;
+    pyramid splitpyr;
+    /*
+     * "Left" and "right" are historical relics from a program that
+     * joined two images at the middle.  Left == inside mask; right == outside.
+     */
+    rle_hdr left_hdr;
+    rle_hdr right_hdr;
+    rle_hdr mask_hdr;
+
+    if ( scanargs( argc, argv,
+	    "% l%-levels!d o%-outfile!s inmask!s outmask!s maskfile!s",
+		&lflag, &levels,
+		&oflag, &outfname, &leftname, &rightname, &maskname ) == 0 )
+	exit( 1 );
+
+    leftfile = rle_open_f( cmd_name( argv ), leftname, "r" );
+    rightfile = rle_open_f( cmd_name( argv ), rightname, "r" );
+    maskfile = rle_open_f( cmd_name( argv ), maskname, "r" );
+
+    outfile = rle_open_f( cmd_name( argv ), outfname, "w" );
+
+    /* actual mask is always 5x5 */
+    mask = gauss_mask(5);
+
+    /* initialize mask_mult_table */
+    mask_mult_table = (float *) malloc(sizeof(float) * 5 * 5 * 256);
+    for (i=0; i < 5; i++)
+    {
+	maskmult = &(mask_mult_table[(i*5) << 8]);
+	for (j=0; j < 5; j++)
+	{
+	    for (k=0;k < 256; k++)
+		maskmult[ k ] = (float) k * mask[i*5+j];
+	    maskmult += 256;
+	}
+    }
+
+    for ( rle_cnt = 0; ; rle_cnt++ )
+    {
+	if ( (rle_err = rle_to_pyramids( leftfile, &leftgausspyr, &leftbandpyr,
+					 &left_hdr, levels, mask_mult_table ))
+	     != RLE_SUCCESS )
+	{
+	    errname = leftname;
+	    break;
+	}
+	if ( (rle_err = rle_to_pyramids( rightfile, &rightgausspyr,
+					 &rightbandpyr, &right_hdr,
+					 levels, mask_mult_table ))
+	     != RLE_SUCCESS )
+	{
+	    errname = rightname;
+	    break;
+	}
+	if ( (rle_err = rle_to_pyramids( maskfile, &maskgausspyr, 0,
+					 &mask_hdr, levels, mask_mult_table ))
+	     != RLE_SUCCESS )
+	{
+	    errname = maskname;
+	    break;
+	}
+
+	if (leftgausspyr.nchan != rightgausspyr.nchan)
+	{
+	    fprintf(stderr,
+	    "%s: Left and right images must have same number of channels\n",
+		    cmd_name( argv ));
+	    exit(-2);
+	}
+	if ((leftgausspyr.xlen[0] != rightgausspyr.xlen[0]) ||
+	    (leftgausspyr.ylen[0] != rightgausspyr.ylen[0]))
+	{
+	    fprintf(stderr,
+		    "%s: Left and right images must have same dimensions\n",
+		    cmd_name( argv ));
+	    exit(-2);
+	}
+	if (leftgausspyr.nchan != maskgausspyr.nchan)
+	{
+	    fprintf(stderr,
+	    "%s: Currently, mask image must have a mask per input channel\n",
+		    cmd_name( argv ));
+	    exit(-2);
+	}
+	if ((leftgausspyr.xlen[0] != maskgausspyr.xlen[0]) ||
+	    (leftgausspyr.ylen[0] != maskgausspyr.ylen[0]))
+	{
+	    fprintf(stderr,
+	    "%s: Mask image must have same dimensions as input images\n",
+		    cmd_name( argv ));
+	    exit(-2);
+	}
+
+	splitpyr.nchan = leftbandpyr.nchan;
+	splitpyr.levels = leftbandpyr.levels;
+	splitpyr.corners = (rle_pixel **) malloc( splitpyr.levels
+						  * sizeof( rle_pixel *) );
+	splitpyr.xlen = (int *) malloc( splitpyr.levels * sizeof( int ) );
+	splitpyr.ylen = (int *) malloc( splitpyr.levels * sizeof( int ) );
+	if ( (!splitpyr.corners) or (!splitpyr.xlen) or (!splitpyr.ylen) )
+	{
+	    fprintf(stderr,
+		    "%s: could not allocate space for split pyramid\n",
+		    cmd_name( argv ));
+	    exit(-2);
+	}
+	splitpyr.xlen[0] = leftbandpyr.xlen[0];
+	splitpyr.ylen[0] = leftbandpyr.ylen[0];
+	alloc_pyramid(&splitpyr);
+
+	for(level = splitpyr.levels - 1; level >= 0; level--)
+	{
+	    copy_mask_bands(level,&leftbandpyr,&rightbandpyr,
+			    &splitpyr,&maskgausspyr);
+	}
+	/****************************************************
+	 * Reconstruct the image from the band pyramid
+	 ****************************************************/
+	rebuild_image(&imgcorner,&splitpyr,mask_mult_table);
+	rle_addhist( argv, &left_hdr, &left_hdr );
+
+	dump_pyramid(outfile,1,&imgcorner,splitpyr.xlen[0],splitpyr.ylen[0],
+		     splitpyr.nchan - 1,left_hdr);
+    }
+    /* Check for an error.  EOF or EMPTY is ok if at least one image
+     * has been read.  Otherwise, print an error message.
+     */
+    if ( rle_cnt == 0 || (rle_err != RLE_EOF && rle_err != RLE_EMPTY) )
+	rle_get_error( rle_err, cmd_name( argv ), errname );
+
+
+    exit(0);
+}
+
+void
+copy_half_bands(int level, pyramid *leftbandpyr, pyramid *rightbandpyr, pyramid *splitbandpyr)
+{
+    int xsize, ysize, x, y, chan, xlinewidth, nchan;
+    rle_pixel *leftbase, *leftrastptr, *leftpxl, *leftsign;
+    rle_pixel *rightbase, *rightrastptr, *rightpxl, *rightsign;
+    rle_pixel *outbase, *outrastptr, *outpxl, *outsign;
+    float tval;
+    int rightval, leftval, outval;
+
+    leftbase = leftbandpyr->corners[level];
+    rightbase = rightbandpyr->corners[level];
+    outbase = splitbandpyr->corners[level];
+    xsize = leftbandpyr->xlen[level];
+    ysize = leftbandpyr->ylen[level];
+    nchan = leftbandpyr->nchan - 1;
+    splitbandpyr->xlen[level] = xsize;
+    splitbandpyr->ylen[level] = ysize;
+    xlinewidth = xsize + MASKSIZE - 1;
+
+    fprintf(stderr,"Copying half of level %d, size %d\n",level,xsize);
+    for (y = 0; y < ysize; y++)
+    {
+	leftrastptr = &(leftbase[MASKBELOW + (y+MASKBELOW) *
+				xlinewidth * (nchan+1)]);
+	rightrastptr = &(rightbase[MASKBELOW + (y+MASKBELOW) *
+				xlinewidth * (nchan+1)]);
+	outrastptr = &(outbase[MASKBELOW + (y+MASKBELOW) *
+				xlinewidth * (nchan+1)]);
+
+	outsign = &(outrastptr[nchan * xlinewidth]);
+	for(x=0; x < xsize; x++)
+	{
+	    *outsign = 0;
+	}
+
+	for (chan = 0; chan < nchan; chan++)
+	{
+	    leftpxl = &(leftrastptr[chan * xlinewidth]);
+	    leftsign = &(leftrastptr[nchan * xlinewidth]);
+	    rightpxl = &(rightrastptr[chan * xlinewidth]);
+	    rightsign = &(rightrastptr[nchan * xlinewidth]);
+	    outpxl = &(outrastptr[chan * xlinewidth]);
+	    outsign = &(outrastptr[nchan * xlinewidth]);
+	    for(x=0; x < xsize; x++)
+	    {
+		/* should do some mask magic here */
+		if (x <= (15 * xsize / 32))
+		{
+		    *outpxl = (*leftpxl);
+		    if ((1 << chan) & (*leftsign))
+			*outsign |= (1 << chan);
+		}
+		else if (x >= (17 * xsize / 32))
+		{
+		    *outpxl = (*rightpxl);
+		    if ((1 << chan) & (*rightsign))
+			*outsign |= (1 << chan);
+		}
+		else
+		{
+		    tval = ((float) x - (15.0 * (float) xsize / 32.0)) /
+			   ((float) xsize / 16.0);
+		    leftval = (int) (*leftpxl) *
+			(((1 << chan) & (*leftsign)) ? -1 : 1);
+		    rightval = (int) (*rightpxl) *
+			(((1 << chan) & (*rightsign)) ? -1 : 1);
+		    outval = (int) (tval * (float) rightval +
+			      (1.0 - tval) * (float) leftval);
+		    if (outval < 0)
+		    {
+			*outpxl = (rle_pixel) (-outval);
+			*outsign |= (1 << chan);
+		    }
+		    else
+			*outpxl = (rle_pixel) (outval);
+		}
+		leftpxl++;
+		rightpxl++;
+		outpxl++;
+		leftsign++;
+		rightsign++;
+		outsign++;
+	    }
+	}
+    }
+}
+
+void
+copy_mask_bands(int level, pyramid *leftbandpyr, pyramid *rightbandpyr, pyramid *splitbandpyr, pyramid *maskgausspyr)
+{
+    int xsize, ysize, x, y, chan, xlinewidth, nchan;
+    rle_pixel *leftbase, *leftrastptr, *leftpxl, *leftsign;
+    rle_pixel *rightbase, *rightrastptr, *rightpxl, *rightsign;
+    rle_pixel *outbase, *outrastptr, *outpxl, *outsign;
+    rle_pixel *maskbase, *maskrastptr, *maskpxl;
+    float tval;
+    int rightval, leftval, outval;
+
+    leftbase = leftbandpyr->corners[level];
+    rightbase = rightbandpyr->corners[level];
+    outbase = splitbandpyr->corners[level];
+    maskbase = maskgausspyr->corners[level];
+    xsize = leftbandpyr->xlen[level];
+    ysize = leftbandpyr->ylen[level];
+    nchan = leftbandpyr->nchan - 1;
+    splitbandpyr->xlen[level] = xsize;
+    splitbandpyr->ylen[level] = ysize;
+    xlinewidth = xsize + MASKSIZE - 1;
+
+/*    fprintf(stderr,"Masking level %d, size %d\n",level,xsize); */
+    for (y = 0; y < ysize; y++)
+    {
+	leftrastptr = &(leftbase[MASKBELOW + (y+MASKBELOW) *
+				xlinewidth * (nchan+1)]);
+	rightrastptr = &(rightbase[MASKBELOW + (y+MASKBELOW) *
+				xlinewidth * (nchan+1)]);
+	outrastptr = &(outbase[MASKBELOW + (y+MASKBELOW) *
+				xlinewidth * (nchan+1)]);
+	maskrastptr = &(maskbase[MASKBELOW + (y+MASKBELOW) *
+				xlinewidth * nchan]);
+
+	outsign = &(outrastptr[nchan * xlinewidth]);
+	for(x=0; x < xsize; x++)
+	{
+	    *outsign = 0;
+	}
+
+	for (chan = 0; chan < nchan; chan++)
+	{
+	    leftpxl = &(leftrastptr[chan * xlinewidth]);
+	    leftsign = &(leftrastptr[nchan * xlinewidth]);
+	    rightpxl = &(rightrastptr[chan * xlinewidth]);
+	    rightsign = &(rightrastptr[nchan * xlinewidth]);
+	    outpxl = &(outrastptr[chan * xlinewidth]);
+	    outsign = &(outrastptr[nchan * xlinewidth]);
+	    maskpxl = &(maskrastptr[chan * xlinewidth]);
+	    for(x=0; x < xsize; x++)
+	    {
+		/* should do some mask magic here */
+		if (*maskpxl == 255)	/* full coverage means left image */
+		{
+		    *outpxl = (*leftpxl);
+		    if ((1 << chan) & (*leftsign))
+			*outsign |= (1 << chan);
+		}
+		else if (*maskpxl == 0)	/* no coverage means right image */
+		{
+		    *outpxl = (*rightpxl);
+		    if ((1 << chan) & (*rightsign))
+			*outsign |= (1 << chan);
+		}
+		else
+		{
+		    tval = ((float) (*maskpxl)) / 255.0;
+		    leftval = (int) (*leftpxl) *
+			(((1 << chan) & (*leftsign)) ? -1 : 1);
+		    rightval = (int) (*rightpxl) *
+			(((1 << chan) & (*rightsign)) ? -1 : 1);
+		    outval = (int) (tval * (float) leftval +
+			      (1.0 - tval) * (float) rightval);
+		    if (outval < 0)
+		    {
+			*outpxl = (rle_pixel) (-outval);
+			*outsign |= (1 << chan);
+		    }
+		    else
+			*outpxl = (rle_pixel) (outval);
+		}
+		leftpxl++;
+		rightpxl++;
+		outpxl++;
+		maskpxl++;
+		leftsign++;
+		rightsign++;
+		outsign++;
+	    }
+	}
+    }
+}
+@
+
+
+11.6
+log
+@change conf.h to a wrapped config.h
+@
+text
+@d12 1
+a12 1
+static const char rcs_ident[] = "$Header: /cvs/brlcad/tools/pyrmask.c,v 11.5 2004/04/05 05:46:00 morrison Exp $";
+@
+
+
+11.5
+log
+@merge of ansi-6-0-branch into head
+@
+text
+@d12 1
+a12 1
+static const char rcs_ident[] = "$Header$";
+d15 5
+a19 1
+#include "conf.h"
+@
+
+
+11.4
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d12 1
+a12 1
+static const char rcs_ident[] = "$Header: /c/CVS/brlcad/tools/pyrmask.c,v 11.2 2000/08/24 22:46:19 mike Exp $";
+d24 6
+a29 3
+int rle_to_pyramids();
+void alloc_pyramid(), copy_mask_bands(), rebuild_image(), dump_pyramid();
+void copy_half_bands();
+d32 1
+a32 3
+main(argc, argv)
+int  argc;
+char *argv[];
+d184 1
+a184 3
+copy_half_bands(level,leftbandpyr, rightbandpyr, splitbandpyr)
+int level;
+pyramid * leftbandpyr, * rightbandpyr, *splitbandpyr;
+d272 1
+a272 3
+copy_mask_bands(level,leftbandpyr, rightbandpyr, splitbandpyr, maskgausspyr)
+int level;
+pyramid * leftbandpyr, * rightbandpyr, *splitbandpyr, *maskgausspyr;
+@
+
+
+11.4.2.1
+log
+@Initial ANSIfication
+@
+text
+@d12 1
+a12 1
+static const char rcs_ident[] = "$Header: /c/CVS/brlcad/tools/pyrmask.c,v 11.4 2002/08/20 17:08:48 jra Exp $";
+d24 3
+a26 3
+int rle_to_pyramids(FILE *infile, pyramid *gausspyr, pyramid *bandpyr, rle_hdr *in_hdr, int levellimit, float *mask_mult_table);
+void alloc_pyramid(pyramid *pyr), copy_mask_bands(int level, pyramid *leftbandpyr, pyramid *rightbandpyr, pyramid *splitbandpyr, pyramid *maskgausspyr), rebuild_image(rle_pixel **imgcorner, pyramid *bandpyr, float *mask_mult_table), dump_pyramid(FILE *outfile, int levels, rle_pixel **corners, int xlen, int ylen, int channels, rle_hdr in_hdr);
+void copy_half_bands(int level, pyramid *leftbandpyr, pyramid *rightbandpyr, pyramid *splitbandpyr);
+d29 3
+a31 1
+main(int argc, char **argv)
+d183 3
+a185 1
+copy_half_bands(int level, pyramid *leftbandpyr, pyramid *rightbandpyr, pyramid *splitbandpyr)
+d273 3
+a275 1
+copy_mask_bands(int level, pyramid *leftbandpyr, pyramid *rightbandpyr, pyramid *splitbandpyr, pyramid *maskgausspyr)
+@
+
+
+11.3
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d24 3
+a26 3
+int rle_to_pyramids(FILE *infile, pyramid *gausspyr, pyramid *bandpyr, rle_hdr *in_hdr, int levellimit, float *mask_mult_table);
+void alloc_pyramid(pyramid *pyr), copy_mask_bands(int level, pyramid *leftbandpyr, pyramid *rightbandpyr, pyramid *splitbandpyr, pyramid *maskgausspyr), rebuild_image(rle_pixel **imgcorner, pyramid *bandpyr, float *mask_mult_table), dump_pyramid(FILE *outfile, int levels, rle_pixel **corners, int xlen, int ylen, int channels, rle_hdr in_hdr);
+void copy_half_bands(int level, pyramid *leftbandpyr, pyramid *rightbandpyr, pyramid *splitbandpyr);
+d29 3
+a31 1
+main(int argc, char **argv)
+d183 3
+a185 1
+copy_half_bands(int level, pyramid *leftbandpyr, pyramid *rightbandpyr, pyramid *splitbandpyr)
+d273 3
+a275 1
+copy_mask_bands(int level, pyramid *leftbandpyr, pyramid *rightbandpyr, pyramid *splitbandpyr, pyramid *maskgausspyr)
+@
+
+
+11.2
+log
+@
+lint
+@
+text
+@d12 1
+a12 1
+static const char rcs_ident[] = "$Header: /c/CVS/brlcad/tools/pyrmask.c,v 11.1 1995/01/04 10:20:41 mike Rel4_4 $";
+d24 3
+a26 3
+int rle_to_pyramids();
+void alloc_pyramid(), copy_mask_bands(), rebuild_image(), dump_pyramid();
+void copy_half_bands();
+d29 1
+a29 3
+main(argc, argv)
+int  argc;
+char *argv[];
+d181 1
+a181 3
+copy_half_bands(level,leftbandpyr, rightbandpyr, splitbandpyr)
+int level;
+pyramid * leftbandpyr, * rightbandpyr, *splitbandpyr;
+d269 1
+a269 3
+copy_mask_bands(level,leftbandpyr, rightbandpyr, splitbandpyr, maskgausspyr)
+int level;
+pyramid * leftbandpyr, * rightbandpyr, *splitbandpyr, *maskgausspyr;
+@
+
+
+11.1
+log
+@Release_4.4
+@
+text
+@d12 1
+a12 1
+static char rcs_ident[] = "$Header: /m/cad/tools/RCS/pyrmask.c,v 10.2 94/08/11 20:08:52 gdurf Exp $";
+d28 1
+a28 1
+void
+@
+
+
+10.2
+log
+@Altered #defines and #includes to conform to BRL-CAD standards
+@
+text
+@d12 1
+a12 1
+static char rcs_ident[] = "$Header: /m/cad/tools/RCS/pyrmask.c,v 10.1 1991/10/12 06:52:22 mike Rel4_0 gdurf $";
+@
+
+
+10.1
+log
+@Release_4.0
+@
+text
+@d12 1
+a12 1
+static char rcs_ident[] = "$Header: /m/cad/tools/RCS/pyrmask.c,v 1.1 91/01/03 20:45:16 butler Exp $";
+d15 2
+d18 3
+a22 12
+#ifdef USE_STDLIB_H
+#include <stdlib.h>
+#else
+
+#ifdef VOID_STAR
+extern void *malloc();
+#else
+extern char *malloc();
+#endif
+extern void free();
+
+#endif /* USE_STDLIB_H */
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d12 1
+a12 1
+static char rcs_ident[] = "$Header: /usr/users/spencer/src/urt/tools/RCS/pyrmask.c,v 3.0 90/08/03 15:22:16 spencer Exp $";
+@

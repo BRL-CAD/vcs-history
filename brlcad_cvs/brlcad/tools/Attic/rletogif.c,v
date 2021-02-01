@@ -1,0 +1,530 @@
+head	11.9;
+access;
+symbols
+	ansi-20040405-merged:11.6.2.1
+	postmerge-20040405-ansi:11.7
+	premerge-20040404-ansi:11.6
+	postmerge-autoconf:11.6
+	autoconf-freeze:11.6
+	premerge-autoconf:11.6
+	postmerge-20040315-windows:11.6
+	premerge-20040315-windows:11.6
+	windows-20040315-freeze:11.6
+	autoconf-20031203:11.6
+	autoconf-20031202:11.6
+	autoconf-branch:11.6.0.10
+	phong-branch:11.6.0.8
+	photonmap-branch:11.6.0.6
+	rel-6-1-DP:11.6
+	windows-branch:11.6.0.4
+	rel-6-0-2:11.4
+	ansi-branch:11.6.0.2
+	rel-6-0-1-branch:11.4.0.2
+	hartley-6-0-post:11.5
+	hartley-6-0-pre:11.4
+	rel-6-0-1:11.4
+	rel-6-0:11.4
+	rel-5-4:11.1
+	offsite-5-3-pre:11.3
+	rel-5-3:11.1
+	rel-5-2:11.1
+	rel-5-1-branch:11.1.0.2
+	rel-5-1:11.1
+	rel-5-0:11.1
+	rel-5-0-beta:11.1
+	rel-4-5:11.1
+	ctj-4-5-post:11.1
+	ctj-4-5-pre:11.1
+	rel-4-4:11.1
+	rel-4-0:10.1;
+locks; strict;
+comment	@ * @;
+
+
+11.9
+date	2004.05.21.16.38.59;	author morrison;	state dead;
+branches;
+next	11.8;
+
+11.8
+date	2004.05.10.15.30.50;	author erikg;	state Exp;
+branches;
+next	11.7;
+
+11.7
+date	2004.04.05.05.46.01;	author morrison;	state Exp;
+branches;
+next	11.6;
+
+11.6
+date	2002.08.20.17.08.51;	author jra;	state Exp;
+branches
+	11.6.2.1;
+next	11.5;
+
+11.5
+date	2002.08.15.20.56.02;	author hartley;	state Exp;
+branches;
+next	11.4;
+
+11.4
+date	2001.04.20.22.31.27;	author morrison;	state Exp;
+branches;
+next	11.3;
+
+11.3
+date	2000.08.24.22.48.03;	author mike;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	2000.08.24.22.46.23;	author mike;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	95.01.04.10.21.24;	author mike;	state Rel4_4;
+branches;
+next	10.2;
+
+10.2
+date	94.08.11.20.09.19;	author gdurf;	state Exp;
+branches;
+next	10.1;
+
+10.1
+date	91.10.12.06.52.59;	author mike;	state Rel4_0;
+branches;
+next	1.2;
+
+1.2
+date	91.01.25.15.31.40;	author butler;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	91.01.24.21.03.28;	author butler;	state Exp;
+branches;
+next	;
+
+11.6.2.1
+date	2002.09.19.18.02.30;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@Original Dist. Rel 3 patchlevel 2
+@
+
+
+11.9
+log
+@moved to src/tools/
+@
+text
+@/*
+ * This software is copyrighted as noted below.  It may be freely copied,
+ * modified, and redistributed, provided that the copyright notice is 
+ * preserved on all copies.
+ * 
+ * There is no warranty or other guarantee of fitness for this software,
+ * it is provided solely "as is".  Bug reports or fixes may be sent
+ * to the author, who may or may not act on them as he desires.
+ *
+ * You may not include this software in a program or other software product
+ * without supplying the source, or without informing the end-user that the 
+ * source is available for no extra charge.
+ *
+ * If you modify this software, you should include a notice giving the
+ * name of the person performing the modification, the date of modification,
+ * and the reason for such modification.
+ */
+/* rletogif.c */
+
+/*************************************************************************
+ * rletogif -   Main program for RLE to GIF graphics format conversion.
+ *              Works only with 8-bit RLE files.  Use to8 to convert
+ *              from 24-bit files.
+ *	Will detectect if mcut has been used to reduce the number of
+ *	colors and act accordingly.
+ *
+ *              Written by Bailey Brown, Jr.  May 24, 1990.
+ *************************************************************************
+ */
+
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+
+#include <stdio.h>
+#ifndef USE_STRING_H
+#include <strings.h>
+#else
+#include <string.h>
+#endif
+
+#include "machine.h"
+#include "externs.h"		/* For malloc and free */
+#include "rle.h"
+#include "./rletogif.h"
+
+const char *MY_NAME = "rletogif";
+
+static rle_hdr in_hdr;
+static rle_pixel **scan;
+static gif_pixel **scanbuf;  /* needed to read all scanlines before
+				converting to gif (rle is upside down) */
+
+int get_scanlines(void);
+int get_color_bits(const char **comments);
+void GIFEncode(char *FName, int GWidth, int GHeight, int GInterlace, int Background, int BitsPerPixel, unsigned short int *Red, unsigned short int *Green, unsigned short int *Blue, ifunptr GetPixel);
+
+int
+main(int argc, char **argv)
+{
+    char 	*outfname = NULL,
+    		*infname = NULL;
+    int		oflag = 0;
+    int i, color_bits;
+
+    MY_NAME = cmd_name( argv );
+
+    if ( scanargs( argc, argv, "% o%-outfile.gif!s infile.rle%s",
+		   &oflag, &outfname, &infname ) == 0 )
+	exit( 1 );
+
+    in_hdr.rle_file = rle_open_f( MY_NAME, infname, "r" );
+
+    rle_get_setup_ok( &in_hdr, argv[0], argv[1]);
+    in_hdr.xmax -= in_hdr.xmin;
+    in_hdr.xmin = 0;
+    in_hdr.ymax -= in_hdr.ymin;
+    in_hdr.ymin = 0;
+
+    if (in_hdr.ncolors > 1) error("must use to8 to make file 8-bit");
+
+    get_scanlines();
+    color_bits = get_color_bits(in_hdr.comments);
+
+    GIFEncode( outfname, in_hdr.xmax - in_hdr.xmin + 1,
+		in_hdr.ymax - in_hdr.ymin + 1, 0, 0,
+		color_bits, &in_hdr.cmap[0], &in_hdr.cmap[256],
+		&in_hdr.cmap[512], getpixel );
+    rle_row_free(&in_hdr, scan);
+    for (i = 0; i <= in_hdr.ymax; i++ ) free(scanbuf[i]);
+    free(scanbuf);
+    return 0;
+}
+
+/*
+ * get_scanlines() reads in all RLE raster data at once.  This is
+ * necessary because of RLE stores images bottom to top and GIF stores
+ * them top to bottom.
+ */
+int get_scanlines(void)
+{
+    int i;
+    rle_pixel *save_scan_0;
+
+
+    if (sizeof(rle_pixel) != sizeof(gif_pixel))
+        error("rle pixel size not 8 bits");
+    if (rle_row_alloc(&in_hdr, &scan) < 0) error("can't allocate scan");
+    save_scan_0 = scan[0];
+    scanbuf = (gif_pixel**)malloc(sizeof(gif_pixel*)*(in_hdr.ymax+1));
+    if (scanbuf == NULL) error("can't allocate scanbuf");
+    for (i = 0; i <= in_hdr.ymax; i++) {
+	scan[0] = (rle_pixel*)malloc(sizeof(rle_pixel)*(in_hdr.xmax+1));
+        if (scan[0] == NULL) error("can't allocate current scanline");
+        rle_getrow(&in_hdr, scan);
+        scanbuf[in_hdr.ymax - i] = (gif_pixel*)scan[0];
+    }
+    scan[0] = save_scan_0;
+    return (1);
+}
+
+/********************************************************************
+ * get_color_bits() searches the array of comment strings for the substring
+ * "color_map_length=" which is added by mcut if it has worked on the 
+ * file.  If it is found, it sets color_bits to the ceiling of log 2
+ * color_map_length.  Otherwise it returns the default value 8.
+ ********************************************************************/
+int get_color_bits(const char **comments)
+{
+    int i, color_bits, num_colors;
+
+    color_bits = 8;
+    if (comments == NULL) return (color_bits);
+    for (i = 0; comments[i]; i++) {
+        if (!strncmp(comments[i],"color_map_length=",17)) {
+            num_colors = atoi(&(comments[i][17]));
+            for (color_bits = 1; num_colors >> color_bits; color_bits++);
+            if (num_colors == (1<<(color_bits-1))) color_bits--;
+	 break;
+        }
+    }
+    if ((color_bits < 0) || (color_bits > 8))
+        error("invalid number of color bits");
+    return (color_bits);
+}
+
+int getpixel(int x, int y)
+{
+    return (int)scanbuf[y][x];
+}
+
+void error(char *s)
+{
+    fprintf(stderr,"%s\n", s);
+    exit(2);
+}
+@
+
+
+11.8
+log
+@change conf.h to a wrapped config.h
+@
+text
+@@
+
+
+11.7
+log
+@merge of ansi-6-0-branch into head
+@
+text
+@d31 5
+a35 1
+#include "conf.h"
+@
+
+
+11.6
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d52 3
+a54 3
+int get_scanlines();
+int get_color_bits();
+void GIFEncode();
+d57 1
+a57 3
+main(argc, argv)
+int argc;
+char *argv[];
+d98 1
+a98 1
+int get_scanlines()
+d126 1
+a126 2
+int get_color_bits(comments)
+char **comments;
+d145 1
+a145 2
+int getpixel( x, y )
+int x, y;
+d150 1
+a150 2
+void error(s)
+char *s;
+@
+
+
+11.6.2.1
+log
+@Initial ANSIfication
+@
+text
+@d52 3
+a54 3
+int get_scanlines(void);
+int get_color_bits(const char **comments);
+void GIFEncode(char *FName, int GWidth, int GHeight, int GInterlace, int Background, int BitsPerPixel, unsigned short int *Red, unsigned short int *Green, unsigned short int *Blue, ifunptr GetPixel);
+d57 3
+a59 1
+main(int argc, char **argv)
+d97 1
+a97 1
+ * necessary because of RLE stores images bottom to top and G stores
+d100 1
+a100 1
+int get_scanlines(void)
+d128 2
+a129 1
+int get_color_bits(const char **comments)
+d148 2
+a149 1
+int getpixel(int x, int y)
+d154 2
+a155 1
+void error(char *s)
+@
+
+
+11.5
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d52 3
+a54 3
+int get_scanlines(void);
+int get_color_bits(const char **comments);
+void GIFEncode(char *FName, int GWidth, int GHeight, int GInterlace, int Background, int BitsPerPixel, unsigned short int *Red, unsigned short int *Green, unsigned short int *Blue, ifunptr GetPixel);
+d57 3
+a59 1
+main(int argc, char **argv)
+d97 1
+a97 1
+ * necessary because of RLE stores images bottom to top and G stores
+d100 1
+a100 1
+int get_scanlines(void)
+d128 2
+a129 1
+int get_color_bits(const char **comments)
+d148 2
+a149 1
+int getpixel(int x, int y)
+d154 2
+a155 1
+void error(char *s)
+@
+
+
+11.4
+log
+@CONST to const
+@
+text
+@d52 3
+a54 3
+int get_scanlines();
+int get_color_bits();
+void GIFEncode();
+d57 1
+a57 3
+main(argc, argv)
+int argc;
+char *argv[];
+d95 1
+a95 1
+ * necessary because of RLE stores images bottom to top and GIF stores
+d98 1
+a98 1
+int get_scanlines()
+d126 1
+a126 2
+int get_color_bits(comments)
+char **comments;
+d145 1
+a145 2
+int getpixel( x, y )
+int x, y;
+d150 1
+a150 2
+void error(s)
+char *s;
+@
+
+
+11.3
+log
+@
+lint
+@
+text
+@d45 1
+a45 1
+CONST char *MY_NAME = "rletogif";
+@
+
+
+11.2
+log
+@
+lint
+@
+text
+@d92 1
+@
+
+
+11.1
+log
+@Release_4.4
+@
+text
+@d56 1
+a56 1
+void
+@
+
+
+10.2
+log
+@Altered #defines and #includes to conform to BRL-CAD standards
+@
+text
+@@
+
+
+10.1
+log
+@Release_4.0
+@
+text
+@d31 2
+a33 7
+#include "rle.h"
+#include "./rletogif.h"
+
+#ifdef USE_STDLIB_H
+#include <stdlib.h>
+#else
+
+d40 4
+a43 8
+#ifndef VOID_STAR
+char *malloc();
+#else
+extern void *malloc();
+#endif
+extern void free();
+
+#endif /* USE_STDLIB_H */
+d45 1
+a45 1
+CONST_DECL char *MY_NAME = "rletogif";
+@
+
+
+1.2
+log
+@convert rle files to gif files
+@
+text
+@@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d33 1
+a33 1
+#include "rletogif.h"
+d40 1
+a40 1
+#include "strings.h"
+d42 1
+a42 1
+#include "string.h"
+@

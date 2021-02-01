@@ -1,0 +1,399 @@
+head	1.4;
+access;
+symbols
+	ansi-20040405-merged:1.2.4.1
+	postmerge-20040405-ansi:1.3
+	premerge-20040404-ansi:1.3
+	postmerge-autoconf:1.3
+	autoconf-freeze:1.2.12.2
+	premerge-autoconf:1.3
+	postmerge-20040315-windows:1.3
+	premerge-20040315-windows:1.3
+	windows-20040315-freeze:1.2.6.1
+	autoconf-20031203:1.2
+	autoconf-20031202:1.2
+	autoconf-branch:1.2.0.12
+	phong-branch:1.2.0.10
+	photonmap-branch:1.2.0.8
+	rel-6-1-DP:1.2
+	windows-branch:1.2.0.6
+	rel-6-0-2:1.2
+	ansi-branch:1.2.0.4
+	rel-6-0-1-branch:1.2.0.2
+	hartley-6-0-post:1.2
+	hartley-6-0-pre:1.2
+	rel-6-0-1:1.2
+	rel-6-0:1.2
+	rel-5-4:1.1
+	offsite-5-3-pre:1.1
+	rel-5-3:1.1
+	rel-5-2:1.1
+	rel-5-1-branch:1.1.0.2
+	rel-5-1:1.1
+	rel-5-0:1.1
+	rel-5-0-beta:1.1
+	rel-4-5:1.1
+	ctj-4-5-post:1.1
+	ctj-4-5-pre:1.1
+	rel-4-4:1.1
+	rel-4-0:1.1;
+locks; strict;
+comment	@ * @;
+
+
+1.4
+date	2004.05.21.16.45.05;	author morrison;	state dead;
+branches;
+next	1.3;
+
+1.3
+date	2004.02.02.17.39.42;	author morrison;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2001.08.10.21.22.46;	author morrison;	state Exp;
+branches
+	1.2.4.1
+	1.2.6.1
+	1.2.12.1;
+next	1.1;
+
+1.1
+date	90.10.25.20.13.58;	author butler;	state Exp;
+branches;
+next	;
+
+1.2.4.1
+date	2004.03.17.21.23.03;	author morrison;	state Exp;
+branches;
+next	;
+
+1.2.6.1
+date	2004.03.11.23.48.30;	author morrison;	state Exp;
+branches;
+next	;
+
+1.2.12.1
+date	2004.02.12.19.43.02;	author erikg;	state Exp;
+branches;
+next	1.2.12.2;
+
+1.2.12.2
+date	2004.03.15.14.08.09;	author erikg;	state Exp;
+branches;
+next	;
+
+
+desc
+@safety check in
+@
+
+
+1.4
+log
+@moved to src/sig/
+@
+text
+@/*
+ *		S M O D . C
+ *
+ *  Modify intensities in a stream of short (16 bit) unsigned integers.
+ *
+ *  Allows any number of add, subtract, multiply, divide, or
+ *  exponentiation operations to be performed on a picture.
+ *  Keeps track of and reports clipping.
+ *
+ *  Author -
+ *  	Lee A. Butler
+ *	25 October 1990
+ *
+ *  Source -
+ *	SECAD/VLD Computing Consortium, Bldg 394
+ *	The U. S. Army Ballistic Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005-5066
+ *  
+ *  Copyright Notice -
+ *	This software is Copyright (C) 1986-2004 by the United States Army.
+ *	All rights reserved.
+ */
+#ifndef lint
+static char RCSid[] = "@@(#)$Header: /n/xoff/cvs/brlcad/sig/smod.c,v 1.3 2004/02/02 17:39:42 morrison Exp $ (BRL)";
+#endif
+
+#include <stdio.h>
+#include <math.h>
+#include "externs.h"
+
+extern int	getopt();
+extern char	*optarg;
+extern int	optind;
+char *progname = "(noname)";
+
+char	*file_name;
+
+char usage[] = "\
+Usage: smod {-a add -s sub -m mult -d div -A(abs) -e exp -r root} [file.s]\n";
+
+#define	ADD	1
+#define MULT	2
+#define	ABS	3
+#define	POW	4
+#define	BUFLEN	(8192*2)	/* usually 2 pages of memory, 16KB */
+
+int	numop = 0;		/* number of operations */
+int	op[256];		/* operations */
+double	val[256];		/* arguments to operations */
+short iobuf[BUFLEN];		/* input buffer */
+short mapbuf[65536];		/* translation buffer/lookup table */
+unsigned char clip_h[256];	/* map of values which clip high */
+unsigned char clip_l[256];	/* map of values which clip low */
+
+
+get_args( argc, argv )
+register char **argv;
+{
+	register int c;
+	double	d;
+
+	while ( (c = getopt( argc, argv, "a:s:m:d:Ae:r:" )) != EOF )  {
+		switch( c )  {
+		case 'a':
+			op[ numop ] = ADD;
+			val[ numop++ ] = atof(optarg);
+			break;
+		case 's':
+			op[ numop ] = ADD;
+			val[ numop++ ] = - atof(optarg);
+			break;
+		case 'm':
+			op[ numop ] = MULT;
+			val[ numop++ ] = atof(optarg);
+			break;
+		case 'd':
+			op[ numop ] = MULT;
+			d = atof(optarg);
+			if( d == 0.0 ) {
+				(void)fprintf( stderr, "bwmod: divide by zero!\n" );
+				exit( 2 );
+			}
+			val[ numop++ ] = 1.0 / d;
+			break;
+		case 'A':
+			op[ numop ] = ABS;
+			val[ numop++ ] = 0;
+			break;
+		case 'e':
+			op[ numop ] = POW;
+			val[ numop++ ] = atof(optarg);
+			break;
+		case 'r':
+			op[ numop ] = POW;
+			d = atof(optarg);
+			if( d == 0.0 ) {
+				(void)fprintf( stderr, "bwmod: zero root!\n" );
+				exit( 2 );
+			}
+			val[ numop++ ] = 1.0 / d;
+			break;
+
+		default:		/* '?' */
+			return(0);
+		}
+	}
+
+	if( optind >= argc )  {
+		if( isatty((int)fileno(stdin)) )
+			return(0);
+		file_name = "-";
+	} else {
+		file_name = argv[optind];
+		if( freopen(file_name, "r", stdin) == NULL )  {
+			(void)fprintf( stderr,
+				"bwmod: cannot open \"%s\" for reading\n",
+				file_name );
+			return(0);
+		}
+	}
+
+	if ( argc > ++optind )
+		(void)fprintf( stderr, "bwmod: excess argument(s) ignored\n" );
+
+	return(1);		/* OK */
+}
+
+void mk_trans_tbl()
+{
+	register int i, j, k;
+	register double d;
+
+	(void)bzero((char *)clip_h, sizeof(clip_h));
+	(void)bzero((char *)clip_l, sizeof(clip_l));
+
+	/* create translation map */
+	for (j = 0; j < 65536 ; ++j) {
+		k = j - 32768;
+		d = k;
+		for (i=0 ; i < numop ; i++) {
+			switch (op[i]) {
+			case ADD : d += val[i]; break;
+			case MULT: d *= val[i]; break;
+			case POW : d = pow( d, val[i]); break;
+			case ABS : if (d < 0.0) d = - d; break;
+			default  : (void)fprintf(stderr, "%s: error in op\n",
+					progname); break;
+			}
+		}
+
+
+		if (d > 32767.0) {
+			clip_h[j] = 1;
+			mapbuf[j] = 32767;
+		} else if (d < -32768.0) {
+			clip_l[j] = 1;
+			mapbuf[j] = -32768;
+		} else
+			mapbuf[j] = d + 0.5;
+	}
+}
+
+int main( argc, argv )
+int argc;
+char **argv;
+{
+	register unsigned int	i, j, n;
+	unsigned long clip_high, clip_low;
+	char *strrchr();
+	
+	if (!(progname=strrchr(*argv, '/')))
+		progname = *argv;
+
+	if( !get_args( argc, argv ) || isatty(fileno(stdin))
+	    || isatty(fileno(stdout)) ) {
+		(void)fputs(usage, stderr);
+		exit( 1 );
+	}
+
+	mk_trans_tbl();
+
+	clip_high = clip_low = 0;
+
+	while ( (n=fread(iobuf, sizeof(*iobuf), BUFLEN, stdin)) > 0) {
+		/* translate */
+		for (j=0 ; j < n ; ++j) {
+			iobuf[j] = mapbuf[iobuf[j] + 32768];
+			if (clip_h[j]) clip_high++;
+			else if (clip_l[j]) clip_low++;
+		}
+		/* output */
+		if (fwrite(iobuf, sizeof(*iobuf), n, stdout) != n) {
+			(void)fprintf(stderr, "%s: Error writing stdout\n",
+				progname);
+			exit(-1);
+		}
+	}
+
+	if( clip_high != 0 || clip_low != 0 ) {
+		(void)fprintf( stderr, "%s: clipped %lu high, %lu low\n",
+			progname,
+			clip_high, clip_low );
+	}
+
+	return 0;
+}
+@
+
+
+1.3
+log
+@update copyright to include span through 2003
+@
+text
+@d24 1
+a24 1
+static char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/sig/smod.c,v 1.2 2001/08/10 21:22:46 morrison Exp $ (BRL)";
+@
+
+
+1.2
+log
+@added proper checking for string.h/strings.h
+added int return type to main
+added return 0 to main
+@
+text
+@d20 1
+a20 1
+ *	This software is Copyright (C) 1986 by the United States Army.
+d24 1
+a24 1
+static char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/sig/smod.c,v 1.1 1990/10/25 20:13:58 butler Exp $ (BRL)";
+@
+
+
+1.2.4.1
+log
+@sync branch with HEAD
+@
+text
+@d20 1
+a20 1
+ *	This software is Copyright (C) 1986-2004 by the United States Army.
+d24 1
+a24 1
+static char RCSid[] = "@@(#)$Header$ (BRL)";
+@
+
+
+1.2.6.1
+log
+@sync to HEAD...
+@
+text
+@d20 1
+a20 1
+ *	This software is Copyright (C) 1986-2004 by the United States Army.
+d24 1
+a24 1
+static char RCSid[] = "@@(#)$Header: /n/cad/c/CVS/brlcad/sig/smod.c,v 1.3 2004/02/02 17:39:42 morrison Exp $ (BRL)";
+@
+
+
+1.2.12.1
+log
+@merge from HEAD
+@
+text
+@d20 1
+a20 1
+ *	This software is Copyright (C) 1986-2004 by the United States Army.
+d24 1
+a24 1
+static char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/sig/smod.c,v 1.3 2004/02/02 17:39:42 morrison Exp $ (BRL)";
+@
+
+
+1.2.12.2
+log
+@merge from head
+@
+text
+@d24 1
+a24 1
+static char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/sig/smod.c,v 1.2.12.1 2004/02/12 19:43:02 erikg Exp $ (BRL)";
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d24 1
+a24 1
+static char RCSid[] = "@@(#)$Header: /m/cad/util/RCS/bwmod.c,v 9.3 90/10/25 17:39:11 butler Exp $ (BRL)";
+d204 2
+a205 1
+	return(0);
+@
+

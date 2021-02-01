@@ -1,0 +1,452 @@
+head	14.8;
+access;
+symbols
+	rel-7-10-4:14.8
+	STABLE:14.8.0.2
+	stable-branch:14.5
+	rel-7-10-2:14.8
+	rel-7-10-0:14.8
+	rel-7-8-4:14.6
+	rel-7-8-2:14.6
+	rel-7-8-0:14.6
+	trimnurbs-branch:14.6.0.2
+	help:14.6
+	temp_tag:14.5
+	bobWinPort-20051223-freeze:14.5
+	postmerge-20051223-bobWinPort:14.5
+	premerge-20051223-bobWinPort:14.5
+	rel-7-6-6:14.5
+	rel-7-6-4:14.5
+	rel-7-6-2:14.5
+	rel-7-6-branch:14.5.0.6
+	rel-7-6-0:14.5
+	rel-7-4-2:14.5
+	rel-7-4-branch:14.5.0.4
+	bobWinPort:14.5.0.2
+	rel-7-4-0:14.5
+	rel-7-2-6:14.5
+	rel-7-2-4:14.5
+	rel-7-2-2:14.5
+	rel-7-2-0:14.5
+	rel-7-0-4:14.4
+	rel-7-0-2:14.4
+	rel-7-0-1:14.4
+	opensource-post:14.4
+	opensource-pre:1.1
+	rel-7-0-branch:1.1.0.2
+	rel-7-0:1.1;
+locks; strict;
+comment	@# @;
+
+
+14.8
+date	2007.01.23.01.13.50;	author brlcad;	state Exp;
+branches;
+next	14.7;
+
+14.7
+date	2007.01.20.14.37.03;	author brlcad;	state Exp;
+branches;
+next	14.6;
+
+14.6
+date	2006.01.18.06.46.25;	author brlcad;	state Exp;
+branches;
+next	14.5;
+
+14.5
+date	2005.01.30.20.31.14;	author brlcad;	state Exp;
+branches;
+next	14.4;
+
+14.4
+date	2004.12.21.06.18.52;	author morrison;	state Exp;
+branches;
+next	14.3;
+
+14.3
+date	2004.12.21.05.45.27;	author morrison;	state Exp;
+branches;
+next	14.2;
+
+14.2
+date	2004.12.21.04.46.06;	author morrison;	state Exp;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.31;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.15.21.04;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.8
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@#                    C O M B M E N U . T C L
+# BRL-CAD
+#
+# Copyright (c) 2004-2007 United States Government as represented by
+# the U.S. Army Research Laboratory.
+#
+# This library is free software; you can redistribute it and/or
+# modify it under the terms of the GNU Lesser General Public License
+# version 2.1 as published by the Free Software Foundation.
+#
+# This library is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public
+# License along with this file; see the file named COPYING for more
+# information.
+#
+###
+#
+#	Author -
+#		Robert G. Parker
+#
+#	Description -
+#		Tcl routines to specify a combination for editing
+#		from among all combinations in the database or from
+#		among those currently being displayed.
+#
+#
+
+if ![info exists mged_default(display)] {
+    if [info exists env(DISPLAY)] {
+	set mged_default(display) $env(DISPLAY)
+    } else {
+	set mged_default(display) :0
+    }
+}
+
+if ![info exists mged_gui(mged,screen)] {
+    set mged_gui(mged,screen) $mged_default(display)
+}
+
+#	Ensure that all commands that this script uses without defining
+#	are provided by the calling application
+check_externs "_mged_x _mged_press"
+
+proc build_comb_menu_all_displayed {} {
+    global mged_players
+    global mged_gui
+    global mouse_behavior
+    global ::tk::Priv
+
+    set win [winset]
+    set id [get_player_id_dm $win]
+
+    if {[info exists mged_gui($id,edit_menu)] && \
+	    [winfo exists $mged_gui($id,edit_menu)]} {
+	destroy $mged_gui($id,edit_menu)
+    }
+
+    set paths [_mged_x -1]
+    if {![llength $paths]} {
+	cad_dialog $::tk::Priv(cad_dialog) $mged_gui($id,screen)\
+		"No combinations are being displayed!"\
+		"No combinations are being displayed!"\
+		"" 0 OK
+	return
+    }
+
+    _mged_press reject
+    set combs [build_comb_list $paths]
+    build_comb_menu $id $combs
+
+    mged_apply_all [winset] "set mouse_behavior d"
+    foreach id $mged_players {
+	set mged_gui($id,mouse_behavior) d
+    }
+}
+
+proc ray_build_comb_menu { x y } {
+    global mged_players
+    global mged_gui
+    global mouse_behavior
+
+    set win [winset]
+    set id [get_player_id_dm $win]
+
+    if {[info exists mged_gui($id,edit_menu)] && \
+	    [winfo exists $mged_gui($id,edit_menu)]} {
+	destroy $mged_gui($id,edit_menu)
+    }
+
+    set ray [mouse_shoot_ray $x $y]
+    set paths [ray_get_info $ray in path]
+
+    _mged_press reject
+    set combs [build_comb_list $paths]
+    build_comb_menu $id $combs
+
+    mged_apply_all [winset] "set mouse_behavior d"
+    foreach id $mged_players {
+	set mged_gui($id,mouse_behavior) d
+    }
+}
+
+proc build_comb_menu { id combs } {
+    global comb_control
+    global mged_gui
+
+    if {[info exists mged_gui($id,edit_menu)] && \
+	    [winfo exists $mged_gui($id,edit_menu)]} {
+	destroy $mged_gui($id,edit_menu)
+    }
+
+    set top .cm$id
+    if [winfo exists $top] {
+	destroy $top
+    }
+
+    if [info exists mged_gui($id,screen)] {
+	set screen $mged_gui($id,screen)
+    } else {
+	set win [winset]
+	set screen [winfo screen $win]
+    }
+
+    create_listbox $top $screen Combination $combs "destroy $top"
+    set mged_gui($id,edit_menu) $top
+
+    bind_listbox $top "<B1-Motion>"\
+	    "set comb \[%W get @@%x,%y\];\
+	    set spath \[comb_get_solid_path \$comb\];\
+	    set path_pos \[comb_get_path_pos \$spath \$comb\];\
+	    matrix_illum \$spath \$path_pos"
+if 0 {
+    bind_listbox $top "<ButtonPress-1>"\
+	    "set comb \[%W get @@%x,%y\];\
+	    set spath \[comb_get_solid_path \$comb\];\
+	    set path_pos \[comb_get_path_pos \$spath \$comb\];\
+	    matrix_illum \$spath \$path_pos"
+    bind_listbox $top "<Double-1>"\
+	    "set comb_control($id,name) \[%W get @@%x,%y\];\
+	    comb_reset $id;\
+	    destroy $top"
+} else {
+    bind_listbox $top "<ButtonPress-1>" \
+	    "lbdcHack %W %x %y %t $id c2 junkpath"
+}
+    bind_listbox $top "<ButtonRelease-1>"\
+	    "%W selection clear 0 end;\
+	    _mged_press reject"
+}
+
+proc build_comb_menu_all_regions {} {
+    set win [winset]
+    set id [get_player_id_dm $win]
+
+    set combs [_mged_ls -r]
+    build_comb_menu2 $id $combs
+}
+
+proc build_comb_menu_all {} {
+    set win [winset]
+    set id [get_player_id_dm $win]
+
+    set combs [_mged_ls -c]
+    build_comb_menu2 $id $combs
+}
+
+proc build_comb_menu2 { id combs } {
+    global comb_control
+    global mged_gui
+
+    if {[info exists mged_gui($id,edit_menu)] && \
+	    [winfo exists $mged_gui($id,edit_menu)]} {
+	destroy $mged_gui($id,edit_menu)
+    }
+
+    set top .cm$id
+    if [winfo exists $top] {
+	destroy $top
+    }
+
+    if [info exists mged_gui($id,screen)] {
+	set screen $mged_gui($id,screen)
+    } else {
+	set win [winset]
+	set screen [winfo screen $win]
+    }
+
+    create_listbox $top $screen Combination $combs "destroy $top"
+    set mged_gui($id,edit_menu) $top
+
+if 0 {
+    bind_listbox $top "<Double-1>"\
+	    "set comb_control($id,name) \[%W get @@%x,%y\];\
+	    comb_reset $id;\
+	    destroy $top"
+} else {
+    bind_listbox $top "<ButtonPress-1>" \
+	    "lbdcHack %W %x %y %t $id c3 junkpath"
+}
+    bind_listbox $top "<ButtonRelease-1>"\
+	    "%W selection clear 0 end"
+}
+
+proc build_comb_list { paths } {
+    set all_combs {}
+    set combs {}
+
+    foreach path $paths {
+	# remove leading /'s
+	regexp "\[^/\].*" $path match
+	set path_components [split $match /]
+
+	# Append all path components except the last which is a solid
+	set n [expr [llength $path_components] - 1]
+	for { set i 0 } { $i < $n } { incr i } {
+	    lappend all_combs [lindex $path_components $i]
+	}
+    }
+
+    foreach comb $all_combs {
+	# Put $comb into combs if not already there
+	if { [lsearch -exact $combs $comb] == -1 } {
+	    lappend combs $comb
+	}
+    }
+
+    return $combs
+}
+
+proc comb_get_solid_path { comb } {
+    set paths [_mged_x -1]
+
+    if {[llength $paths] == 0} {
+	return ""
+    }
+
+    set path_index [lsearch $paths *$comb*]
+    set spath [lindex $paths $path_index]
+
+    return $spath
+}
+
+proc comb_get_path_pos { spath comb } {
+    regexp "\[^/\].*" $spath match
+    set path_components [split $match /]
+    set path_pos [lsearch -exact $path_components $comb]
+
+    return $path_pos
+}
+
+# Local Variables:
+# mode: Tcl
+# tab-width: 8
+# c-basic-offset: 4
+# tcl-indent-level: 4
+# indent-tabs-mode: t
+# End:
+# ex: shiftwidth=4 tabstop=8
+@
+
+
+14.7
+log
+@update copyright to 2007
+@
+text
+@d9 1
+a9 2
+# as published by the Free Software Foundation; either version 2 of
+# the License, or (at your option) any later version.
+d14 1
+a14 1
+# Library General Public License for more details.
+@
+
+
+14.6
+log
+@update copyright to 2006
+@
+text
+@d4 1
+a4 1
+# Copyright (c) 2004-2006 United States Government as represented by
+@
+
+
+14.5
+log
+@update copyright to 2005
+@
+text
+@d4 1
+a4 1
+# Copyright (C) 2004-2005 United States Government as represented by
+@
+
+
+14.4
+log
+@they should have received a copy of the LGPL with LGPL'd files
+@
+text
+@d4 2
+a5 2
+# Copyright (c) 2004 United States Government as represented by the
+# U.S. Army Research Laboratory.
+@
+
+
+14.3
+log
+@s/GNU Library General/GNU Lesser General/g
+@
+text
+@d17 2
+a18 2
+# You should have received a copy of the GNU General Public License
+# along with this file; see the file named COPYING for more
+@
+
+
+14.2
+log
+@assign copyright and LGPL
+@
+text
+@d8 1
+a8 1
+# modify it under the terms of the GNU Library General Public License
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@d1 21
+a21 1
+#			C O M B M E N U . T C L
+@
+
+
+1.1
+log
+@Vast reorganization begins.  Sources moved from top-level directories into src/.
+@
+text
+@d235 9
+@
+

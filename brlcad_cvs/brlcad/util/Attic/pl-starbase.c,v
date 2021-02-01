@@ -1,0 +1,266 @@
+head	11.4;
+access;
+symbols
+	ansi-20040405-merged:11.3
+	postmerge-20040405-ansi:11.3
+	premerge-20040404-ansi:11.3
+	postmerge-autoconf:11.3
+	autoconf-freeze:11.3
+	premerge-autoconf:11.3
+	postmerge-20040315-windows:11.3
+	premerge-20040315-windows:11.3
+	windows-20040315-freeze:11.3
+	autoconf-20031203:11.3
+	autoconf-20031202:11.3
+	autoconf-branch:11.3.0.12
+	phong-branch:11.3.0.10
+	photonmap-branch:11.3.0.8
+	rel-6-1-DP:11.3
+	windows-branch:11.3.0.6
+	rel-6-0-2:11.3
+	ansi-branch:11.3.0.4
+	rel-6-0-1-branch:11.3.0.2
+	hartley-6-0-post:11.3
+	hartley-6-0-pre:11.3
+	rel-6-0-1:11.3
+	rel-6-0:11.3
+	rel-5-4:11.1
+	offsite-5-3-pre:11.3
+	rel-5-3:11.1
+	rel-5-2:11.1
+	rel-5-1-branch:11.1.0.2
+	rel-5-1:11.1
+	rel-5-0:11.1
+	rel-5-0-beta:11.1
+	rel-4-5:11.1
+	ctj-4-5-post:11.1
+	ctj-4-5-pre:11.1
+	rel-4-4:11.1
+	rel-4-0:10.1;
+locks; strict;
+comment	@ * @;
+
+
+11.4
+date	2004.05.21.14.58.00;	author morrison;	state dead;
+branches;
+next	11.3;
+
+11.3
+date	2000.09.01.03.24.02;	author mike;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	2000.08.23.19.05.02;	author mike;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	95.01.04.10.13.16;	author mike;	state Rel4_4;
+branches;
+next	10.1;
+
+10.1
+date	91.10.12.06.49.11;	author mike;	state Rel4_0;
+branches;
+next	1.1;
+
+1.1
+date	91.01.28.19.19.37;	author mike;	state Exp;
+branches;
+next	;
+
+
+desc
+@Convert unixplot to starbase
+@
+
+
+11.4
+log
+@moved to src/util/
+@
+text
+@/*
+ *			P L - S T A R B A S E . C
+ *
+ * Description -
+ *	Convert a unix-plot file to STARBASE output
+ *
+ * Author -  
+ *	Mark Huston Bowden  
+ *  
+ *  Source -
+ *	Research Institute, E-47 
+ *	University of Alabama in Huntsville  
+ *	Huntsville, AL  35899
+ *	(205) 895-6467 UAH
+ *	(205) 876-1089 Redstone Arsenal
+ *  
+ *  Distribution Status -
+ *	Public Domain, Distribution Unlimitied.
+ */
+#ifndef lint
+static const char RCSid[] = "@@(#)$Header: /n/xoff/cvs/brlcad/util/pl-starbase.c,v 11.3 2000/09/01 03:24:02 mike Exp $ (BRL)";
+#endif
+
+#include <stdio.h>
+#include <starbase.c.h>
+
+#define	geti(x)	{ (x) = getchar(); (x) |= (short)(getchar()<<8); }
+#define getb(x)	((x) = getchar())
+#define ASPECT  1.56163
+
+int fildes,indx;
+
+int
+main(argc,argv)
+int argc;
+char **argv;
+{
+	char s[80];
+	int c,i,x,y,x1,x2,y1,y2,r,g,b,or,og,ob;
+
+	switch (argc) {
+	case 1:
+		fildes = gopen("/dev/tty",OUTDEV,"hp262x",INIT);
+		break;
+	case 3:
+		fildes = gopen(argv[1],OUTDEV,argv[2],INIT);
+		break;
+	default:
+		printf("Usage: %s [device driver]\n",argv[0]);
+		exit(1);
+	}
+	if (fildes == -1) {
+		printf("%s: unable to open STARBASE.\n",argv[0]);
+		exit(2);
+	}
+
+	getb(c);
+	do {
+		switch (c) {
+		case 'p':		/* point */
+			geti(x);
+			geti(y);
+			move2d(fildes,(float)x,(float)y);
+			draw2d(fildes,(float)x,(float)y);
+			break;
+		case 'l':		/* line */
+			geti(x1);
+			geti(y1);
+			geti(x2);
+			geti(y2);
+			move2d(fildes,(float)x1,(float)y1);
+			draw2d(fildes,(float)x2,(float)y2);
+			break;
+		case 'f':		/* line style */
+			for (i = 0; (s[i] = getchar()) != '\n'; i++);
+			s[i] = '\0';
+			/* set line style */
+			break;
+		case 'm':		/* move */
+			geti(x);
+			geti(y);
+			move2d(fildes,(float)x,(float)y);
+			break;
+		case 'n':		/* draw */
+			geti(x);
+			geti(y);
+			draw2d(fildes,(float)x,(float)y);
+			break;
+		case 't':		/* text */
+			for (i = 0; (s[i] = getchar()) != '\n'; i++);
+			s[i] = '\0';
+			/* draw text */
+			break;
+		case 's':		/* space */
+			geti(x1);
+			geti(y1);
+			geti(x2);
+			geti(y2);
+			vdc_extent(fildes,(float)x1*ASPECT,(float)y1,0.0,
+			    (float)x2*ASPECT,(float)y2,0.0);
+			clip_rectangle(fildes,(float)x1*ASPECT,(float)x2*ASPECT,
+			    (float)y1,(float)y2);
+			mapping_mode(fildes,DISTORT);
+			break;
+		case 'C':		/* color */
+			r = getchar();
+			g = getchar();
+			b = getchar();
+			if (or != r || og != g || ob != b)
+				line_color_index(fildes,++i%7 + 1);
+			or = r;
+			og = g;
+			ob = b;
+			break;
+		default:
+			break;
+		}
+		getb(c);
+	} while (!feof(stdin));
+
+	gclose(fildes);
+	exit(0);
+}
+@
+
+
+11.3
+log
+@
+Lint fix
+@
+text
+@d21 1
+a21 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/util/pl-starbase.c,v 11.2 2000/08/23 19:05:02 mike Exp $ (BRL)";
+@
+
+
+11.2
+log
+@
+const RCSid
+@
+text
+@d21 1
+a21 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/util/pl-starbase.c,v 11.1 1995/01/04 10:13:16 mike Rel4_4 $ (BRL)";
+d33 1
+@
+
+
+11.1
+log
+@Release_4.4
+@
+text
+@d21 1
+a21 1
+static char RCSid[] = "@@(#)$Header: /m/cad/util/RCS/pl-starbase.c,v 10.1 91/10/12 06:49:11 mike Rel4_0 $ (BRL)";
+@
+
+
+10.1
+log
+@Release_4.0
+@
+text
+@d21 1
+a21 1
+static char RCSid[] = "@@(#)$Header: /m/cad/util/RCS/pl-starbase.c,v 1.1 91/01/28 19:19:37 mike Exp $ (BRL)";
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d21 1
+a21 1
+static char RCSid[] = "@@(#)$Header$ (BRL)";
+@

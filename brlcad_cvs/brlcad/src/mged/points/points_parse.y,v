@@ -1,0 +1,767 @@
+head	1.9;
+access;
+symbols
+	rel-7-10-4:1.6
+	STABLE:1.6.0.2
+	rel-7-10-2:1.6
+	rel-7-10-0:1.6
+	rel-7-8-4:1.4
+	rel-7-8-2:1.4
+	rel-7-8-0:1.4
+	trimnurbs-branch:1.4.0.2
+	help:1.4
+	temp_tag:1.3
+	postmerge-20051223-bobWinPort:1.3
+	premerge-20051223-bobWinPort:1.3
+	rel-7-6-6:1.3
+	rel-7-6-branch:1.2.0.2
+	rel-7-6-4:1.2;
+locks; strict;
+comment	@ * @;
+
+
+1.9
+date	2007.11.21.20.49.09;	author erikgreenwald;	state Exp;
+branches;
+next	1.8;
+
+1.8
+date	2007.11.21.19.49.12;	author erikgreenwald;	state Exp;
+branches;
+next	1.7;
+
+1.7
+date	2007.09.14.15.21.10;	author erikgreenwald;	state Exp;
+branches;
+next	1.6;
+
+1.6
+date	2007.01.23.01.13.43;	author brlcad;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	2007.01.20.14.36.58;	author brlcad;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	2006.01.18.06.46.23;	author brlcad;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2005.11.18.00.10.23;	author brlcad;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2005.11.07.20.55.04;	author brlcad;	state Exp;
+branches
+	1.2.2.1;
+next	1.1;
+
+1.1
+date	2005.10.29.21.28.58;	author brlcad;	state Exp;
+branches;
+next	;
+
+1.2.2.1
+date	2005.11.07.20.55.04;	author brlcad;	state dead;
+branches;
+next	1.2.2.2;
+
+1.2.2.2
+date	2005.11.13.17.45.01;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.9
+log
+@pass bu_exit a NULL instead of an empty string
+@
+text
+@/*                   P O I N T S _ P A R S E . Y
+ * BRL-CAD
+ *
+ * Copyright (c) 2004-2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+ * information.
+ *
+ */
+/** @@file points_parse.y
+ *
+ * This parser grammar file is used to parse point data files
+ * in the form of three numbers followed by an optional label with
+ * one point per line.  This is the format output, for example, by
+ * the ArcSecond Vulcan scanner.
+ *
+ * Author -
+ *   Christopher Sean Morrison
+ */
+
+%{
+/*                   P O I N T S _ P A R S E . Y
+ * BRL-CAD
+ *
+ * Copyright (c) 2004-2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+ * information.
+ *
+ */
+/** @@file points_parse.c
+ *
+ * This parser grammar file is used to parse point data files
+ * in the form of three numbers followed by an optional label with
+ * one point per line.  This is the format output, for example, by
+ * the ArcSecond Vulcan scanner.
+ *
+ * Author -
+ *   Christopher Sean Morrison
+ */
+
+#include "common.h"
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include "./count.h"
+#include "./process.h"
+
+extern FILE *yyin;
+extern int yylex();
+int yyerror(char *msg);
+int yydebug=1;
+extern char previous_linebuffer[];
+extern char linebuffer[];
+
+
+%}
+
+/* structure */
+%token COMMA NL
+
+/* preserve comments */
+%token COMMENT
+
+/* values */
+%token INT FLT
+
+/* geometry */
+%token PLATE ARB SYMMETRY POINTS CYL CYLINDER PIPE SPHERE
+
+%start file
+%%
+
+/* labels */
+
+number:
+    INT
+  | FLT
+    ;
+
+eol:
+    NL
+  | comment_line
+    ;
+
+point: number COMMA number COMMA number
+    ;
+
+/* lines */
+
+comment_line : COMMENT NL
+    {
+	printf("COMMENT IGNORED\n");
+    };
+
+plate_line: INT COMMA point COMMA PLATE eol
+    {
+	point_line_t *plt = &yylval;
+	process_point(plt);
+	INITIALIZE_POINT_LINE_T(yylval);
+    };
+
+arb_line: INT COMMA point COMMA ARB eol
+    {
+	point_line_t *plt = &yylval;
+	process_point(plt);
+	INITIALIZE_POINT_LINE_T(yylval);
+    };
+
+symmetry_line: INT COMMA point COMMA SYMMETRY eol
+    {
+	point_line_t *plt = &yylval;
+	process_point(plt);
+	INITIALIZE_POINT_LINE_T(yylval);
+    };
+
+points_line: INT COMMA point COMMA POINTS eol
+    {
+	point_line_t *plt = &yylval;
+	process_point(plt);
+	INITIALIZE_POINT_LINE_T(yylval);
+    };
+
+cylinder_line: INT COMMA point COMMA CYLINDER eol
+    {
+	point_line_t *plt = &yylval;
+	process_point(plt);
+	INITIALIZE_POINT_LINE_T(yylval);
+    };
+
+cyl_line: INT COMMA point COMMA CYL eol
+    {
+	point_line_t *plt = &yylval;
+	process_point(plt);
+	INITIALIZE_POINT_LINE_T(yylval);
+    };
+
+pipe_line: INT COMMA point COMMA PIPE eol
+    {
+	point_line_t *plt = &yylval;
+	process_point(plt);
+	INITIALIZE_POINT_LINE_T(yylval);
+    };
+
+sphere_line: INT COMMA point COMMA SPHERE eol
+    {
+	point_line_t *plt = &yylval;
+	process_point(plt);
+	INITIALIZE_POINT_LINE_T(yylval);
+    };
+
+
+/* top-level document blocks */
+
+file_top_level_element: NL
+    {
+	/* printf("Skipped empty line\n"); */
+    }
+  | plate_line
+  | arb_line
+  | symmetry_line
+  | points_line
+  | cylinder_line
+  | cyl_line
+  | pipe_line
+  | sphere_line
+  ;
+
+file:
+  | file file_top_level_element
+  ;
+  /*
+    {
+    printf("WARNING: No input given.  There's nothing to do.\n\n");
+    }
+  */
+
+%%
+int yyerror(char *msg)
+{
+    if (get_column() == 0) {
+	printf("\nERROR: Unexpected end of line reached on line %ld, column %ld  (file offset %ld)\n", get_lines(), strlen(previous_linebuffer)+1, get_bytes());
+	printf("%s\n%*s\n", previous_linebuffer, (int)strlen(previous_linebuffer)+1, "^");
+	fprintf(stderr, "ERROR: Unexpected end of line reached on line %ld, column %ld  (file offset %ld)\n", get_lines(), strlen(previous_linebuffer)+1, get_bytes());
+    } else {
+	printf("\nERROR: Unexpected input on line %ld, column %ld  (file offset %ld)\n", get_lines()+1, get_column()-1, get_bytes());
+	printf("%s\n%*s\n", linebuffer, (int)get_column()-1, "^");
+	fprintf(stderr, "ERROR: Unexpected input on line %ld, column %ld  (file offset %ld)\n", get_lines()+1, get_column()-1, get_bytes());
+    }
+    /* printf("ERROR:\n%s\n%*s (line %ld, column %ld)\n%s\n", lastline, column, "^", line, column, msg); */
+    bu_exit(1, NULL);
+}
+
+int yywrap()
+{
+    point_line_t plt;
+    INITIALIZE_POINT_LINE_T(plt);
+    plt.code = 0;
+    process_point(&plt);
+
+    return(1);
+}
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+1.8
+log
+@exit->bu_exit where applicable
+@
+text
+@d215 1
+a215 1
+    bu_exit(1, "");
+@
+
+
+1.7
+log
+@removed trailing whitespace
+@
+text
+@d215 1
+a215 1
+    exit(1);
+@
+
+
+1.6
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@d192 2
+a193 2
+   
+file: 
+d224 1
+a224 1
+    
+@
+
+
+1.5
+log
+@update copyright to 2007
+@
+text
+@d9 1
+a9 2
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+d41 1
+a41 2
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+@
+
+
+1.4
+log
+@update copyright to 2006
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 2004-2006 United States Government as represented by
+d37 1
+a37 1
+ * Copyright (c) 2004-2006 United States Government as represented by
+@
+
+
+1.3
+log
+@add support for CYL and SPHERE lines, hook in to the callbacks
+@
+text
+@d4 1
+a4 1
+ * Copyright (C) 2004-2005 United States Government as represented by
+d37 1
+a37 1
+ * Copyright (C) 2004-2005 United States Government as represented by
+@
+
+
+1.2
+log
+@compatibility with bsd parser, wants semicolon terminated blocks
+@
+text
+@d95 1
+a95 1
+%token PLATE ARB SYMMETRY POINTS CYLINDER PIPE
+d157 7
+d171 7
+d190 1
+d192 1
+@
+
+
+1.2.2.1
+log
+@file points_parse.y was added on branch rel-7-6-branch on 2005-11-13 17:45:01 +0000
+@
+text
+@d1 222
+@
+
+
+1.2.2.2
+log
+@more merging changes from HEAD aka rel-7-6-4 to the rel-7-6-branch, adding the items that were moved and resolving rcs keyword conflicts
+@
+text
+@a0 222
+/*                   P O I N T S _ P A R S E . Y
+ * BRL-CAD
+ *
+ * Copyright (C) 2004-2005 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+ * information.
+ *
+ */
+/** @@file points_parse.y
+ *
+ * This parser grammar file is used to parse point data files
+ * in the form of three numbers followed by an optional label with
+ * one point per line.  This is the format output, for example, by
+ * the ArcSecond Vulcan scanner.
+ *
+ * Author -
+ *   Christopher Sean Morrison
+ */
+
+%{
+/*                   P O I N T S _ P A R S E . Y
+ * BRL-CAD
+ *
+ * Copyright (C) 2004-2005 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+ * information.
+ *
+ */
+/** @@file points_parse.c
+ *
+ * This parser grammar file is used to parse point data files
+ * in the form of three numbers followed by an optional label with
+ * one point per line.  This is the format output, for example, by
+ * the ArcSecond Vulcan scanner.
+ *
+ * Author -
+ *   Christopher Sean Morrison
+ */
+
+#include "common.h"
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include "./count.h"
+#include "./process.h"
+
+extern FILE *yyin;
+extern int yylex();
+int yyerror(char *msg);
+int yydebug=1;
+extern char previous_linebuffer[];
+extern char linebuffer[];
+
+
+%}
+
+/* structure */
+%token COMMA NL
+
+/* preserve comments */
+%token COMMENT
+
+/* values */
+%token INT FLT
+
+/* geometry */
+%token PLATE ARB SYMMETRY POINTS CYLINDER PIPE
+
+%start file
+%%
+
+/* labels */
+
+number:
+    INT
+  | FLT
+    ;
+
+eol:
+    NL
+  | comment_line
+    ;
+
+point: number COMMA number COMMA number
+    ;
+
+/* lines */
+
+comment_line : COMMENT NL
+    {
+	printf("COMMENT IGNORED\n");
+    };
+
+plate_line: INT COMMA point COMMA PLATE eol
+    {
+	point_line_t *plt = &yylval;
+	process_point(plt);
+	INITIALIZE_POINT_LINE_T(yylval);
+    };
+
+arb_line: INT COMMA point COMMA ARB eol
+    {
+	point_line_t *plt = &yylval;
+	process_point(plt);
+	INITIALIZE_POINT_LINE_T(yylval);
+    };
+
+symmetry_line: INT COMMA point COMMA SYMMETRY eol
+    {
+	point_line_t *plt = &yylval;
+	process_point(plt);
+	INITIALIZE_POINT_LINE_T(yylval);
+    };
+
+points_line: INT COMMA point COMMA POINTS eol
+    {
+	point_line_t *plt = &yylval;
+	process_point(plt);
+	INITIALIZE_POINT_LINE_T(yylval);
+    };
+
+cylinder_line: INT COMMA point COMMA CYLINDER eol
+    {
+	point_line_t *plt = &yylval;
+	process_point(plt);
+	INITIALIZE_POINT_LINE_T(yylval);
+    };
+
+pipe_line: INT COMMA point COMMA PIPE eol
+    {
+	point_line_t *plt = &yylval;
+	process_point(plt);
+	INITIALIZE_POINT_LINE_T(yylval);
+    };
+
+
+/* top-level document blocks */
+
+file_top_level_element: NL
+    {
+	/* printf("Skipped empty line\n"); */
+    }
+  | plate_line
+  | arb_line
+  | symmetry_line
+  | points_line
+  | cylinder_line
+  | pipe_line
+  ;
+   
+file: 
+  | file file_top_level_element
+  ;
+  /*
+    {
+    printf("WARNING: No input given.  There's nothing to do.\n\n");
+    }
+  */
+
+%%
+int yyerror(char *msg)
+{
+    if (get_column() == 0) {
+	printf("\nERROR: Unexpected end of line reached on line %ld, column %ld  (file offset %ld)\n", get_lines(), strlen(previous_linebuffer)+1, get_bytes());
+	printf("%s\n%*s\n", previous_linebuffer, (int)strlen(previous_linebuffer)+1, "^");
+	fprintf(stderr, "ERROR: Unexpected end of line reached on line %ld, column %ld  (file offset %ld)\n", get_lines(), strlen(previous_linebuffer)+1, get_bytes());
+    } else {
+	printf("\nERROR: Unexpected input on line %ld, column %ld  (file offset %ld)\n", get_lines()+1, get_column()-1, get_bytes());
+	printf("%s\n%*s\n", linebuffer, (int)get_column()-1, "^");
+	fprintf(stderr, "ERROR: Unexpected input on line %ld, column %ld  (file offset %ld)\n", get_lines()+1, get_column()-1, get_bytes());
+    }
+    /* printf("ERROR:\n%s\n%*s (line %ld, column %ld)\n%s\n", lastline, column, "^", line, column, msg); */
+    exit(1);
+}
+
+int yywrap()
+{
+    point_line_t plt;
+    INITIALIZE_POINT_LINE_T(plt);
+    plt.code = 0;
+    process_point(&plt);
+    
+    return(1);
+}
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+1.1
+log
+@initial files for a points file parser that reads them all in and processes groups of them at a time based on recognized line labels.  data collected in a requisite order may then be automatically turned into geometry using a tclscript helper code.
+@
+text
+@d103 3
+a105 2
+      INT
+    | FLT
+d109 2
+a110 1
+    | comment_line
+d112 2
+a113 2
+point:
+    number COMMA number COMMA number
+d117 25
+a141 3
+comment_line : COMMENT NL {
+    printf("COMMENT IGNORED\n");
+}
+d143 6
+a148 30
+plate_line: INT COMMA point COMMA PLATE eol {
+    point_line_t *plt = &yylval;
+    process_point(plt);
+    INITIALIZE_POINT_LINE_T(yylval);
+}
+arb_line: INT COMMA point COMMA ARB eol {
+    point_line_t *plt = &yylval;
+    process_point(plt);
+    INITIALIZE_POINT_LINE_T(yylval);
+}
+symmetry_line: INT COMMA point COMMA SYMMETRY eol {
+    point_line_t *plt = &yylval;
+    process_point(plt);
+    INITIALIZE_POINT_LINE_T(yylval);
+}
+points_line: INT COMMA point COMMA POINTS eol {
+    point_line_t *plt = &yylval;
+    process_point(plt);
+    INITIALIZE_POINT_LINE_T(yylval);
+}
+cylinder_line: INT COMMA point COMMA CYLINDER eol {
+    point_line_t *plt = &yylval;
+    process_point(plt);
+    INITIALIZE_POINT_LINE_T(yylval);
+}
+pipe_line: INT COMMA point COMMA PIPE eol {
+    point_line_t *plt = &yylval;
+    process_point(plt);
+    INITIALIZE_POINT_LINE_T(yylval);
+}
+d150 6
+d157 6
+a162 1
+/* blocks */
+a163 25
+/*
+plate_block: 
+      plate_line
+    | plate_block plate_line
+
+arb_block: 
+      arb_line
+    | arb_block arb_line
+
+symmetry_block: 
+      symmetry_line
+    | symmetry_block symmetry_line
+
+points_block: 
+      points_line
+    | points_block points_line
+
+cylinder_block: 
+      cylinder_line
+    | cylinder_block cylinder_line
+
+pipe_block: 
+      pipe_line
+    | pipe_block pipe_line
+*/
+d171 7
+a177 6
+    | plate_line
+    | arb_line
+    | symmetry_line
+    | points_line
+    | cylinder_line
+    | pipe_line
+d180 3
+a182 3
+    | file file_top_level_element
+
+    /*
+d184 1
+a184 1
+	printf("WARNING: No input given.  There's nothing to do.\n\n");
+d186 1
+a186 1
+    */
+@
+

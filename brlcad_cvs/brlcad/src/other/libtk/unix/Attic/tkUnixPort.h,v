@@ -1,0 +1,417 @@
+head	14.3;
+access;
+symbols
+	stable-branch:14.1
+	rel-7-8-4:14.2
+	rel-7-8-2:14.2
+	rel-7-8-0:14.2
+	trimnurbs-branch:14.2.0.8
+	help:14.2
+	temp_tag:14.2
+	bobWinPort-20051223-freeze:14.2
+	postmerge-20051223-bobWinPort:14.2
+	premerge-20051223-bobWinPort:14.2
+	rel-7-6-6:14.2
+	rel-7-6-4:14.2
+	rel-7-6-2:14.2
+	rel-7-6-branch:14.2.0.6
+	rel-7-6-0:14.2
+	rel-7-4-2:14.2
+	rel-7-4-branch:14.2.0.4
+	bobWinPort:14.2.0.2
+	rel-7-4-0:14.2
+	rel-7-2-6:14.2
+	rel-7-2-4:14.2
+	rel-7-2-2:14.1
+	rel-7-2-0:14.1
+	rel-7-0-4:14.1
+	rel-7-0-2:14.1
+	rel-7-0-1:14.1
+	opensource-post:14.1
+	opensource-pre:1.3
+	rel-7-0-branch:1.3.0.2
+	rel-7-0:1.3;
+locks; strict;
+comment	@ * @;
+
+
+14.3
+date	2007.03.02.21.47.49;	author brlcad;	state dead;
+branches;
+next	14.2;
+
+14.2
+date	2005.05.03.05.18.33;	author brlcad;	state Exp;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.28;	author morrison;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2004.09.08.14.35.54;	author morrison;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2004.09.08.04.19.03;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.14.53.44;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.3
+log
+@upgrade tcl/tk from 8.4.6 to 8.5a5; also move to a recursive configure, using AC_CONFIG_SUBDIRS to call upon tcl, tk, and enigma's configure scripts as needed instead of redoing their build systems for our purpose.  this has a rather drastic impact on the way the libraries are linked together, including the need to compile tcl/tk static so as to avoid libtool portability issues as well as letting us take advantage of their build system for reduced maintenance and easing future upgrades.  undoubtedly more build issues to be worked out with other platforms given the extent of this change.  this does move us one step closer towards correctly linking against system tcl/tk installations too.
+@
+text
+@/*
+ * tkUnixPort.h --
+ *
+ *	This file is included by all of the Tk C files.  It contains
+ *	information that may be configuration-dependent, such as
+ *	#includes for system include files and a few other things.
+ *
+ * Copyright (c) 1991-1993 The Regents of the University of California.
+ * Copyright (c) 1994-1996 Sun Microsystems, Inc.
+ *
+ * See the file "license.terms" for information on usage and redistribution
+ * of this file, and for a DISCLAIMER OF ALL WARRANTIES.
+ *
+ * RCS: @@(#) $Id: tkUnixPort.h,v 14.2 2005/05/03 05:18:33 brlcad Exp $
+ */
+
+#ifndef _UNIXPORT
+#define _UNIXPORT
+
+#include "common.h"
+
+#define __UNIX__ 1
+
+/*
+ * Macro to use instead of "void" for arguments that must have
+ * type "void *" in ANSI C;  maps them to type "char *" in
+ * non-ANSI systems.  This macro may be used in some of the include
+ * files below, which is why it is defined here.
+ */
+
+#ifndef VOID
+#  ifdef __STDC__
+#    define VOID void
+#  else
+#    define VOID char
+#  endif
+#endif
+
+#include <stdio.h>
+#include <ctype.h>
+#include <fcntl.h>
+#ifdef HAVE_LIMITS_H
+#  include <limits.h>
+#else
+#  include "../compat/limits.h"
+#endif
+#include <math.h>
+#include <pwd.h>
+#ifdef NO_STDLIB_H
+#  include "../compat/stdlib.h"
+#else
+#  include <stdlib.h>
+#endif
+#include <string.h>
+#include <sys/types.h>
+#include <sys/file.h>
+#ifdef HAVE_SYS_SELECT_H
+#  include <sys/select.h>
+#endif
+#include <sys/stat.h>
+#ifndef _TCL
+#  include <tcl.h>
+#endif
+#if TIME_WITH_SYS_TIME
+#  include <sys/time.h>
+#  include <time.h>
+#else
+#  if HAVE_SYS_TIME_H
+#    include <sys/time.h>
+#  else
+#    include <time.h>
+#  endif
+#endif
+#ifdef HAVE_UNISTD_H
+#  include <unistd.h>
+#else
+#  include "../compat/unistd.h"
+#endif
+#include <X11/Xlib.h>
+#include <X11/cursorfont.h>
+#include <X11/keysym.h>
+#include <X11/Xatom.h>
+#include <X11/Xproto.h>
+#include <X11/Xresource.h>
+#include <X11/Xutil.h>
+
+/*
+ * The following macro defines the type of the mask arguments to
+ * select:
+ */
+
+#ifndef NO_FD_SET
+#   define SELECT_MASK fd_set
+#else
+#   ifndef _AIX
+	typedef long fd_mask;
+#   endif
+#   if defined(_IBMR2)
+#	define SELECT_MASK void
+#   else
+#	define SELECT_MASK int
+#   endif
+#endif
+
+/*
+ * The following macro defines the number of fd_masks in an fd_set:
+ */
+
+#ifndef FD_SETSIZE
+#   ifdef OPEN_MAX
+#	define FD_SETSIZE OPEN_MAX
+#   else
+#	define FD_SETSIZE 256
+#   endif
+#endif
+#if !defined(howmany)
+#   define howmany(x, y) (((x)+((y)-1))/(y))
+#endif
+#ifndef NFDBITS
+#   define NFDBITS NBBY*sizeof(fd_mask)
+#endif
+#define MASK_SIZE howmany(FD_SETSIZE, NFDBITS)
+
+/*
+ * Not all systems declare the errno variable in errno.h. so this
+ * file does it explicitly.
+ */
+
+extern int errno;
+
+/*
+ * Define "NBBY" (number of bits per byte) if it's not already defined.
+ */
+
+#ifndef NBBY
+#   define NBBY 8
+#endif
+
+/*
+ * These macros are just wrappers for the equivalent X Region calls.
+ */
+
+#define TkClipBox(rgn, rect) XClipBox((Region) rgn, rect)
+#define TkCreateRegion() (TkRegion) XCreateRegion()
+#define TkDestroyRegion(rgn) XDestroyRegion((Region) rgn)
+#define TkIntersectRegion(a, b, r) XIntersectRegion((Region) a, \
+	(Region) b, (Region) r)
+#define TkRectInRegion(r, x, y, w, h) XRectInRegion((Region) r, x, y, w, h)
+#define TkSetRegion(d, gc, rgn) XSetRegion(d, gc, (Region) rgn)
+#define TkSubtractRegion(a, b, r) XSubtractRegion((Region) a, \
+	(Region) b, (Region) r)
+#define TkUnionRectWithRegion(rect, src, ret) XUnionRectWithRegion(rect, \
+	(Region) src, (Region) ret)
+
+/*
+ * The TkPutImage macro strips off the color table information, which isn't
+ * needed for X.
+ */
+
+#define TkPutImage(colors, ncolors, display, pixels, gc, image, destx, desty, srcx, srcy, width, height) \
+	XPutImage(display, pixels, gc, image, destx, desty, srcx, \
+	srcy, width, height);
+
+/*
+ * Supply macros for seek offsets, if they're not already provided by
+ * an include file.
+ */
+
+#ifndef SEEK_SET
+#   define SEEK_SET 0
+#endif
+
+#ifndef SEEK_CUR
+#   define SEEK_CUR 1
+#endif
+
+#ifndef SEEK_END
+#   define SEEK_END 2
+#endif
+
+/*
+ * Declarations for various library procedures that may not be declared
+ * in any other header file.
+ */
+
+
+/*
+ * These functions do nothing under Unix, so we just eliminate calls to them.
+ */
+
+#define TkpButtonSetDefaults(specPtr) {}
+#define TkpDestroyButton(butPtr) {}
+#define TkSelUpdateClipboard(a,b) {}
+#define TkSetPixmapColormap(p,c) {}
+
+/*
+ * These calls implement native bitmaps which are not supported under
+ * UNIX.  The macros eliminate the calls.
+ */
+
+#define TkpDefineNativeBitmaps()
+#define TkpCreateNativeBitmap(display, source) None
+#define TkpGetNativeAppBitmap(display, name, w, h) None
+
+/*
+ * This macro stores a representation of the window handle in a string.
+ * This should perhaps use the real size of an XID.
+ */
+
+#define TkpPrintWindowId(buf,w) \
+	sprintf((buf), "%#08lx", (unsigned long) (w))
+
+/*
+ * This macro indicates that entry and text widgets should display
+ * the selection highlight regardless of which window has the focus.
+ */
+
+#define ALWAYS_SHOW_SELECTION
+
+/*
+ * The following declaration is used to get access to a private Tcl interface
+ * that is needed for portability reasons.
+ */
+
+#ifndef _TCLINT
+#include <tclInt.h>
+#endif
+
+#endif /* _UNIXPORT */
+@
+
+
+14.2
+log
+@more config.h references converted to brlcad_config.h (or common.h where appropriate) that apparently slipped under the radar
+@
+text
+@d14 1
+a14 1
+ * RCS: @@(#) $Id: tkUnixPort.h,v 14.1 2004/11/16 19:42:28 morrison Exp $
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@d14 1
+a14 1
+ * RCS: @@(#) $Id: tkUnixPort.h,v 1.3 2004/09/08 14:35:54 morrison Exp $
+d20 1
+a20 3
+#ifdef HAVE_CONFIG_H
+#  include "config.h"
+#endif
+@
+
+
+1.3
+log
+@instead of protecting the sys/select.h include from a panic symbol, make autoconf check for panic and avoid the #define in the first place if it's set
+@
+text
+@d14 1
+a14 1
+ * RCS: @@(#) $Id: tkUnixPort.h,v 1.2 2004/09/08 04:19:03 morrison Exp $
+@
+
+
+1.2
+log
+@the backwards compatibility 'panic' define conflicts with an extern eventually included via sys/select.h as /usr/include/mach/mach.h.  undef the panic before the include for now.
+@
+text
+@d14 1
+a14 1
+ * RCS: @@(#) $Id: tkUnixPort.h,v 1.1 2004/05/20 14:53:44 morrison Exp $
+a59 3
+#  ifdef panic
+#    undef panic
+#  endif
+@
+
+
+1.1
+log
+@Sources that are external to BRL-CAD are moved from the top level to src/other/.
+@
+text
+@d14 1
+a14 1
+ * RCS: @@(#) $Id: tkUnixPort.h,v 1.4 2004/03/18 18:16:37 erikg Exp $
+d21 1
+a21 1
+# include "config.h"
+d34 5
+a38 5
+#   ifdef __STDC__
+#       define VOID void
+#   else
+#       define VOID char
+#   endif
+d45 1
+a45 1
+#   include <limits.h>
+d47 1
+a47 1
+#   include "../compat/limits.h"
+d52 1
+a52 1
+#   include "../compat/stdlib.h"
+d54 1
+a54 1
+#   include <stdlib.h>
+d60 4
+a63 1
+#   include <sys/select.h>
+d67 1
+a67 1
+#   include <tcl.h>
+d70 2
+a71 2
+#   include <sys/time.h>
+#   include <time.h>
+d73 5
+a77 5
+#   if HAVE_SYS_TIME_H
+#       include <sys/time.h>
+#   else
+#       include <time.h>
+#   endif
+d80 1
+a80 1
+#   include <unistd.h>
+d82 1
+a82 1
+#   include "../compat/unistd.h"
+@
+

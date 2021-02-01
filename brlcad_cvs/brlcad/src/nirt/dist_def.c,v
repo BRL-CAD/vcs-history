@@ -1,0 +1,408 @@
+head	14.9;
+access;
+symbols
+	rel-7-10-4:14.7
+	STABLE:14.7.0.2
+	stable-branch:14.3
+	rel-7-10-2:14.7
+	rel-7-10-0:14.7
+	rel-7-8-4:14.5
+	rel-7-8-2:14.5
+	rel-7-8-0:14.5
+	trimnurbs-branch:14.5.0.2
+	help:14.5
+	temp_tag:14.4
+	bobWinPort-20051223-freeze:14.3
+	postmerge-20051223-bobWinPort:14.4
+	premerge-20051223-bobWinPort:14.4
+	rel-7-6-6:14.4
+	rel-7-6-4:14.4
+	rel-7-6-2:14.3
+	rel-7-6-branch:14.3.0.6
+	rel-7-6-0:14.3
+	rel-7-4-2:14.3
+	rel-7-4-branch:14.3.0.4
+	bobWinPort:14.3.0.2
+	rel-7-4-0:14.3
+	rel-7-2-6:14.3
+	rel-7-2-4:14.3
+	rel-7-2-2:14.3
+	rel-7-2-0:14.3
+	rel-7-0-4:14.2
+	rel-7-0-2:14.2
+	rel-7-0-1:14.2
+	opensource-post:14.2
+	opensource-pre:1.1
+	rel-7-0-branch:1.1.0.2
+	rel-7-0:1.1;
+locks; strict;
+comment	@ * @;
+
+
+14.9
+date	2007.12.17.23.30.52;	author brlcad;	state Exp;
+branches;
+next	14.8;
+
+14.8
+date	2007.12.17.23.06.59;	author brlcad;	state Exp;
+branches;
+next	14.7;
+
+14.7
+date	2007.01.23.01.13.44;	author brlcad;	state Exp;
+branches;
+next	14.6;
+
+14.6
+date	2007.01.20.14.36.58;	author brlcad;	state Exp;
+branches;
+next	14.5;
+
+14.5
+date	2006.01.18.06.46.23;	author brlcad;	state Exp;
+branches;
+next	14.4;
+
+14.4
+date	2005.10.23.04.44.37;	author brlcad;	state Exp;
+branches;
+next	14.3;
+
+14.3
+date	2005.01.30.20.31.08;	author brlcad;	state Exp;
+branches
+	14.3.6.1;
+next	14.2;
+
+14.2
+date	2004.12.21.02.40.25;	author morrison;	state Exp;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.17;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.15.20.34;	author morrison;	state Exp;
+branches;
+next	;
+
+14.3.6.1
+date	2005.11.13.13.46.18;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.9
+log
+@more ws and style consistency cleanup
+@
+text
+@/*                      D I S T _ D E F . C
+ * BRL-CAD
+ *
+ * Copyright (c) 2004-2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@file dist_def.c
+ *
+ * determine default distance
+ *
+ * Author:
+ *   Natalie L. Barker
+ *
+ * Date:
+ *   Jan 90
+ *
+ */
+
+#include "common.h"
+
+#include <stdio.h>
+#include <math.h>
+
+#include "machine.h"
+#include "vmath.h"
+#include "raytrace.h"
+
+#include "./nirt.h"
+#include "./usrfmt.h"
+
+
+extern struct rt_i	*rtip;
+extern outval		ValTab[];
+
+
+double
+dist_default(void)
+{
+    vect_t		targ[8]; /* corners of target bounds */
+    vect_t		Gr; /* corners of grid bounds */
+    int			i;
+    static int		first_time = 1;
+    static double	g_max;
+    double		ca, ce, sa, se;
+
+    if (first_time) {
+	ca = cos(azimuth() * deg2rad);
+	ce = cos(elevation() * deg2rad);
+	sa = sin(azimuth() * deg2rad);
+	se = sin(elevation() * deg2rad);
+
+	/* determine the outer bounds of the RPP in gridplane coordinates */
+	targ[0][X] = targ[3][X] = targ[6][X] = targ[7][X] =
+	    rtip -> mdl_min[X];
+	targ[1][X] = targ[2][X] = targ[4][X] = targ[5][X] =
+	    rtip -> mdl_max[X];
+	targ[0][Y] = targ[3][Y] = targ[6][Y] = targ[7][Y] =
+	    rtip -> mdl_min[Y];
+	targ[1][Y] = targ[2][Y] = targ[4][Y] = targ[5][Y] =
+	    rtip -> mdl_max[Y];
+	targ[0][Z] = targ[3][Z] = targ[6][Z] = targ[7][Z] =
+	    rtip -> mdl_min[Z];
+	targ[1][Z] = targ[2][Z] = targ[4][Z] = targ[5][Z] =
+	    rtip -> mdl_max[Z];
+
+	g_max = targ[0][X] * ce * ca + targ[0][Y] * ce * sa + targ[0][Z] * se;
+
+	for (i=1; i<8; i++) {
+	    /* find the horz and vert max and min */
+	    Gr[DIST] = targ[i][X] * ce * ca
+		+ targ[i][Y] * ce * sa
+		+ targ[i][Z] * se;
+	    g_max = fmax(g_max, Gr[DIST]);
+	}
+	first_time = 0;
+    }
+    return(g_max);
+}
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+14.8
+log
+@use c99 fmax instead of max macro, might need configure support
+@
+text
+@d22 8
+d32 12
+a43 13
+/*	DIST_DEF.C	*/
+#ifndef lint
+static const char RCSid[] = "$Header: /cvsroot/brlcad/brlcad/src/nirt/dist_def.c,v 14.7 2007/01/23 01:13:44 brlcad Exp $";
+#endif
+
+/*	INCLUDES	*/
+#include	<stdio.h>
+#include	<math.h>
+#include	<machine.h>
+#include	<vmath.h>
+#include	<raytrace.h>
+#include	"./nirt.h"
+#include	"./usrfmt.h"
+d48 3
+a50 1
+double dist_default(void)
+d52 2
+a53 2
+    vect_t		targ[8];       /* corners of target bounds       */
+    vect_t		Gr;              /* corners of grid bounds         */
+d59 1
+a59 2
+    if (first_time)
+    {
+d67 1
+a67 1
+		    rtip -> mdl_min[X];
+d69 1
+a69 1
+		    rtip -> mdl_max[X];
+d71 1
+a71 1
+		    rtip -> mdl_min[Y];
+d73 1
+a73 1
+		    rtip -> mdl_max[Y];
+d75 1
+a75 1
+		    rtip -> mdl_min[Z];
+d77 1
+a77 1
+		    rtip -> mdl_max[Z];
+d81 2
+a82 2
+	for (i=1; i<8; i++)    /* find the horz and vert max and min */
+	    {
+d84 2
+a85 2
+		       + targ[i][Y] * ce * sa
+		       + targ[i][Z] * se;
+d87 1
+a87 1
+	    }
+@
+
+
+14.7
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@d26 1
+a26 1
+static const char RCSid[] = "$Header: /cvsroot/brlcad/brlcad/src/nirt/dist_def.c,v 14.6 2007/01/20 14:36:58 brlcad Exp $";
+d78 1
+a78 1
+	    g_max = max(g_max, Gr[DIST]);
+@
+
+
+14.6
+log
+@update copyright to 2007
+@
+text
+@d8 2
+a9 3
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+d14 1
+a14 1
+ * General Public License for more details.
+d16 2
+a17 2
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+d26 1
+a26 1
+static const char RCSid[] = "$Header: /cvsroot/brlcad/brlcad/src/nirt/dist_def.c,v 14.5 2006/01/18 06:46:23 brlcad Exp $";
+@
+
+
+14.5
+log
+@update copyright to 2006
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 2004-2006 United States Government as represented by
+d27 1
+a27 1
+static const char RCSid[] = "$Header: /cvsroot/brlcad/brlcad/src/nirt/dist_def.c,v 14.4 2005/10/23 04:44:37 brlcad Exp $";
+@
+
+
+14.4
+log
+@trailing ws
+@
+text
+@d4 1
+a4 1
+ * Copyright (C) 2004-2005 United States Government as represented by
+d27 1
+a27 1
+static const char RCSid[] = "$Header: /cvsroot/brlcad/brlcad/src/nirt/dist_def.c,v 14.3 2005/01/30 20:31:08 brlcad Exp $";
+@
+
+
+14.3
+log
+@update copyright to 2005
+@
+text
+@d27 1
+a27 1
+static const char RCSid[] = "$Header: /cvsroot/brlcad/brlcad/src/nirt/dist_def.c,v 14.2 2004/12/21 02:40:25 morrison Exp $";
+d79 2
+a80 2
+	    g_max = max(g_max, Gr[DIST]); 
+	    } 
+@
+
+
+14.3.6.1
+log
+@merge changes from HEAD aka rel-7-6-4 to the rel-7-6-branch just in case someone peeks a gander or tries to continue/build the branch
+@
+text
+@d27 1
+a27 1
+static const char RCSid[] = "$Header$";
+d79 2
+a80 2
+	    g_max = max(g_max, Gr[DIST]);
+	    }
+@
+
+
+14.2
+log
+@assign copyright and GPL
+@
+text
+@d4 2
+a5 2
+ * Copyright (c) 2004 United States Government as represented by the
+ * U.S. Army Research Laboratory.
+d27 1
+a27 1
+static const char RCSid[] = "$Header: /cvs/brlcad/src/nirt/dist_def.c,v 14.1 2004/11/16 19:42:17 morrison Exp $";
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@d1 24
+d27 1
+a27 1
+static const char RCSid[] = "$Header: /cvs/brlcad/src/nirt/dist_def.c,v 1.1 2004/05/20 15:20:34 morrison Exp $";
+@
+
+
+1.1
+log
+@Vast reorganization begins.  Sources moved from top-level directories into src/.
+@
+text
+@d3 1
+a3 1
+static const char RCSid[] = "$Header: /cvs/brlcad/nirt/dist_def.c,v 11.5 2004/04/05 07:39:41 morrison Exp $";
+d61 10
+@
+

@@ -1,0 +1,258 @@
+head	14.2;
+access;
+symbols
+	stable-branch:14.1
+	rel-7-8-4:14.1
+	rel-7-8-2:14.1
+	rel-7-8-0:14.1
+	trimnurbs-branch:14.1.0.8
+	help:14.1
+	temp_tag:14.1
+	bobWinPort-20051223-freeze:14.1
+	postmerge-20051223-bobWinPort:14.1
+	premerge-20051223-bobWinPort:14.1
+	rel-7-6-6:14.1
+	rel-7-6-4:14.1
+	rel-7-6-2:14.1
+	rel-7-6-branch:14.1.0.6
+	rel-7-6-0:14.1
+	rel-7-4-2:14.1
+	rel-7-4-branch:14.1.0.4
+	bobWinPort:14.1.0.2
+	rel-7-4-0:14.1
+	rel-7-2-6:14.1
+	rel-7-2-4:14.1
+	rel-7-2-2:14.1
+	rel-7-2-0:14.1
+	rel-7-0-4:14.1
+	rel-7-0-2:14.1
+	rel-7-0-1:14.1
+	opensource-post:14.1
+	opensource-pre:1.1
+	rel-7-0-branch:1.1.0.2
+	rel-7-0:1.1;
+locks; strict;
+comment	@# @;
+
+
+14.2
+date	2007.03.02.21.47.13;	author brlcad;	state dead;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.23;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.14.52.02;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.2
+log
+@upgrade tcl/tk from 8.4.6 to 8.5a5; also move to a recursive configure, using AC_CONFIG_SUBDIRS to call upon tcl, tk, and enigma's configure scripts as needed instead of redoing their build systems for our purpose.  this has a rather drastic impact on the way the libraries are linked together, including the need to compile tcl/tk static so as to avoid libtool portability issues as well as letting us take advantage of their build system for reduced maintenance and easing future upgrades.  undoubtedly more build issues to be worked out with other platforms given the extent of this change.  this does move us one step closer towards correctly linking against system tcl/tk installations too.
+@
+text
+@# This file contains Tcl code to implement a remote server that can be
+# used during testing of Tcl socket code. This server is used by some
+# of the tests in socket.test.
+#
+# Source this file in the remote server you are using to test Tcl against.
+#
+# Copyright (c) 1995-1996 Sun Microsystems, Inc.
+#
+# See the file "license.terms" for information on usage and redistribution
+# of this file, and for a DISCLAIMER OF ALL WARRANTIES.
+#
+# RCS: @@(#) $Id: remote.tcl,v 14.1 2004/11/16 19:42:23 morrison Exp $
+
+# Initialize message delimitor
+
+# Initialize command array
+catch {unset command}
+set command(0) ""
+set callerSocket ""
+
+# Detect whether we should print out connection messages etc.
+if {![info exists VERBOSE]} {
+    set VERBOSE 0
+}
+
+proc __doCommands__ {l s} {
+    global callerSocket VERBOSE
+
+    if {$VERBOSE} {
+	puts "--- Server executing the following for socket $s:"
+	puts $l
+	puts "---"
+    }
+    set callerSocket $s
+    if {[catch {uplevel #0 $l} msg]} {
+	list error $msg
+    } else {
+	list success $msg
+    }
+}
+
+proc __readAndExecute__ {s} {
+    global command VERBOSE
+
+    set l [gets $s]
+    if {[string compare $l "--Marker--Marker--Marker--"] == 0} {
+	if {[info exists command($s)]} {
+	    puts $s [list error incomplete_command]
+	}
+	puts $s "--Marker--Marker--Marker--"
+	return
+    }
+    if {[string compare $l ""] == 0} {
+	if {[eof $s]} {
+	    if {$VERBOSE} {
+		puts "Server closing $s, eof from client"
+	    }
+	    close $s
+	}
+	return
+    }
+    append command($s) $l "\n"
+    if {[info complete $command($s)]} {
+	set cmds $command($s)
+	unset command($s)
+	puts $s [__doCommands__ $cmds $s]
+    }
+    if {[eof $s]} {
+	if {$VERBOSE} {
+	    puts "Server closing $s, eof from client"
+	}
+	close $s
+    }
+}
+
+proc __accept__ {s a p} {
+    global VERBOSE
+
+    if {$VERBOSE} {
+	puts "Server accepts new connection from $a:$p on $s"
+    }
+    fileevent $s readable [list __readAndExecute__ $s]
+    fconfigure $s -buffering line -translation crlf
+}
+
+set serverIsSilent 0
+for {set i 0} {$i < $argc} {incr i} {
+    if {[string compare -serverIsSilent [lindex $argv $i]] == 0} {
+	set serverIsSilent 1
+	break
+    }
+}
+if {![info exists serverPort]} {
+    if {[info exists env(serverPort)]} {
+	set serverPort $env(serverPort)
+    }
+}
+if {![info exists serverPort]} {
+    for {set i 0} {$i < $argc} {incr i} {
+	if {[string compare -port [lindex $argv $i]] == 0} {
+	    if {$i < [expr $argc - 1]} {
+		set serverPort [lindex $argv [expr $i + 1]]
+	    }
+	    break
+	}
+    }
+}
+if {![info exists serverPort]} {
+    set serverPort 2048
+}
+
+if {![info exists serverAddress]} {
+    if {[info exists env(serverAddress)]} {
+	set serverAddress $env(serverAddress)
+    }
+}
+if {![info exists serverAddress]} {
+    for {set i 0} {$i < $argc} {incr i} {
+	if {[string compare -address [lindex $argv $i]] == 0} {
+	    if {$i < [expr $argc - 1]} {
+		set serverAddress [lindex $argv [expr $i + 1]]
+	    }
+	    break
+	}
+    }
+}
+if {![info exists serverAddress]} {
+    set serverAddress 0.0.0.0
+}
+
+if {$serverIsSilent == 0} {
+    set l "Remote server listening on port $serverPort, IP $serverAddress."
+    puts ""
+    puts $l
+    for {set c [string length $l]} {$c > 0} {incr c -1} {puts -nonewline "-"}
+    puts ""
+    puts ""
+    puts "You have set the Tcl variables serverAddress to $serverAddress and"
+    puts "serverPort to $serverPort. You can set these with the -address and"
+    puts "-port command line options, or as environment variables in your"
+    puts "shell."
+    puts ""
+    puts "NOTE: The tests will not work properly if serverAddress is set to"
+    puts "\"localhost\" or 127.0.0.1."
+    puts ""
+    puts "When you invoke tcltest to run the tests, set the variables"
+    puts "remoteServerPort to $serverPort and remoteServerIP to"
+    puts "[info hostname]. You can set these as environment variables"
+    puts "from the shell. The tests will not work properly if you set"
+    puts "remoteServerIP to \"localhost\" or 127.0.0.1."
+    puts ""
+    puts -nonewline "Type Ctrl-C to terminate--> "
+    flush stdout
+}
+
+if {[catch {set serverSocket \
+	[socket -myaddr $serverAddress -server __accept__ $serverPort]} msg]} {
+    puts "Server on $serverAddress:$serverPort cannot start: $msg"
+} else {
+    vwait __server_wait_variable__
+}
+
+
+
+
+
+
+
+
+
+
+
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@d12 1
+a12 1
+# RCS: @@(#) $Id: remote.tcl,v 1.1 2004/05/20 14:52:02 morrison Exp $
+@
+
+
+1.1
+log
+@Sources that are external to BRL-CAD are moved from the top level to src/other/.
+@
+text
+@d12 1
+a12 1
+# RCS: @@(#) $Id: remote.tcl,v 1.3 2004/03/04 19:47:20 morrison Exp $
+@
+

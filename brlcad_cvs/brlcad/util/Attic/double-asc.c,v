@@ -1,0 +1,669 @@
+head	1.13;
+access;
+symbols
+	ansi-20040405-merged:1.9.2.2
+	postmerge-20040405-ansi:1.11
+	premerge-20040404-ansi:1.10
+	postmerge-autoconf:1.10
+	autoconf-freeze:1.9.10.2
+	premerge-autoconf:1.10
+	postmerge-20040315-windows:1.10
+	premerge-20040315-windows:1.10
+	windows-20040315-freeze:1.9.4.1
+	autoconf-20031203:1.9
+	autoconf-20031202:1.9
+	autoconf-branch:1.9.0.10
+	phong-branch:1.9.0.8
+	photonmap-branch:1.9.0.6
+	rel-6-1-DP:1.9
+	windows-branch:1.9.0.4
+	rel-6-0-2:1.7
+	ansi-branch:1.9.0.2
+	rel-6-0-1-branch:1.7.0.2
+	hartley-6-0-post:1.8
+	hartley-6-0-pre:1.7
+	rel-6-0-1:1.7
+	rel-6-0:1.7
+	rel-5-4:1.3
+	offsite-5-3-pre:1.5
+	rel-5-3:1.3
+	rel-5-2:1.3
+	rel-5-1-branch:1.3.0.2
+	rel-5-1:1.3
+	rel-5-0:1.3
+	rel-5-0-beta:1.3
+	rel-4-5:1.2
+	ctj-4-5-post:1.1
+	ctj-4-5-pre:1.1;
+locks; strict;
+comment	@ * @;
+
+
+1.13
+date	2004.05.21.14.57.38;	author morrison;	state dead;
+branches;
+next	1.12;
+
+1.12
+date	2004.05.10.15.30.50;	author erikg;	state Exp;
+branches;
+next	1.11;
+
+1.11
+date	2004.04.05.05.46.01;	author morrison;	state Exp;
+branches;
+next	1.10;
+
+1.10
+date	2004.02.02.17.39.45;	author morrison;	state Exp;
+branches;
+next	1.9;
+
+1.9
+date	2002.08.20.17.08.57;	author jra;	state Exp;
+branches
+	1.9.2.1
+	1.9.4.1
+	1.9.10.1;
+next	1.8;
+
+1.8
+date	2002.08.15.20.56.10;	author hartley;	state Exp;
+branches;
+next	1.7;
+
+1.7
+date	2001.08.10.20.57.05;	author butler;	state Exp;
+branches;
+next	1.6;
+
+1.6
+date	2001.08.08.03.28.15;	author butler;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	2000.09.01.03.23.47;	author mike;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	2000.08.23.19.04.29;	author mike;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	98.06.25.07.17.24;	author mike;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	97.12.03.07.03.55;	author mike;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	96.11.01.20.32.15;	author pjt;	state Exp;
+branches;
+next	;
+
+1.9.2.1
+date	2002.09.19.18.02.35;	author morrison;	state Exp;
+branches;
+next	1.9.2.2;
+
+1.9.2.2
+date	2004.03.17.21.23.23;	author morrison;	state Exp;
+branches;
+next	;
+
+1.9.4.1
+date	2004.03.11.23.52.30;	author morrison;	state Exp;
+branches;
+next	;
+
+1.9.10.1
+date	2004.02.12.19.43.09;	author erikg;	state Exp;
+branches;
+next	1.9.10.2;
+
+1.9.10.2
+date	2004.03.15.14.08.11;	author erikg;	state Exp;
+branches;
+next	;
+
+
+desc
+@     Convert a stream of IEEE doubles to ASCII
+@
+
+
+1.13
+log
+@moved to src/util/
+@
+text
+@/*
+ *  			D O U B L E - A S C . C
+ *  
+ *  		Take a stream of IEEE doubles and make them ASCII
+ *  
+ *  Author -
+ *	Paul Tanenbaum
+ *  
+ *  Source -
+ *	SECAD/VLD Computing Consortium, Bldg 394
+ *	The U. S. Army Ballistic Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005-5066
+ *  
+ *  Copyright Notice -
+ *	This software is Copyright (C) 1996-2004 by the United States Army.
+ *	All rights reserved.
+ */
+#ifndef lint
+static const char RCSid[] = "@@(#)$Header: /n/xoff/cvs/brlcad/util/double-asc.c,v 1.12 2004/05/10 15:30:50 erikg Exp $ (BRL)";
+#endif
+
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+
+#include <stdio.h>
+#ifdef HAVE_STRING_H
+#include <string.h>
+#else
+#include <strings.h>
+#endif
+#include <fcntl.h>
+#include "machine.h"
+#include "externs.h"			/* For getopt */
+
+#include "bu.h"
+#include "vmath.h"
+#include "bn.h"
+#include "fb.h"
+
+static char	*file_name;
+static char	*format = 0;
+static int	infd;
+
+static int	fileinput = 0;		/* Input from file (vs. pipe)? */
+static int	autosize = 0;		/* Try to autosize input? */
+
+static int	file_width = 512;	/* default input width */
+static int	file_height = 512;	/* default input height */
+
+static int	make_cells = 0;		/* Insert cell coords in output? */
+static int	d_per_l = 1;		/* doubles per line of output */
+
+void print_usage (void)
+{
+#define OPT_STRING	"acf:hs:n:w#:?"
+
+    bu_log("Usage: 'double-asc %s\n%s [file.d]'\n",
+	"[-{ah}] [-s squaresize] [-w width] [-n height]",
+	   "                   [-c] [-f format] [-# depth]");
+}
+
+int
+get_args(int argc, register char **argv)
+{
+    register int ch;
+
+    while ((ch = getopt(argc, argv, OPT_STRING)) != EOF)
+    {
+	switch (ch)
+	{
+	    /*
+	     *	BRL-CAD image-size options
+	     */
+	    case 'a':
+		autosize = 1;
+		break;
+	    case 'h':
+		/* high-res */
+		file_height = file_width = 1024;
+		autosize = 0;
+		break;
+	    case 's':
+		/* square file size */
+		file_height = file_width = atoi(optarg);
+		autosize = 0;
+		break;
+	    case 'n':
+		file_height = atoi(optarg);
+		autosize = 0;
+		break;
+	    case 'w':
+		file_width = atoi(optarg);
+		autosize = 0;
+		break;
+	    /*
+	     *	application-specific options
+	     */
+	    case 'c':
+		make_cells = 1;
+		break;
+	    case 'f':
+		if (format != 0)
+		    bu_free(format, "format_string");
+		format = (char *)
+			    bu_malloc(strlen(optarg) + 1, "format string");
+		strcpy(format, optarg);
+		break;
+	    case '#':
+		d_per_l = atoi(optarg);
+		break;
+	    case '?':
+	    default:
+		print_usage();
+		exit (ch != '?');
+		return(0);
+	}
+    }
+    if (format == 0)
+	format = " %g";
+
+    /*
+     *	Establish the input stream
+     */
+    switch (argc - optind)
+    {
+	case 0:
+	    file_name = "stdin";
+	    infd = 0;
+	    break;
+	case 1:
+	    file_name = argv[optind++];
+	    if ((infd = open(file_name, O_RDONLY)) == -1)
+	    {
+		bu_log ("Cannot open file '%s'\n", file_name);
+		exit (1);
+	    }
+	    fileinput = 1;
+	    break;
+	default:
+	    print_usage();
+	    exit (1);
+    }
+
+    if (argc > ++optind)
+    {
+	print_usage();
+	exit (1);
+    }
+
+    return(1);		/* OK */
+}
+
+int
+main (int argc, char **argv)
+{
+    unsigned char *buffer;
+    unsigned char *bp;
+    double	*value;
+    int		bufsiz;		/* buffer size (in bytes) */
+    int		l_per_b;	/* buffer size (in output lines) */
+    int		line_nm;	/* number of current line */
+    int		num;		/* number of bytes read */
+    int		i;
+    int		row, col;	/* coords within input stream */
+
+    if (!get_args( argc, argv))
+    {
+	print_usage();
+	exit (1);
+    }
+
+    /* autosize input? */
+    if (fileinput && autosize)
+    {
+	int	w, h;
+
+	if (bn_common_file_size(&w, &h, file_name, d_per_l * 8))
+	{
+	    file_width = w;
+	    file_height = h;
+	}
+	else
+	    bu_log("double-asc: unable to autosize\n");
+    }
+    bu_log("OK, file is %d wide and %d high\n", file_width, file_height);
+
+    /*
+     *	Choose an input-buffer size as close as possible to 64 kbytes,
+     *	while still an integral multiple of the size of an output line.
+     */
+    l_per_b = ((1 << 16) / (d_per_l * 8));
+    bufsiz = l_per_b * (d_per_l * 8);
+
+    buffer = (unsigned char *) bu_malloc(bufsiz, "char buffer");
+    value = (double *) bu_malloc(d_per_l * 8, "doubles");
+    col = row = 0;
+    while ((num = read(infd, buffer, bufsiz)) > 0)
+    {
+	bp = buffer;
+	l_per_b = num / (d_per_l * 8);
+	for (line_nm = 0; line_nm < l_per_b; ++line_nm)
+	{
+	    if (make_cells)
+		printf("%d %d", col, row);
+	    ntohd((unsigned char *)value, bp, d_per_l);
+	    bp += d_per_l * 8;
+	    for (i = 0; i < d_per_l; ++i)
+		printf(format, value[i]);
+	    printf("\n");
+	    if (++col % file_width == 0)
+	    {
+		col = 0;
+		++row;
+	    }
+	}
+    }
+    if (num < 0)
+    {
+	perror("double-asc");
+	exit (1);
+    }
+    return 0;
+}
+@
+
+
+1.12
+log
+@change conf.h to a wrapped config.h
+@
+text
+@d19 1
+a19 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/util/double-asc.c,v 1.11 2004/04/05 05:46:01 morrison Exp $ (BRL)";
+@
+
+
+1.11
+log
+@merge of ansi-6-0-branch into head
+@
+text
+@d19 1
+a19 1
+static const char RCSid[] = "@@(#)$Header$ (BRL)";
+d22 5
+a26 1
+#include "conf.h"
+@
+
+
+1.10
+log
+@update copyright to include span through 2003
+@
+text
+@d19 1
+a19 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/util/double-asc.c,v 1.9 2002/08/20 17:08:57 jra Exp $ (BRL)";
+d52 1
+a52 1
+void print_usage ()
+d62 1
+a62 5
+get_args(argc, argv)
+
+int		argc;
+register char	*argv[];
+
+d153 1
+a153 5
+main (argc, argv)
+
+int	argc;
+char	*argv[];
+
+@
+
+
+1.9
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d15 1
+a15 1
+ *	This software is Copyright (C) 1996 by the United States Army.
+d19 1
+a19 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/util/double-asc.c,v 1.7 2001/08/10 20:57:05 butler Exp $ (BRL)";
+@
+
+
+1.9.4.1
+log
+@sync to HEAD...
+@
+text
+@d15 1
+a15 1
+ *	This software is Copyright (C) 1996-2004 by the United States Army.
+d19 1
+a19 1
+static const char RCSid[] = "@@(#)$Header: /n/cad/c/CVS/brlcad/util/double-asc.c,v 1.10 2004/02/02 17:39:45 morrison Exp $ (BRL)";
+@
+
+
+1.9.10.1
+log
+@merge from HEAD
+@
+text
+@d15 1
+a15 1
+ *	This software is Copyright (C) 1996-2004 by the United States Army.
+d19 1
+a19 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/util/double-asc.c,v 1.10 2004/02/02 17:39:45 morrison Exp $ (BRL)";
+@
+
+
+1.9.10.2
+log
+@merge from head
+@
+text
+@d19 1
+a19 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/util/double-asc.c,v 1.9.10.1 2004/02/12 19:43:09 erikg Exp $ (BRL)";
+@
+
+
+1.9.2.1
+log
+@Initial ANSIfication
+@
+text
+@d19 1
+a19 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/util/double-asc.c,v 1.9 2002/08/20 17:08:57 jra Exp $ (BRL)";
+d52 1
+a52 1
+void print_usage (void)
+d62 5
+a66 1
+get_args(int argc, register char **argv)
+d157 5
+a161 1
+main (int argc, char **argv)
+@
+
+
+1.9.2.2
+log
+@sync branch with HEAD
+@
+text
+@d15 1
+a15 1
+ *	This software is Copyright (C) 1996-2004 by the United States Army.
+d19 1
+a19 1
+static const char RCSid[] = "@@(#)$Header$ (BRL)";
+@
+
+
+1.8
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d52 1
+a52 1
+void print_usage (void)
+d62 5
+a66 1
+get_args(int argc, register char **argv)
+d157 5
+a161 1
+main (int argc, char **argv)
+@
+
+
+1.7
+log
+@Misc compiler warnings eliminated
+@
+text
+@d19 1
+a19 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/util/double-asc.c,v 1.6 2001/08/08 03:28:15 butler Exp $ (BRL)";
+d52 1
+a52 1
+void print_usage ()
+d62 1
+a62 5
+get_args(argc, argv)
+
+int		argc;
+register char	*argv[];
+
+d153 1
+a153 5
+main (argc, argv)
+
+int	argc;
+char	*argv[];
+
+@
+
+
+1.6
+log
+@Misc compiler warnings eliminated
+@
+text
+@d19 1
+a19 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/util/double-asc.c,v 1.5 2000/09/01 03:23:47 mike Exp $ (BRL)";
+d25 5
+@
+
+
+1.5
+log
+@
+Lint fix
+@
+text
+@d19 1
+a19 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/util/double-asc.c,v 1.4 2000/08/23 19:04:29 mike Exp $ (BRL)";
+d224 1
+@
+
+
+1.4
+log
+@
+const RCSid
+@
+text
+@d19 1
+a19 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/util/double-asc.c,v 1.3 1998/06/25 07:17:24 mike Exp $ (BRL)";
+d28 4
+d56 1
+d151 1
+d158 2
+a159 1
+    char	*buffer, *bp;
+d196 1
+a196 1
+    buffer = (char *) bu_malloc(bufsiz, "char buffer");
+d207 1
+a207 1
+	    ntohd(value, bp, d_per_l);
+@
+
+
+1.3
+log
+@Mods for compiling on sun4
+@
+text
+@d19 1
+a19 1
+static char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/util/double-asc.c,v 1.2 1997/12/03 07:03:55 mike Exp $ (BRL)";
+@
+
+
+1.2
+log
+@PJT fixed to use bn_common_file_size().
+@
+text
+@d19 1
+a19 1
+static char RCSid[] = "@@(#)$Header: /m/cad/util/RCS/double-asc.c,v 1.1 1996/11/01 20:32:15 pjt Exp $ (BRL)";
+d43 1
+a43 1
+void print_usage (void)
+d214 1
+a214 1
+	bu_log("double-asc: %s\n", strerror(errno));
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d19 1
+a19 1
+static char RCSid[] = "@@(#)$Header: /m/cad/fb/RCS/pix-fb.c,v 11.1 95/01/04 10:09:39 mike Rel4_4 $ (BRL)";
+d31 1
+d45 1
+a45 1
+#define OPT_STRING	"achs:n:w#:?"
+d47 3
+a49 2
+    bu_log("Usage: 'double-asc %s [file.d]'\n",
+	"[-{ah}c] [-s squaresize] [-w width] [-n height] [-# depth]");
+d64 3
+a69 3
+	    case 'c':
+		make_cells = 1;
+		break;
+d88 13
+d111 2
+d172 1
+a172 1
+	if (fb_common_file_size(&w, &h, file_name, d_per_l * 8))
+d199 1
+a199 1
+		printf("%d %d ", col, row);
+d203 1
+a203 1
+		printf((i == 0) ? "%g" : " %g", value[i]);
+@

@@ -1,0 +1,1453 @@
+head	11.14;
+access;
+symbols
+	ansi-20040405-merged:11.12.2.1
+	postmerge-20040405-ansi:11.13
+	premerge-20040404-ansi:11.12
+	postmerge-autoconf:11.12
+	autoconf-freeze:11.12
+	premerge-autoconf:11.12
+	postmerge-20040315-windows:11.12
+	premerge-20040315-windows:11.12
+	windows-20040315-freeze:11.12
+	autoconf-20031203:11.12
+	autoconf-20031202:11.12
+	autoconf-branch:11.12.0.10
+	phong-branch:11.12.0.8
+	photonmap-branch:11.12.0.6
+	rel-6-1-DP:11.12
+	windows-branch:11.12.0.4
+	rel-6-0-2:11.10
+	ansi-branch:11.12.0.2
+	rel-6-0-1-branch:11.10.0.2
+	hartley-6-0-post:11.11
+	hartley-6-0-pre:11.10
+	rel-6-0-1:11.10
+	rel-6-0:11.10
+	rel-5-4:11.6.2.1
+	offsite-5-3-pre:11.8
+	rel-5-3:11.6
+	rel-5-2:11.6
+	rel-5-1-branch:11.6.0.2
+	rel-5-1:11.6;
+locks; strict;
+comment	@ * @;
+
+
+11.14
+date	2004.05.21.14.58.05;	author morrison;	state dead;
+branches;
+next	11.13;
+
+11.13
+date	2004.04.05.05.46.03;	author morrison;	state Exp;
+branches;
+next	11.12;
+
+11.12
+date	2002.08.20.17.09.06;	author jra;	state Exp;
+branches
+	11.12.2.1;
+next	11.11;
+
+11.11
+date	2002.08.15.20.56.18;	author hartley;	state Exp;
+branches;
+next	11.10;
+
+11.10
+date	2001.03.19.22.20.22;	author butler;	state Exp;
+branches;
+next	11.9;
+
+11.9
+date	2001.03.19.19.59.05;	author butler;	state Exp;
+branches;
+next	11.8;
+
+11.8
+date	2001.03.19.19.25.00;	author morrison;	state Exp;
+branches;
+next	11.7;
+
+11.7
+date	2000.06.27.14.46.48;	author butler;	state Exp;
+branches;
+next	11.6;
+
+11.6
+date	2000.03.31.03.11.48;	author mike;	state Exp;
+branches
+	11.6.2.1;
+next	11.5;
+
+11.5
+date	2000.03.31.03.10.38;	author mike;	state Exp;
+branches;
+next	11.4;
+
+11.4
+date	2000.03.15.05.01.27;	author butler;	state Exp;
+branches;
+next	11.3;
+
+11.3
+date	2000.03.13.03.29.44;	author butler;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	2000.02.20.06.40.50;	author butler;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	2000.02.09.06.58.46;	author butler;	state Exp;
+branches;
+next	;
+
+11.6.2.1
+date	2001.03.12.19.15.58;	author butler;	state Exp;
+branches;
+next	;
+
+11.12.2.1
+date	2002.09.19.18.02.46;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+11.14
+log
+@moved to src/util/
+@
+text
+@/*	T E R R A I N . C --- generate pseudo-terrain
+ *
+ *	Options
+ *	w	number of postings in X direction
+ *	n	number of postings in Y direction
+ *	s	number of postings in X,Y direction
+ *	L	Noise Lacunarity
+ *	H	Noise H value
+ *	O	Noise Octaves
+ *	S	Noise Scale
+ *	V	Noise Vector scale (affine scale)
+ *	D	Noise Delta
+ *	f	noise function (f=fbm t=turb T=1.0-turb)
+ *	c	toggle host-net conversion
+ *	o	offset
+ */
+#include <stdio.h>
+#include <unistd.h>
+#include <math.h>
+#include "machine.h"
+#include "bu.h"
+#include "vmath.h"
+#include "bn.h"
+
+/* declarations to support use of getopt() system call */
+char *options = "w:n:s:L:H:O:S:V:D:f:co:v";
+extern char *optarg;
+extern int optind, opterr, getopt(int, char *const *, const char *);
+
+int do_convert = 1;
+char *progname = "(noname)";
+unsigned xdim = 256;
+unsigned ydim = 256;
+
+double fbm_lacunarity = 2.1753974;		/* noise_lacunarity */
+double fbm_h = 1.0;
+double fbm_octaves = 7.0;
+double fbm_size = 1.0;
+vect_t fbm_vscale = {0.0125, 0.0125, 0.0125};
+vect_t fbm_delta = {1000.0, 1000.0, 1000.0};
+double fbm_offset = 1.0;
+int quiet = 0;
+
+int debug;
+
+/* transform a point in integer X,Y,Z space to appropriate noise space */
+static void
+xform(point_t t, point_t pt)
+{
+	t[X] = fbm_delta[X] + pt[X] * fbm_vscale[X];
+	t[Y] = fbm_delta[Y] + pt[Y] * fbm_vscale[Y];
+	t[Z] = fbm_delta[Z] + pt[Z] * fbm_vscale[Z];
+}
+
+/*
+ *	U S A G E --- tell user how to invoke this program, then exit
+ */
+void
+usage(char *s)
+{
+	if (s) (void)fputs(s, stderr);
+
+	(void) fprintf(stderr, "Usage: %s [ flags ] > outfile]\nFlags:\n%s\n",
+		       progname, 
+"\t-w #\t\tnumber of postings in X direction\n\
+\t-n #\t\tnumber of postings in Y direction\n\
+\t-s #\t\tnumber of postings in X,Y direction\n\
+\t-L #\t\tNoise Lacunarity\n\
+\t-H #\t\tNoise H value\n\
+\t-O #\t\tNoise Octaves\n\
+\t-S #\t\tNoise Scale\n\
+\t-V #,#,#\tNoise Vector scale (affine scale)\n\
+\t-D #,#,#\tNoise Delta\n\
+\t-f func\t\tNoise function:\n\
+\t\t\t\tf:fbm t:turb T:1.0-turb m:multi r:ridged");
+
+	exit(1);
+}
+
+
+/***********************************************************************
+ *
+ *	func_fbm
+ *
+ *	Fractional Brownian motion noise
+ */
+void
+func_fbm(unsigned short *buf)
+{
+	point_t pt;
+	int x, y;
+	vect_t t;
+	double v;
+
+	if (debug) bu_log("fbm\n");
+
+	pt[Z] = 0.0;
+	for (y=0 ; y < ydim ; y++) {
+		pt[Y] = y;
+		for (x=0  ; x < xdim ; x++) {
+			pt[X] = x;
+
+			xform(t, pt);
+			v = bn_noise_fbm(t, fbm_h,fbm_lacunarity, fbm_octaves);
+			if (v > 1.0 || v < -1.0)
+				if (debug) bu_log("clamping noise value %g \n", v);
+			v = v * 0.5 + 0.5;
+			CLAMP(v, 0.0, 1.0);
+
+			buf[y*xdim + x] = 1.0 + 65534.0 * v;
+		}
+	}
+}
+/***********************************************************************
+ *
+ *	func_turb
+ *
+ *	Turbulence noise
+ */
+void
+func_turb(unsigned short *buf)
+{
+	point_t pt;
+	int x, y;
+	vect_t t;
+	double v;
+
+	if (debug) bu_log("turb\n");
+
+	pt[Z] = 0.0;
+	for (y=0 ; y < ydim ; y++) {
+		pt[Y] = y;
+		for (x=0  ; x < xdim ; x++) {
+			pt[X] = x;
+
+			xform(t, pt);
+
+			v = bn_noise_turb(t, fbm_h, 
+					  fbm_lacunarity, fbm_octaves);
+
+			if (v > 1.0 || v < 0.0)
+				if (debug) bu_log("clamping noise value %g \n", v);
+			CLAMP(v, 0.0, 1.0);
+			buf[y*xdim + x] = 1.0 + 65534.0 * v;
+		}
+	}
+}
+
+/***********************************************************************
+ *
+ *	func_turb_up
+ *
+ *	Upside-down turbulence noise
+ */
+void
+func_turb_up(short *buf)
+{
+	point_t pt;
+	int x, y;
+	vect_t t;
+	double v;
+
+	if (debug) bu_log("1.0 - turb\n");
+
+	pt[Z] = 0.0;
+	for (y=0 ; y < ydim ; y++) {
+		pt[Y] = y;
+		for (x=0  ; x < xdim ; x++) {
+			pt[X] = x;
+
+			xform(t, pt);
+
+			v = bn_noise_turb(t, fbm_h, 
+					  fbm_lacunarity, fbm_octaves);
+			CLAMP(v, 0.0, 1.0);
+			v = 1.0 - v;
+
+			if (v > 1.0 || v < 0.0)
+				if (debug) bu_log("clamping noise value %g \n", v);
+			buf[y*xdim + x] = 1 + 65535.0 * v;
+		}
+	}
+}
+
+
+
+/***********************************************************************
+ *
+ *	func_multi
+ *
+ *	Multi-fractal
+ */
+void
+func_multi(short *buf)
+{
+	point_t pt;
+	int x, y;
+	vect_t t;
+	double v;
+	double min_V, max_V;
+
+	if (debug) bu_log("multi\n");
+
+	min_V = 10.0;
+	max_V =  -10.0;
+
+	pt[Z] = 0.0;
+	for (y=0 ; y < ydim ; y++) {
+		pt[Y] = y;
+		for (x=0  ; x < xdim ; x++) {
+			pt[X] = x;
+
+			xform(t, pt);
+
+			v = bn_noise_mf(t, fbm_h, 
+					fbm_lacunarity, fbm_octaves,
+					fbm_offset);
+
+			v -= .3;
+			v *= 0.8;
+			if (v < min_V) min_V = v;
+			if (v > max_V) max_V = v;
+
+			if (v > 1.0 || v < 0.0) {
+				if (debug) bu_log("clamping noise value %g \n", v);
+				CLAMP(v, 0.0, 1.0);
+			}
+			buf[y*xdim + x] = 1 + 65534000.0 * v;
+		}
+	}
+	if (debug) bu_log("min_V: %g   max_V: %g\n", min_V, max_V);
+
+}
+/***********************************************************************
+ *
+ *	func_ridged
+ *
+ *	Ridged multi-fractal
+ */
+void
+func_ridged(unsigned short *buf)
+{
+	point_t pt;
+	int x, y;
+	vect_t t;
+	double v;
+	double lo, hi;
+
+	if (debug) bu_log("ridged\n");
+
+	lo = 10.0;
+	hi = -10.0;
+
+	pt[Z] = 0.0;
+	for (y=0 ; y < ydim ; y++) {
+		pt[Y] = y;
+		for (x=0  ; x < xdim ; x++) {
+			pt[X] = x;
+
+			xform(t, pt);
+
+			v = bn_noise_ridged(t, fbm_h, 
+					  fbm_lacunarity, fbm_octaves, 
+					    fbm_offset);
+			if (v < lo) lo = v;
+			if (v > hi) hi = v;
+			v *= 0.5;
+
+			if (v > 1.0 || v < 0.0)
+				if (debug) bu_log("clamping noise value %g \n", v);
+			CLAMP(v, 0.0, 1.0);
+			buf[y*xdim + x] = 1.0 + 65534.0 * v;
+		}
+	}
+}
+
+#define PSCALE(_p, _s) _p[0] *= _s; _p[1] *= _s; _p[2] *= _s
+#define PCOPY(_d, _s) _d[0] = _s[0]; _d[1] = _s[1]; _d[2] = _s[2]
+double
+fiord(point_t point, double h, double lacunarity, double octaves, double offset)
+{
+	int i = 0;
+	point_t pt;
+	double weight, signal, freq, result;
+
+	if (debug) bu_log("fiord\n");
+
+	PCOPY(pt, point);
+	freq = weight = .5;
+	result = 0.0;
+
+	do {
+		signal = fabs(bn_noise_perlin(pt)) * pow(freq, -h);
+		result += signal * weight;
+		weight = result;
+		freq *= lacunarity;
+		PSCALE(pt, lacunarity);
+	} while (++i < octaves);
+
+	return result;
+}
+
+double
+ice(point_t point, double h, double lacunarity, double octaves, double offset)
+{
+	int i = 0;
+	point_t pt;
+	double weight, signal, freq, result;
+	static double lo = 10.0;
+	static double hi = -10.0;
+
+	if (debug) bu_log("ice\n");
+
+	PCOPY(pt, point);
+	freq =  1.0;
+	weight = 1.0;
+	result = 0.0;
+
+	do {
+		signal = fabs(bn_noise_perlin(pt)) * pow(freq, -h);
+
+		if (signal < lo) {
+			lo = signal;
+			if (debug) bu_log("new low %g\n", lo);
+		}
+		if (signal > hi) {
+			hi = signal;
+			if (debug) bu_log("new high %g\n", hi);
+		}
+
+		result += signal * weight;
+		weight -= result;
+		freq *= lacunarity;
+		PSCALE(pt, lacunarity);
+	} while (++i < octaves);
+
+	return 1.0 - result;
+}
+
+double
+lunar2(point_t point, double h, double lacunarity, double octaves, double offset)
+{
+	int i = 0;
+	point_t pt;
+	double weight, signal, freq, result;
+	static double lo = 10.0;
+	static double hi = -10.0;
+
+	if (debug) bu_log("lunar2\n");
+
+	PCOPY(pt, point);
+	freq =  1.0;
+	weight = 1.0;
+	result = 0.0;
+
+	do {
+		signal = fabs(bn_noise_perlin(pt));
+		signal *= signal;
+
+		if (signal < lo) {
+			lo = signal;
+			if (debug) bu_log("new low %g\n", lo);
+		}
+		if (signal > hi) {
+			hi = signal;
+			if (debug) bu_log("new high %g\n", hi);
+		}
+
+		result += signal * pow(freq, -h);
+		weight -= signal;
+		freq *= lacunarity;
+		PSCALE(pt, lacunarity);
+	} while (++i < octaves);
+
+	return 1.0 - result;
+}
+/***********************************************************************
+ * This one's got detail on the peaks
+ *
+ *
+ */
+double
+land(point_t point, double h, double lacunarity, double octaves, double offset)
+{
+	int i = 0;
+	point_t pt;
+	double weight, signal, freq, result;
+
+	if (debug) bu_log("land\n");
+
+	PCOPY(pt, point);
+	freq =  1.0;
+	weight = 1.0;
+	result = 0.0;
+
+	do {
+		signal = fabs(bn_noise_perlin(pt));
+		signal *= weight;
+
+		result += signal * pow(freq, -h);
+		weight = 0.5 - result;
+		CLAMP(weight, 0.0, 1.0);
+		freq *= lacunarity;
+		PSCALE(pt, lacunarity);
+	} while (++i < octaves);
+
+	
+	return 1.0 - result;
+}
+/***********************************************************************
+ * This one's got detail on the peaks and in the valleys, but not on the
+ * slopes
+ *
+ */
+double
+lee(point_t point, double h, double lacunarity, double octaves, double offset)
+{
+	int i = 0;
+	point_t pt;
+	double weight, signal, freq, result;
+
+	if (debug) bu_log("lee\n");
+
+	PCOPY(pt, point);
+	freq =  1.0;
+	weight = 1.0;
+	result = 0.0;
+
+	do {
+		signal = fabs(bn_noise_perlin(pt));
+		signal *=  1.5 * weight;
+
+
+		result += signal * pow(freq, -h);
+		weight = .6 - result;
+		freq *= lacunarity;
+		PSCALE(pt, lacunarity);
+	} while (++i < octaves);
+
+	
+	return 1.2 - result;
+}
+
+/***********************************************************************
+ *
+ *	func_lee
+ *
+ *	Ridged multi-fractal
+ */
+void
+func_lee(unsigned short *buf)
+{
+	point_t pt;
+	int x, y;
+	vect_t t;
+	double v;
+	double lo, hi;
+
+	if (debug) bu_log("func_lee\n");
+
+	lo = 10.0;
+	hi = -10.0;
+
+	pt[Z] = 0.0;
+	for (y=0 ; y < ydim ; y++) {
+		pt[Y] = y;
+		for (x=0  ; x < xdim ; x++) {
+			pt[X] = x;
+
+			xform(t, pt);
+
+			v = lee(t, fbm_h, 
+					  fbm_lacunarity, fbm_octaves, 
+					    fbm_offset);
+			if (v < lo) lo = v;
+			if (v > hi) hi = v;
+			v *= 0.5;
+
+			if (v > 1.0 || v < 0.0)
+				if (debug) bu_log("clamping noise value %g \n", v);
+			CLAMP(v, 0.0, 1.0);
+			buf[y*xdim + x] = 1.0 + 65534.0 * v;
+		}
+	}
+	if (debug) bu_log("min: %g max: %g\n", lo, hi);
+}
+
+
+/***********************************************************************
+ *
+ *	func_lee
+ *
+ *	Ridged multi-fractal
+ */
+void
+func_lunar(unsigned short *buf)
+{
+	point_t pt;
+	int x, y;
+	vect_t t;
+	double v;
+	double lo, hi;
+
+	if (debug) bu_log("lee\n");
+
+	lo = 10.0;
+	hi = -10.0;
+
+	pt[Z] = 0.0;
+	for (y=0 ; y < ydim ; y++) {
+		pt[Y] = y;
+		for (x=0  ; x < xdim ; x++) {
+			pt[X] = x;
+
+			xform(t, pt);
+
+			/*
+1 fiord
+2 lunar2
+3 ice
+4 land
+5 lee
+
+			*/
+			v = fiord(t, fbm_h, 
+					  fbm_lacunarity, fbm_octaves, 
+					    fbm_offset);
+			if (v < lo) lo = v;
+			if (v > hi) hi = v;
+
+			if (v > 1.0 || v < 0.0)
+				if (debug) bu_log("clamping noise value %g \n", v);
+			CLAMP(v, 0.0, 1.0);
+			buf[y*xdim + x] = 1.0 + 65534.0 * v;
+		}
+	}
+	if (debug) bu_log("min: %g max: %g\n", lo, hi);
+}
+
+ 
+/* function to call to generate the terrain.  Default noise pattern is fBm */
+void (*terrain_func)() = func_fbm;
+
+/*
+ *	P A R S E _ A R G S --- Parse through command line flags
+ */
+int
+parse_args(int ac, char **av)
+{
+	int  c;
+	char *strrchr(const char *, int);
+	double v;
+
+	if (  ! (progname=strrchr(*av, '/'))  )
+		progname = *av;
+	else
+		++progname;
+
+	/* Turn off getopt's error messages */
+	opterr = 0;
+
+	/* get all the option flags from the command line */
+	while ((c=getopt(ac,av,options)) != EOF)
+		switch (c) {
+		case 'v': debug = !debug; break;
+		case 'c': do_convert = !do_convert; break;
+		case 'w': if ((c=atoi(optarg)) > 0) xdim = c;
+			break;
+		case 'n': if ((c=atoi(optarg)) > 0) ydim = c;
+			break;
+		case 'q' : quiet = !quiet; break;
+		case 's': if ((c=atoi(optarg)) > 0) xdim = ydim = c;
+			break;
+		case 'L': if ((v=atof(optarg)) >  0.0) fbm_lacunarity = v;
+			break;
+		case 'H': if ((v=atof(optarg)) >  0.0) fbm_h = v;
+			break;
+		case 'O': if ((v=atof(optarg)) >  0.0) fbm_octaves = v;
+			break;
+
+		case 'S': if ((v=atof(optarg)) >  0.0) { VSETALL(fbm_vscale, v); }
+			break;
+
+		case 'V': sscanf(optarg, "%lg,%lg,%lg",
+			       &fbm_vscale[0], &fbm_vscale[1], &fbm_vscale[2]);
+			break;
+		case 'D': sscanf(optarg, "%lg,%lg,%lg",
+			       &fbm_delta[0], &fbm_delta[1], &fbm_delta[2]);
+			break;
+		case 'o': fbm_offset = atof(optarg);
+			break;
+		case 'f':
+			switch (*optarg) {
+			case 'L': terrain_func = func_lunar;
+				break;
+			case 'l': terrain_func = func_lee;
+				break;
+			case 'f': terrain_func = func_fbm;
+				break;
+			case 't': terrain_func = func_turb;
+				break;
+			case 'T': terrain_func = func_turb_up;
+				break;
+			case 'm': terrain_func = func_multi;
+				break;
+			case 'r': terrain_func = func_ridged;
+				break;
+			default:
+				fprintf(stderr, 
+					"Unknown noise terrain_function: \"%s\"\n",
+					optarg);
+				exit(-1);
+				break;
+			}
+			break;
+		case '?'	:
+		case 'h'	:
+		default		: usage("Bad or help flag specified\n"); break;
+		}
+
+	return(optind);
+}
+
+/*
+ *	M A I N
+ *
+ *	Call parse_args to handle command line arguments, then
+ *	produce the noise field selected.  Write out binary in network order.
+ */
+int
+main(int ac, char **av)
+{
+	int arg_count;
+	unsigned short *buf;
+	int in_cookie, out_cookie;
+	int count;
+	 
+	arg_count = parse_args(ac, av);
+	
+	if (arg_count+1 < ac) usage("Excess arguments on cmd line\n");
+
+	if (isatty(fileno(stdout))) usage("Redirect standard output\n");
+
+	if (arg_count < ac)
+		fprintf(stderr, "Excess command line arguments ignored\n");
+
+	count = xdim*ydim;
+	buf = malloc(sizeof(*buf) * count);
+	if (! buf) {
+		fprintf(stderr, "malloc error\n");
+		exit(-1);
+	}
+
+	if (! terrain_func) {
+		if (debug) bu_log("terrain func not specified\n");
+		exit(-1);
+	}
+
+	terrain_func(buf);
+
+	if (do_convert) {
+	/* make sure the output is going as network unsigned shorts */
+
+		in_cookie = bu_cv_cookie("hus");
+
+		out_cookie = bu_cv_cookie("nus");
+
+		if (bu_cv_optimize(in_cookie) != bu_cv_optimize(out_cookie) ) {
+			if (debug) bu_log("converting to network order\n");
+			bu_cv_w_cookie(buf, out_cookie, count*sizeof(*buf), 
+				       buf, in_cookie, count);
+		}
+	}
+
+	fwrite(buf, sizeof(*buf), count, stdout);
+	return 0;
+}
+
+@
+
+
+11.13
+log
+@merge of ansi-6-0-branch into head
+@
+text
+@@
+
+
+11.12
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d28 1
+a28 1
+extern int optind, opterr, getopt();
+d59 1
+a59 2
+usage(s)
+char *s;
+d548 1
+a548 3
+parse_args(ac, av)
+int ac;
+char *av[];
+d551 1
+a551 1
+	char *strrchr();
+d631 1
+a631 3
+main(ac,av)
+int ac;
+char *av[];
+@
+
+
+11.12.2.1
+log
+@Initial ANSIfication
+@
+text
+@d28 1
+a28 1
+extern int optind, opterr, getopt(int, char *const *, const char *);
+d59 2
+a60 1
+usage(char *s)
+d549 3
+a551 1
+parse_args(int ac, char **av)
+d554 1
+a554 1
+	char *strrchr(const char *, int);
+d634 3
+a636 1
+main(int ac, char **av)
+@
+
+
+11.11
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d28 1
+a28 1
+extern int optind, opterr, getopt(int, char *const *, const char *);
+d59 2
+a60 1
+usage(char *s)
+d549 3
+a551 1
+parse_args(int ac, char **av)
+d554 1
+a554 1
+	char *strrchr(const char *, int);
+d634 3
+a636 1
+main(int ac, char **av)
+@
+
+
+11.10
+log
+@patches to merge 5.3 into 6.0
+@
+text
+@d28 1
+a28 1
+extern int optind, opterr, getopt();
+d59 1
+a59 2
+usage(s)
+char *s;
+d548 1
+a548 3
+parse_args(ac, av)
+int ac;
+char *av[];
+d551 1
+a551 1
+	char *strrchr();
+d631 1
+a631 3
+main(ac,av)
+int ac;
+char *av[];
+@
+
+
+11.9
+log
+@test check-in
+@
+text
+@d18 1
+a45 5
+void func_ridged(unsigned short *buf);
+
+void (*terrain_func)() = func_ridged;
+
+
+d388 1
+a388 3
+	double weight, signal, freq, result, value;
+	static double lo = 10.0;
+	static double hi = -10.0;
+d421 1
+a421 3
+	double weight, signal, freq, result, value;
+	static double lo = 10.0;
+	static double hi = -10.0;
+@
+
+
+11.8
+log
+@*** empty log message ***
+@
+text
+@d550 1
+@
+
+
+11.7
+log
+@Patches for default noise pattern
+@
+text
+@d41 1
+d114 2
+a115 1
+			buf[y*xdim + x] = 1.0 + 65535.0 * v;
+d149 1
+a149 1
+			buf[y*xdim + x] = 1.0 + 65535.0 * v;
+d233 1
+a233 1
+			buf[y*xdim + x] = 1 + 65535000.0 * v;
+d277 1
+a277 1
+			buf[y*xdim + x] = 1.0 + 65535.0 * v;
+d491 1
+a491 1
+			buf[y*xdim + x] = 1.0 + 65535.0 * v;
+d543 1
+a543 1
+			buf[y*xdim + x] = 1.0 + 65535.0 * v;
+a548 1
+
+d550 1
+a550 3
+
+
+
+d581 1
+a645 3
+	FILE *inp;
+	int status;
+	int x, y;
+@
+
+
+11.6
+log
+@
+sed4
+@
+text
+@d25 1
+a25 1
+char *options = "w:n:s:L:H:O:S:V:D:f:co:";
+d42 7
+d99 1
+a99 1
+	bu_log("fbm\n");
+d110 1
+a110 1
+				bu_log("clamping noise value %g \n", v);
+d131 1
+a131 1
+	bu_log("turb\n");
+d145 1
+a145 1
+				bu_log("clamping noise value %g \n", v);
+d166 1
+a166 1
+	bu_log("1.0 - turb\n");
+d182 1
+a182 1
+				bu_log("clamping noise value %g \n", v);
+d205 1
+a205 1
+	bu_log("multi\n");
+d228 1
+a228 1
+				bu_log("clamping noise value %g \n", v);
+d234 1
+a234 1
+	bu_log("min_V: %g   max_V: %g\n", min_V, max_V);
+d252 1
+a252 1
+	bu_log("ridged\n");
+d273 1
+a273 1
+				bu_log("clamping noise value %g \n", v);
+d289 2
+d315 2
+d327 1
+a327 1
+			bu_log("new low %g\n", lo);
+d331 1
+a331 1
+			bu_log("new high %g\n", hi);
+d352 2
+d365 1
+a365 1
+			bu_log("new low %g\n", lo);
+d369 1
+a369 1
+			bu_log("new high %g\n", hi);
+d394 2
+d429 2
+d466 1
+a466 1
+	bu_log("lee\n");
+d487 1
+a487 1
+				bu_log("clamping noise value %g \n", v);
+d492 1
+a492 1
+	bu_log("min: %g max: %g\n", lo, hi);
+d511 1
+a511 1
+	bu_log("lee\n");
+d539 1
+a539 1
+				bu_log("clamping noise value %g \n", v);
+d544 1
+a544 1
+	bu_log("min: %g max: %g\n", lo, hi);
+a551 1
+void (*terrain_func)();
+d576 1
+a652 1
+
+d669 5
+d678 1
+d680 1
+d682 1
+d684 1
+a684 1
+			bu_log("converting\n");
+d689 1
+@
+
+
+11.6.2.1
+log
+@Off-by-one error fixed, initialized function.
+@
+text
+@d25 1
+a25 1
+char *options = "w:n:qs:L:H:O:S:V:D:f:co:";
+a40 2
+int quiet = 0;
+
+d92 1
+a92 1
+	if (!quiet) bu_log("fbm\n");
+d102 1
+a102 2
+
+			if (!quiet && (v > 1.0 || v < -1.0) )
+a103 1
+
+d106 1
+a106 2
+
+			buf[y*xdim + x] = 1.0 + 65534.0 * v;
+d124 1
+a124 1
+	if (!quiet) bu_log("turb\n");
+d137 1
+a137 1
+			if (!quiet && (v > 1.0 || v < 0.0) )
+d140 1
+a140 1
+			buf[y*xdim + x] = 1.0 + 65534.0 * v;
+d159 1
+a159 1
+	if (!quiet) bu_log("1.0 - turb\n");
+d174 1
+a174 1
+			if (!quiet && (v > 1.0 || v < 0.0) )
+d176 1
+a176 1
+			buf[y*xdim + x] = 1 + 65534.0 * v;
+d198 1
+a198 1
+	if (!quiet) bu_log("multi\n");
+d220 1
+a220 1
+			if (!quiet && (v > 1.0 || v < 0.0)) {
+d224 1
+a224 1
+			buf[y*xdim + x] = 1 + 65534000.0 * v;
+d227 1
+a227 1
+	if (!quiet) bu_log("min_V: %g   max_V: %g\n", min_V, max_V);
+d245 1
+a245 1
+	if (!quiet) bu_log("ridged\n");
+d265 1
+a265 1
+			if (!quiet && (v > 1.0 || v < 0.0) )
+d268 1
+a268 1
+			buf[y*xdim + x] = 1.0 + 65534.0 * v;
+d316 1
+a316 1
+			if (!quiet) bu_log("new low %g\n", lo);
+d320 1
+a320 1
+			if (!quiet) bu_log("new high %g\n", hi);
+d352 1
+a352 1
+			if (!quiet) bu_log("new low %g\n", lo);
+d356 1
+a356 1
+			if (!quiet) bu_log("new high %g\n", hi);
+d377 3
+a379 1
+	double weight, signal, freq, result;
+d410 3
+a412 1
+	double weight, signal, freq, result;
+d449 1
+a449 1
+	if (!quiet) bu_log("lee\n");
+d469 1
+a469 1
+			if (!quiet && (v > 1.0 || v < 0.0) )
+d472 1
+a472 1
+			buf[y*xdim + x] = 1.0 + 65534.0 * v;
+d475 1
+a475 1
+	if (!quiet) bu_log("min: %g max: %g\n", lo, hi);
+d494 1
+a494 1
+	if (!quiet) bu_log("lee\n");
+d521 1
+a521 1
+			if (!quiet && (v > 1.0 || v < 0.0) )
+d524 1
+a524 1
+			buf[y*xdim + x] = 1.0 + 65534.0 * v;
+d527 1
+a527 1
+	if (!quiet) bu_log("min: %g max: %g\n", lo, hi);
+d531 5
+a535 1
+void (*terrain_func)() = func_fbm;
+a564 1
+		case 'q' : quiet = !quiet; break;
+d629 3
+d660 1
+a660 1
+			if (!quiet) bu_log("converting\n");
+@
+
+
+11.5
+log
+@
+Fixed typo
+@
+text
+@d287 1
+a287 1
+		signal = fabs(noise_perlin(pt)) * pow(freq, -h);
+d312 1
+a312 1
+		signal = fabs(noise_perlin(pt)) * pow(freq, -h);
+d347 1
+a347 1
+		signal = fabs(noise_perlin(pt));
+d387 1
+a387 1
+		signal = fabs(noise_perlin(pt));
+d420 1
+a420 1
+		signal = fabs(noise_perlin(pt));
+@
+
+
+11.4
+log
+@added new noise functions to simulate land features
+@
+text
+@d604 1
+a604 1
+					*optarg);
+@
+
+
+11.3
+log
+@Added ridged noise function
+@
+text
+@d18 1
+d36 1
+a36 1
+double fbm_octaves = 4.0;
+d273 262
+d587 4
+@
+
+
+11.2
+log
+@Changes necessary so the DSP can take all of its input in network-order.
+@
+text
+@d15 1
+d24 1
+a24 1
+char *options = "w:n:s:L:H:O:S:V:D:f:c";
+d39 1
+a39 5
+
+#define FUNC_FBM 0
+#define FUNC_TURB 1
+#define FUNC_TURB_UP 2
+int func = FUNC_FBM;
+d61 11
+a71 10
+"\t-w #		number of postings in X direction\n\
+\t-n #		number of postings in Y direction\n\
+\t-s #		number of postings in X,Y direction\n\
+\t-L #		Noise Lacunarity\n\
+\t-H #		Noise H value\n\
+\t-O #		Noise Octaves\n\
+\t-S #		Noise Scale\n\
+\t-V #,#,#	Noise Vector scale (affine scale)\n\
+\t-D #,#,#	Noise Delta\n\
+\t-f func		noise function (fbm=\"f\" turb=\"t\" 1.0-turb=\"T\")");
+a75 69
+/*
+ *	P A R S E _ A R G S --- Parse through command line flags
+ */
+int
+parse_args(ac, av)
+int ac;
+char *av[];
+{
+	int  c;
+	char *strrchr();
+	double v;
+
+	if (  ! (progname=strrchr(*av, '/'))  )
+		progname = *av;
+	else
+		++progname;
+
+	/* Turn off getopt's error messages */
+	opterr = 0;
+
+	/* get all the option flags from the command line */
+	while ((c=getopt(ac,av,options)) != EOF)
+		switch (c) {
+		case 'c': do_convert = !do_convert; break;
+		case 'w': if ((c=atoi(optarg)) > 0) xdim = c;
+			break;
+		case 'n': if ((c=atoi(optarg)) > 0) ydim = c;
+			break;
+		case 's': if ((c=atoi(optarg)) > 0) xdim = ydim = c;
+			break;
+		case 'L': if ((v=atof(optarg)) >  0.0) fbm_lacunarity = v;
+			break;
+		case 'H': if ((v=atof(optarg)) >  0.0) fbm_h = v;
+			break;
+		case 'O': if ((v=atof(optarg)) >  0.0) fbm_octaves = v;
+			break;
+
+		case 'S': if ((v=atof(optarg)) >  0.0) { VSETALL(fbm_vscale, v); }
+			break;
+
+		case 'V': sscanf(optarg, "%lg,%lg,%lg",
+			       &fbm_vscale[0], &fbm_vscale[1], &fbm_vscale[2]);
+			break;
+		case 'D': sscanf(optarg, "%lg,%lg,%lg",
+			       &fbm_delta[0], &fbm_delta[1], &fbm_delta[2]);
+			break;
+		case 'f':
+			switch (*optarg) {
+			case 'f': func = FUNC_FBM;
+				break;
+			case 't': func = FUNC_TURB;
+				break;
+			case 'T': func = FUNC_TURB_UP;
+				break;
+			default:
+				fprintf(stderr, 
+					"Unknown noise function: \"%s\"\n",
+					*optarg);
+				exit(-1);
+				break;
+			}
+			break;
+		case '?'	:
+		case 'h'	:
+		default		: usage("Bad or help flag specified\n"); break;
+		}
+
+	return(optind);
+}
+d83 1
+d91 2
+d115 1
+d123 2
+d150 1
+d158 2
+d180 170
+d386 1
+a386 14
+	switch (func) {
+	case FUNC_FBM:
+		func_fbm(buf);
+		break;
+	case FUNC_TURB:
+		func_turb(buf);
+		break;
+	case FUNC_TURB_UP:
+		func_turb_up(buf);
+		break;
+	default:
+		fprintf(stderr, "bad function?\n");
+		break;
+	}
+@
+
+
+11.1
+log
+@A program to create fake terrain from noise.
+@
+text
+@d4 11
+a14 1
+ *	h	help
+d23 1
+a23 1
+char *options = "w:n:s:L:H:O:S:V:D:f:";
+d27 1
+d44 1
+a50 1
+
+d62 13
+a74 2
+	(void) fprintf(stderr, "Usage: %s [ -%s ] > outfile]\n",
+			progname, options);
+d101 1
+d118 1
+a118 1
+		case 'V': sscanf(optarg, "%g,%g,%g",
+d121 1
+a121 1
+		case 'D': sscanf(optarg, "%g,%g,%g",
+d148 7
+a154 9
+int
+process(inp)
+FILE *inp;
+{
+
+	return 0;
+}
+
+func_fbm(short *buf)
+d159 1
+d168 6
+a173 4
+
+			buf[y*xdim + x] = 32768.0 *
+				(bn_noise_fbm(t, fbm_h, 
+				       fbm_lacunarity, fbm_octaves) + 1.0);
+d177 7
+a183 2
+
+func_turb(short *buf)
+d188 1
+d198 7
+a204 3
+			buf[y*xdim + x] = 32768.0 *
+				bn_noise_turb(t, fbm_h, 
+				       fbm_lacunarity, fbm_octaves);
+d209 6
+d220 1
+d230 8
+a237 3
+			buf[y*xdim + x] = 32768.0 *
+				(1.0 - bn_noise_turb(t, fbm_h, 
+				       fbm_lacunarity, fbm_octaves));
+d245 2
+a246 2
+ *	Call parse_args to handle command line arguments first, then
+ *	process input.
+d257 4
+a260 2
+	short *buf;
+
+d271 2
+a272 1
+	buf = malloc(sizeof(*buf) * xdim * ydim);
+d293 11
+a303 1
+	fwrite(buf, sizeof(*buf), xdim*ydim, stdout);
+@
+

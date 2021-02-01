@@ -1,0 +1,470 @@
+head	1.15;
+access;
+symbols
+	ansi-20040405-merged:1.14
+	postmerge-20040405-ansi:1.14
+	premerge-20040404-ansi:1.14
+	postmerge-autoconf:1.14
+	autoconf-freeze:1.14
+	premerge-autoconf:1.14
+	postmerge-20040315-windows:1.14
+	premerge-20040315-windows:1.14
+	windows-20040315-freeze:1.14
+	autoconf-20031203:1.14
+	autoconf-20031202:1.14
+	autoconf-branch:1.14.0.12
+	phong-branch:1.14.0.10
+	photonmap-branch:1.14.0.8
+	rel-6-1-DP:1.14
+	windows-branch:1.14.0.6
+	rel-6-0-2:1.14
+	ansi-branch:1.14.0.4
+	rel-6-0-1-branch:1.14.0.2
+	hartley-6-0-post:1.14
+	hartley-6-0-pre:1.14
+	rel-6-0-1:1.14
+	rel-6-0:1.14
+	rel-5-4:1.13
+	offsite-5-3-pre:1.13
+	rel-5-3:1.13
+	rel-5-2:1.13
+	rel-5-1-branch:1.13.0.2
+	rel-5-1:1.13
+	rel-5-0:1.11
+	rel-5-0-beta:1.11;
+locks; strict;
+comment	@# @;
+
+
+1.15
+date	2004.05.21.16.41.22;	author morrison;	state dead;
+branches;
+next	1.14;
+
+1.14
+date	2001.08.02.13.18.24;	author bparker;	state Exp;
+branches;
+next	1.13;
+
+1.13
+date	2000.06.05.21.58.10;	author bparker;	state Exp;
+branches;
+next	1.12;
+
+1.12
+date	99.12.06.22.23.46;	author bparker;	state Exp;
+branches;
+next	1.11;
+
+1.11
+date	99.05.25.14.55.36;	author bparker;	state Exp;
+branches;
+next	1.10;
+
+1.10
+date	99.05.06.17.39.44;	author bparker;	state Exp;
+branches;
+next	1.9;
+
+1.9
+date	99.05.03.16.43.34;	author bparker;	state Exp;
+branches;
+next	1.8;
+
+1.8
+date	99.04.23.17.29.16;	author bparker;	state Exp;
+branches;
+next	1.7;
+
+1.7
+date	99.04.20.20.34.42;	author bparker;	state Exp;
+branches;
+next	1.6;
+
+1.6
+date	99.04.16.18.08.12;	author bparker;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	99.04.12.21.42.37;	author bparker;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	99.02.17.19.43.58;	author bparker;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	99.01.19.22.31.28;	author bparker;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	98.10.22.18.44.52;	author bparker;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	98.08.13.12.48.24;	author bparker;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.15
+log
+@moved to src/tclscripts/
+@
+text
+@##
+#				C A L L B A C K S . T C L
+#
+# Authors -
+#	Bob Parker
+#
+# Source -
+#	The U. S. Army Research Laboratory
+#	Aberdeen Proving Ground, Maryland  21005
+#
+# Distribution Notice -
+#	Re-distribution of this software is restricted, as described in
+#       your "Statement of Terms and Conditions for the Release of
+#       The BRL-CAD Package" agreement.
+#
+# Description -
+#	This file contains the standard mged callback proc's.
+#	
+#
+
+## - opendb_callback
+#
+# This is called upon opening a database.
+#
+proc opendb_callback { dbname } {
+    global mged_players
+
+    if ![info exists mged_players] {
+	return
+    }
+
+    foreach id $mged_players {
+	set_wm_title $id $dbname
+	rt_opendb_callback $id
+    }
+}
+
+if ![info exists in_begin_edit_callback] {
+    set in_begin_edit_callback 0
+}
+
+## - begin_edit_callback
+#
+# This is called at the start of an edit.
+#
+proc begin_edit_callback {path} {
+    global mged_gui
+    global mged_display
+    global mged_players
+    global in_begin_edit_callback
+
+    if ![info exists mged_players] {
+	return
+    }
+
+    # remove leading /
+    if {[string index $path 0] == "/"} {
+	set path [string range $path 1 end]
+    }
+
+    set in_begin_edit_callback 1
+
+    if {$mged_display(state) == "SOL EDIT"} {
+	catch {get_sed} esolint_info
+	set esolint_type [lindex $esolint_info 1]
+
+	if {$esolint_type == "sketch"} {
+	    set in_begin_edit_callback 0
+	    Sketch_editor .#auto [lindex $esolint_info 0] $path
+
+	    # jump out of solid edit state
+	    press reject
+	    return
+	}
+
+	foreach id $mged_players {
+	    if {$mged_gui($id,show_edit_info)} {
+		init_edit_solid_int $id
+	    }
+	}
+
+	# load solid edit menus
+	set edit_menus [get_sed_menus]
+	init_solid_edit_menus $esolint_type $edit_menus
+    } elseif {$mged_display(state) == "OBJ EDIT"} {
+	# load object edit menus
+	init_object_edit_menus
+
+	foreach id $mged_players {
+	    build_edit_info $id
+	}
+    }
+
+    set in_begin_edit_callback 0
+    return
+}
+
+## - active_edit_callback
+#
+# This is called during an active edit after MGED perceives a change
+# to the solid/object being edited.
+#
+proc active_edit_callback {} {
+    global mged_display
+    global in_begin_edit_callback
+
+    if {$in_begin_edit_callback} {
+	return
+    }
+
+    if {$mged_display(state) == "SOL EDIT"} {
+	esolint_update
+    }
+}
+
+## - end_edit_callback
+#
+# This is called at the end of an edit.
+#
+proc end_edit_callback {} {
+    global mged_players
+
+    if ![info exists mged_players] {
+	return
+    }
+
+    undo_edit_menus
+    foreach id $mged_players {
+	esolint_destroy $id
+    }
+}
+
+## - output_callback
+#
+# This is called when things need to be printed to the command window(s)
+#
+proc output_callback { str } {
+    distribute_text {} {} $str
+    update idletasks
+}
+
+## - solid_list_callback
+#
+# This is called whenever MGED's internal solid list changes.
+#
+proc solid_list_callback {} {
+    global mged_players
+
+    if ![info exists mged_players] {
+	return
+    }
+
+    foreach id $mged_players {
+	rt_solid_list_callback $id
+    }
+}
+@
+
+
+1.14
+log
+@*- mods to begin_edit_callback to specially
+   handle sketch solids
+@
+text
+@@
+
+
+1.13
+log
+@*- a few routines changed names
+	get_edit_solid --> get_sed
+	put_edit_solid --> put_sed
+@
+text
+@d46 1
+a46 1
+proc begin_edit_callback {} {
+d56 5
+d64 12
+a81 3
+	catch {get_sed} esolint_info
+	set esolint_type [lindex $esolint_info 1]
+
+d95 1
+a95 3
+
+    # empty result
+    set junk ""
+@
+
+
+1.12
+log
+@*- catch get_edit_solid
+@
+text
+@d65 1
+a65 1
+	catch {get_edit_solid} esolint_info
+d69 1
+a69 1
+	set edit_menus [get_edit_solid_menus]
+@
+
+
+1.11
+log
+@*- add flag to indicate if in the begin_edit_callback routine
+@
+text
+@d65 1
+a65 1
+	set esolint_info [get_edit_solid]
+@
+
+
+1.10
+log
+@*- mods to begin_edit_callback
+@
+text
+@d38 4
+d50 1
+d56 2
+d79 5
+d93 5
+@
+
+
+1.9
+log
+@*- mods to active_edit_callback
+@
+text
+@d63 1
+a63 5
+	if {$esolint_type == "arb8"} {
+	    eval do_arb_edit_menu $esolint_type $edit_menus
+	} else {
+	    eval do_edit_menu $esolint_type $edit_menus
+	}
+d66 1
+a66 1
+	do_edit_menu {} {}
+d98 1
+a98 1
+    undo_edit_menu
+@
+
+
+1.8
+log
+@*- mods to output_callback
+@
+text
+@d84 5
+a88 1
+    esolint_update
+@
+
+
+1.7
+log
+@*- add a comment
+@
+text
+@d110 1
+a110 1
+    mged_update 1
+@
+
+
+1.6
+log
+@*- changed new_db_callback to opendb_callback
+*- added solid_list_callback
+@
+text
+@d21 1
+a21 1
+## - new_db_callback
+d104 1
+a104 1
+##- output_callback
+d113 4
+@
+
+
+1.5
+log
+@*- add output_callback which is called by bu_log
+@
+text
+@d23 1
+a23 1
+# This is called upon opening a new database.
+d25 1
+a25 1
+proc new_db_callback { dbname } {
+d34 1
+d111 13
+a123 1
+}@
+
+
+1.4
+log
+@*- mods to begin_edit_callback and end_edit_callback procs
+@
+text
+@d103 8
+@
+
+
+1.3
+log
+@*- cleanup variables
+@
+text
+@d46 4
+d93 4
+d102 1
+@
+
+
+1.2
+log
+@*- mods to new_db_callback
+@
+text
+@d42 1
+a44 1
+    global show_edit_info
+d48 1
+a48 1
+	    if {$show_edit_info($id)} {
+@
+
+
+1.1
+log
+@*- Contains the standard mged callback proc's
+@
+text
+@d28 4
+@

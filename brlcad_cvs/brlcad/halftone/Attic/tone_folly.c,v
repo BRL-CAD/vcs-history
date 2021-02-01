@@ -1,0 +1,534 @@
+head	11.7;
+access;
+symbols
+	ansi-20040405-merged:11.4.2.1
+	postmerge-20040405-ansi:11.5
+	premerge-20040404-ansi:11.4
+	postmerge-autoconf:11.4
+	autoconf-freeze:11.4
+	premerge-autoconf:11.4
+	ansi-20040316-freeze:11.4.2.1
+	postmerge-20040315-windows:11.4
+	premerge-20040315-windows:11.4
+	windows-20040315-freeze:11.4
+	autoconf-20031203:11.4
+	autoconf-20031202:11.4
+	autoconf-branch:11.4.0.10
+	phong-branch:11.4.0.8
+	photonmap-branch:11.4.0.6
+	rel-6-1-DP:11.4
+	windows-branch:11.4.0.4
+	rel-6-0-2:11.2
+	ansi-branch:11.4.0.2
+	rel-6-0-1-branch:11.2.0.2
+	hartley-6-0-post:11.3
+	hartley-6-0-pre:11.2
+	rel-6-0-1:11.2
+	rel-6-0:11.2
+	rel-5-4:11.1
+	offsite-5-3-pre:11.2
+	rel-5-3:11.1
+	rel-5-2:11.1
+	rel-5-1-branch:11.1.0.2
+	rel-5-1:11.1
+	rel-5-0:11.1
+	rel-5-0-beta:11.1
+	rel-4-5:11.1
+	ctj-4-5-post:11.1
+	ctj-4-5-pre:11.1
+	rel-4-4:11.1
+	rel-4-0:10.1;
+locks; strict;
+comment	@ * @;
+
+
+11.7
+date	2004.05.24.04.01.40;	author morrison;	state dead;
+branches;
+next	11.6;
+
+11.6
+date	2004.05.10.15.30.42;	author erikg;	state Exp;
+branches;
+next	11.5;
+
+11.5
+date	2004.04.05.07.47.59;	author morrison;	state Exp;
+branches;
+next	11.4;
+
+11.4
+date	2002.08.20.17.07.31;	author jra;	state Exp;
+branches
+	11.4.2.1;
+next	11.3;
+
+11.3
+date	2002.08.15.20.54.43;	author hartley;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	2000.08.24.23.07.42;	author mike;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	95.01.04.10.21.54;	author mike;	state Rel4_4;
+branches;
+next	10.2;
+
+10.2
+date	94.08.23.17.56.40;	author gdurf;	state Exp;
+branches;
+next	10.1;
+
+10.1
+date	91.10.12.06.53.21;	author mike;	state Rel4_0;
+branches;
+next	2.4;
+
+2.4
+date	91.07.26.21.17.18;	author mike;	state Exp;
+branches;
+next	2.3;
+
+2.3
+date	91.06.22.05.41.08;	author cjohnson;	state Exp;
+branches;
+next	2.2;
+
+2.2
+date	90.04.13.01.46.26;	author cjohnson;	state Exp;
+branches;
+next	2.1;
+
+2.1
+date	90.04.13.01.23.21;	author cjohnson;	state Rel;
+branches;
+next	1.4;
+
+1.4
+date	90.04.13.01.03.32;	author cjohnson;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	90.04.10.16.46.35;	author cjohnson;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	90.04.10.03.30.45;	author cjohnson;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	90.04.10.01.01.51;	author cjohnson;	state Exp;
+branches;
+next	;
+
+11.4.2.1
+date	2002.09.19.18.00.58;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@4x4 dispersed dither
+@
+
+
+11.7
+log
+@moved to src/halftone/
+@
+text
+@/*
+ *			T O N E _ F O L L Y . C
+ *
+ *  Author -
+ *	Christopher T. Johnson	- 90/03/21
+ *  
+ *  Source -
+ *	SECAD/VLD Computing Consortium, Bldg 394
+ *	The U. S. Army Ballistic Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005-5066
+ *  
+ *  Distribution Status -
+ *	Public Domain, Distribution Unlimitied.
+ */
+#ifndef lint
+static const char RCSid[] = "@@(#)$Header: /n/xoff/cvs/brlcad/halftone/tone_folly.c,v 11.6 2004/05/10 15:30:42 erikg Exp $ (BRL)";
+#endif
+
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+
+#include <stdio.h>
+
+#include "machine.h"
+#include "vmath.h"
+#include "raytrace.h"
+#include "msr.h"
+
+extern int Debug;
+extern int Levels;
+extern struct msr_unif *RandomFlag;
+
+/*
+ * Dispersed-Dot ordered Dither at 0 degrees (n=4)
+ * 	From page 135 of Digital Halftoning.
+ */
+static unsigned char	ordered[4][4] = {
+	{2,16,3,13},
+	{12,8,9,5},
+	{4,14,1,15},
+	{10,6,11,7}};
+
+/*	tone_folly	4x4 square ordered dither dispersed (folly and van dam)
+ *
+ * Entry:
+ *	pix	Pixel value	0-255
+ *	x	Current column
+ *	y	Current row
+ *	nx	Next column
+ *	ny	Next row
+ *	new	New row flag.
+ *
+ * Exit:
+ *	returns	0 to Levels
+ *
+ * Uses:
+ *	Debug	- Current debug level.
+ *	Levels	- Number of intensity levels.
+ *	RandomFlag - should we toss some random numbers?
+ *
+ * Calls:
+ *	MSR_UNIF_DOUBLE() - to get random numbers from -0.5 to 0.5
+ *
+ * Author:
+ *	Christopher T. Johnson	- 90/03/21
+ */
+int
+tone_folly(int pix, int x, int y, int nx, int ny, int new)
+{
+	register int threshold = 16*ordered[ x % 4][ y % 4];
+
+	if (RandomFlag) {
+		threshold += MSR_UNIF_DOUBLE(RandomFlag)*63;
+	}
+	return ((pix*Levels + threshold)/255);
+}
+@
+
+
+11.6
+log
+@change conf.h to a wrapped config.h
+@
+text
+@d16 1
+a16 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/halftone/tone_folly.c,v 11.5 2004/04/05 07:47:59 morrison Exp $ (BRL)";
+@
+
+
+11.5
+log
+@merge of ansi-6-0-branch into HEAD
+@
+text
+@d16 1
+a16 1
+static const char RCSid[] = "@@(#)$Header$ (BRL)";
+d19 5
+a23 1
+#include "conf.h"
+@
+
+
+11.4
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d16 1
+a16 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/halftone/tone_folly.c,v 11.2 2000/08/24 23:07:42 mike Exp $ (BRL)";
+d67 1
+a67 4
+tone_folly(pix,x,y,nx,ny,new)
+int	pix;
+int	x, y, nx, ny;
+int	new;
+@
+
+
+11.4.2.1
+log
+@Initial ANSIfication
+@
+text
+@d16 1
+a16 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/halftone/tone_folly.c,v 11.4 2002/08/20 17:07:31 jra Exp $ (BRL)";
+d67 4
+a70 1
+tone_folly(int pix, int x, int y, int nx, int ny, int new)
+@
+
+
+11.3
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d67 4
+a70 1
+tone_folly(int pix, int x, int y, int nx, int ny, int new)
+@
+
+
+11.2
+log
+@
+lint
+@
+text
+@d16 1
+a16 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/halftone/tone_folly.c,v 11.1 1995/01/04 10:21:54 mike Rel4_4 $ (BRL)";
+d67 1
+a67 4
+tone_folly(pix,x,y,nx,ny,new)
+int	pix;
+int	x, y, nx, ny;
+int	new;
+@
+
+
+11.1
+log
+@Release_4.4
+@
+text
+@d16 1
+a16 1
+static char RCSid[] = "@@(#)$Header: /m/cad/halftone/RCS/tone_folly.c,v 10.2 94/08/23 17:56:40 gdurf Exp $ (BRL)";
+@
+
+
+10.2
+log
+@Made includes explicit
+@
+text
+@d16 1
+a16 1
+static char RCSid[] = "@@(#)$Header: /m/cad/halftone/RCS/tone_folly.c,v 10.1 1991/10/12 06:53:21 mike Rel4_0 gdurf $ (BRL)";
+@
+
+
+10.1
+log
+@Release_4.0
+@
+text
+@d16 1
+a16 1
+static char RCSid[] = "@@(#)$Header: /m/cad/halftone/RCS/tone_folly.c,v 2.4 91/07/26 21:17:18 mike Exp $ (BRL)";
+d19 2
+d22 4
+@
+
+
+2.4
+log
+@Formal parameters to a subroutine should be all lower case.
+The upper case parameters used here conflicted with pre-defined
+macros in vmath.h
+@
+text
+@d16 1
+a16 1
+static char RCSid[] = "@@(#)$Header$ (BRL)";
+@
+
+
+2.3
+log
+@Change from local Random number to msr_* code from librt
+@
+text
+@d1 14
+d16 1
+a16 1
+static char rcsid[] = "$Header: /m/cad/halftone/RCS/tone_folly.c,v 2.2 90/04/13 01:46:26 cjohnson Exp $";
+d18 1
+d21 1
+d25 1
+d39 6
+a44 6
+ *	Pix	Pixel value	0-255
+ *	X	Current column
+ *	Y	Current row
+ *	NX	Next column
+ *	NY	Next row
+ *	New	New row flag.
+a56 3
+ * Method:
+ *	straight-forward.
+ *
+a58 21
+ *
+ * $Log:	tone_folly.c,v $
+ * Revision 2.2  90/04/13  01:46:26  cjohnson
+ * Change include "*.h" to "./*.h"
+ * 
+ * Revision 2.1  90/04/13  01:23:21  cjohnson
+ * First Relese.
+ * 
+ * Revision 1.4  90/04/13  01:03:32  cjohnson
+ * Add random numbers.
+ * Clean comments.
+ * 
+ * Revision 1.3  90/04/10  16:46:35  cjohnson
+ * Fix Intensity methods 
+ * 
+ * Revision 1.2  90/04/10  03:30:45  cjohnson
+ * add intensity levels.
+ * 
+ * Revision 1.1  90/04/10  01:01:51  cjohnson
+ * Initial revision
+ * 
+d60 5
+a64 4
+tone_folly(Pix,X,Y,NX,NY,New)
+int	Pix;
+int	X, Y, NX, NY;
+int	New;
+d66 1
+a66 1
+	register int threshold = 16*ordered[ X % 4][ Y % 4];
+d71 1
+a71 1
+	return ((Pix*Levels + threshold)/255);
+@
+
+
+2.2
+log
+@Change include "*.h" to "./*.h"
+@
+text
+@d2 1
+a2 1
+static char rcsid[] = "$Header: tone_folly.c,v 2.1 90/04/13 01:23:21 cjohnson Locked $";
+d5 1
+a5 1
+#include "./rndnum.h"
+d8 1
+a8 1
+extern int RandomFlag;
+d38 1
+a38 1
+ *	Random() - to get random numbers from -0.5 to 0.5
+d47 3
+d75 1
+a75 1
+		threshold += Random(0)*63;
+@
+
+
+2.1
+log
+@First Relese.
+@
+text
+@d2 1
+a2 1
+static char rcsid[] = "$Header: tone_folly.c,v 1.4 90/04/13 01:03:32 cjohnson Locked $";
+d5 1
+a5 1
+#include "rndnum.h"
+d47 3
+@
+
+
+1.4
+log
+@Add random numbers.
+Clean comments.
+@
+text
+@d2 1
+a2 1
+static char rcsid[] = "$Header: tone_folly.c,v 1.3 90/04/10 16:46:35 cjohnson Locked $";
+d47 4
+@
+
+
+1.3
+log
+@Fix Intensity methods 
+@
+text
+@d2 1
+a2 1
+static char rcsid[] = "$Header: tone_folly.c,v 1.2 90/04/10 03:30:45 cjohnson Locked $";
+d5 1
+d8 5
+d30 1
+a30 1
+ *	returns	0 or 1
+d33 3
+a35 1
+ *	None.
+d38 1
+a38 1
+ *	None.
+d47 3
+a55 1
+ * 
+d62 6
+a67 1
+	return ((Pix*Levels + 16*ordered[ X % 4][ Y % 4] )/255);
+@
+
+
+1.2
+log
+@add intensity levels.
+@
+text
+@d2 1
+a2 1
+static char rcsid[] = "$Header: tone_folly.c,v 1.1 90/04/10 01:01:51 cjohnson Locked $";
+d39 3
+d52 1
+a52 1
+	return (Pix*Levels / (16*ordered[ X % 4][ Y % 4] ));
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d2 1
+a2 1
+static char rcsid[] = "$Header: tone_classic.c,v 1.1 90/04/09 17:27:00 cjohnson Locked $";
+d6 1
+d38 3
+a40 1
+ * $Log:	tone_classic.c,v $
+d42 1
+d49 1
+a49 1
+	return (Pix >= 16*ordered[ X % 4][ Y % 4] );
+@

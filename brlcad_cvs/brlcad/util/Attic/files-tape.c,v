@@ -1,0 +1,639 @@
+head	11.10;
+access;
+symbols
+	ansi-20040405-merged:11.7.2.1
+	postmerge-20040405-ansi:11.8
+	premerge-20040404-ansi:11.7
+	postmerge-autoconf:11.7
+	autoconf-freeze:11.7
+	premerge-autoconf:11.7
+	postmerge-20040315-windows:11.7
+	premerge-20040315-windows:11.7
+	windows-20040315-freeze:11.7
+	autoconf-20031203:11.7
+	autoconf-20031202:11.7
+	autoconf-branch:11.7.0.10
+	phong-branch:11.7.0.8
+	photonmap-branch:11.7.0.6
+	rel-6-1-DP:11.7
+	windows-branch:11.7.0.4
+	rel-6-0-2:11.5
+	ansi-branch:11.7.0.2
+	rel-6-0-1-branch:11.5.0.2
+	hartley-6-0-post:11.6
+	hartley-6-0-pre:11.5
+	rel-6-0-1:11.5
+	rel-6-0:11.5
+	rel-5-4:11.1
+	offsite-5-3-pre:11.3
+	rel-5-3:11.1
+	rel-5-2:11.1
+	rel-5-1-branch:11.1.0.2
+	rel-5-1:11.1
+	rel-5-0:11.1
+	rel-5-0-beta:11.1
+	rel-4-5:11.1
+	ctj-4-5-post:11.1
+	ctj-4-5-pre:11.1
+	rel-4-4:11.1
+	rel-4-0:10.1
+	rel-3-5:9.1
+	rel-3-0:8.1;
+locks; strict;
+comment	@ * @;
+
+
+11.10
+date	2004.05.21.14.57.40;	author morrison;	state dead;
+branches;
+next	11.9;
+
+11.9
+date	2004.05.10.15.30.50;	author erikg;	state Exp;
+branches;
+next	11.8;
+
+11.8
+date	2004.04.05.05.46.01;	author morrison;	state Exp;
+branches;
+next	11.7;
+
+11.7
+date	2002.08.20.17.08.58;	author jra;	state Exp;
+branches
+	11.7.2.1;
+next	11.6;
+
+11.6
+date	2002.08.15.20.56.11;	author hartley;	state Exp;
+branches;
+next	11.5;
+
+11.5
+date	2001.08.10.20.57.06;	author butler;	state Exp;
+branches;
+next	11.4;
+
+11.4
+date	2001.08.08.03.28.15;	author butler;	state Exp;
+branches;
+next	11.3;
+
+11.3
+date	2000.09.01.03.23.48;	author mike;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	2000.08.23.19.04.31;	author mike;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	95.01.04.10.12.02;	author mike;	state Rel4_4;
+branches;
+next	10.3;
+
+10.3
+date	94.08.23.15.07.31;	author gdurf;	state Exp;
+branches;
+next	10.2;
+
+10.2
+date	94.08.23.15.05.40;	author gdurf;	state Exp;
+branches;
+next	10.1;
+
+10.1
+date	91.10.12.06.48.12;	author mike;	state Rel4_0;
+branches;
+next	9.1;
+
+9.1
+date	89.05.19.06.09.20;	author mike;	state Rel3_5;
+branches;
+next	8.1;
+
+8.1
+date	88.10.05.00.41.58;	author mike;	state Rel3_0;
+branches;
+next	1.2;
+
+1.2
+date	88.09.09.04.08.07;	author mike;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	88.08.14.22.53.26;	author mike;	state Exp;
+branches;
+next	;
+
+11.7.2.1
+date	2002.09.19.18.02.37;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@Program to write files to tape
+@
+
+
+11.10
+log
+@moved to src/util/
+@
+text
+@/*
+ *			F I L E S - T A P E
+ *
+ *  Take a collection of files, and write them to tape.
+ *  Each file is padded out to an integral number of tape records,
+ *  and is written with a fixed block size (default is 24k).
+ *  This program is preferred over dd(1) in several small but
+ *  important ways:
+ *
+ *  1)	Multiple files may be written to tape in a single operation,
+ *	ie, with a single open() of the output device.
+ *  2)	Files are padded to full length records.
+ *  3)  Input files are read using mread(), so operation will
+ *	proceed even with pipe input (where DD can read and write
+ *	short records on a random basis).
+ *
+ *  This program is probably most often useful to
+ *  take a collection of pix(5) or bw(5) files, and write them to
+ *  tape using 24k byte records.
+ *
+ *  There is no requirement that the different files be the same size,
+ *  although it is unlikely to be useful.  This could be a potential
+ *  source of problems if some files have not been finished yet.
+ *
+ *  At 6250, one reel of tape holds roughly 6144 records of 24k bytes
+ *  each.  This program will warn when that threshold is reached,
+ *  but will take no action.
+ *
+ *  UNIX system calls are used, not to foil portability, but in the
+ *  name of efficiency.
+ *
+ *  Author -
+ *	Michael John Muuss
+ *  
+ *  Source -
+ *	SECAD/VLD Computing Consortium, Bldg 394
+ *	The U. S. Army Ballistic Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005-5066
+ *  
+ *  Copyright Notice -
+ *	Public Domain, Distribution Unlimited
+ */
+#ifndef lint
+static const char RCSid[] = "@@(#)$Header: /n/xoff/cvs/brlcad/util/files-tape.c,v 11.9 2004/05/10 15:30:50 erikg Exp $ (BRL)";
+#endif
+
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+
+#include <stdio.h>
+#ifdef HAVE_STRING_H
+#include <string.h>
+#else
+#include <strings.h>
+#endif
+#include "machine.h"
+#include "externs.h"		/* For malloc and getopt */
+
+#define	TSIZE	(6144*24*1024)	/* # of bytes on 2400' 6250bpi reel */
+long	byteswritten = 0;	/* Number of bytes written */
+
+int	bufsize = 24*1024;	/* Default buffer size */
+char	*buf;
+
+void	fileout(register int fd, char *name);
+
+int mread(int fd, char *bufp, int n );
+
+static char usage[] = "\
+Usage: files-tape [-b bytes] [-k Kbytes] [files]\n";
+
+int
+get_args(int argc, register char **argv)
+{
+	register int c;
+
+	while ( (c = getopt( argc, argv, "b:k:" )) != EOF )  {
+		switch( c )  {
+		case 'b':
+			bufsize = atoi( optarg );	/* bytes */
+			break;
+		case 'k':
+			bufsize = atoi( optarg ) * 1024; /* Kbytes */
+			break;
+
+		default:		/* '?' */
+			return(0);	/* BAD */
+		}
+	}
+
+	if( isatty(fileno(stdout)) )
+		return(0);		/* BAD */
+
+	return(1);			/* OK */
+}
+
+/*
+ *			M A I N
+ */
+int
+main(int argc, char **argv)
+{
+	register int	fd;
+
+	if ( !get_args( argc, argv ) )  {
+		(void)fputs(usage, stderr);
+		exit(1);
+	}
+
+	/* Obtain output buffer */
+	if( (buf = malloc( bufsize )) == NULL )  {
+		perror("malloc");
+		exit(1);
+	}
+
+	if( optind >= argc )  {
+		/* Perform operation once, from stdin */
+		fileout( 0, "-" );
+		exit(0);
+	}
+
+	/* Perform operation on each argument */
+	for( ; optind < argc; optind++ )  {
+		if( (fd = open( argv[optind], 0 )) < 0 )  {
+			perror( argv[optind] );
+			/*
+			 *  It is unclear whether an exit(1),
+			 *  or continuing with the next file
+			 *  is really the right thing here.
+			 *  If the intended size was known,
+			 *  a null "file" could be written to tape,
+			 *  to preserve the image numbering.
+			 *  For now, punt.
+			 */
+			exit(1);
+		}
+		fileout( fd, argv[optind] );
+		(void)close(fd);
+	}
+	exit(0);
+}
+
+/*
+ *			F I L E O U T
+ */
+void
+fileout(register int fd, char *name)
+{
+	register int	count, out;
+
+	while( (count = mread( fd, buf, bufsize )) > 0 )  {
+		if( count < bufsize )  {
+			/* Short read, zero rest of buffer */
+			bzero( buf+count, bufsize-count );
+		}
+		if( (out = write( 1, buf, bufsize )) != bufsize )  {
+			perror("files-tape: write");
+			fprintf(stderr, "files-tape:  %s, write ret=%d\n", name, out);
+			exit(1);
+		}
+		if( byteswritten < TSIZE && byteswritten+bufsize > TSIZE )
+			fprintf(stderr, "files-tape: WARNING:  Tape capacity reached in file %s\n", name);
+		byteswritten += bufsize;
+	}
+	if( count == 0 )
+		return;
+
+	/* mread() logged the error, die */
+	exit(1);
+}
+
+/*
+ *			M R E A D
+ *
+ * This function performs the function of a read(II) but will
+ * call read(II) multiple times in order to get the requested
+ * number of characters.  This can be necessary because pipes
+ * and network connections don't deliver data with the same
+ * grouping as it is written with.  Written by Robert S. Miles, BRL.
+ */
+int
+mread(int fd, register char *bufp, int n)
+{
+	register int	count = 0;
+	register int	nread;
+
+	do {
+		nread = read(fd, bufp, (unsigned)n-count);
+		if(nread < 0)  {
+			perror("files-tape: mread");
+			return(-1);
+		}
+		if(nread == 0)
+			return((int)count);
+		count += (unsigned)nread;
+		bufp += nread;
+	 } while(count < n);
+
+	return((int)count);
+}
+@
+
+
+11.9
+log
+@change conf.h to a wrapped config.h
+@
+text
+@d44 1
+a44 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/util/files-tape.c,v 11.8 2004/04/05 05:46:01 morrison Exp $ (BRL)";
+@
+
+
+11.8
+log
+@merge of ansi-6-0-branch into head
+@
+text
+@d44 1
+a44 1
+static const char RCSid[] = "@@(#)$Header$ (BRL)";
+d47 5
+a51 1
+#include "conf.h"
+@
+
+
+11.7
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d44 1
+a44 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/util/files-tape.c,v 11.5 2001/08/10 20:57:06 butler Exp $ (BRL)";
+d64 1
+a64 1
+void	fileout();
+d72 1
+a72 2
+get_args( argc, argv )
+register char **argv;
+d100 1
+a100 2
+main(argc, argv)
+char	**argv;
+d146 1
+a146 3
+fileout( fd, name )
+register int	fd;
+char		*name;
+d181 1
+a181 4
+mread(fd, bufp, n)
+int	fd;
+register char	*bufp;
+int	n;
+@
+
+
+11.7.2.1
+log
+@Initial ANSIfication
+@
+text
+@d44 1
+a44 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/util/files-tape.c,v 11.7 2002/08/20 17:08:58 jra Exp $ (BRL)";
+d64 1
+a64 1
+void	fileout(register int fd, char *name);
+d72 2
+a73 1
+get_args(int argc, register char **argv)
+d101 2
+a102 1
+main(int argc, char **argv)
+d148 3
+a150 1
+fileout(register int fd, char *name)
+d185 4
+a188 1
+mread(int fd, register char *bufp, int n)
+@
+
+
+11.6
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d64 1
+a64 1
+void	fileout(register int fd, char *name);
+d72 2
+a73 1
+get_args(int argc, register char **argv)
+d101 2
+a102 1
+main(int argc, char **argv)
+d148 3
+a150 1
+fileout(register int fd, char *name)
+d185 4
+a188 1
+mread(int fd, register char *bufp, int n)
+@
+
+
+11.5
+log
+@Misc compiler warnings eliminated
+@
+text
+@d44 1
+a44 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/util/files-tape.c,v 11.4 2001/08/08 03:28:15 butler Exp $ (BRL)";
+d64 1
+a64 1
+void	fileout();
+d72 1
+a72 2
+get_args( argc, argv )
+register char **argv;
+d100 1
+a100 2
+main(argc, argv)
+char	**argv;
+d146 1
+a146 3
+fileout( fd, name )
+register int	fd;
+char		*name;
+d181 1
+a181 4
+mread(fd, bufp, n)
+int	fd;
+register char	*bufp;
+int	n;
+@
+
+
+11.4
+log
+@Misc compiler warnings eliminated
+@
+text
+@d44 1
+a44 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/util/files-tape.c,v 11.3 2000/09/01 03:23:48 mike Exp $ (BRL)";
+d50 1
+a50 1
+#ifdef USE_STRING_H
+@
+
+
+11.3
+log
+@
+Lint fix
+@
+text
+@d44 1
+a44 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/util/files-tape.c,v 11.2 2000/08/23 19:04:31 mike Exp $ (BRL)";
+d50 5
+a54 1
+
+@
+
+
+11.2
+log
+@
+const RCSid
+@
+text
+@d44 1
+a44 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/util/files-tape.c,v 11.1 1995/01/04 10:12:02 mike Rel4_4 $ (BRL)";
+d62 2
+d67 1
+d96 1
+@
+
+
+11.1
+log
+@Release_4.4
+@
+text
+@d44 1
+a44 1
+static char RCSid[] = "@@(#)$Header: /m/cad/util/RCS/files-tape.c,v 10.3 94/08/23 15:07:31 gdurf Exp $ (BRL)";
+@
+
+
+10.3
+log
+@Removed unnecessary code
+@
+text
+@d44 1
+a44 1
+static char RCSid[] = "@@(#)$Header: /m/cad/util/RCS/files-tape.c,v 10.2 1994/08/23 15:05:40 gdurf Exp gdurf $ (BRL)";
+@
+
+
+10.2
+log
+@Factored ifdefs
+@
+text
+@d44 1
+a44 1
+static char RCSid[] = "@@(#)$Header: /m/cad/util/RCS/files-tape.c,v 10.1 1991/10/12 06:48:12 mike Rel4_0 gdurf $ (BRL)";
+a148 1
+#ifdef BSD
+a149 3
+#else
+			memset( buf+count, '\0', bufsize-count );
+#endif
+@
+
+
+10.1
+log
+@Release_4.0
+@
+text
+@d44 1
+a44 1
+static char RCSid[] = "@@(#)$Header: /m/cad/util/RCS/files-tape.c,v 9.1 89/05/19 06:09:20 mike Rel3_5 $ (BRL)";
+d47 2
+d51 2
+a52 5
+extern	char	*malloc();
+
+extern int	getopt();
+extern char	*optarg;
+extern int	optind;
+@
+
+
+9.1
+log
+@Release_3.5
+@
+text
+@d44 1
+a44 1
+static char RCSid[] = "@@(#)$Header: files-tape.c,v 8.1 88/10/05 00:41:58 mike Rel3_0 $ (BRL)";
+@
+
+
+8.1
+log
+@Release_3.0
+@
+text
+@d44 1
+a44 1
+static char RCSid[] = "@@(#)$Header: files-tape.c,v 1.2 88/09/09 04:08:07 mike Exp $ (BRL)";
+@
+
+
+1.2
+log
+@added void fileout();
+@
+text
+@d44 1
+a44 1
+static char RCSid[] = "@@(#)$Header: files-tape.c,v 1.1 88/08/14 22:53:26 mike Locked $ (BRL)";
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d44 1
+a44 1
+static char RCSid[] = "@@(#)$Header$ (BRL)";
+d61 2
+d140 1
+@

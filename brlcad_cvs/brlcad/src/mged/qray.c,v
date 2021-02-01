@@ -1,0 +1,920 @@
+head	14.11;
+access;
+symbols
+	rel-7-10-4:14.8.2.1
+	STABLE:14.8.0.2
+	stable-branch:14.3
+	rel-7-10-2:14.8
+	rel-7-10-0:14.7
+	rel-7-8-4:14.5
+	rel-7-8-2:14.5
+	rel-7-8-0:14.5
+	trimnurbs-branch:14.5.0.2
+	help:14.5
+	temp_tag:14.4
+	bobWinPort-20051223-freeze:14.4
+	postmerge-20051223-bobWinPort:14.4
+	premerge-20051223-bobWinPort:14.4
+	rel-7-6-6:14.4
+	rel-7-6-4:14.4
+	rel-7-6-2:14.4
+	rel-7-6-branch:14.4.0.6
+	rel-7-6-0:14.4
+	rel-7-4-2:14.4
+	rel-7-4-branch:14.4.0.4
+	bobWinPort:14.4.0.2
+	rel-7-4-0:14.4
+	rel-7-2-6:14.4
+	rel-7-2-4:14.3
+	rel-7-2-2:14.3
+	rel-7-2-0:14.3
+	rel-7-0-4:14.2
+	rel-7-0-2:14.2
+	rel-7-0-1:14.2
+	opensource-post:14.2
+	opensource-pre:1.4
+	rel-7-0-branch:1.4.0.2
+	rel-7-0:1.4;
+locks; strict;
+comment	@ * @;
+
+
+14.11
+date	2007.11.15.13.27.12;	author bob1961;	state Exp;
+branches;
+next	14.10;
+
+14.10
+date	2007.09.18.15.11.34;	author erikgreenwald;	state Exp;
+branches;
+next	14.9;
+
+14.9
+date	2007.09.15.16.23.17;	author brlcad;	state Exp;
+branches;
+next	14.8;
+
+14.8
+date	2007.05.14.21.04.32;	author brlcad;	state Exp;
+branches
+	14.8.2.1;
+next	14.7;
+
+14.7
+date	2007.01.23.01.13.42;	author brlcad;	state Exp;
+branches;
+next	14.6;
+
+14.6
+date	2007.01.20.14.36.57;	author brlcad;	state Exp;
+branches;
+next	14.5;
+
+14.5
+date	2006.01.18.06.46.19;	author brlcad;	state Exp;
+branches;
+next	14.4;
+
+14.4
+date	2005.05.28.02.14.52;	author brlcad;	state Exp;
+branches;
+next	14.3;
+
+14.3
+date	2005.01.30.20.31.06;	author brlcad;	state Exp;
+branches;
+next	14.2;
+
+14.2
+date	2004.12.21.04.17.27;	author butler;	state Exp;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.17;	author morrison;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	2004.09.03.23.30.58;	author morrison;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2004.08.02.23.01.51;	author morrison;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2004.06.08.22.04.29;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.15.20.27;	author morrison;	state Exp;
+branches;
+next	;
+
+14.8.2.1
+date	2007.09.28.14.04.35;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.11
+log
+@Mods to use librt's qray routines. This fixes the inability to adjust the format strings and shrinks MGED's code base a tiny bit. Note - after testing on unix the if'ed out code can be removed.
+@
+text
+@/*                          Q R A Y . C
+ * BRL-CAD
+ *
+ * Copyright (c) 1998-2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@file qray.c
+ *
+ * Routines to set and get "Query Ray" variables.
+ *
+ * Source -
+ *      SLAD CAD Team
+ *      The U. S. Army Research Laboratory
+ *      Aberdeen Proving Ground, Maryland  21005
+ *
+ * Author -
+ *      Robert G. Parker
+ */
+
+#include "common.h"
+
+#include <stdio.h>
+#include <string.h>
+
+#include "machine.h"
+#include "bu.h"
+#include "vmath.h"
+#include "raytrace.h"
+#include "./ged.h"
+#include "./mged_dm.h"
+#include "./qray.h"
+
+#define USE_LIBRT_QRAY 1
+
+#if USE_LIBRT_QRAY
+int
+f_qray(ClientData clientData, Tcl_Interp *interp, int argc, char **argv)
+{
+    return dgo_qray_cmd(dgop, interp, argc, argv);
+}
+
+void
+init_qray(void)
+{
+    dgo_init_qray(dgop);
+}
+
+#else
+
+static void qray_print_fmts(void);
+static void qray_print_vars(void);
+static int qray_get_fmt_index(char c);
+
+struct bu_vls qray_basename;
+struct bu_vls qray_script;
+char qray_effects = 'b';
+int qray_cmd_echo = 0;
+struct qray_fmt *qray_fmts;
+static struct qray_color qray_odd_color = { 0, 255, 255 };
+static struct qray_color qray_even_color = { 255, 255, 0 };
+static struct qray_color qray_void_color = { 255, 0, 255 };
+static struct qray_color qray_overlap_color = { 255, 255, 255 };
+
+/* replaces (char)NULL to quiet cast size warnings */
+#define CNULL (char)0x0
+
+#ifndef _WIN32
+static struct qray_fmt_data def_qray_fmt_data[] = {
+  {'r', "\"Origin (x y z) = (%.2f %.2f %.2f)  (h v d) = (%.2f %.2f %.2f)\\nDirection (x y z) = (%.4f %.4f %.4f)  (az el) = (%.2f %.2f)\\n\" x_orig y_orig z_orig h v d_orig x_dir y_dir z_dir a e"},
+  {'h', "\"    Region Name               Entry (x y z)              LOS  Obliq_in\\n\""},
+  {'p', "\"%-20s (%9.3f %9.3f %9.3f) %8.2f %8.3f\\n\" reg_name x_in y_in z_in los obliq_in"},
+  {'f', "\"\""},
+  {'m', "\"You missed the target\\n\""},
+  {'o', "\"OVERLAP: '%s' and '%s' xyz_in=(%g %g %g) los=%g\\n\" ov_reg1_name ov_reg2_name ov_x_in ov_y_in ov_z_in ov_los"},
+  {CNULL, (char *)NULL}
+};
+#else
+static struct qray_fmt_data def_qray_fmt_data[] = {
+  {'r', "\\\"Origin (x y z) = (%.2f %.2f %.2f)  (h v d) = (%.2f %.2f %.2f)\\\\nDirection (x y z) = (%.4f %.4f %.4f)  (az el) = (%.2f %.2f)\\\\n\" x_orig y_orig z_orig h v d_orig x_dir y_dir z_dir a e"},
+  {'h', "\\\"    Region Name               Entry (x y z)              LOS  Obliq_in\\\\n\\\""},
+  {'p', "\\\"%-20s (%9.3f %9.3f %9.3f) %8.2f %8.3f\\\\n\\\" reg_name x_in y_in z_in los obliq_in"},
+  {'f', "\\\"\\\""},
+  {'m', "\\\"You missed the target\\\\n\\\""},
+  {'o', "\\\"OVERLAP: '%s' and '%s' xyz_in=(%g %g %g) los=%g\\\\n\\\" ov_reg1_name ov_reg2_name ov_x_in ov_y_in ov_z_in ov_los"},
+  {CNULL, (char *)NULL}
+};
+#endif
+
+static char qray_syntax[] = "\
+ qray vars			print a list of all variables (i.e. var = val)\n\
+ qray basename [str]		set or get basename for query ray solids\n\
+ qray effects [t|g|b]		set or get effects (i.e. text, graphical or both)\n\
+ qray echo [0|1]		set or get command echo\n\
+ qray oddcolor [r g b]		set or get color of odd partitions\n\
+ qray evencolor [r g b]		set or get color of even partitions\n\
+ qray voidcolor [r g b]		set or get color of void areas\n\
+ qray overlapcolor [r g b]	set or get color of overlap areas\n\
+ qray fmt [r|h|p|f|m|o [str]]	set or get format string(s)\n\
+ qray script [str]		set or get the nirt script string\n\
+ qray [help]			print this help message\n\
+";
+
+int
+f_qray(ClientData clientData, Tcl_Interp *interp, int argc, char **argv)
+{
+  struct bu_vls vls;
+
+  if(6 < argc){
+    bu_vls_init(&vls);
+    bu_vls_printf(&vls, "help qray");
+    Tcl_Eval(interp, bu_vls_addr(&vls));
+    bu_vls_free(&vls);
+
+    return TCL_ERROR;
+  }
+
+  /* print help message */
+  if(argc == 1){
+    Tcl_AppendResult(interp, "Usage:\n", qray_syntax, (char *)NULL);
+    return TCL_OK;
+  }
+
+  if(strcmp(argv[1], "fmt") == 0){
+    int i;
+
+    if(argc == 2){			/* get all format strings */
+      qray_print_fmts();
+      return TCL_OK;
+    }else if(argc == 3){		/* get particular format string */
+      if((i = qray_get_fmt_index(*argv[2])) < 0){
+	Tcl_AppendResult(interp,
+			  "qray: unrecognized format type: '",
+			 argv[2], "'\nUsage:\n", qray_syntax, (char *)NULL);
+	return TCL_ERROR;
+      }
+
+      Tcl_AppendResult(interp, bu_vls_addr(&qray_fmts[i].fmt), (char *)NULL);
+      return TCL_OK;
+    }else if(argc == 4){		/* set value */
+      if((i = qray_get_fmt_index(*argv[2])) < 0){
+	Tcl_AppendResult(interp,
+			  "qray: unrecognized format type: '",
+			 argv[2], "'\nUsage:\n", qray_syntax, (char *)NULL);
+	return TCL_ERROR;
+      }
+
+      bu_vls_trunc(&qray_fmts[i].fmt, 0);
+      bu_vls_printf(&qray_fmts[i].fmt, "%s", argv[3]);
+      return TCL_OK;
+    }
+
+    Tcl_AppendResult(interp,
+		     "The 'qray fmt' command accepts 0, 1, or 2 arguments\n",
+		     (char *)NULL);
+    return TCL_ERROR;
+  }
+
+  if(strcmp(argv[1], "basename") == 0){
+    if(argc == 2){		/* get value */
+      Tcl_AppendResult(interp, bu_vls_addr(&qray_basename), (char *)NULL);
+
+      return TCL_OK;
+    }else if(argc == 3){		/* set value */
+      bu_vls_strcpy(&qray_basename, argv[2]);
+      return TCL_OK;
+    }
+
+    Tcl_AppendResult(interp,
+		     "The 'qray basename' command accepts 0 or 1 argument\n",
+		     (char *)NULL);
+    return TCL_ERROR;
+  }
+
+  if(strcmp(argv[1], "script") == 0){
+    if(argc == 2){		/* get value */
+      Tcl_AppendResult(interp, bu_vls_addr(&qray_script), (char *)NULL);
+
+      return TCL_OK;
+    }else if(argc == 3){		/* set value */
+      bu_vls_strcpy(&qray_script, argv[2]);
+      return TCL_OK;
+    }
+
+    Tcl_AppendResult(interp,
+		     "The 'qray script' command accepts 0 or 1 argument\n",
+		     (char *)NULL);
+    return TCL_ERROR;
+  }
+
+  if(strcmp(argv[1], "effects") == 0){
+    if(argc == 2){		/* get value */
+      bu_vls_init(&vls);
+      bu_vls_printf(&vls, "%c", qray_effects);
+      Tcl_AppendResult(interp, bu_vls_addr(&vls), (char *)NULL);
+      bu_vls_free(&vls);
+
+      return TCL_OK;
+    }else if(argc == 3){		/* set value */
+      if(*argv[2] != 't' && *argv[2] != 'g' && *argv[2] != 'b'){
+	bu_vls_init(&vls);
+	bu_vls_printf(&vls, "qray effects: bad value - %s", argv[2]);
+	Tcl_AppendResult(interp, bu_vls_addr(&vls), (char *)NULL);
+	bu_vls_free(&vls);
+
+	return TCL_ERROR;
+      }
+
+      qray_effects = *argv[2];
+
+      return TCL_OK;
+    }
+
+    Tcl_AppendResult(interp,
+		     "The 'qray effects' command accepts 0 or 1 argument\n",
+		     (char *)NULL);
+    return TCL_ERROR;
+  }
+
+  if(strcmp(argv[1], "echo") == 0){
+    if(argc == 2){		/* get value */
+      if(qray_cmd_echo)
+	Tcl_AppendResult(interp, "1", (char *)NULL);
+      else
+	Tcl_AppendResult(interp, "0", (char *)NULL);
+
+      return TCL_OK;
+    }else if(argc == 3){		/* set value */
+      int ival;
+
+      if(sscanf(argv[2], "%d", &ival) < 1){
+	bu_vls_init(&vls);
+	bu_vls_printf(&vls, "qray echo: bad value - %s", argv[2]);
+	Tcl_AppendResult(interp, bu_vls_addr(&vls), (char *)NULL);
+	bu_vls_free(&vls);
+
+	return TCL_ERROR;
+      }
+
+      if(ival)
+	qray_cmd_echo = 1;
+      else
+	qray_cmd_echo = 0;
+
+      return TCL_OK;
+    }
+
+    Tcl_AppendResult(interp,
+		     "The 'qray echo' command accepts 0 or 1 argument\n",
+		     (char *)NULL);
+    return TCL_ERROR;
+  }
+
+  if(strcmp(argv[1], "oddcolor") == 0){
+    if(argc == 2){		/* get value */
+      bu_vls_init(&vls);
+      bu_vls_printf(&vls, "%d %d %d",
+		    qray_odd_color.r, qray_odd_color.g, qray_odd_color.b);
+      Tcl_AppendResult(interp, bu_vls_addr(&vls), (char *)NULL);
+      bu_vls_free(&vls);
+
+      return TCL_OK;
+    }else if(argc == 5){		/* set value */
+      int r, g, b;
+
+      if(sscanf(argv[2], "%d", &r) != 1 ||
+	 sscanf(argv[3], "%d", &g) != 1 ||
+	 sscanf(argv[4], "%d", &b) != 1 ||
+	 r < 0 || g < 0 || b < 0 ||
+	 255 < r || 255 < g || 255 < b){
+	bu_vls_init(&vls);
+	bu_vls_printf(&vls, "qray oddcolor %s %s %s - bad value",
+		      argv[2], argv[3], argv[4]);
+	Tcl_AppendResult(interp, bu_vls_addr(&vls), (char *)NULL);
+	bu_vls_free(&vls);
+      }
+
+      qray_odd_color.r = r;
+      qray_odd_color.g = g;
+      qray_odd_color.b = b;
+
+      return TCL_OK;
+    }
+
+    Tcl_AppendResult(interp,
+		     "The 'qray oddcolor' command accepts 0 or 3 arguments\n",
+		     (char *)NULL);
+    return TCL_ERROR;
+  }
+
+  if(strcmp(argv[1], "evencolor") == 0){
+    if(argc == 2){		/* get value */
+      bu_vls_init(&vls);
+      bu_vls_printf(&vls, "%d %d %d",
+		    qray_even_color.r, qray_even_color.g, qray_even_color.b);
+      Tcl_AppendResult(interp, bu_vls_addr(&vls), (char *)NULL);
+      bu_vls_free(&vls);
+
+      return TCL_OK;
+    }else if(argc == 5){		/* set value */
+      int r, g, b;
+
+      if(sscanf(argv[2], "%d", &r) != 1 ||
+	 sscanf(argv[3], "%d", &g) != 1 ||
+	 sscanf(argv[4], "%d", &b) != 1 ||
+	 r < 0 || g < 0 || b < 0 ||
+	 255 < r || 255 < g || 255 < b){
+	bu_vls_init(&vls);
+	bu_vls_printf(&vls, "qray evencolor %s %s %s - bad value",
+		      argv[2], argv[3], argv[4]);
+	Tcl_AppendResult(interp, bu_vls_addr(&vls), (char *)NULL);
+	bu_vls_free(&vls);
+      }
+
+      qray_even_color.r = r;
+      qray_even_color.g = g;
+      qray_even_color.b = b;
+
+      return TCL_OK;
+    }
+
+    Tcl_AppendResult(interp,
+		     "The 'qray evencolor' command accepts 0 or 3 arguments\n",
+		     (char *)NULL);
+    return TCL_ERROR;
+  }
+
+  if(strcmp(argv[1], "voidcolor") == 0){
+    if(argc == 2){		/* get value */
+      bu_vls_init(&vls);
+      bu_vls_printf(&vls, "%d %d %d",
+		    qray_void_color.r, qray_void_color.g, qray_void_color.b);
+      Tcl_AppendResult(interp, bu_vls_addr(&vls), (char *)NULL);
+      bu_vls_free(&vls);
+
+      return TCL_OK;
+    }else if(argc == 5){		/* set value */
+      int r, g, b;
+
+      if(sscanf(argv[2], "%d", &r) != 1 ||
+	 sscanf(argv[3], "%d", &g) != 1 ||
+	 sscanf(argv[4], "%d", &b) != 1 ||
+	 r < 0 || g < 0 || b < 0 ||
+	 255 < r || 255 < g || 255 < b){
+	bu_vls_init(&vls);
+	bu_vls_printf(&vls, "qray voidcolor %s %s %s - bad value",
+		      argv[2], argv[3], argv[4]);
+	Tcl_AppendResult(interp, bu_vls_addr(&vls), (char *)NULL);
+	bu_vls_free(&vls);
+      }
+
+      qray_void_color.r = r;
+      qray_void_color.g = g;
+      qray_void_color.b = b;
+
+      return TCL_OK;
+    }
+
+    Tcl_AppendResult(interp,
+		     "The 'qray voidcolor' command accepts 0 or 3 arguments\n",
+		     (char *)NULL);
+    return TCL_ERROR;
+  }
+
+  if(strcmp(argv[1], "overlapcolor") == 0){
+    if(argc == 2){		/* get value */
+      bu_vls_init(&vls);
+      bu_vls_printf(&vls, "%d %d %d",
+		    qray_overlap_color.r, qray_overlap_color.g, qray_overlap_color.b);
+      Tcl_AppendResult(interp, bu_vls_addr(&vls), (char *)NULL);
+      bu_vls_free(&vls);
+
+      return TCL_OK;
+    }else if(argc == 5){		/* set value */
+      int r, g, b;
+
+      if(sscanf(argv[2], "%d", &r) != 1 ||
+	 sscanf(argv[3], "%d", &g) != 1 ||
+	 sscanf(argv[4], "%d", &b) != 1 ||
+	 r < 0 || g < 0 || b < 0 ||
+	 255 < r || 255 < g || 255 < b){
+	bu_vls_init(&vls);
+	bu_vls_printf(&vls, "qray overlapcolor %s %s %s - bad value",
+		      argv[2], argv[3], argv[4]);
+	Tcl_AppendResult(interp, bu_vls_addr(&vls), (char *)NULL);
+	bu_vls_free(&vls);
+      }
+
+      qray_overlap_color.r = r;
+      qray_overlap_color.g = g;
+      qray_overlap_color.b = b;
+
+      return TCL_OK;
+    }
+
+    Tcl_AppendResult(interp,
+		     "The 'qray overlapcolor' command accepts 0 or 3 arguments\n",
+		     (char *)NULL);
+    return TCL_ERROR;
+  }
+
+  if(strcmp(argv[1], "vars") == 0){
+    qray_print_vars();
+    return TCL_OK;
+  }
+
+  if(strcmp(argv[1], "help") == 0){
+    Tcl_AppendResult(interp, "Usage:\n", qray_syntax, (char *)NULL);
+    return TCL_OK;
+  }
+
+  Tcl_AppendResult(interp, "qray: unrecognized command: '",
+		   argv[1], "'\nUsage:\n", qray_syntax, (char *)NULL);
+  return TCL_ERROR;
+}
+
+static void
+qray_print_fmts(void)
+{
+  int i;
+
+  for(i = 0; qray_fmts[i].type != CNULL; ++i)
+    Tcl_AppendResult(interp, bu_vls_addr(&qray_fmts[i].fmt),
+		     "\n", (char *)NULL);
+}
+
+static void
+qray_print_vars(void)
+{
+  struct bu_vls vls;
+
+  bu_vls_init(&vls);
+  bu_vls_printf(&vls, "basename = %s\n", bu_vls_addr(&qray_basename));
+  bu_vls_printf(&vls, "script = %s\n", bu_vls_addr(&qray_script));
+  bu_vls_printf(&vls, "effects = %c\n", qray_effects);
+  bu_vls_printf(&vls, "echo = %d\n", qray_cmd_echo);
+  bu_vls_printf(&vls, "oddcolor = %d %d %d\n",
+		qray_odd_color.r, qray_odd_color.g, qray_odd_color.b);
+  bu_vls_printf(&vls, "evencolor = %d %d %d\n",
+		qray_even_color.r, qray_even_color.g, qray_even_color.b);
+  bu_vls_printf(&vls, "voidcolor = %d %d %d\n",
+		qray_void_color.r, qray_void_color.g, qray_void_color.b);
+  bu_vls_printf(&vls, "overlapcolor = %d %d %d\n",
+		qray_overlap_color.r, qray_overlap_color.g, qray_overlap_color.b);
+  Tcl_AppendResult(interp, bu_vls_addr(&vls), (char *)NULL);
+  bu_vls_free(&vls);
+
+  qray_print_fmts();
+}
+
+static int
+qray_get_fmt_index(char c)
+{
+  int i;
+
+  for(i = 0; qray_fmts[i].type != CNULL; ++i)
+    if(c == qray_fmts[i].type)
+      return i;
+
+  return -1;
+}
+
+void
+init_qray(void)
+{
+  register int i;
+  register int n = 0;
+  struct qray_fmt_data *qfdp;
+
+  bu_vls_init(&qray_basename);
+  bu_vls_strcpy(&qray_basename, QRAY_BASENAME);
+  bu_vls_init(&qray_script);
+
+  /* count the number of default format types */
+  for(qfdp = def_qray_fmt_data; qfdp->fmt != (char *)NULL; ++qfdp)
+    ++n;
+
+  qray_fmts = (struct qray_fmt *)bu_malloc(sizeof(struct qray_fmt) * n + 1, "qray_fmts");
+
+  for(i = 0; i < n; ++i){
+    qray_fmts[i].type = def_qray_fmt_data[i].type;
+    bu_vls_init(&qray_fmts[i].fmt);
+    bu_vls_strcpy(&qray_fmts[i].fmt, def_qray_fmt_data[i].fmt);
+  }
+
+  qray_fmts[i].type = CNULL;
+}
+
+void
+qray_data_to_vlist(struct bn_vlblock *vbp, struct qray_dataList *headp, fastf_t *dir, int do_overlaps)
+{
+  register int i = 1;			/* start out odd */
+  register struct bu_list *vhead;
+  register struct qray_dataList *ndlp;
+  vect_t in_pt, out_pt;
+  vect_t last_out_pt;
+
+  for(BU_LIST_FOR(ndlp, qray_dataList, &headp->l)){
+    if(do_overlaps)
+      vhead = rt_vlblock_find(vbp,
+			      qray_overlap_color.r,
+			      qray_overlap_color.g,
+			      qray_overlap_color.b);
+    else if(i % 2)
+      vhead = rt_vlblock_find(vbp,
+			      qray_odd_color.r,
+			      qray_odd_color.g,
+			      qray_odd_color.b);
+    else
+      vhead = rt_vlblock_find(vbp,
+			      qray_even_color.r,
+			      qray_even_color.g,
+			      qray_even_color.b);
+
+    VSET(in_pt, ndlp->x_in, ndlp->y_in, ndlp->z_in);
+    VJOIN1(out_pt, in_pt, ndlp->los, dir);
+    VSCALE(in_pt, in_pt, local2base);
+    VSCALE(out_pt, out_pt, local2base);
+    RT_ADD_VLIST( vhead, in_pt, BN_VLIST_LINE_MOVE );
+    RT_ADD_VLIST( vhead, out_pt, BN_VLIST_LINE_DRAW );
+
+    if(!do_overlaps && i > 1 && !VAPPROXEQUAL(last_out_pt,in_pt,SQRT_SMALL_FASTF)){
+      vhead = rt_vlblock_find(vbp,
+			      qray_void_color.r,
+			      qray_void_color.g,
+			      qray_void_color.b);
+      RT_ADD_VLIST( vhead, last_out_pt, BN_VLIST_LINE_MOVE );
+      RT_ADD_VLIST( vhead, in_pt, BN_VLIST_LINE_DRAW );
+    }
+
+    VMOVE(last_out_pt, out_pt);
+    ++i;
+  }
+}
+#endif
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+14.10
+log
+@change (char)NULL to CNULL ( (char)0x0 ) to quiet the warnings about casting to different size
+@
+text
+@d46 17
+d547 1
+@
+
+
+14.9
+log
+@more c89 embracing.  c89 provides string.h for all of the various str*() and mem*() functions, so remove the check for its presence.  there is still likely to be work required for strict c89 conformance for the various bsd strings.h functions that may be in use.
+@
+text
+@d60 3
+d71 1
+a71 1
+  {(char)NULL, (char *)NULL}
+d81 1
+a81 1
+  {(char)NULL, (char *)NULL}
+d417 1
+a417 1
+  for(i = 0; qray_fmts[i].type != (char)NULL; ++i)
+d451 1
+a451 1
+  for(i = 0; qray_fmts[i].type != (char)NULL; ++i)
+d481 1
+a481 1
+  qray_fmts[i].type = (char)NULL;
+@
+
+
+14.8
+log
+@gah, pick up where someone left off over half a decade ago.  finish updating all of the compat4 symbols throughout the code to their new names.  finally. it's done.  make the deprecated headers obsolete -- make compat4.h obsolete too so we can be sure that all of the changes are now picked up by the compiler as errors.  this change will likely impact muves if they've similarly not updated to the new names too, so the headers are kept with a #warning for now (though will likely disappear down the road entirely).
+@
+text
+@d36 1
+a36 6
+
+#ifdef HAVE_STRING_H
+#  include <string.h>
+#else
+#  include <strings.h>
+#endif
+@
+
+
+14.8.2.1
+log
+@more merging from HEAD.  bring in build system tweakage updates that should fix some library symbol problems from croping up post-release.
+@
+text
+@d36 6
+a41 1
+#include <string.h>
+a64 3
+/* replaces (char)NULL to quiet cast size warnings */
+#define CNULL (char)0x0
+
+d73 1
+a73 1
+  {CNULL, (char *)NULL}
+d83 1
+a83 1
+  {CNULL, (char *)NULL}
+d419 1
+a419 1
+  for(i = 0; qray_fmts[i].type != CNULL; ++i)
+d453 1
+a453 1
+  for(i = 0; qray_fmts[i].type != CNULL; ++i)
+d483 1
+a483 1
+  qray_fmts[i].type = CNULL;
+@
+
+
+14.7
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@d516 2
+a517 2
+    RT_ADD_VLIST( vhead, in_pt, RT_VLIST_LINE_MOVE );
+    RT_ADD_VLIST( vhead, out_pt, RT_VLIST_LINE_DRAW );
+d524 2
+a525 2
+      RT_ADD_VLIST( vhead, last_out_pt, RT_VLIST_LINE_MOVE );
+      RT_ADD_VLIST( vhead, in_pt, RT_VLIST_LINE_DRAW );
+@
+
+
+14.6
+log
+@update copyright to 2007
+@
+text
+@d8 2
+a9 3
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+d14 1
+a14 1
+ * General Public License for more details.
+d16 2
+a17 2
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+@
+
+
+14.5
+log
+@update copyright to 2006
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 1998-2006 United States Government as represented by
+@
+
+
+14.4
+log
+@convert WIN32 define checks to _WIN32 since the latter is one of the defaults provided by MSVC whereas the prior is not.  remove some of them related to header inclusions using HAVE_ defines instead.
+@
+text
+@d4 1
+a4 1
+ * Copyright (C) 1998-2005 United States Government as represented by
+@
+
+
+14.3
+log
+@update copyright to 2005
+@
+text
+@a35 2
+
+
+d39 1
+a39 1
+#include <string.h>
+d41 1
+a41 1
+#include <strings.h>
+d66 1
+a66 1
+#ifndef WIN32
+@
+
+
+14.2
+log
+@GPL License changes
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 1998-2004 United States Government as represented by
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@d1 21
+a21 2
+/*
+ *			Q R A Y . C
+a31 4
+ *
+ * Copyright Notice -
+ *      This software is Copyright (C) 1998-2004 by the United States Army.
+ *      All rights reserved.
+@
+
+
+1.4
+log
+@USE_STRING_H is no more.. it's HAVE_STRING_H
+@
+text
+@d520 10
+@
+
+
+1.3
+log
+@replace the wrapped config.h block with common.h
+@
+text
+@d25 1
+a25 1
+#ifdef USE_STRING_H
+@
+
+
+1.2
+log
+@obliterate externs.h
+@
+text
+@d19 1
+a19 3
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+@
+
+
+1.1
+log
+@Vast reorganization begins.  Sources moved from top-level directories into src/.
+@
+text
+@a36 1
+#include "externs.h"
+@
+

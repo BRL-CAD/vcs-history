@@ -1,0 +1,529 @@
+head	1.13;
+access;
+symbols
+	ansi-20040405-merged:1.12
+	postmerge-20040405-ansi:1.12
+	premerge-20040404-ansi:1.12
+	postmerge-autoconf:1.12
+	autoconf-freeze:1.12
+	premerge-autoconf:1.12
+	ansi-20040316-freeze:1.12
+	postmerge-20040315-windows:1.12
+	premerge-20040315-windows:1.12
+	windows-20040315-freeze:1.12
+	autoconf-20031203:1.12
+	autoconf-20031202:1.12
+	autoconf-branch:1.12.0.12
+	phong-branch:1.12.0.10
+	photonmap-branch:1.12.0.8
+	rel-6-1-DP:1.12
+	windows-branch:1.12.0.6
+	rel-6-0-2:1.12
+	ansi-branch:1.12.0.4
+	rel-6-0-1-branch:1.12.0.2
+	hartley-6-0-post:1.12
+	hartley-6-0-pre:1.12
+	rel-6-0-1:1.12
+	rel-6-0:1.12
+	rel-5-4:1.10
+	offsite-5-3-pre:1.11
+	rel-5-3:1.10
+	rel-5-2:1.10
+	rel-5-1-branch:1.10.0.2
+	rel-5-1:1.10
+	rel-5-0:1.10
+	rel-5-0-beta:1.10
+	rel-4-5:1.10
+	ctj-4-5-post:1.10
+	ctj-4-5-pre:1.10
+	rel-4-4:1.9
+	rel-4-0:1.9
+	rel-3-5:1.3;
+locks; strict;
+comment	@ * @;
+
+
+1.13
+date	2004.05.24.04.18.19;	author morrison;	state dead;
+branches;
+next	1.12;
+
+1.12
+date	2001.10.17.07.40.00;	author morrison;	state Exp;
+branches;
+next	1.11;
+
+1.11
+date	2000.08.24.23.12.43;	author mike;	state Exp;
+branches;
+next	1.10;
+
+1.10
+date	95.02.28.09.13.55;	author jra;	state Exp;
+branches;
+next	1.9;
+
+1.9
+date	91.01.15.13.53.21;	author moss;	state Exp;
+branches;
+next	1.8;
+
+1.8
+date	90.08.28.12.24.07;	author moss;	state Exp;
+branches;
+next	1.7;
+
+1.7
+date	90.08.22.09.39.58;	author moss;	state Exp;
+branches;
+next	1.6;
+
+1.6
+date	89.10.31.12.19.58;	author moss;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	89.07.14.12.59.35;	author moss;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	89.07.07.16.33.15;	author moss;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	89.01.20.15.21.12;	author moss;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	88.11.07.17.01.36;	author moss;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	88.10.28.17.02.16;	author moss;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.13
+log
+@moved to src/burst/
+@
+text
+@/*
+	Author:		Gary S. Moss
+			U. S. Army Ballistic Research Laboratory
+			Aberdeen Proving Ground
+			Maryland 21005-5066
+*/
+#ifndef lint
+static const char RCSid[] = "@@(#)$Header: /n/xoff/cvs/brlcad/burst/glob.c,v 1.12 2001/10/17 07:40:00 morrison Exp $ (BRL)";
+#endif
+#include <stdio.h>
+#include <signal.h>
+#include "machine.h"
+#include "vmath.h"
+#include "fb.h"
+#include "raytrace.h"
+#include "./burst.h"
+#include "./extern.h"
+
+Colors	colorids;	/* ident range to color mappings for plots */
+FBIO *fbiop = NULL;	/* frame buffer specific access from libfb */
+FILE *burstfp = NULL;	/* input stream for burst point locations */
+FILE *gridfp = NULL;	/* grid file output stream (2-d shots) */
+FILE *histfp = NULL;	/* histogram output stream (statistics) */
+FILE *outfp = NULL;	/* burst point library output stream */
+FILE *plotfp = NULL;	/* 3-D UNIX plot stream (debugging) */
+FILE *shotfp = NULL;	/* input stream for shot positions */
+FILE *shotlnfp = NULL;	/* shotline file output stream */
+FILE *tmpfp = NULL;	/* temporary file output stream for logging input */
+HmMenu	*mainhmenu;
+Ids airids;		/* burst air idents */
+Ids armorids;		/* burst armor idents */
+Ids critids;		/* critical component idents */
+unsigned char *pixgrid;
+unsigned char pixaxis[3]  = { 255,   0,   0 }; /* grid axis */
+unsigned char pixbhit[3]  = { 200, 255, 200 }; /* burst ray hit non-critical comps */
+unsigned char pixbkgr[3]  = { 150, 100, 255 }; /* outside grid */
+unsigned char pixblack[3] = {   0,   0,   0 }; /* black */
+unsigned char pixcrit[3]  = { 255, 200, 200 }; /* burst ray hit critical component */
+unsigned char pixghit[3]  = { 255,   0, 255 }; /* ground burst */
+unsigned char pixmiss[3]  = { 200, 200, 200 }; /* shot missed target */
+unsigned char pixtarg[3]  = { 255, 255, 255 }; /* shot hit target */
+Trie *cmdtrie = NULL;
+
+bool batchmode = false;		/* are we processing batch input now */
+bool cantwarhead = false;	/* pitch or yaw will be applied to warhead */
+bool deflectcone = DFL_DEFLECT;	/* cone axis deflects towards normal */
+bool dithercells = DFL_DITHER;	/* if true, randomize shot within cell */
+bool fatalerror;		/* must abort ray tracing */
+bool groundburst = false;	/* if true, burst on imaginary ground */
+bool reportoverlaps = DFL_OVERLAPS;
+				/* if true, overlaps are reported */
+bool reqburstair = true;	/* if true, burst air required for shotburst */
+bool shotburst = false;		/* if true, burst along shotline */
+bool tty = true;		/* if true, full screen display is used */
+bool userinterrupt;		/* has the ray trace been interrupted */
+
+char airfile[LNBUFSZ]={0};	/* input file name for burst air ids */
+char armorfile[LNBUFSZ]={0};	/* input file name for burst armor ids */
+char burstfile[LNBUFSZ]={0};	/* input file name for burst points */
+char cmdbuf[LNBUFSZ];
+char cmdname[LNBUFSZ];
+char colorfile[LNBUFSZ]={0};	/* ident range-to-color file name */
+char critfile[LNBUFSZ]={0};	/* input file for critical components */
+char errfile[LNBUFSZ]={0};	/* errors/diagnostics log file name */
+char fbfile[LNBUFSZ]={0};	/* frame buffer image file name */
+char gedfile[LNBUFSZ]={0};	/* MGED data base file name */
+char gridfile[LNBUFSZ]={0};	/* saved grid (2-d shots) file name */
+char histfile[LNBUFSZ]={0};	/* histogram file name (statistics) */
+char objects[LNBUFSZ]={0};	/* list of objects from MGED file */
+char outfile[LNBUFSZ]={0};	/* burst point library output file name */
+char plotfile[LNBUFSZ]={0};	/* 3-D UNIX plot file name (debugging) */
+char scrbuf[LNBUFSZ];		/* scratch buffer for temporary use */
+char scriptfile[LNBUFSZ]={0};	/* shell script file name */
+char shotfile[LNBUFSZ];		/* input file of firing coordinates */
+char shotlnfile[LNBUFSZ]={0};	/* shotline output file name */
+char title[TITLE_LEN];		/* title of MGED target description */
+char timer[TIMER_LEN];		/* CPU usage statistics */
+char tmpfname[TIMER_LEN];	/* temporary file for logging input */
+
+char *cmdptr;
+
+fastf_t	bdist = DFL_BDIST;
+			/* fusing distance for warhead */
+fastf_t	burstpoint[3];	/* explicit burst point coordinates */
+fastf_t	cellsz = DFL_CELLSIZE;
+			/* shotline separation */
+fastf_t	conehfangle = DFL_CONEANGLE;
+			/* spall cone half angle */
+fastf_t	fire[3];	/* explicit firing coordinates (2-D or 3-D) */
+fastf_t griddn;		/* distance in model coordinates from origin to
+				bottom border of grid */
+fastf_t gridlf;		/* distance to left border */	
+fastf_t	gridrt;		/* distance to right border */
+fastf_t gridup;		/* distance to top border */
+fastf_t	gridhor[3];	/* horizontal grid direction cosines */
+fastf_t	gridsoff[3];	/* origin of grid translated by stand-off */
+fastf_t	gridver[3];	/* vertical grid direction cosines */
+fastf_t grndbk = 0.0;	/* distance to back border of ground plane (-X) */
+fastf_t grndht = 0.0;	/* distance of ground plane below target origin (-Z) */
+fastf_t grndfr = 0.0;	/* distance to front border of ground plane (+X) */
+fastf_t grndlf = 0.0;	/* distance to left border of ground plane (+Y) */
+fastf_t grndrt = 0.0;	/* distance to right border of ground plane (-Y) */
+fastf_t	modlcntr[3];	/* centroid of target's bounding RPP */
+fastf_t modldn = 0.0;	/* distance in model coordinates from origin to bottom
+				 extent of projection of model in grid plane */
+fastf_t modllf = 0.0;	/* distance to left extent */
+fastf_t modlrt = 0.0;	/* distance to right extent */
+fastf_t modlup = 0.0;	/* distance to top extent */
+fastf_t raysolidangle;	/* solid angle per spall sampling ray */
+fastf_t	standoff;	/* distance from model origin to grid */
+fastf_t	unitconv = 1.0;	/* units conversion factor (mm to "units") */
+fastf_t	viewazim = DFL_AZIMUTH;
+			/* degrees from X-axis to firing position */
+fastf_t	viewelev = DFL_ELEVATION;
+			/* degrees from XY-plane to firing position */ 
+
+/* These are the angles and fusing distance used to specify the path of
+	the canted warhead in Bob Wilson's simulation.
+ */
+fastf_t	pitch = 0.0;	/* elevation above path of main penetrator */
+fastf_t	yaw = 0.0;	/* deviation right of path of main penetrator */
+
+/* useful vectors */
+fastf_t xaxis[3] = { 1.0, 0.0, 0.0 };
+fastf_t zaxis[3] = { 0.0, 0.0, 1.0 };
+fastf_t negzaxis[3] = { 0.0, 0.0, -1.0 };
+
+int co;			/* columns of text displayable on video screen */
+int devwid;		/* width in pixels of frame buffer window */
+int devhgt;		/* height in pixels of frame buffer window */
+int firemode = FM_DFLT;	/* mode of specifying shots */
+int gridsz = 512;
+int gridxfin;
+int gridyfin;
+int gridxorg;
+int gridyorg;
+int gridwidth;		/* Grid width in cells. */
+int gridheight;		/* Grid height in cells. */
+int li;			/* lines of text displayable on video screen */
+int nbarriers = DFL_BARRIERS;
+			/* no. of barriers allowed to critical comp */
+int noverlaps = 0;	/* no. of overlaps encountered in this view */
+int nprocessors;	/* no. of processors running concurrently */
+int nriplevels = DFL_RIPLEVELS;
+			/* no. of levels of ripping (0 = no ripping) */
+int nspallrays = DFL_NRAYS;
+			/* no. of spall rays at each burst point */
+int units = DFL_UNITS;	/* target units (default is millimeters) */
+int zoom = 1;		/* magnification factor on frame buffer */
+
+struct rt_i *rtip = RTI_NULL; /* model specific access from librt */
+
+/* signal handlers */
+#if STD_SIGNAL_DECLS
+void	(*norml_sig)();	/* active during interactive operation */
+void	(*abort_sig)(); /* active during ray tracing only */
+#else
+int	(*norml_sig)();
+int	(*abort_sig)();
+#endif
+@
+
+
+1.12
+log
+@Mac OS X warning and error fixes for non-production build
+@
+text
+@d8 1
+a8 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/burst/glob.c,v 1.11 2000/08/24 23:12:43 mike Exp $ (BRL)";
+@
+
+
+1.11
+log
+@
+RCSid
+@
+text
+@d8 1
+a8 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/burst/glob.c,v 1.10 1995/02/28 09:13:55 jra Exp $ (BRL)";
+d11 1
+@
+
+
+1.10
+log
+@Changed RGBpixel to unsigned char.
+@
+text
+@d8 1
+a8 1
+static char RCSid[] = "@@(#)$Header: /m/cad/burst/RCS/glob.c,v 1.9 91/01/15 13:53:21 moss Exp Locker: jra $ (BRL)";
+@
+
+
+1.9
+log
+@Removed author's phone number from top of file comment.  This will be
+shipped as version 2.1.
+@
+text
+@d8 1
+a8 1
+static char RCSid[] = "@@(#)$Header: /vld/moss/src/burst/RCS/glob.c,v 1.8 90/08/28 12:24:07 moss Exp $ (BRL)";
+d32 9
+a40 9
+RGBpixel *pixgrid;
+RGBpixel pixaxis  = { 255,   0,   0 }; /* grid axis */
+RGBpixel pixbhit  = { 200, 255, 200 }; /* burst ray hit non-critical comps */
+RGBpixel pixbkgr  = { 150, 100, 255 }; /* outside grid */
+RGBpixel pixblack = {   0,   0,   0 }; /* black */
+RGBpixel pixcrit  = { 255, 200, 200 }; /* burst ray hit critical component */
+RGBpixel pixghit  = { 255,   0, 255 }; /* ground burst */
+RGBpixel pixmiss  = { 200, 200, 200 }; /* shot missed target */
+RGBpixel pixtarg  = { 255, 255, 255 }; /* shot hit target */
+@
+
+
+1.8
+log
+@This is the official release of version 2.0 which includes mods in the
+output format to both correct a misinterpretation of the ICD, facilitate
+easier postprocessing, increase precision, etc.  Also an option to not
+require burst air was added.  Finally, a bug fix involving adjacent inside
+airs of the same type at the beginning of a shotline was implemented.
+@
+text
+@a5 1
+			(301)278-6651 or AV-298-6651
+d8 1
+a8 1
+static char RCSid[] = "@@(#)$Header: /vld/moss/src/burst/RCS/glob.c,v 1.7 90/08/22 09:39:58 moss Exp $ (BRL)";
+@
+
+
+1.7
+log
+@About to make some sweeping revisions.
+@
+text
+@d9 1
+a9 1
+static char RCSid[] = "@@(#)$Header: /usr/vld/moss/src/burst/RCS/glob.c,v 1.6 89/10/31 12:19:58 moss Exp $ (BRL)";
+d52 1
+@
+
+
+1.6
+log
+@This version released to Eglin and Service Engineering after BRL-CAD '89
+Symposium.
+@
+text
+@d9 1
+a9 1
+static char RCSid[] = "@@(#)$Header: /usr/vld/moss/src/burst/RCS/glob.c,v 1.5 89/07/14 12:59:35 moss Exp $ (BRL)";
+d52 1
+@
+
+
+1.5
+log
+@This is the pre-release copy that Bud took with him.
+@
+text
+@d9 1
+a9 1
+static char RCSid[] = "@@(#)$Header: /usr/vld/moss/src/burst/RCS/glob.c,v 1.4 89/07/07 16:33:15 moss Exp $ (BRL)";
+d30 3
+a32 3
+Ids	airids;		/* burst air idents */
+Ids	armorids;	/* burst armor idents */
+Ids	critids;	/* critical component idents */
+d42 1
+a42 1
+Trie	*cmdtrie = TRIE_NULL;
+@
+
+
+1.4
+log
+@Ready for Bud's visit.
+@
+text
+@d9 1
+a9 1
+static char RCSid[] = "@@(#)$Header: /usr/vld/moss/src/burst/RCS/glob.c,v 1.3 89/01/20 15:21:12 moss Exp $ (BRL)";
+a38 1
+RGBpixel pixgrnd  = {   0, 255,   0 }; /* ground plane grid */
+d102 5
+@
+
+
+1.3
+log
+@Just saving this version for backup purposes, recently added support for
+explicitly inputing burst points.
+@
+text
+@d9 1
+a9 1
+static char RCSid[] = "@@(#)$Header: /usr/vld/moss/src/burst/RCS/glob.c,v 1.2 88/11/07 17:01:36 moss Exp $ (BRL)";
+d24 1
+a24 1
+FILE *outfp = NULL;	/* output stream */
+d27 2
+a28 1
+FILE *tmpfp = NULL;	/* temporary file for logging input */
+d69 1
+a69 1
+char outfile[LNBUFSZ]={0};	/* burst output file name */
+d74 1
+d117 5
+d148 1
+a148 1
+#if defined( SYSV )
+@
+
+
+1.2
+log
+@Just saving this version for fallback.
+@
+text
+@d9 1
+a9 1
+static char RCSid[] = "@@(#)$Header: /usr/vld/moss/src/burst/RCS/glob.c,v 1.1 88/10/28 17:02:16 moss Exp $ (BRL)";
+d20 8
+a27 7
+FBIO	*fbiop=NULL;	/* frame buffer specific access from libfb */
+FILE	*gridfp=NULL;	/* grid file output stream (2-d shots) */
+FILE	*histfp=NULL;	/* histogram output stream (statistics) */
+FILE	*outfp=NULL;	/* output stream */
+FILE	*plotfp=NULL;	/* 3-D UNIX plot stream (debugging) */
+FILE	*shotfp=NULL;	/* input stream for shot positions */
+FILE	*tmpfp=NULL;	/* temporary file for logging input */
+d33 9
+a41 7
+RGBpixel pixaxis  = { 255,   0,   0 };
+RGBpixel pixbhit  = { 200, 255, 200 };
+RGBpixel pixblack = {   0,   0,   0 };
+RGBpixel pixcrit  = { 255, 200, 200 };
+RGBpixel pixbkgr  = { 150, 100, 255 };
+RGBpixel pixmiss  = { 200, 200, 200 };
+RGBpixel pixtarg  = { 255, 255, 255 };
+d45 1
+a45 1
+bool cantwarhead = false;	/* Bob Wilson's canted warhead stuff */
+d49 1
+d57 1
+d80 1
+d87 2
+a88 2
+fastf_t	gridrt;		/* distance in model coordinates from origin to
+				right border of grid */
+d90 1
+a90 1
+fastf_t griddn;		/* distance to bottom border */
+d92 1
+a92 1
+fastf_t	gridhor[3];	/* Horizontal grid direction cosines. */
+d94 6
+a99 1
+fastf_t	gridver[3];	/* Vertical grid direction cosines. */
+a113 1
+fastf_t	setback = 0.0;	/* fusing distance for warhead */
+d116 2
+a117 2
+int devwid = 512;	/* width in pixels of frame buffer window */
+int devhgt = 512;	/* height in pixels of frame buffer window */
+d127 2
+a128 1
+int nbarriers = 0;	/* no. of barriers allowed to critical comp */
+d131 2
+a132 1
+int nriplevels = 0;	/* no. of levels of ripping (0 = no ripping) */
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d9 1
+a9 1
+static char RCSid[] = "@@(#)$Header$ (BRL)";
+d20 1
+a20 1
+FBIO	*fbiop;		/* frame buffer specific access from libfb */
+d31 8
+d81 6
+d88 1
+d106 2
+a107 1
+int li;			/* lines of text displayable on video screen */
+d114 11
+a124 7
+int nbarriers = 0;	    /* no. of barriers allowed to critical comp */
+int noverlaps = 0;	    /* no. of overlaps encountered in this view */
+int nprocessors;	    /* no. of processors running concurrently */
+int nriplevels = 0;	    /* no. of levels of ripping (0 = no ripping) */
+int nspallrays = DFL_NRAYS; /* no. of spall rays at each burst point */
+int units = DFL_UNITS;	    /* target units (default is millimeters) */
+int zoom = 1;		    /* magnification factor on frame buffer */
+@

@@ -1,0 +1,506 @@
+head	14.11;
+access;
+symbols
+	rel-7-10-4:14.10.2.1
+	STABLE:14.10.0.2
+	stable-branch:14.3
+	rel-7-10-2:14.10
+	rel-7-10-0:14.10
+	rel-7-8-4:14.7
+	rel-7-8-2:14.7
+	rel-7-8-0:14.6
+	trimnurbs-branch:14.5.0.2
+	help:14.5
+	temp_tag:14.3
+	bobWinPort-20051223-freeze:14.3
+	postmerge-20051223-bobWinPort:14.3
+	premerge-20051223-bobWinPort:14.3
+	rel-7-6-6:14.3
+	rel-7-6-4:14.3
+	rel-7-6-2:14.3
+	rel-7-6-branch:14.3.0.6
+	rel-7-6-0:14.3
+	rel-7-4-2:14.3
+	rel-7-4-branch:14.3.0.4
+	bobWinPort:14.3.0.2
+	rel-7-4-0:14.3
+	rel-7-2-6:14.3
+	rel-7-2-4:14.3
+	rel-7-2-2:14.3
+	rel-7-2-0:14.3
+	rel-7-0-4:14.2
+	rel-7-0-2:14.2
+	rel-7-0-1:14.2
+	opensource-post:14.2
+	opensource-pre:1.3
+	rel-7-0-branch:1.3.0.2
+	rel-7-0:1.3;
+locks; strict;
+comment	@ * @;
+
+
+14.11
+date	2007.09.15.16.23.18;	author brlcad;	state Exp;
+branches;
+next	14.10;
+
+14.10
+date	2007.01.27.01.41.44;	author brlcad;	state Exp;
+branches
+	14.10.2.1;
+next	14.9;
+
+14.9
+date	2007.01.23.01.13.43;	author brlcad;	state Exp;
+branches;
+next	14.8;
+
+14.8
+date	2007.01.20.14.36.58;	author brlcad;	state Exp;
+branches;
+next	14.7;
+
+14.7
+date	2006.06.03.21.04.11;	author brlcad;	state Exp;
+branches;
+next	14.6;
+
+14.6
+date	2006.04.06.20.50.03;	author brlcad;	state Exp;
+branches;
+next	14.5;
+
+14.5
+date	2006.01.24.05.00.26;	author brlcad;	state Exp;
+branches
+	14.5.2.1;
+next	14.4;
+
+14.4
+date	2006.01.18.06.46.19;	author brlcad;	state Exp;
+branches;
+next	14.3;
+
+14.3
+date	2005.01.30.20.31.06;	author brlcad;	state Exp;
+branches;
+next	14.2;
+
+14.2
+date	2004.12.21.04.17.27;	author butler;	state Exp;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.17;	author morrison;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2004.09.03.23.30.58;	author morrison;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2004.08.02.23.01.51;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.15.20.29;	author morrison;	state Exp;
+branches;
+next	;
+
+14.5.2.1
+date	2006.04.07.19.30.28;	author jlowenz;	state Exp;
+branches;
+next	;
+
+14.10.2.1
+date	2007.09.28.14.04.35;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.11
+log
+@more c89 embracing.  c89 provides string.h for all of the various str*() and mem*() functions, so remove the check for its presence.  there is still likely to be work required for strict c89 conformance for the various bsd strings.h functions that may be in use.
+@
+text
+@/*                      U T I L I T Y 2 . C
+ * BRL-CAD
+ *
+ * Copyright (c) 2004-2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@file utility2.c
+ *
+ *
+ *	f_pathsum()	gives various path summaries
+ *	f_copyeval()	copy an evaluated solid
+ *	f_push()	control routine to push transformations to bottom of paths
+ *	f_showmats()	shows matrices along a path
+ *
+ */
+
+#include "common.h"
+
+#include <stdlib.h>
+#include <signal.h>
+#include <stdio.h>
+#include <math.h>
+#include <string.h>
+
+#include "machine.h"
+#include "bu.h"
+#include "vmath.h"
+#include "bn.h"
+#include "rtgeom.h"
+#include "nmg.h"
+#include "raytrace.h"
+#include "wdb.h"
+
+#include "./ged.h"
+#include "./sedit.h"
+#include "./cmd.h"
+#include "../librt/debug.h"	/* XXX */
+
+
+int
+f_eac(ClientData clientData, Tcl_Interp *interp, int argc, char **argv)
+{
+	int j;
+	int item;
+	struct directory *dp;
+	struct bu_vls v;
+	int new_argc;
+	int lim;
+
+	CHECK_DBI_NULL;
+
+	if(argc < 2){
+	  struct bu_vls vls;
+
+	  bu_vls_init(&vls);
+	  bu_vls_printf(&vls, "help eac");
+	  Tcl_Eval(interp, bu_vls_addr(&vls));
+	  bu_vls_free(&vls);
+	  return TCL_ERROR;
+	}
+
+	bu_vls_init( &v );
+
+	if( setjmp( jmp_env ) == 0 )
+	  (void)signal( SIGINT, sig3);  /* allow interupts */
+	else{
+	  bu_vls_free( &v );
+	  return TCL_OK;
+	}
+
+	bu_vls_strcat( &v, "e" );
+	lim = 1;
+
+	for( j=1; j<argc; j++)
+	{
+		item = atoi( argv[j] );
+		if( item < 1 )
+			continue;
+
+		FOR_ALL_DIRECTORY_START(dp, dbip) {
+			struct rt_db_internal intern;
+			struct rt_comb_internal *comb;
+
+			if( !(dp->d_flags & DIR_REGION) )
+				continue;
+
+			if( rt_db_get_internal( &intern, dp, dbip, (fastf_t *)NULL, &rt_uniresource ) < 0 )
+				TCL_READ_ERR_return;
+			comb = (struct rt_comb_internal *)intern.idb_ptr;
+			if( comb->region_id != 0 ||
+				comb->aircode != item )
+			{
+				rt_comb_ifree( &intern, &rt_uniresource );
+				continue;
+			}
+			rt_comb_ifree( &intern, &rt_uniresource );
+
+			bu_vls_strcat( &v, " " );
+			bu_vls_strcat( &v, dp->d_namep );
+			lim++;
+		} FOR_ALL_DIRECTORY_END;
+	}
+
+	if( lim > 1 )
+	{
+		int retval;
+		char **new_argv;
+
+		new_argv = (char **)bu_calloc( lim+1, sizeof( char *), "f_eac: new_argv" );
+		new_argc = rt_split_cmd( new_argv, lim+1, bu_vls_addr( &v ) );
+		retval = cmd_draw( clientData, interp, new_argc, new_argv );
+		bu_free( (genptr_t)new_argv, "f_eac: new_argv" );
+		bu_vls_free( &v );
+		(void)signal( SIGINT, SIG_IGN );
+		return retval;
+	}
+	else
+	{
+		bu_vls_free( &v );
+		(void)signal( SIGINT, SIG_IGN );
+		return TCL_OK;
+	}
+}
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+14.10
+log
+@ws. lots and lots of ws.  see sh/ws.sh for details (cases 'abcdeg').
+@
+text
+@d36 1
+a36 5
+#ifdef HAVE_STRING_H
+#  include <string.h>
+#else
+#  include <strings.h>
+#endif
+@
+
+
+14.10.2.1
+log
+@more merging from HEAD.  bring in build system tweakage updates that should fix some library symbol problems from croping up post-release.
+@
+text
+@d36 5
+a40 1
+#include <string.h>
+@
+
+
+14.9
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@d83 1
+a83 1
+        else{
+@
+
+
+14.8
+log
+@update copyright to 2007
+@
+text
+@d8 2
+a9 3
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+d14 1
+a14 1
+ * General Public License for more details.
+d16 2
+a17 2
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+@
+
+
+14.7
+log
+@removed unused variable i
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 2004-2006 United States Government as represented by
+@
+
+
+14.6
+log
+@quell/fix issues raised by the Intel compiler on Altix
+@
+text
+@d61 1
+a61 1
+	int i,j;
+@
+
+
+14.5
+log
+@convert iteration over the array of linked list of directory nodes to FOR_ALL_DIRECTORY_START/FOR_ALL_DIRECTORY_END instead
+@
+text
+@d33 1
+a33 2
+
+
+d38 1
+a38 1
+#include <string.h>
+d40 1
+a40 1
+#include <strings.h>
+d51 1
+d57 1
+@
+
+
+14.5.2.1
+log
+@update from HEAD
+@
+text
+@d33 2
+a34 1
+#include <stdlib.h>
+d39 1
+a39 1
+#  include <string.h>
+d41 1
+a41 1
+#  include <strings.h>
+a51 1
+
+a56 1
+
+@
+
+
+14.4
+log
+@update copyright to 2006
+@
+text
+@d97 12
+a108 3
+		for( i = 0; i < RT_DBNHASH; i++ )
+		{
+			for( dp = dbip->dbi_Head[i]; dp != DIR_NULL; dp = dp->d_forw )
+a109 15
+				struct rt_db_internal intern;
+				struct rt_comb_internal *comb;
+
+				if( !(dp->d_flags & DIR_REGION) )
+					continue;
+
+				if( rt_db_get_internal( &intern, dp, dbip, (fastf_t *)NULL, &rt_uniresource ) < 0 )
+					TCL_READ_ERR_return;
+				comb = (struct rt_comb_internal *)intern.idb_ptr;
+				if( comb->region_id != 0 ||
+					comb->aircode != item )
+				{
+					rt_comb_ifree( &intern, &rt_uniresource );
+					continue;
+				}
+d111 3
+d115 4
+a118 5
+				bu_vls_strcat( &v, " " );
+				bu_vls_strcat( &v, dp->d_namep );
+				lim++;
+			}
+		}
+@
+
+
+14.3
+log
+@update copyright to 2005
+@
+text
+@d4 1
+a4 1
+ * Copyright (C) 2004-2005 United States Government as represented by
+@
+
+
+14.2
+log
+@GPL License changes
+@
+text
+@d4 2
+a5 2
+ * Copyright (c) 2004 United States Government as represented by the
+ * U.S. Army Research Laboratory.
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@d1 21
+a21 2
+/*
+ *			U T I L I T Y 2 . C
+@
+
+
+1.3
+log
+@USE_STRING_H is no more.. it's HAVE_STRING_H
+@
+text
+@d126 10
+@
+
+
+1.2
+log
+@replace the wrapped config.h block with common.h
+@
+text
+@d19 1
+a19 1
+#ifdef USE_STRING_H
+@
+
+
+1.1
+log
+@Vast reorganization begins.  Sources moved from top-level directories into src/.
+@
+text
+@d12 1
+a12 3
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+@
+

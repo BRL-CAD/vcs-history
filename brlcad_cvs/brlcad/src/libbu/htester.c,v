@@ -1,0 +1,405 @@
+head	14.8;
+access;
+symbols
+	rel-7-10-4:14.6
+	STABLE:14.6.0.2
+	rel-7-10-2:14.6
+	rel-7-10-0:14.5
+	rel-7-8-4:14.1;
+locks; strict;
+comment	@ * @;
+
+
+14.8
+date	2007.10.22.14.45.47;	author erikgreenwald;	state Exp;
+branches;
+next	14.7;
+
+14.7
+date	2007.09.14.17.53.47;	author erikgreenwald;	state Exp;
+branches;
+next	14.6;
+
+14.6
+date	2007.07.26.01.13.56;	author brlcad;	state Exp;
+branches;
+next	14.5;
+
+14.5
+date	2007.01.27.01.41.36;	author brlcad;	state Exp;
+branches;
+next	14.4;
+
+14.4
+date	2007.01.23.01.13.34;	author brlcad;	state Exp;
+branches;
+next	14.3;
+
+14.3
+date	2007.01.21.04.45.41;	author brlcad;	state Exp;
+branches;
+next	14.2;
+
+14.2
+date	2007.01.20.14.36.51;	author brlcad;	state Exp;
+branches;
+next	14.1;
+
+14.1
+date	2006.09.15.04.17.18;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.8
+log
+@Add missing include for bu.h. Fixed sign issues. Rearranged and modernized.
+Added -v (version) flag and improved argument checking.
+@
+text
+@/*                       H T E S T E R . C
+ * BRL-CAD
+ *
+ * Copyright (c) 2004-2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This library is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@addtogroup hton */
+/** @@{ */
+/** @@file htester.c
+ *
+ *  @@brief
+ *  Test network float conversion.
+ *
+ *  Expected to be used in pipes, or with TTCP links to other machines,
+ *  or with files RCP'ed between machines.
+ *
+ *  @@author
+ *	Michael John Muuss
+ */
+/** @@} */
+
+#ifndef lint
+static char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/libbu/htester.c,v 14.7 2007/09/14 17:53:47 erikgreenwald Exp $ (BRL)";
+#endif
+
+#include "common.h"
+
+#include <stdlib.h>
+#include <stdio.h>
+
+#include "bu.h"
+
+
+#define	NUM	3000
+double	orig[NUM], after[NUM];
+
+unsigned char	buf[NUM*8];
+
+void
+flpr(unsigned char *cp)
+{
+	unsigned int i;
+	for( i=0; i<sizeof(double); i++ )  {
+		putchar("0123456789ABCDEFx"[*cp>>4]);
+		putchar("0123456789ABCDEFx"[*cp&0xF]);
+		cp++;
+	}
+	return;
+}
+
+int
+ckbytes(unsigned char *a, unsigned char *b, int n)
+{
+#ifndef vax
+	while( n-- > 0 )  {
+		if( *a++ != *b++ )
+			return(-1);	/* BAD */
+	}
+	return(0);			/* OK */
+#else
+	/* VAX floating point has bytes swapped, vis-a-vis normal VAX order */
+	int i;
+	for( i=0; i<n; i++ )  {
+		if( a[i^1] != b[i^1] )
+			return(-1);	/* BAD */
+	}
+	return(0);			/* OK */
+#endif
+}
+
+int
+main(int argc, char **argv)
+{
+	unsigned int i;
+	unsigned int nbytes;
+
+#define A argv[1][1]
+	if( argc != 2 || argv[1][0] != '-' || ( A != 'o' && A != 'i' && A != 'v' )) {
+		fprintf(stderr,"Usage:  htester [-i|-o|-v] < input\n");
+		exit(1);
+	}
+
+	if( argv[1][1] == 'v' ) {
+	    printf("%s\n", RCSid);
+	    return 0;
+	}
+
+	/* First stage, generate the reference pattern */
+	for( i=0; i<1000; i++ )  {
+		orig[i] = ((double)i)/(7*16);
+	}
+	for( i=1000; i<2000; i++ )  {
+		orig[i] = -1.0/(i-1000+1);
+	}
+	orig[2000] = -1;
+	for( i=2001; i<2035; i++ )  {
+		orig[i] = orig[i-1] * -0.1;
+	}
+	for( i=2035; i<3000; i++ )  {
+		orig[i] = orig[i-1000] + (i&1)?(-1):1;
+	}
+
+	/* Second stage, write out, or read and compare */
+	if( argv[1][1] == 'o' )  {
+		/* Write out */
+		htond( (unsigned char *)buf, (unsigned char *)orig, NUM );
+		fwrite( buf, 8, NUM, stdout );
+		exit(0);
+	}
+
+	/* Read and compare */
+	if( sizeof(double) >= 8 )
+		nbytes = 6;
+	else
+		nbytes = 4;
+	fread( buf, 8, NUM, stdin );
+/*	ntohd( (char *)after, buf, NUM );	*//* bulk conversion */
+	for( i=0; i<NUM; i++ )  {
+		ntohd( (unsigned char *)&after[i], (unsigned char *)&buf[i*8], 1 );	/* incremental */
+		/* Floating point compare */
+		if( orig[i] == after[i] )  continue;
+
+		/* Byte-for-byte compare */
+		if( ckbytes( (unsigned char *)&orig[i], 
+			    (unsigned char *)&after[i], nbytes ) == 0 )
+			continue;
+
+		/* Wrong */
+		printf("%4d: calc ", i);
+		flpr( (unsigned char *)&orig[i] );
+		printf(" %g\n", orig[i]);
+		printf("      aftr ");
+		flpr( (unsigned char *)&after[i] );
+		printf(" %g\n", after[i] );
+		printf("      buf  ");
+		flpr( &buf[i*8] );
+		printf("\n");
+	}
+	exit(0);
+}
+
+/** @@} */
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+14.7
+log
+@cast to fix incompatible pointer warning
+@
+text
+@d36 1
+a36 1
+static char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/libbu/htester.c,v 14.6 2007/07/26 01:13:56 brlcad Exp $ (BRL)";
+d44 2
+d50 33
+a82 1
+char	buf[NUM*8];
+d84 1
+d87 2
+a88 2
+	register int i;
+	register int nbytes;
+d90 3
+a92 2
+	if( argc != 2 || argv[1][0] != '-' )  {
+		fprintf(stderr,"Usage:  htester [-i|-o]\n");
+d96 5
+d119 1
+a119 1
+		htond( buf, (char *)orig, NUM );
+d130 1
+a130 1
+/*	ntohd( (char *)after, buf, NUM );	/* bulk conversion */
+d132 1
+a132 1
+		ntohd( (char *)&after[i], &buf[i*8], 1 );	/* incremental */
+d143 1
+a143 1
+		flpr( &orig[i] );
+d146 1
+a146 1
+		flpr( &after[i] );
+a154 28
+flpr(register unsigned char *cp)
+{
+	register int i;
+	for( i=0; i<sizeof(double); i++ )  {
+		putchar("0123456789ABCDEFx"[*cp>>4]);
+		putchar("0123456789ABCDEFx"[*cp&0xF]);
+		cp++;
+	}
+}
+
+ckbytes(register unsigned char *a, register unsigned char *b, register int n)
+{
+#ifndef vax
+	while( n-- > 0 )  {
+		if( *a++ != *b++ )
+			return(-1);	/* BAD */
+	}
+	return(0);			/* OK */
+#else
+	/* VAX floating point has bytes swapped, vis-a-vis normal VAX order */
+	register int i;
+	for( i=0; i<n; i++ )  {
+		if( a[i^1] != b[i^1] )
+			return(-1);	/* BAD */
+	}
+	return(0);			/* OK */
+#endif
+}
+@
+
+
+14.6
+log
+@remove ephemeral data like phone numbers and addresses, including the misleading 'source' statements on code that is continually evolving and receiving contributions from many many sources
+@
+text
+@d36 1
+a36 1
+static char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/libbu/htester.c,v 14.5 2007/01/27 01:41:36 brlcad Exp $ (BRL)";
+d96 2
+a97 1
+		if( ckbytes( &orig[i], &after[i], nbytes ) == 0 )
+@
+
+
+14.5
+log
+@ws. lots and lots of ws.  see sh/ws.sh for details (cases 'abcdeg').
+@
+text
+@a31 5
+ *
+ *  @@par Source -
+ *	SECAD/VLD Computing Consortium, Bldg 394
+ *  @@n	The U. S. Army Ballistic Research Laboratory
+ *  @@n	Aberdeen Proving Ground, Maryland  21005-5066
+d36 1
+a36 1
+static char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/libbu/htester.c,v 14.4 2007/01/23 01:13:34 brlcad Exp $ (BRL)";
+@
+
+
+14.4
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@d26 1
+a26 1
+ * 
+d41 1
+a41 1
+static char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/libbu/htester.c,v 14.3 2007/01/21 04:45:41 brlcad Exp $ (BRL)";
+@
+
+
+14.3
+log
+@ugh, what tedium.  put some effort towards cleaning up the doxygen labels and making the headers more consistent.  also exclusively using @@ for doxygen instead of \ to try to keep things more consistent.
+@
+text
+@d9 1
+a9 2
+ * as published by the Free Software Foundation; either version 2 of
+ * the License, or (at your option) any later version.
+d14 1
+a14 1
+ * Library General Public License for more details.
+d41 1
+a41 1
+static char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/libbu/htester.c,v 14.2 2007/01/20 14:36:51 brlcad Exp $ (BRL)";
+@
+
+
+14.2
+log
+@update copyright to 2007
+@
+text
+@d21 2
+a22 4
+
+/** \addtogroup hton */
+/*@@{*/
+
+d24 2
+a25 1
+ * @@brief
+d36 2
+a37 2
+ *@@n	The U. S. Army Ballistic Research Laboratory
+ *@@n	Aberdeen Proving Ground, Maryland  21005-5066
+d39 1
+a39 1
+/*@@}*/
+d42 1
+a42 1
+static char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/libbu/htester.c,v 14.1 2006/09/15 04:17:18 brlcad Exp $ (BRL)";
+d147 1
+a147 1
+/*@@}*/
+@
+
+
+14.1
+log
+@do as the comment suggests and move the htester.c test application that exercises the host to network floating point functions from libbn to libbu
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 2004-2006 United States Government as represented by
+d43 1
+a43 1
+static char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/libbn/htester.c,v 14.10 2006/09/02 14:02:15 lbutler Exp $ (BRL)";
+@
+

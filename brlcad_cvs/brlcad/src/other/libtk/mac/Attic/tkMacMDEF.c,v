@@ -1,0 +1,202 @@
+head	14.2;
+access;
+symbols
+	stable-branch:14.1
+	rel-7-8-4:14.1
+	rel-7-8-2:14.1
+	rel-7-8-0:14.1
+	trimnurbs-branch:14.1.0.8
+	help:14.1
+	temp_tag:14.1
+	bobWinPort-20051223-freeze:14.1
+	postmerge-20051223-bobWinPort:14.1
+	premerge-20051223-bobWinPort:14.1
+	rel-7-6-6:14.1
+	rel-7-6-4:14.1
+	rel-7-6-2:14.1
+	rel-7-6-branch:14.1.0.6
+	rel-7-6-0:14.1
+	rel-7-4-2:14.1
+	rel-7-4-branch:14.1.0.4
+	bobWinPort:14.1.0.2
+	rel-7-4-0:14.1
+	rel-7-2-6:14.1
+	rel-7-2-4:14.1
+	rel-7-2-2:14.1
+	rel-7-2-0:14.1
+	rel-7-0-4:14.1
+	rel-7-0-2:14.1
+	rel-7-0-1:14.1
+	opensource-post:14.1
+	opensource-pre:1.1
+	rel-7-0-branch:1.1.0.2
+	rel-7-0:1.1;
+locks; strict;
+comment	@ * @;
+
+
+14.2
+date	2007.03.02.21.47.42;	author brlcad;	state dead;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.27;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.14.53.20;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.2
+log
+@upgrade tcl/tk from 8.4.6 to 8.5a5; also move to a recursive configure, using AC_CONFIG_SUBDIRS to call upon tcl, tk, and enigma's configure scripts as needed instead of redoing their build systems for our purpose.  this has a rather drastic impact on the way the libraries are linked together, including the need to compile tcl/tk static so as to avoid libtool portability issues as well as letting us take advantage of their build system for reduced maintenance and easing future upgrades.  undoubtedly more build issues to be worked out with other platforms given the extent of this change.  this does move us one step closer towards correctly linking against system tcl/tk installations too.
+@
+text
+@/*
+ * TkMacMDEF.c --
+ *
+ *	This module is implements the MDEF for tkMenus. The address of the
+ *	real entry proc will be blasted into the MDEF.
+ *
+ * Copyright (c) 1996 by Sun Microsystems, Inc.
+ *
+ * See the file "license.terms" for information on usage and redistribution
+ * of this file, and for a DISCLAIMER OF ALL WARRANTIES.
+ *
+ * RCS: @@(#) $Id: tkMacMDEF.c,v 14.1 2004/11/16 19:42:27 morrison Exp $
+ */
+
+#define MAC_TCL
+#define NeedFunctionPrototypes 1
+#define NeedWidePrototypes 0
+
+#include <Menus.h>
+#include <LowMem.h>
+#include "tkMacInt.h"
+
+
+/*
+ * The following structure is built from assembly equates in MPW 3.0 
+ * AIncludes file: "Private.a." We're forced to update several locations not
+ * documented in "Inside Mac" to make our MDEF behave properly with hierarchical 
+ * menus.
+ */
+
+#if STRUCTALIGNMENTSUPPORTED
+#pragma options align=mac68k
+#endif
+typedef struct mbPrivate {
+    Byte unknown[6];
+    Rect mbItemRect; 		/* rect of currently chosen menu item */
+} mbPrivate;
+#if STRUCTALIGNMENTSUPPORTED
+#pragma options align=reset
+#endif
+
+/*
+ * We are forced to update a low-memory global to get cascades to work. This
+ * global does not have a LMEquate associated with it.
+ */
+
+#define SELECTRECT (*(Rect *)0x09fa) 	/* Menu select seems to need this */
+#define	MBSAVELOC (*(short *)0x0B5C) 	/* address of handle to mbarproc private data redefined below */
+
+pascal void		main _ANSI_ARGS_((short message,
+			    MenuHandle menu, Rect *menuRect,
+			    Point hitPt, short *whichItem));
+
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * TkMacStdMenu --
+ *
+ *	The dispatch routine called by the system to handle menu drawing,
+ *	scrolling, etc. This is a stub; the address of the real routine
+ *	is blasted in. The real routine will be a UniversalProcPtr,
+ *	which will give the real dispatch routine in Tk globals
+ *	and the like.
+ *
+ * Results:
+ *	None.
+ *
+ * Side effects:
+ *	This routine causes menus to be drawn and will certainly allocate
+ *	memory as a result. Also, the menu can scroll up and down, and
+ *	various other interface actions can take place
+ *
+ *----------------------------------------------------------------------
+ */
+
+pascal void
+main(
+    short message,		/* What action are we taking? */
+    MenuHandle menu,		/* The menu we are working with */
+    Rect *menuRect,		/* A pointer to the rect we are working with */
+    Point hitPt,		/* Where the mouse was hit for appropriate
+    				 * messages. */
+    short *whichItemPtr)	/* Output result. Which item was hit by
+    				 * the user? */
+{	
+    /*
+     * The constant 'MDEF' is what will be punched during menu intialization.
+     */
+
+    TkMenuDefProcPtr procPtr = (TkMenuDefProcPtr) 'MDEF';
+    TkMenuLowMemGlobals globals;
+    short oldItem;
+   
+    globals.menuDisable = LMGetMenuDisable();
+    globals.menuTop = LMGetTopMenuItem();
+    globals.menuBottom = LMGetAtMenuBottom();
+    if (MBSAVELOC == -1) {
+        globals.itemRect = (**(mbPrivate***)&MBSAVELOC)->mbItemRect;
+    }
+    if (message == mChooseMsg) {
+        oldItem = *whichItemPtr;
+    }
+    
+    TkCallMenuDefProc(procPtr, message, menu, menuRect, hitPt, whichItemPtr,
+    	    &globals);
+    
+    LMSetMenuDisable(globals.menuDisable);
+    LMSetTopMenuItem(globals.menuTop);
+    LMSetAtMenuBottom(globals.menuBottom);
+    if ((message == mChooseMsg) && (oldItem != *whichItemPtr) 
+    	    && (MBSAVELOC != -1)) {
+    	(**(mbPrivate***)&MBSAVELOC)->mbItemRect = globals.itemRect;
+      	SELECTRECT = globals.itemRect;
+    }
+}
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@d12 1
+a12 1
+ * RCS: @@(#) $Id: tkMacMDEF.c,v 1.1 2004/05/20 14:53:20 morrison Exp $
+@
+
+
+1.1
+log
+@Sources that are external to BRL-CAD are moved from the top level to src/other/.
+@
+text
+@d12 1
+a12 1
+ * RCS: @@(#) $Id: tkMacMDEF.c,v 1.3 2004/03/04 19:49:23 morrison Exp $
+@
+

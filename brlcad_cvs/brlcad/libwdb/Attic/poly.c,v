@@ -1,0 +1,514 @@
+head	11.8;
+access;
+symbols
+	ansi-20040405-merged:11.5.4.1
+	postmerge-20040405-ansi:11.6
+	premerge-20040404-ansi:11.6
+	postmerge-autoconf:11.6
+	autoconf-freeze:11.5.12.2
+	premerge-autoconf:11.6
+	postmerge-20040315-windows:11.6
+	premerge-20040315-windows:11.6
+	windows-20040315-freeze:11.5.6.1
+	autoconf-20031203:11.5
+	autoconf-20031202:11.5
+	autoconf-branch:11.5.0.12
+	phong-branch:11.5.0.10
+	photonmap-branch:11.5.0.8
+	rel-6-1-DP:11.5
+	windows-branch:11.5.0.6
+	rel-6-0-2:11.5
+	ansi-branch:11.5.0.4
+	rel-6-0-1-branch:11.5.0.2
+	hartley-6-0-post:11.5
+	hartley-6-0-pre:11.5
+	rel-6-0-1:11.5
+	rel-6-0:11.5
+	rel-5-4:11.2
+	offsite-5-3-pre:11.5
+	rel-5-3:11.2
+	rel-5-2:11.2
+	rel-5-1-branch:11.2.0.2
+	rel-5-1:11.2
+	rel-5-0:11.2
+	rel-5-0-beta:11.2
+	rel-4-5:11.2
+	ctj-4-5-post:11.2
+	ctj-4-5-pre:11.2
+	rel-4-4:11.1
+	rel-4-0:10.1;
+locks; strict;
+comment	@ * @;
+
+
+11.8
+date	2004.05.21.18.07.38;	author morrison;	state dead;
+branches;
+next	11.7;
+
+11.7
+date	2004.05.10.15.30.47;	author erikg;	state Exp;
+branches;
+next	11.6;
+
+11.6
+date	2004.02.02.17.39.30;	author morrison;	state Exp;
+branches;
+next	11.5;
+
+11.5
+date	2000.07.12.00.13.52;	author cjohnson;	state Exp;
+branches
+	11.5.4.1
+	11.5.6.1
+	11.5.12.1;
+next	11.4;
+
+11.4
+date	2000.07.08.04.01.11;	author mike;	state Exp;
+branches;
+next	11.3;
+
+11.3
+date	2000.07.08.01.41.21;	author mike;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	96.08.31.11.12.44;	author mike;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	95.01.04.09.51.38;	author mike;	state Rel4_4;
+branches;
+next	10.2;
+
+10.2
+date	94.08.09.19.56.16;	author gdurf;	state Exp;
+branches;
+next	10.1;
+
+10.1
+date	91.10.12.06.36.49;	author mike;	state Rel4_0;
+branches;
+next	1.3;
+
+1.3
+date	91.07.26.23.54.27;	author mike;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	91.06.13.02.44.12;	author mike;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	91.06.13.02.29.53;	author mike;	state Exp;
+branches;
+next	;
+
+11.5.4.1
+date	2004.03.17.21.21.48;	author morrison;	state Exp;
+branches;
+next	;
+
+11.5.6.1
+date	2004.03.11.23.45.47;	author morrison;	state Exp;
+branches;
+next	;
+
+11.5.12.1
+date	2004.02.12.19.41.24;	author erikg;	state Exp;
+branches;
+next	11.5.12.2;
+
+11.5.12.2
+date	2004.03.15.14.07.33;	author erikg;	state Exp;
+branches;
+next	;
+
+
+desc
+@Split off from wdb.c
+@
+
+
+11.8
+log
+@moved to src/
+@
+text
+@/*
+ *			P O L Y . C
+ *
+ *  The interface to these polygon routines is likely to evaporate.
+ *  Consider using NMGs instead.
+ *
+ *  Return codes of 0 are OK, -1 signal an error.
+ *
+ *  Authors -
+ *	Michael John Muuss
+ *	Paul R. Stay
+ *  
+ *  Source -
+ *	SECAD/VLD Computing Consortium, Bldg 394
+ *	The U. S. Army Ballistic Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005-5066
+ *  
+ *  Copyright Notice -
+ *	This software is Copyright (C) 1987-2004 by the United States Army.
+ *	All rights reserved.
+ */
+#ifndef lint
+static const char RCSid[] = "@@(#)$Header: /n/xoff/cvs/brlcad/libwdb/poly.c,v 11.7 2004/05/10 15:30:47 erikg Exp $ (BRL)";
+#endif
+
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+
+#include <stdio.h>
+#include <math.h>
+#ifdef HAVE_STRING_H
+#include <string.h>
+#else
+#include <strings.h>
+#endif
+#include "machine.h"
+#include "bu.h"
+#include "db.h"
+#include "vmath.h"
+#include "bn.h"
+#include "rtgeom.h"
+#include "raytrace.h"
+#include "wdb.h"
+
+/*
+ *			M K _ P O L Y S O L I D
+ *
+ *  Make the header record for a polygon solid.
+ *  Must be followed by 1 or more mk_poly() or mk_fpoly() calls
+ *  before any other mk_* routines.
+ */
+int
+mk_polysolid( fp, name )
+FILE	*fp;
+char	*name;
+{
+	union record rec;
+
+	/* In v5, the caller should be using BoT solids */
+	BU_ASSERT_LONG( mk_version, <=, 4 );
+
+	bzero( (char *)&rec, sizeof(rec) );
+	rec.p.p_id = ID_P_HEAD;
+	NAMEMOVE( name, rec.p.p_name );
+	if( fwrite( (char *)&rec, sizeof(rec), 1, fp ) != 1 )
+		return(-1);
+	return(0);
+}
+
+/*
+ *			M K _ P O L Y
+ *
+ *  Must follow a call to mk_polysolid(), mk_poly(), or mk_fpoly().
+ */
+int
+mk_poly( fp, npts, verts, norms )
+FILE	*fp;
+int	npts;
+fastf_t	verts[][3];
+fastf_t	norms[][3];
+{
+	union record rec;
+	register int i,j;
+
+	if( npts < 3 || npts > 5 )  {
+		fprintf(stderr,"mk_poly:  npts=%d is bad\n", npts);
+		return(-1);
+	}
+
+	/* In v5, the caller should be using BoT solids */
+	BU_ASSERT_LONG( mk_version, <=, 4 );
+
+	bzero( (char *)&rec, sizeof(rec) );
+	rec.q.q_id = ID_P_DATA;
+	rec.q.q_count = npts;
+	for( i=0; i<npts; i++ )  {
+		for( j=0; j<3; j++ )  {
+			rec.q.q_verts[i][j] = verts[i][j] * mk_conv2mm;
+			rec.q.q_norms[i][j] = norms[i][j] * mk_conv2mm;
+		}
+	}
+	if( fwrite( (char *)&rec, sizeof(rec), 1, fp ) != 1)
+		return(-1);
+	return(0);
+}
+
+/*
+ *			M K _ F P O L Y
+ *
+ *  "Fast" version -- will construct surface normal from vertices.
+ *  Vertices must be listed in counter-clockwise (CCW) order,
+ *  to generate a proper outward-pointing normal.
+ *
+ *  Must follow a call to mk_polysolid(), mk_poly(), or mk_fpoly().
+ */
+int
+mk_fpoly( fp, npts, verts )
+FILE	*fp;
+int	npts;
+fastf_t	verts[][3];
+{
+	int	i;
+	vect_t	v1, v2, norms[5];
+
+	if( npts < 3 || npts > 5 )  {
+		fprintf(stderr,"mk_poly:  npts=%d is bad\n", npts);
+		return(-1);
+	}
+
+	/* In v5, the caller should be using BoT solids */
+	BU_ASSERT_LONG( mk_version, <=, 4 );
+
+	VSUB2( v1, verts[1], verts[0] );
+	VSUB2( v2, verts[npts-1], verts[0] );
+	VCROSS( norms[0], v1, v2 );
+	VUNITIZE( norms[0] );
+	for( i = 1; i < npts; i++ ) {
+		VMOVE( norms[i], norms[0] );
+	}
+	return( mk_poly(fp, npts, verts, norms) );
+}
+@
+
+
+11.7
+log
+@change conf.h to a wrapped config.h
+@
+text
+@d23 1
+a23 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/libwdb/poly.c,v 11.6 2004/02/02 17:39:30 morrison Exp $ (BRL)";
+@
+
+
+11.6
+log
+@update copyright to include span through 2003
+@
+text
+@d23 1
+a23 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/libwdb/poly.c,v 11.5 2000/07/12 00:13:52 cjohnson Exp $ (BRL)";
+d26 5
+a30 1
+#include "conf.h"
+@
+
+
+11.5
+log
+@LINT picking from gcc -Wall
+@
+text
+@d19 1
+a19 1
+ *	This software is Copyright (C) 1987 by the United States Army.
+d23 1
+a23 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/libwdb/poly.c,v 11.4 2000/07/08 04:01:11 mike Exp $ (BRL)";
+@
+
+
+11.5.4.1
+log
+@sync branch with HEAD
+@
+text
+@d19 1
+a19 1
+ *	This software is Copyright (C) 1987-2004 by the United States Army.
+d23 1
+a23 1
+static const char RCSid[] = "@@(#)$Header$ (BRL)";
+@
+
+
+11.5.6.1
+log
+@sync to HEAD...
+@
+text
+@d19 1
+a19 1
+ *	This software is Copyright (C) 1987-2004 by the United States Army.
+d23 1
+a23 1
+static const char RCSid[] = "@@(#)$Header: /n/cad/c/CVS/brlcad/libwdb/poly.c,v 11.6 2004/02/02 17:39:30 morrison Exp $ (BRL)";
+@
+
+
+11.5.12.1
+log
+@merge from HEAD
+@
+text
+@d19 1
+a19 1
+ *	This software is Copyright (C) 1987-2004 by the United States Army.
+d23 1
+a23 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/libwdb/poly.c,v 11.6 2004/02/02 17:39:30 morrison Exp $ (BRL)";
+@
+
+
+11.5.12.2
+log
+@merge from head
+@
+text
+@d23 1
+a23 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/libwdb/poly.c,v 11.5.12.1 2004/02/12 19:41:24 erikg Exp $ (BRL)";
+@
+
+
+11.4
+log
+@
+Modified to allow mk_fwrite_internal() to free the objects.
+Added flag variable mk_version to indicate what database version to be written.
+@
+text
+@d23 1
+a23 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/libwdb/poly.c,v 11.3 2000/07/08 01:41:21 mike Exp $ (BRL)";
+d30 5
+@
+
+
+11.3
+log
+@
+const RCSid
+@
+text
+@d23 1
+a23 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/libwdb/poly.c,v 11.2 1996/08/31 11:12:44 mike Exp $ (BRL)";
+d53 3
+d84 3
+d123 3
+@
+
+
+11.2
+log
+@bu.h
+@
+text
+@d23 1
+a23 1
+static char RCSid[] = "@@(#)$Header: /m/cad/libwdb/RCS/poly.c,v 11.1 1995/01/04 09:51:38 mike Rel4_4 mike $ (BRL)";
+@
+
+
+11.1
+log
+@Release_4.4
+@
+text
+@d23 1
+a23 1
+static char RCSid[] = "@@(#)$Header: /m/cad/libwdb/RCS/poly.c,v 10.2 94/08/09 19:56:16 gdurf Exp $ (BRL)";
+d31 1
+d34 1
+a34 1
+#include "rtlist.h"
+@
+
+
+10.2
+log
+@Added include of conf.h
+@
+text
+@d23 1
+a23 1
+static char RCSid[] = "@@(#)$Header: /m/cad/libwdb/RCS/poly.c,v 10.1 1991/10/12 06:36:49 mike Rel4_0 gdurf $ (BRL)";
+@
+
+
+10.1
+log
+@Release_4.0
+@
+text
+@d23 1
+a23 1
+static char RCSid[] = "@@(#)$Header: /m/cad/libwdb/RCS/poly.c,v 1.3 91/07/26 23:54:27 mike Exp $ (BRL)";
+d25 2
+@
+
+
+1.3
+log
+@Documented CCW requirement
+@
+text
+@d23 1
+a23 1
+static char RCSid[] = "@@(#)$Header: /m/cad/libwdb/RCS/poly.c,v 1.2 91/06/13 02:44:12 mike Exp $ (BRL)";
+@
+
+
+1.2
+log
+@split off mk_id
+@
+text
+@d23 1
+a23 1
+static char RCSid[] = "@@(#)$Header: /m/cad/libwdb/RCS/poly.c,v 1.1 91/06/13 02:29:53 mike Exp $ (BRL)";
+d94 4
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d23 1
+a23 1
+static char RCSid[] = "@@(#)$Header: /m/cad/libwdb/RCS/wdb.c,v 9.14 91/06/13 02:01:22 mike Exp $ (BRL)";
+a34 22
+
+/*
+ *			M K _ I D
+ *
+ *  Make a database header (ID) record.
+ */
+int
+mk_id( fp, title )
+FILE	*fp;
+char	*title;
+{
+	union record rec;
+
+	bzero( (char *)&rec, sizeof(rec) );
+	rec.i.i_id = ID_IDENT;
+	rec.i.i_units = ID_MM_UNIT;
+	strncpy( rec.i.i_version, ID_VERSION, sizeof(rec.i.i_version) );
+	strncpy( rec.i.i_title, title, sizeof(rec.i.i_title) );
+	if( fwrite( (char *)&rec, sizeof(rec), 1, fp ) != 1 )
+		return(-1);
+	return(0);
+}
+@

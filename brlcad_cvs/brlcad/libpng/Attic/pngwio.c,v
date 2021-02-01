@@ -1,0 +1,576 @@
+head	1.3;
+access;
+symbols
+	ansi-20040405-merged:1.1.1.1.6.1
+	postmerge-20040405-ansi:1.2
+	premerge-20040404-ansi:1.2
+	postmerge-autoconf:1.2
+	autoconf-freeze:1.2
+	premerge-autoconf:1.2
+	ansi-20040316-freeze:1.1.1.1
+	postmerge-20040315-windows:1.2
+	premerge-20040315-windows:1.2
+	windows-20040315-freeze:1.1.1.1.8.1
+	autoconf-20031203:1.2
+	autoconf-20031202:1.2
+	autoconf-branch:1.2.0.6
+	phong-branch:1.2.0.4
+	photonmap-branch:1.2.0.2
+	rel-6-1-DP:1.1.1.1
+	windows-branch:1.1.1.1.0.8
+	rel-6-0-2:1.1.1.1
+	ansi-branch:1.1.1.1.0.6
+	rel-6-0-1-branch:1.1.1.1.0.4
+	hartley-6-0-post:1.1.1.1
+	hartley-6-0-pre:1.1.1.1
+	rel-6-0-1:1.1.1.1
+	rel-6-0:1.1.1.1
+	rel-5-4:1.1.1.1
+	offsite-5-3-pre:1.1.1.1
+	rel-5-3:1.1.1.1
+	rel-5-2:1.1.1.1
+	rel-5-1-branch:1.1.1.1.0.2
+	rel-5-1:1.1.1.1
+	rel-5-0:1.1.1.1
+	rel-5-0-beta:1.1.1.1
+	libpng_1_0_2:1.1.1.1
+	libpng:1.1.1;
+locks; strict;
+comment	@ * @;
+
+
+1.3
+date	2004.05.21.18.05.29;	author morrison;	state dead;
+branches;
+next	1.2;
+
+1.2
+date	2002.12.26.14.39.10;	author jra;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	98.06.24.20.00.14;	author jra;	state Exp;
+branches
+	1.1.1.1;
+next	;
+
+1.1.1.1
+date	98.06.24.20.00.14;	author jra;	state Exp;
+branches
+	1.1.1.1.6.1
+	1.1.1.1.8.1;
+next	;
+
+1.1.1.1.6.1
+date	2004.03.17.21.18.36;	author morrison;	state Exp;
+branches;
+next	;
+
+1.1.1.1.8.1
+date	2004.03.11.23.43.21;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.3
+log
+@moved from top-level to src/other/.
+@
+text
+@
+/* pngwio.c - functions for data output
+ *
+ * libpng 1.2.5 - October 3, 2002
+ * For conditions of distribution and use, see copyright notice in png.h
+ * Copyright (c) 1998-2002 Glenn Randers-Pehrson
+ * (Version 0.96 Copyright (c) 1996, 1997 Andreas Dilger)
+ * (Version 0.88 Copyright (c) 1995, 1996 Guy Eric Schalnat, Group 42, Inc.)
+ *
+ * This file provides a location for all output.  Users who need
+ * special handling are expected to write functions that have the same
+ * arguments as these and perform similar functions, but that possibly
+ * use different output methods.  Note that you shouldn't change these
+ * functions, but rather write replacement functions and then change
+ * them at run time with png_set_write_fn(...).
+ */
+
+#define PNG_INTERNAL
+#include "png.h"
+#ifdef PNG_WRITE_SUPPORTED
+
+/* Write the data to whatever output you are using.  The default routine
+   writes to a file pointer.  Note that this routine sometimes gets called
+   with very small lengths, so you should implement some kind of simple
+   buffering if you are using unbuffered writes.  This should never be asked
+   to write more than 64K on a 16 bit machine.  */
+
+void /* PRIVATE */
+png_write_data(png_structp png_ptr, png_bytep data, png_size_t length)
+{
+   if (png_ptr->write_data_fn != NULL )
+      (*(png_ptr->write_data_fn))(png_ptr, data, length);
+   else
+      png_error(png_ptr, "Call to NULL write function");
+}
+
+#if !defined(PNG_NO_STDIO)
+/* This is the function that does the actual writing of data.  If you are
+   not writing to a standard C stream, you should create a replacement
+   write_data function and use it at run time with png_set_write_fn(), rather
+   than changing the library. */
+#ifndef USE_FAR_KEYWORD
+void PNGAPI
+png_default_write_data(png_structp png_ptr, png_bytep data, png_size_t length)
+{
+   png_uint_32 check;
+
+#if defined(_WIN32_WCE)
+   if ( !WriteFile((HANDLE)(png_ptr->io_ptr), data, length, &check, NULL) )
+      check = 0;
+#else
+   check = fwrite(data, 1, length, (png_FILE_p)(png_ptr->io_ptr));
+#endif
+   if (check != length)
+      png_error(png_ptr, "Write Error");
+}
+#else
+/* this is the model-independent version. Since the standard I/O library
+   can't handle far buffers in the medium and small models, we have to copy
+   the data.
+*/
+
+#define NEAR_BUF_SIZE 1024
+#define MIN(a,b) (a <= b ? a : b)
+
+void PNGAPI
+png_default_write_data(png_structp png_ptr, png_bytep data, png_size_t length)
+{
+   png_uint_32 check;
+   png_byte *near_data;  /* Needs to be "png_byte *" instead of "png_bytep" */
+   png_FILE_p io_ptr;
+
+   /* Check if data really is near. If so, use usual code. */
+   near_data = (png_byte *)CVT_PTR_NOCHECK(data);
+   io_ptr = (png_FILE_p)CVT_PTR(png_ptr->io_ptr);
+   if ((png_bytep)near_data == data)
+   {
+#if defined(_WIN32_WCE)
+      if ( !WriteFile(io_ptr, near_data, length, &check, NULL) )
+         check = 0;
+#else
+      check = fwrite(near_data, 1, length, io_ptr);
+#endif
+   }
+   else
+   {
+      png_byte buf[NEAR_BUF_SIZE];
+      png_size_t written, remaining, err;
+      check = 0;
+      remaining = length;
+      do
+      {
+         written = MIN(NEAR_BUF_SIZE, remaining);
+         png_memcpy(buf, data, written); /* copy far buffer to near buffer */
+#if defined(_WIN32_WCE)
+         if ( !WriteFile(io_ptr, buf, written, &err, NULL) )
+            err = 0;
+#else
+         err = fwrite(buf, 1, written, io_ptr);
+#endif
+         if (err != written)
+            break;
+         else
+            check += err;
+         data += written;
+         remaining -= written;
+      }
+      while (remaining != 0);
+   }
+   if (check != length)
+      png_error(png_ptr, "Write Error");
+}
+
+#endif
+#endif
+
+/* This function is called to output any data pending writing (normally
+   to disk).  After png_flush is called, there should be no data pending
+   writing in any buffers. */
+#if defined(PNG_WRITE_FLUSH_SUPPORTED)
+void /* PRIVATE */
+png_flush(png_structp png_ptr)
+{
+   if (png_ptr->output_flush_fn != NULL)
+      (*(png_ptr->output_flush_fn))(png_ptr);
+}
+
+#if !defined(PNG_NO_STDIO)
+void PNGAPI
+png_default_flush(png_structp png_ptr)
+{
+#if !defined(_WIN32_WCE)
+   png_FILE_p io_ptr;
+   io_ptr = (png_FILE_p)CVT_PTR((png_ptr->io_ptr));
+   if (io_ptr != NULL)
+      fflush(io_ptr);
+#endif
+}
+#endif
+#endif
+
+/* This function allows the application to supply new output functions for
+   libpng if standard C streams aren't being used.
+
+   This function takes as its arguments:
+   png_ptr       - pointer to a png output data structure
+   io_ptr        - pointer to user supplied structure containing info about
+                   the output functions.  May be NULL.
+   write_data_fn - pointer to a new output function that takes as its
+                   arguments a pointer to a png_struct, a pointer to
+                   data to be written, and a 32-bit unsigned int that is
+                   the number of bytes to be written.  The new write
+                   function should call png_error(png_ptr, "Error msg")
+                   to exit and output any fatal error messages.
+   flush_data_fn - pointer to a new flush function that takes as its
+                   arguments a pointer to a png_struct.  After a call to
+                   the flush function, there should be no data in any buffers
+                   or pending transmission.  If the output method doesn't do
+                   any buffering of ouput, a function prototype must still be
+                   supplied although it doesn't have to do anything.  If
+                   PNG_WRITE_FLUSH_SUPPORTED is not defined at libpng compile
+                   time, output_flush_fn will be ignored, although it must be
+                   supplied for compatibility. */
+void PNGAPI
+png_set_write_fn(png_structp png_ptr, png_voidp io_ptr,
+   png_rw_ptr write_data_fn, png_flush_ptr output_flush_fn)
+{
+   png_ptr->io_ptr = io_ptr;
+
+#if !defined(PNG_NO_STDIO)
+   if (write_data_fn != NULL)
+      png_ptr->write_data_fn = write_data_fn;
+   else
+      png_ptr->write_data_fn = png_default_write_data;
+#else
+   png_ptr->write_data_fn = write_data_fn;
+#endif
+
+#if defined(PNG_WRITE_FLUSH_SUPPORTED)
+#if !defined(PNG_NO_STDIO)
+   if (output_flush_fn != NULL)
+      png_ptr->output_flush_fn = output_flush_fn;
+   else
+      png_ptr->output_flush_fn = png_default_flush;
+#else
+   png_ptr->output_flush_fn = output_flush_fn;
+#endif
+#endif /* PNG_WRITE_FLUSH_SUPPORTED */
+
+   /* It is an error to read while writing a png file */
+   if (png_ptr->read_data_fn != NULL)
+   {
+      png_ptr->read_data_fn = NULL;
+      png_warning(png_ptr,
+         "Attempted to set both read_data_fn and write_data_fn in");
+      png_warning(png_ptr,
+         "the same structure.  Resetting read_data_fn to NULL.");
+   }
+}
+
+#if defined(USE_FAR_KEYWORD)
+#if defined(_MSC_VER)
+void *png_far_to_near(png_structp png_ptr,png_voidp ptr, int check)
+{
+   void *near_ptr;
+   void FAR *far_ptr;
+   FP_OFF(near_ptr) = FP_OFF(ptr);
+   far_ptr = (void FAR *)near_ptr;
+   if(check != 0)
+      if(FP_SEG(ptr) != FP_SEG(far_ptr))
+         png_error(png_ptr,"segment lost in conversion");
+   return(near_ptr);
+}
+#  else
+void *png_far_to_near(png_structp png_ptr,png_voidp ptr, int check)
+{
+   void *near_ptr;
+   void FAR *far_ptr;
+   near_ptr = (void FAR *)ptr;
+   far_ptr = (void FAR *)near_ptr;
+   if(check != 0)
+      if(far_ptr != ptr)
+         png_error(png_ptr,"segment lost in conversion");
+   return(near_ptr);
+}
+#   endif
+#   endif
+#endif /* PNG_WRITE_SUPPORTED */
+@
+
+
+1.2
+log
+@Update to libpng 1.2.5
+@
+text
+@@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d4 1
+a4 1
+ * libpng 1.0.2 - June 14, 1998
+d6 3
+a8 3
+ * Copyright (c) 1995, 1996 Guy Eric Schalnat, Group 42, Inc.
+ * Copyright (c) 1996, 1997 Andreas Dilger
+ * Copyright (c) 1998, Glenn Randers-Pehrson
+d20 1
+d28 1
+a28 1
+void
+d43 1
+a43 1
+static void
+d48 6
+a53 1
+   check = fwrite(data, 1, length, (FILE *)(png_ptr->io_ptr));
+a54 1
+   {
+a55 1
+   }
+d66 1
+a66 1
+static void
+d71 1
+a71 1
+   FILE *io_ptr;
+d75 1
+a75 1
+   io_ptr = (FILE *)CVT_PTR(png_ptr->io_ptr);
+d78 4
+d83 1
+d95 4
+d100 1
+a110 1
+   {
+a111 1
+   }
+d121 1
+a121 1
+void
+d129 1
+a129 1
+static void
+d132 3
+a134 2
+   FILE *io_ptr;
+   io_ptr = (FILE *)CVT_PTR((png_ptr->io_ptr));
+d137 1
+d164 1
+a164 1
+void
+d201 2
+a202 2
+#if defined(USE_FAR_KEYWORD) 
+#if defined(_MSC_VER)   
+d205 1
+a205 1
+   void *near_ptr;   
+d217 1
+a217 1
+   void *near_ptr;   
+d228 1
+@
+
+
+1.1.1.1
+log
+@libpng 1.0.2
+@
+text
+@@
+
+
+1.1.1.1.6.1
+log
+@sync branch with HEAD
+@
+text
+@d4 1
+a4 1
+ * libpng 1.2.5 - October 3, 2002
+d6 3
+a8 3
+ * Copyright (c) 1998-2002 Glenn Randers-Pehrson
+ * (Version 0.96 Copyright (c) 1996, 1997 Andreas Dilger)
+ * (Version 0.88 Copyright (c) 1995, 1996 Guy Eric Schalnat, Group 42, Inc.)
+a19 1
+#ifdef PNG_WRITE_SUPPORTED
+d27 1
+a27 1
+void /* PRIVATE */
+d42 1
+a42 1
+void PNGAPI
+d47 1
+a47 6
+#if defined(_WIN32_WCE)
+   if ( !WriteFile((HANDLE)(png_ptr->io_ptr), data, length, &check, NULL) )
+      check = 0;
+#else
+   check = fwrite(data, 1, length, (png_FILE_p)(png_ptr->io_ptr));
+#endif
+d49 1
+d51 1
+d62 1
+a62 1
+void PNGAPI
+d67 1
+a67 1
+   png_FILE_p io_ptr;
+d71 1
+a71 1
+   io_ptr = (png_FILE_p)CVT_PTR(png_ptr->io_ptr);
+a73 4
+#if defined(_WIN32_WCE)
+      if ( !WriteFile(io_ptr, near_data, length, &check, NULL) )
+         check = 0;
+#else
+a74 1
+#endif
+a85 4
+#if defined(_WIN32_WCE)
+         if ( !WriteFile(io_ptr, buf, written, &err, NULL) )
+            err = 0;
+#else
+a86 1
+#endif
+d97 1
+d99 1
+d109 1
+a109 1
+void /* PRIVATE */
+d117 1
+a117 1
+void PNGAPI
+d120 2
+a121 3
+#if !defined(_WIN32_WCE)
+   png_FILE_p io_ptr;
+   io_ptr = (png_FILE_p)CVT_PTR((png_ptr->io_ptr));
+a123 1
+#endif
+d150 1
+a150 1
+void PNGAPI
+d187 2
+a188 2
+#if defined(USE_FAR_KEYWORD)
+#if defined(_MSC_VER)
+d191 1
+a191 1
+   void *near_ptr;
+d203 1
+a203 1
+   void *near_ptr;
+a213 1
+#endif /* PNG_WRITE_SUPPORTED */
+@
+
+
+1.1.1.1.8.1
+log
+@sync to HEAD...
+@
+text
+@d4 1
+a4 1
+ * libpng 1.2.5 - October 3, 2002
+d6 3
+a8 3
+ * Copyright (c) 1998-2002 Glenn Randers-Pehrson
+ * (Version 0.96 Copyright (c) 1996, 1997 Andreas Dilger)
+ * (Version 0.88 Copyright (c) 1995, 1996 Guy Eric Schalnat, Group 42, Inc.)
+a19 1
+#ifdef PNG_WRITE_SUPPORTED
+d27 1
+a27 1
+void /* PRIVATE */
+d42 1
+a42 1
+void PNGAPI
+d47 1
+a47 6
+#if defined(_WIN32_WCE)
+   if ( !WriteFile((HANDLE)(png_ptr->io_ptr), data, length, &check, NULL) )
+      check = 0;
+#else
+   check = fwrite(data, 1, length, (png_FILE_p)(png_ptr->io_ptr));
+#endif
+d49 1
+d51 1
+d62 1
+a62 1
+void PNGAPI
+d67 1
+a67 1
+   png_FILE_p io_ptr;
+d71 1
+a71 1
+   io_ptr = (png_FILE_p)CVT_PTR(png_ptr->io_ptr);
+a73 4
+#if defined(_WIN32_WCE)
+      if ( !WriteFile(io_ptr, near_data, length, &check, NULL) )
+         check = 0;
+#else
+a74 1
+#endif
+a85 4
+#if defined(_WIN32_WCE)
+         if ( !WriteFile(io_ptr, buf, written, &err, NULL) )
+            err = 0;
+#else
+a86 1
+#endif
+d97 1
+d99 1
+d109 1
+a109 1
+void /* PRIVATE */
+d117 1
+a117 1
+void PNGAPI
+d120 2
+a121 3
+#if !defined(_WIN32_WCE)
+   png_FILE_p io_ptr;
+   io_ptr = (png_FILE_p)CVT_PTR((png_ptr->io_ptr));
+a123 1
+#endif
+d150 1
+a150 1
+void PNGAPI
+d187 2
+a188 2
+#if defined(USE_FAR_KEYWORD)
+#if defined(_MSC_VER)
+d191 1
+a191 1
+   void *near_ptr;
+d203 1
+a203 1
+   void *near_ptr;
+a213 1
+#endif /* PNG_WRITE_SUPPORTED */
+@
+

@@ -1,0 +1,448 @@
+head	1.13;
+access;
+symbols
+	rel-7-10-4:1.12
+	STABLE:1.12.0.2
+	rel-7-10-2:1.12
+	rel-7-10-0:1.12
+	rel-7-8-4:1.6
+	rel-7-8-2:1.6
+	rel-7-8-0:1.6
+	trimnurbs-branch:1.6.0.2
+	help:1.6
+	temp_tag:1.5
+	bobWinPort-20051223-freeze:1.4
+	postmerge-20051223-bobWinPort:1.5
+	premerge-20051223-bobWinPort:1.5
+	rel-7-6-6:1.5
+	rel-7-6-4:1.5
+	rel-7-6-2:1.4
+	rel-7-6-branch:1.4.0.6
+	rel-7-6-0:1.4
+	rel-7-4-2:1.4
+	rel-7-4-branch:1.4.0.4
+	bobWinPort:1.4.0.2
+	rel-7-4-0:1.4;
+locks; strict;
+comment	@ * @;
+
+
+1.13
+date	2007.10.14.09.08.19;	author brlcad;	state Exp;
+branches;
+next	1.12;
+
+1.12
+date	2007.03.20.20.05.06;	author brlcad;	state Exp;
+branches;
+next	1.11;
+
+1.11
+date	2007.02.08.06.49.18;	author brlcad;	state Exp;
+branches;
+next	1.10;
+
+1.10
+date	2007.01.27.01.41.30;	author brlcad;	state Exp;
+branches;
+next	1.9;
+
+1.9
+date	2007.01.23.01.13.21;	author brlcad;	state Exp;
+branches;
+next	1.8;
+
+1.8
+date	2007.01.21.00.51.04;	author brlcad;	state Exp;
+branches;
+next	1.7;
+
+1.7
+date	2007.01.20.14.36.41;	author brlcad;	state Exp;
+branches;
+next	1.6;
+
+1.6
+date	2006.01.18.06.46.11;	author brlcad;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	2005.10.23.04.44.28;	author brlcad;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	2005.07.01.15.13.02;	author twingy;	state Exp;
+branches
+	1.4.6.1;
+next	1.3;
+
+1.3
+date	2005.06.18.21.58.46;	author twingy;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2005.06.18.01.56.30;	author twingy;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2005.06.17.15.09.26;	author lbutler;	state Exp;
+branches;
+next	;
+
+1.4.6.1
+date	2005.11.13.13.46.12;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.13
+log
+@more taking care of a slew of level 4 flawfinder issues related to adding length parameters to string and i/o functions
+@
+text
+@/*                     C A N I M . C
+ * BRL-CAD / ADRT
+ *
+ * Copyright (c) 2002-2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This library is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@file canim.c
+ *
+ *  Comments -
+ *      Common Library - Animation Data Parser
+ *
+ *  Author -
+ *      Justin L. Shumaker
+ *
+ *  Source -
+ *      The U. S. Army Research Laboratory
+ *      Aberdeen Proving Ground, Maryland  21005-5068  USA
+ *
+ * $Id: canim.c,v 1.12 2007/03/20 20:05:06 brlcad Exp $
+ */
+
+#include "canim.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include "tie.h"
+#include "umath.h"
+
+
+int common_anim_read(common_anim_t *anim, const char *frames_file) {
+  FILE *fh;
+  char line[256], *token;
+
+  fh = fopen(frames_file, "r");
+  if(!fh) {
+    printf("Frames file: %s does not exist, exiting...\n", frames_file);
+    exit(1);
+  }
+
+  anim->frame_num = -1;
+  anim->frame_list = NULL;
+
+
+  while(fgets(line, 256, fh)) {
+    token = strtok(line, ",");
+
+    if(!strcmp("frame", token)) {
+
+      anim->frame_num++;
+      anim->frame_list = (common_anim_frame_t *)realloc(anim->frame_list, sizeof(common_anim_frame_t) * (anim->frame_num+1));
+      anim->frame_list[anim->frame_num].tnum = 0;
+      anim->frame_list[anim->frame_num].tlist = NULL;
+
+    } else if(!strcmp("camera", token)) {
+
+      /* Position */
+      token = strtok(NULL, ",");
+      anim->frame_list[anim->frame_num].pos.v[0] = atof(token);
+      token = strtok(NULL, ",");
+      anim->frame_list[anim->frame_num].pos.v[1] = atof(token);
+      token = strtok(NULL, ",");
+      anim->frame_list[anim->frame_num].pos.v[2] = atof(token);
+
+      /* Focus Point */
+      token = strtok(NULL, ",");
+      anim->frame_list[anim->frame_num].focus.v[0] = atof(token);
+      token = strtok(NULL, ",");
+      anim->frame_list[anim->frame_num].focus.v[1] = atof(token);
+      token = strtok(NULL, ",");
+      anim->frame_list[anim->frame_num].focus.v[2] = atof(token);
+
+      /* Tilt */
+      token = strtok(NULL, ",");
+      anim->frame_list[anim->frame_num].tilt = atof(token);
+
+      /* Field of View */
+      token = strtok(NULL, ",");
+      anim->frame_list[anim->frame_num].fov = atof(token);
+
+      /* Depth of Field */
+      token = strtok(NULL, ",");
+      anim->frame_list[anim->frame_num].dof = atof(token);
+
+    } else if(!strcmp("transform_mesh", token)) {
+
+      int i;
+
+      anim->frame_list[anim->frame_num].tlist = (common_anim_transform_t *)realloc(anim->frame_list[anim->frame_num].tlist, sizeof(common_anim_transform_t) * (anim->frame_list[anim->frame_num].tnum+1));
+
+
+      /* Mesh Name */
+      token = strtok(NULL, ",");
+      strncpy(anim->frame_list[anim->frame_num].tlist[anim->frame_list[anim->frame_num].tnum].mesh_name, token, ADRT_NAME_SIZE);
+
+
+      /* Matrix */
+      for(i = 0; i < 16; i++) {
+	token = strtok(NULL, ",");
+	anim->frame_list[anim->frame_num].tlist[anim->frame_list[anim->frame_num].tnum].matrix[i] = atof(token);
+      }
+
+      anim->frame_list[anim->frame_num].tnum++;
+    }
+  }
+
+  anim->frame_num++;
+
+  fclose(fh);
+
+  return(0);
+}
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+1.12
+log
+@since adrt uses malloc, add checks on use for a null return value.  this probably would be a good reason to being associating with libbu.. (this fixes sf bug 1680679 - Check return codes everywhere; submitted by Markus Elfring (elfring))
+@
+text
+@d32 1
+a32 1
+ * $Id: canim.c,v 1.11 2007/02/08 06:49:18 brlcad Exp $
+d107 1
+a107 1
+      strcpy(anim->frame_list[anim->frame_num].tlist[anim->frame_list[anim->frame_num].tnum].mesh_name, token);
+@
+
+
+1.11
+log
+@give adrt some distinctiveness in the header
+@
+text
+@d32 1
+a32 1
+ * $Id: canim.c,v 1.10 2007/01/27 01:41:30 brlcad Exp $
+d44 1
+a44 1
+int common_anim_read(common_anim_t *anim, char *frames_file) {
+@
+
+
+1.10
+log
+@ws. lots and lots of ws.  see sh/ws.sh for details (cases 'abcdeg').
+@
+text
+@d2 1
+a2 1
+ * BRL-CAD
+d32 1
+a32 1
+ * $Id: canim.c,v 1.9 2007/01/23 01:13:21 brlcad Exp $
+@
+
+
+1.9
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@d32 1
+a32 1
+ * $Id: canim.c,v 1.8 2007/01/21 00:51:04 brlcad Exp $
+d112 2
+a113 2
+        token = strtok(NULL, ",");
+        anim->frame_list[anim->frame_num].tlist[anim->frame_list[anim->frame_num].tnum].matrix[i] = atof(token);
+@
+
+
+1.8
+log
+@standard header and footer cleanup
+@
+text
+@d9 1
+a9 2
+ * as published by the Free Software Foundation; either version 2 of
+ * the License, or (at your option) any later version.
+d14 1
+a14 1
+ * Library General Public License for more details.
+d32 1
+a32 1
+ * $Id: canim.c,v 1.7 2007/01/20 14:36:41 brlcad Exp $
+@
+
+
+1.7
+log
+@update copyright to 2007
+@
+text
+@a1 3
+ *
+ * @@file canim.c
+ *
+d20 2
+d33 1
+a33 1
+ * $Id: canim.c,v 1.6 2006/01/18 06:46:11 brlcad Exp $
+d127 10
+@
+
+
+1.6
+log
+@update copyright to 2006
+@
+text
+@d7 1
+a7 1
+ * Copyright (c) 2002-2006 United States Government as represented by
+d34 1
+a34 1
+ * $Id: canim.c,v 1.5 2005/10/23 04:44:28 brlcad Exp $
+@
+
+
+1.5
+log
+@trailing ws
+@
+text
+@d7 1
+a7 1
+ * Copyright (C) 2002-2005 United States Government as represented by
+d34 1
+a34 1
+ * $Id: canim.c,v 1.4 2005/07/01 15:13:02 twingy Exp $
+@
+
+
+1.4
+log
+@The project directory now has a single project file that lists the file names
+for properties, textures, frames, geometry, and geometry arguments.  The
+application no longer requires the -g and -a options.  IGVT has been updated
+to reflect these changes, RISE is next.
+@
+text
+@d34 1
+a34 1
+ * $Id: canim.c,v 1.3 2005/06/18 21:58:46 twingy Exp $
+d71 1
+a71 1
+      
+@
+
+
+1.4.6.1
+log
+@merge changes from HEAD aka rel-7-6-4 to the rel-7-6-branch just in case someone peeks a gander or tries to continue/build the branch
+@
+text
+@d34 1
+a34 1
+ * $Id$
+d71 1
+a71 1
+
+@
+
+
+1.3
+log
+@Added licensing info to libtexture files.
+@
+text
+@d34 1
+a34 1
+ * $Id: canim.c,v 1.2 2005/06/18 01:56:30 twingy Exp $
+d46 1
+a46 3
+int common_anim_read(common_anim_t *anim);
+
+int common_anim_read(common_anim_t *anim) {
+d50 5
+a54 1
+  fh = fopen("frame.db", "r");
+@
+
+
+1.2
+log
+@Added licensing info to libcommon files.
+@
+text
+@d2 3
+a22 3
+ */
+/** @@file canim.c
+ *                     C A N I M . C
+d24 2
+a25 1
+ *  Common Library - Animation Parsing
+d34 1
+a34 1
+ * $Id: canim.c,v 1.2 2005/06/18 01:30:04 twingy Exp $
+@
+
+
+1.1
+log
+@Welcome ADRT
+@
+text
+@d1 33
+a33 2
+/*
+ * $Id: canim.c,v 1.2 2005/05/02 17:16:15 justin Exp $
+@
+

@@ -1,0 +1,415 @@
+head	1.15;
+access;
+symbols
+	rel-7-10-4:1.14
+	STABLE:1.14.0.2
+	rel-7-10-2:1.14;
+locks; strict;
+comment	@// @;
+
+
+1.15
+date	2007.09.14.15.21.03;	author erikgreenwald;	state Exp;
+branches;
+next	1.14;
+
+1.14
+date	2007.07.03.20.45.27;	author jlowenz;	state Exp;
+branches;
+next	1.13;
+
+1.13
+date	2007.06.18.20.13.50;	author jlowenz;	state Exp;
+branches;
+next	1.12;
+
+1.12
+date	2007.06.14.22.15.57;	author jlowenz;	state Exp;
+branches;
+next	1.11;
+
+1.11
+date	2007.06.01.20.14.22;	author jlowenz;	state Exp;
+branches;
+next	1.10;
+
+1.10
+date	2007.05.16.18.08.05;	author jlowenz;	state Exp;
+branches;
+next	1.9;
+
+1.9
+date	2007.05.15.20.06.59;	author jlowenz;	state Exp;
+branches;
+next	1.8;
+
+1.8
+date	2007.05.14.20.17.32;	author jlowenz;	state Exp;
+branches;
+next	1.7;
+
+1.7
+date	2007.05.14.18.00.47;	author jlowenz;	state Exp;
+branches;
+next	1.6;
+
+1.6
+date	2007.05.14.16.48.57;	author jlowenz;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	2007.05.14.14.01.59;	author jlowenz;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	2007.05.10.19.50.25;	author jlowenz;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2007.05.10.17.39.36;	author jlowenz;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2007.05.07.19.58.45;	author jlowenz;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2007.05.07.13.55.55;	author jlowenz;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.15
+log
+@removed trailing whitespace
+@
+text
+@#ifndef __BRLCAD_HPP
+#define __BRLCAD_HPP
+
+
+#include "common.h"
+#include "bn.h"
+#include "raytrace.h"
+#include "wdb.h"
+#include "n_iges.hpp"
+#include "brep.h"
+
+
+namespace brlcad {
+
+  class BRLCADBrepHandler : public BrepHandler {
+  public:
+    BRLCADBrepHandler();
+    ~BRLCADBrepHandler();
+
+    int handleShell(bool isVoid, bool orient);
+    int handleFace(bool orient, int surfIndex);
+    int handleLoop(bool isOuter, int faceIndex);
+    int handleEdge(int curve, int initVertex, int endVertex);
+    int handleEdgeUse(int edge, bool orientWithCurve);
+    int handleVertex(point_t pt);
+    int handlePoint(double x, double y, double z);
+
+
+    int handleParametricSplineSurface();
+    int handleRuledSurface();
+    int handleSurfaceOfRevolution(int line, int curve, double start, double end);
+    int handleTabulatedCylinder();
+    int handleRationalBSplineSurface(int num_control[2],
+				     int degree[2],
+				     bool u_closed,
+				     bool v_closed,
+				     bool rational,
+				     bool u_periodic,
+				     bool v_periodic,
+				     int u_num_knots,
+				     int v_num_knots,
+				     double u_knots[],
+				     double v_knots[],
+				     double weights[],
+				     double* ctl_points);
+    int handleOffsetSurface();
+    int handlePlaneSurface();
+    int handleRightCircularCylindricalSurface();
+    int handleRightCircularConicalSurface();
+    int handleSphericalSurface();
+    int handleToroidalSurface();
+
+    int handleCircularArc(double radius, point_t center, vect_t normal, point_t start, point_t end);
+    int handleCompositeCurve();
+    int handleConicArc();
+    int handle2DPath();
+    int handle3DPath();
+    int handleSimpleClosedPlanarCurve();
+    int handleLine(point_t start, point_t end);
+    int handleParametricSplineCurve();
+    int handleRationalBSplineCurve(int degree,
+				   double tmin,
+				   double tmax,
+				   bool planar,
+				   vect_t unit_normal,
+				   bool closed,
+				   bool rational,
+				   bool periodic,
+				   int num_knots,
+				   double* knots,
+				   int num_control_points,
+				   double* weights,
+				   double* ctl_points);
+
+    int handleOffsetCurve();
+
+    void write(const string& filename);
+
+  private:
+    struct rt_wdb* outfp;
+    string id_name;
+    string geom_name;
+    bool _written;
+
+    vector<ON_Geometry*> _objects;
+    vector<int> _topology;
+
+    ON_BrepFace&   face() { return _brep->m_F[_face]; }
+    ON_BrepLoop&   loop() { return _brep->m_L[_loop]; }
+    ON_BrepEdge&   edge() { return _brep->m_E[_edge]; }
+    ON_BrepEdge&   edge(int i) { return _brep->m_E[_topology[i]]; }
+    ON_BrepVertex& vertex() { return _brep->m_V[_vertex]; }
+    ON_BrepVertex& vertex(int i) { return _brep->m_V[_topology[i]]; }
+
+    // need to support outer and void shells!
+    bool _brep_flip;
+    ON_Brep* _brep;
+    int _face;
+    int _loop;
+    int _edge;
+    int _trim;
+    int _vertex;
+    ON_Point* _pt;
+  };
+
+}
+
+#endif
+@
+
+
+1.14
+log
+@fix bug with brep surface orientation; fix bug with destructor (don't free already freed memory)
+@
+text
+@d19 1
+a19 1
+    
+d33 7
+a39 7
+    int handleRationalBSplineSurface(int num_control[2], 
+				     int degree[2], 
+				     bool u_closed, 
+				     bool v_closed, 
+				     bool rational, 
+				     bool u_periodic, 
+				     bool v_periodic, 
+d51 1
+a51 1
+    int handleToroidalSurface();    
+d75 1
+a75 1
+    int handleOffsetCurve();    
+d85 1
+a85 1
+    vector<ON_Geometry*> _objects;    
+@
+
+
+1.13
+log
+@remove hard-coded output filename
+@
+text
+@d82 2
+a83 1
+    string geom_name;    
+d96 1
+@
+
+
+1.12
+log
+@alter the arc handle method to take a pre-calculated normal
+@
+text
+@d77 1
+a77 1
+    void write();
+@
+
+
+1.11
+log
+@Use recommended (by openNURBS) method of accessing topology using indices instead of references/pointers
+@
+text
+@d53 1
+a53 1
+    int handleCircularArc(double radius, point_t center, point_t start, point_t end);
+@
+
+
+1.10
+log
+@"finish" the topology handling code and write out a test .g file. currently has a bug in the trim curve handling.
+@
+text
+@d85 8
+a92 1
+    vector<int> _vertices;
+d96 5
+a100 6
+    ON_Surface* _surf;
+    ON_BrepFace* _face;
+    ON_BrepLoop* _loop;
+    ON_BrepEdge* _edge;
+    ON_BrepTrim* _trim;
+    ON_BrepVertex* _vertex;
+@
+
+
+1.9
+log
+@Begin implementation of brlcad brep handling (i.e. opennurbs creation). rational b-spline, line, and arc curves done.
+@
+text
+@d6 4
+d11 1
+a11 1
+#include "n_iges.hpp"
+d77 2
+d80 4
+d85 1
+@
+
+
+1.8
+log
+@implement extraction of edges and vertices, finish loop and edge use handling calls. there remains a bug in the vertex extractor at this point.
+@
+text
+@d4 3
+d16 1
+a16 1
+    void handleShell(bool isVoid, bool orient);
+d74 11
+@
+
+
+1.7
+log
+@implement extraction routine for rational b-spline curves
+@
+text
+@d16 3
+a18 2
+    int handleEdge(int edgeIndex);
+    int handleVertex(int pointIndex);
+@
+
+
+1.6
+log
+@implement extraction routine for circular arcs
+@
+text
+@d53 14
+a66 1
+    int handleRationalBSplineCurve();
+@
+
+
+1.5
+log
+@Implement extract routine for surfaces of revolution.
+@
+text
+@d18 1
+a18 1
+    int handlePoint(double x, double y, double z); // return index
+d45 1
+a45 1
+    int handleCircularArc();
+@
+
+
+1.4
+log
+@Add specific curve and surface handlers. Implement rational b-spline extraction routine.
+@
+text
+@d23 1
+a23 1
+    int handleSurfaceOfRevolution();
+a37 1
+    int handleRationalBSplineSurface();
+d51 1
+a51 1
+    int handleLine();
+@
+
+
+1.3
+log
+@ws
+@
+text
+@d25 13
+@
+
+
+1.2
+log
+@fix return types and make signatures match
+@
+text
+@a14 13
+    // surftype should be:
+    //   parametric spline surface
+    //   ruled surface
+    //   surface of revolution
+    //   tabulated cylinder
+    //   rational b-spline surface
+    //   offset surface
+    //   plane surface
+    //   rccyl surface
+    //   rccone surface
+    //   spherical surface
+    //   toroidal surface
+    int handleSurface(IGESEntity surfType, const ParameterData& data);
+d16 1
+a16 2
+    void handleEdge(int edgeIndex);
+    int handleCurve();
+d21 23
+@
+
+
+1.1
+log
+@add brlcad iges brep handler
+@
+text
+@d27 1
+a27 1
+    void handleSurface(int surfIndex, IGESEntity surfType, const ParameterData& data);
+@
+

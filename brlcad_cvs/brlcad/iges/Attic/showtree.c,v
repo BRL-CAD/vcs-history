@@ -1,0 +1,720 @@
+head	11.12;
+access;
+symbols
+	ansi-20040405-merged:11.10.6.1
+	postmerge-20040405-ansi:11.11
+	premerge-20040404-ansi:11.11
+	postmerge-autoconf:11.11
+	autoconf-freeze:11.10.14.1
+	premerge-autoconf:11.11
+	ansi-20040316-freeze:11.10
+	postmerge-20040315-windows:11.11
+	premerge-20040315-windows:11.11
+	windows-20040315-freeze:11.10.8.1
+	autoconf-20031203:11.10
+	autoconf-20031202:11.10
+	autoconf-branch:11.10.0.14
+	phong-branch:11.10.0.12
+	photonmap-branch:11.10.0.10
+	rel-6-1-DP:11.10
+	windows-branch:11.10.0.8
+	rel-6-0-2:11.10
+	ansi-branch:11.10.0.6
+	rel-6-0-1-branch:11.10.0.4
+	hartley-6-0-post:11.10
+	hartley-6-0-pre:11.10
+	rel-6-0-1:11.10
+	rel-6-0:11.10
+	rel-5-4:11.10
+	offsite-5-3-pre:11.10
+	rel-5-3:11.10
+	rel-5-2:11.10
+	rel-5-1-branch:11.10.0.2
+	rel-5-1:11.10
+	rel-5-0:11.9
+	rel-5-0-beta:11.9
+	rel-4-5:11.8
+	ctj-4-5-post:11.8
+	ctj-4-5-pre:11.8
+	rel-4-4:11.5
+	rel-4-0:10.1;
+locks; strict;
+comment	@ * @;
+
+
+11.12
+date	2004.05.24.04.01.09;	author morrison;	state dead;
+branches;
+next	11.11;
+
+11.11
+date	2004.02.02.17.39.05;	author morrison;	state Exp;
+branches;
+next	11.10;
+
+11.10
+date	2000.03.29.18.42.50;	author mike;	state Exp;
+branches
+	11.10.6.1
+	11.10.8.1
+	11.10.14.1;
+next	11.9;
+
+11.9
+date	98.10.27.21.22.00;	author jra;	state Exp;
+branches;
+next	11.8;
+
+11.8
+date	95.12.06.13.25.06;	author jra;	state Exp;
+branches;
+next	11.7;
+
+11.7
+date	95.11.28.21.35.45;	author jra;	state Exp;
+branches;
+next	11.6;
+
+11.6
+date	95.06.28.15.23.43;	author jra;	state Exp;
+branches;
+next	11.5;
+
+11.5
+date	95.01.04.10.08.11;	author mike;	state Rel4_4;
+branches;
+next	11.4;
+
+11.4
+date	94.08.22.19.31.56;	author gdurf;	state Exp;
+branches;
+next	11.3;
+
+11.3
+date	93.12.16.16.43.03;	author jra;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	93.12.16.08.54.10;	author jra;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	93.06.28.10.37.48;	author jra;	state Exp;
+branches;
+next	10.1;
+
+10.1
+date	91.10.12.06.45.33;	author mike;	state Rel4_0;
+branches;
+next	1.3;
+
+1.3
+date	91.08.29.23.06.11;	author mike;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	91.06.12.20.27.57;	author mike;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	91.06.12.19.59.43;	author mike;	state Exp;
+branches;
+next	;
+
+11.10.6.1
+date	2004.03.17.21.16.34;	author morrison;	state Exp;
+branches;
+next	;
+
+11.10.8.1
+date	2004.03.11.23.41.16;	author morrison;	state Exp;
+branches;
+next	;
+
+11.10.14.1
+date	2004.02.12.19.41.40;	author erikg;	state Exp;
+branches;
+next	;
+
+
+desc
+@IGES converter
+@
+
+
+11.12
+log
+@moved to src/iges/
+@
+text
+@/*
+ *  Authors -
+ *	John R. Anderson
+ *	Susanne L. Muuss
+ *	Earl P. Weaver
+ *
+ *  Source -
+ *	VLD/ASB Building 1065
+ *	The U. S. Army Ballistic Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005
+ *  
+ *  Copyright Notice -
+ *	This software is Copyright (C) 1990-2004 by the United States Army.
+ *	All rights reserved.
+ */
+
+/*		Display a boolean tree		*/
+
+#include "./iges_struct.h"
+#include "./iges_extern.h"
+
+#define	STKBLK	100	/* Allocation block size */
+
+static void Initastack(),Apush();
+static void Initsstack(),Spush();
+static struct node *Spop();
+static void Afreestack(),Sfreestack();
+static char *Apop();
+
+/* Some junk for this routines private node stack */
+struct node **sstk_p;
+int sjtop,sstklen;
+
+/* some junk for this routines private character string stack */
+char **stk;
+int jtop,stklen;
+
+void
+Showtree( root )
+struct node *root;
+{
+	struct node *ptr,*Spop();
+	char *opa,*opb,*tmp,*Apop(),oper[4];
+
+	strcpy( oper , "   " );
+
+	/* initialize both stacks */
+	Initastack();
+	Initsstack();
+
+	ptr = root;
+	while( 1 )
+	{
+		while( ptr != NULL )
+		{
+			Spush( ptr );
+			ptr = ptr->left;
+		}
+		ptr = Spop();
+
+		if( ptr == NULL )
+		{
+			bu_log( "Error in Showtree: Popped a null pointer\n" );
+			Afreestack();
+			Sfreestack();
+			return;
+		}
+
+		if( ptr->op < 0 ) /* this is an operand, push it's name */
+			Apush( dir[-(1+ptr->op)/2]->name );
+		else	/* this is an operator */
+		{
+			/* Pop the names of the operands */
+			opb = Apop();
+			opa = Apop();
+
+			/* construct the character string (opa ptr->op opb) */
+			tmp = (char *)bu_malloc( strlen( opa ) + strlen( opb ) + 6, "Showtree: tmp" );
+			if( ptr->parent != NULL )
+				strcpy( tmp , "(" );
+			else
+				*tmp = '\0';
+			strcat( tmp , opa );
+			oper[1] = operator[ptr->op];
+			strcat( tmp , oper );
+			strcat( tmp , opb );
+			if( ptr->parent != NULL )
+				strcat( tmp , ")" );
+
+			/* push the character string representing the result */
+			Apush( tmp );
+		}
+
+		if( ptr == root )	/* done! */
+		{
+			bu_log( "%s\n" , Apop() ); /* print the result */
+
+			/* free some memory */
+			Afreestack();
+			Sfreestack();
+			return;
+		}
+
+		if( ptr != ptr->parent->right )
+			ptr = ptr->parent->right;
+		else
+			ptr = NULL;
+	}
+}
+
+/* The following are stack routines for character strings */
+
+static void
+Initastack()
+{
+	int i;
+
+	jtop = (-1);
+	stklen = STKBLK;
+	stk = (char **)bu_malloc( stklen*sizeof( char * ), "Initastack: stk" );
+	if( stk == NULL )
+	{
+		bu_log( "Cannot allocate stack space\n" );
+		perror( "Initastack" );
+		exit( 1 );
+	}
+	for( i=0 ; i<stklen ; i++ )
+		stk[i] = NULL;
+}
+
+/*  This function pushes a pointer onto the stack. */
+
+static void
+Apush(ptr)
+char *ptr;
+{
+	int i;
+
+	jtop++;
+	if( jtop == stklen )
+	{
+		stklen += STKBLK;
+		stk = (char **)rt_realloc( (char *)stk , stklen*sizeof( char *), "Apush: stk" );
+		if( stk == NULL )
+		{
+			bu_log( "Cannot reallocate stack space\n" );
+			perror( "Apush" );
+			exit( 1 );
+		}
+		for( i=jtop ; i<stklen ; i++ )
+			stk[i] = NULL;
+	}
+	stk[jtop] = ptr;
+}
+
+
+/*  This function pops the top of the stack. */
+
+
+static char *
+Apop()
+{
+	char *ptr;
+
+	if( jtop == (-1) )
+		ptr=NULL;
+	else
+	{
+		ptr = stk[jtop];
+		jtop--;
+	}
+
+	return(ptr);
+}
+
+/* Free the memory associated with the stack */
+static void
+Afreestack()
+{
+
+	jtop = (-1);
+	stklen = 0;
+	bu_free( (char *)stk, "Afreestack: stk" );
+	return;
+}
+
+
+/* The following routines are stack routines for 'struct node' */
+static void
+Initsstack() /* initialize the stack */
+{
+
+	sjtop = (-1);
+	sstklen = STKBLK;
+	sstk_p = (struct node **)bu_malloc( sstklen*sizeof( struct node * ), "Initsstack: sstk_p" );
+	if( sstk_p == NULL )
+	{
+		bu_log( "Cannot allocate stack space\n" );
+		perror( "Initsstack" );
+		exit( 1 );
+	}
+}
+
+/*  This function pushes a pointer onto the stack. */
+
+static void
+Spush(ptr)
+struct node *ptr;
+{
+
+	sjtop++;
+	if( sjtop == sstklen )
+	{
+		sstklen += STKBLK;
+		sstk_p = (struct node **)rt_realloc( (char *)sstk_p , sstklen*sizeof( struct node *), "Spush: sstk_p" );
+		if( sstk_p == NULL )
+		{
+			bu_log( "Cannot reallocate stack space\n" );
+			perror( "Spush" );
+			exit( 1 );
+		}
+	}
+	sstk_p[sjtop] = ptr;
+}
+
+
+/*  This function pops the top of the stack. */
+
+
+static struct node *
+Spop()
+{
+	struct node *ptr;
+
+	if( sjtop == (-1) )
+		ptr=NULL;
+	else
+	{
+		ptr = sstk_p[sjtop];
+		sjtop--;
+	}
+
+	return(ptr);
+}
+
+/* free memory associated with the stack, but not the pointed to nodes */
+static void
+Sfreestack()
+{
+	sjtop = (-1);
+	bu_free( (char *)sstk_p, "Sfreestack: sstk_p" );
+	return;
+}
+@
+
+
+11.11
+log
+@update copyright to include span through 2003
+@
+text
+@@
+
+
+11.10
+log
+@
+Converted from Release 4 names to know about libbu and libbn
+@
+text
+@d13 1
+a13 1
+ *	This software is Copyright (C) 1990 by the United States Army.
+@
+
+
+11.10.6.1
+log
+@sync branch with HEAD
+@
+text
+@d13 1
+a13 1
+ *	This software is Copyright (C) 1990-2004 by the United States Army.
+@
+
+
+11.10.8.1
+log
+@sync to HEAD...
+@
+text
+@d13 1
+a13 1
+ *	This software is Copyright (C) 1990-2004 by the United States Army.
+@
+
+
+11.10.14.1
+log
+@merge from HEAD
+@
+text
+@d13 1
+a13 1
+ *	This software is Copyright (C) 1990-2004 by the United States Army.
+@
+
+
+11.9
+log
+@Changed showtree.c to make gcc happy :-(.
+@
+text
+@d63 1
+a63 1
+			rt_log( "Error in Showtree: Popped a null pointer\n" );
+d78 1
+a78 1
+			tmp = (char *)rt_malloc( strlen( opa ) + strlen( opb ) + 6, "Showtree: tmp" );
+d96 1
+a96 1
+			rt_log( "%s\n" , Apop() ); /* print the result */
+d120 1
+a120 1
+	stk = (char **)rt_malloc( stklen*sizeof( char * ), "Initastack: stk" );
+d123 1
+a123 1
+		rt_log( "Cannot allocate stack space\n" );
+d146 1
+a146 1
+			rt_log( "Cannot reallocate stack space\n" );
+d183 1
+a183 1
+	rt_free( (char *)stk, "Afreestack: stk" );
+d195 1
+a195 1
+	sstk_p = (struct node **)rt_malloc( sstklen*sizeof( struct node * ), "Initsstack: sstk_p" );
+d198 1
+a198 1
+		rt_log( "Cannot allocate stack space\n" );
+d218 1
+a218 1
+			rt_log( "Cannot reallocate stack space\n" );
+d251 1
+a251 1
+	rt_free( (char *)sstk_p, "Sfreestack: sstk_p" );
+@
+
+
+11.8
+log
+@All logging done via rt_log
+@
+text
+@d31 1
+a31 1
+struct node **sstk;
+d195 2
+a196 2
+	sstk = (struct node **)rt_malloc( sstklen*sizeof( struct node * ), "Initsstack: sstk" );
+	if( sstk == NULL )
+d215 2
+a216 2
+		sstk = (struct node **)rt_realloc( (char *)sstk , sstklen*sizeof( struct node *), "Spush: sstk" );
+		if( sstk == NULL )
+d223 1
+a223 1
+	sstk[sjtop] = ptr;
+d239 1
+a239 1
+		ptr = sstk[sjtop];
+d251 1
+a251 1
+	rt_free( (char *)sstk, "Sfreestack: sstk" );
+@
+
+
+11.7
+log
+@Mods to handle TNURB BREP. Also added RT_EXTERNS to iges_struct.h.
+@
+text
+@d63 1
+a63 1
+			printf( "Error in Showtree: Popped a null pointer\n" );
+d96 1
+a96 1
+			printf( "%s\n" , Apop() ); /* print the result */
+d123 1
+a123 1
+		fprintf( stderr , "Cannot allocate stack space\n" );
+d146 1
+a146 1
+			fprintf( stderr , "Cannot reallocate stack space\n" );
+d198 1
+a198 1
+		fprintf( stderr , "Cannot allocate stack space\n" );
+d218 1
+a218 1
+			fprintf( stderr , "Cannot reallocate stack space\n" );
+@
+
+
+11.6
+log
+@Converted to use rt_malloc family.
+@
+text
+@a18 12
+#include "conf.h"
+
+#include <stdio.h>
+#include <errno.h>
+#ifdef USE_STRING_H
+#include <string.h>
+#else
+#include <strings.h>
+#endif
+
+#include "machine.h"
+#include "vmath.h"
+@
+
+
+11.5
+log
+@Release_4.4
+@
+text
+@d90 1
+a90 1
+			tmp = (char *)malloc( strlen( opa ) + strlen( opb ) + 6 );
+d132 1
+a132 1
+	stk = (char **)malloc( stklen*sizeof( char * ) );
+d155 1
+a155 1
+		stk = (char **)realloc( stk , stklen*sizeof( char *) );
+d195 1
+a195 1
+	free( stk );
+d207 1
+a207 1
+	sstk = (struct node **)malloc( sstklen*sizeof( struct node * ) );
+d227 1
+a227 1
+		sstk = (struct node **)realloc( sstk , sstklen*sizeof( struct node *) );
+d263 1
+a263 1
+	free( sstk );
+@
+
+
+11.4
+log
+@Factored ifdefs
+@
+text
+@@
+
+
+11.3
+log
+@Fixed some more function declarations
+@
+text
+@d19 2
+d22 7
+a30 5
+#ifdef BSD
+#include <strings.h>
+#else
+#include <string.h>
+#endif
+a35 1
+extern int errno;
+@
+
+
+11.2
+log
+@fixed function declarations
+@
+text
+@d33 5
+d122 1
+a122 1
+void
+d142 1
+a142 1
+void
+d169 1
+a169 1
+char *
+d186 1
+a186 1
+void
+d198 1
+a198 1
+void
+d215 1
+a215 1
+void
+d239 1
+a239 1
+struct node *
+d256 1
+a256 1
+void
+@
+
+
+11.1
+log
+@Major Upgrade to IGES 5.1
+@
+text
+@d42 1
+d117 1
+d137 1
+d164 2
+a165 1
+char *Apop()
+d181 1
+d193 1
+d210 1
+d234 2
+a235 1
+struct node *Spop()
+d251 1
+@
+
+
+10.1
+log
+@Release_4.0
+@
+text
+@@
+
+
+1.3
+log
+@string.h
+@
+text
+@@
+
+
+1.2
+log
+@Modified for Release 4.0
+@
+text
+@d22 1
+d24 3
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d20 2
+@

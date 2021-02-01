@@ -1,0 +1,463 @@
+head	1.9;
+access;
+symbols
+	ansi-20040405-merged:1.5.2.2
+	postmerge-20040405-ansi:1.7
+	premerge-20040404-ansi:1.6
+	postmerge-autoconf:1.6
+	autoconf-freeze:1.5.10.2
+	premerge-autoconf:1.6
+	ansi-20040316-freeze:1.5.2.1
+	postmerge-20040315-windows:1.6
+	premerge-20040315-windows:1.6
+	windows-20040315-freeze:1.5.4.1
+	autoconf-20031203:1.5
+	autoconf-20031202:1.5
+	autoconf-branch:1.5.0.10
+	phong-branch:1.5.0.8
+	photonmap-branch:1.5.0.6
+	rel-6-1-DP:1.5
+	windows-branch:1.5.0.4
+	rel-6-0-2:1.3
+	ansi-branch:1.5.0.2
+	rel-6-0-1-branch:1.3.0.2
+	hartley-6-0-post:1.4
+	hartley-6-0-pre:1.3
+	rel-6-0-1:1.3
+	rel-6-0:1.3
+	rel-5-4:1.1
+	offsite-5-3-pre:1.2
+	rel-5-3:1.1
+	rel-5-2:1.1
+	rel-5-1-branch:1.1.0.2
+	rel-5-1:1.1
+	rel-5-0:1.1
+	rel-5-0-beta:1.1
+	rel-4-5:1.1
+	ctj-4-5-post:1.1
+	ctj-4-5-pre:1.1;
+locks; strict;
+comment	@ * @;
+
+
+1.9
+date	2004.05.21.18.06.22;	author morrison;	state dead;
+branches;
+next	1.8;
+
+1.8
+date	2004.05.10.15.30.43;	author erikg;	state Exp;
+branches;
+next	1.7;
+
+1.7
+date	2004.04.05.07.46.41;	author morrison;	state Exp;
+branches;
+next	1.6;
+
+1.6
+date	2004.02.02.17.39.06;	author morrison;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	2002.08.20.17.07.36;	author jra;	state Exp;
+branches
+	1.5.2.1
+	1.5.4.1
+	1.5.10.1;
+next	1.4;
+
+1.4
+date	2002.08.15.20.54.48;	author hartley;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2001.04.20.22.29.01;	author morrison;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2000.07.07.05.47.27;	author cjohnson;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	96.08.31.10.38.27;	author mike;	state Exp;
+branches;
+next	;
+
+1.5.2.1
+date	2002.09.19.18.01.08;	author morrison;	state Exp;
+branches;
+next	1.5.2.2;
+
+1.5.2.2
+date	2004.03.17.21.16.47;	author morrison;	state Exp;
+branches;
+next	;
+
+1.5.4.1
+date	2004.03.11.23.41.43;	author morrison;	state Exp;
+branches;
+next	;
+
+1.5.10.1
+date	2004.02.12.18.39.32;	author erikg;	state Exp;
+branches;
+next	1.5.10.2;
+
+1.5.10.2
+date	2004.03.15.14.06.15;	author erikg;	state Exp;
+branches;
+next	;
+
+
+desc
+@complex.c
+@
+
+
+1.9
+log
+@moved to src/
+@
+text
+@/*
+ *			C O M P L E X . C
+ *
+ *  Functions -
+ *	bn_cx_div	Complex Division
+ *	bn_cx_sqrt	Complex Square Root
+ *
+ *  Authors -
+ *	Douglas A Gwyn		(Original Version)
+ *	Michael John Muuss	(Macro Version)
+ *  
+ *  Source -
+ *	SECAD/VLD Computing Consortium, Bldg 394
+ *	The U. S. Army Ballistic Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005
+ *  
+ *  Copyright Notice -
+ *	This software is Copyright (C) 1985-2004 by the United States Army.
+ *	All rights reserved.
+ */
+#ifndef lint
+static const char RCScomplex[] = "@@(#)$Header: /n/xoff/cvs/brlcad/libbn/complex.c,v 1.8 2004/05/10 15:30:43 erikg Exp $ (BRL)";
+#endif
+
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+
+#include <stdio.h>
+#include <math.h>
+#include "machine.h"
+#include "bu.h"
+#include "vmath.h"
+#include "bn.h"
+
+/* arbitrary numerical arguments, integer value: */
+#define	SIGN( x )	((x) == 0 ? 0 : (x) > 0 ? 1 : -1)
+#define	ABS( a )	((a) >= 0 ? (a) : -(a))
+
+/*
+ *			B N _ C X _ D I V
+ *
+ *	Divide one complex by another
+ *
+ *	bn_cx_div( &a, &b )	divides  a  by  b .  Zero divisor fails.
+ *	a and b may coincide.  Result stored in a.
+ */
+void
+bn_cx_div(register bn_complex_t *ap, register const bn_complex_t *bp)
+{
+	FAST fastf_t	r, s;
+	FAST fastf_t	ap__re;
+
+	/* Note: classical formula may cause unnecessary overflow */
+	ap__re = ap->re;
+	r = bp->re;
+	s = bp->im;
+	if ( ABS( r ) >= ABS( s ) )  {
+		if( NEAR_ZERO( r, SQRT_SMALL_FASTF ) )
+			goto err;
+		r = s / r;			/* <= 1 */
+		s = 1.0 / (bp->re + r * s);
+		ap->re = (ap->re + ap->im * r) * s;
+		ap->im = (ap->im - ap__re * r) * s;
+		return;
+	}  else  {
+		/* ABS( s ) > ABS( r ) */
+		if( NEAR_ZERO( s, SQRT_SMALL_FASTF ) )
+			goto err;
+		r = r / s;			/* < 1 */
+		s = 1.0 / (s + r * bp->re);
+		ap->re = (ap->re * r + ap->im) * s;
+		ap->im = (ap->im * r - ap__re) * s;
+		return;
+	}
+err:
+	bu_log("bn_cx_div: division by zero: %gR+%gI / %gR+%gI\n",
+		ap->re, ap->im, bp->re, bp->im );
+	ap->re = ap->im = 1.0e20;		/* "INFINITY" */
+}
+
+/*
+ *			B N _ C X _ S Q R T
+ *
+ *  Compute square root of complex number
+ *
+ *	bn_cx_sqrt( &out, &c )	replaces  out  by  sqrt(c)
+ *
+ *	Note:	This is a double-valued function; the result of
+ *		bn_cx_sqrt() always has nonnegative imaginary part.
+ */
+void
+bn_cx_sqrt(bn_complex_t *op, register const bn_complex_t *ip)
+{
+	FAST fastf_t	ampl, temp;
+	/* record signs of original real & imaginary parts */
+	register int	re_sign;
+	register int	im_sign;
+
+	/* special cases are not necessary; they are here for speed */
+	im_sign = SIGN( ip->im );
+	if( (re_sign = SIGN(ip->re))  == 0 )  {
+		if ( im_sign == 0 )
+			op->re = op->im = 0;
+		else if ( im_sign > 0 )
+			op->re = op->im = sqrt( ip->im * 0.5 );
+		else			/* im_sign < 0 */
+			op->re = -(op->im = sqrt( ip->im * -0.5 ));
+	} else if ( im_sign == 0 )  {
+		if ( re_sign > 0 )  {
+			op->re = sqrt( ip->re );
+			op->im = 0.0;
+		}  else  {		/* re_sign < 0 */
+			op->im = sqrt( -ip->re );
+			op->re = 0.0;
+		}
+	}  else  {
+		/* no shortcuts */
+		ampl = bn_cx_ampl( ip );
+		if( (temp = (ampl - ip->re) * 0.5) < 0.0 )  {
+			/* This case happens rather often, when the
+			 *  hypot() in bn_cx_ampl() returns an ampl ever so
+			 *  slightly smaller than ip->re.  This can easily
+			 *  happen when ip->re ~= 10**20.
+			 *  Just ignore the imaginary part.
+			 */
+			op->im = 0;
+		} else
+			op->im = sqrt( temp );
+
+		if( (temp = (ampl + ip->re) * 0.5) < 0.0 )  {
+			op->re = 0.0;
+		} else {
+			if( im_sign > 0 )
+				op->re = sqrt(temp);
+			else			/* im_sign < 0 */
+				op->re = -sqrt(temp);
+		}
+	}
+}
+@
+
+
+1.8
+log
+@change conf.h to a wrapped config.h
+@
+text
+@d22 1
+a22 1
+static const char RCScomplex[] = "@@(#)$Header: /cvs/brlcad/libbn/complex.c,v 1.7 2004/04/05 07:46:41 morrison Exp $ (BRL)";
+@
+
+
+1.7
+log
+@merge of ansi-6-0-branch into HEAD
+@
+text
+@d22 1
+a22 1
+static const char RCScomplex[] = "@@(#)$Header$ (BRL)";
+d25 5
+a29 1
+#include "conf.h"
+@
+
+
+1.6
+log
+@update copyright to include span through 2003
+@
+text
+@d22 1
+a22 1
+static const char RCScomplex[] = "@@(#)$Header: /c/CVS/brlcad/libbn/complex.c,v 1.5 2002/08/20 17:07:36 jra Exp $ (BRL)";
+d47 1
+a47 3
+bn_cx_div( ap, bp )
+register bn_complex_t		*ap;
+register const bn_complex_t	*bp;
+d91 1
+a91 3
+bn_cx_sqrt( op, ip )
+bn_complex_t			*op;
+register const bn_complex_t	*ip;
+@
+
+
+1.5
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d18 1
+a18 1
+ *	This software is Copyright (C) 1985 by the United States Army.
+d22 1
+a22 1
+static const char RCScomplex[] = "@@(#)$Header: /c/CVS/brlcad/libbn/complex.c,v 1.3 2001/04/20 22:29:01 morrison Exp $ (BRL)";
+@
+
+
+1.5.4.1
+log
+@sync to HEAD...
+@
+text
+@d18 1
+a18 1
+ *	This software is Copyright (C) 1985-2004 by the United States Army.
+d22 1
+a22 1
+static const char RCScomplex[] = "@@(#)$Header: /n/cad/c/CVS/brlcad/libbn/complex.c,v 1.6 2004/02/02 17:39:06 morrison Exp $ (BRL)";
+@
+
+
+1.5.10.1
+log
+@merge from HEAD
+@
+text
+@d18 1
+a18 1
+ *	This software is Copyright (C) 1985-2004 by the United States Army.
+d22 1
+a22 1
+static const char RCScomplex[] = "@@(#)$Header: /c/CVS/brlcad/libbn/complex.c,v 1.6 2004/02/02 17:39:06 morrison Exp $ (BRL)";
+@
+
+
+1.5.10.2
+log
+@merge from head
+@
+text
+@d22 1
+a22 1
+static const char RCScomplex[] = "@@(#)$Header: /c/CVS/brlcad/libbn/complex.c,v 1.5.10.1 2004/02/12 18:39:32 erikg Exp $ (BRL)";
+@
+
+
+1.5.2.1
+log
+@Initial ANSIfication
+@
+text
+@d22 1
+a22 1
+static const char RCScomplex[] = "@@(#)$Header: /c/CVS/brlcad/libbn/complex.c,v 1.5 2002/08/20 17:07:36 jra Exp $ (BRL)";
+d47 3
+a49 1
+bn_cx_div(register bn_complex_t *ap, register const bn_complex_t *bp)
+d93 3
+a95 1
+bn_cx_sqrt(bn_complex_t *op, register const bn_complex_t *ip)
+@
+
+
+1.5.2.2
+log
+@sync branch with HEAD
+@
+text
+@d18 1
+a18 1
+ *	This software is Copyright (C) 1985-2004 by the United States Army.
+d22 1
+a22 1
+static const char RCScomplex[] = "@@(#)$Header$ (BRL)";
+@
+
+
+1.4
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d47 3
+a49 1
+bn_cx_div(register bn_complex_t *ap, register const bn_complex_t *bp)
+d93 3
+a95 1
+bn_cx_sqrt(bn_complex_t *op, register const bn_complex_t *ip)
+@
+
+
+1.3
+log
+@CONST to const
+@
+text
+@d22 1
+a22 1
+static const char RCScomplex[] = "@@(#)$Header: /c/CVS/brlcad/libbn/complex.c,v 1.2 2000/07/07 05:47:27 cjohnson Exp $ (BRL)";
+d47 1
+a47 3
+bn_cx_div( ap, bp )
+register bn_complex_t		*ap;
+register const bn_complex_t	*bp;
+d91 1
+a91 3
+bn_cx_sqrt( op, ip )
+bn_complex_t			*op;
+register const bn_complex_t	*ip;
+@
+
+
+1.2
+log
+@LINT
+@
+text
+@d22 1
+a22 1
+static const char RCScomplex[] = "@@(#)$Header: /c/CVS/brlcad/libbn/complex.c,v 1.1 1996/08/31 10:38:27 mike Exp $ (BRL)";
+d49 1
+a49 1
+register CONST bn_complex_t	*bp;
+d95 1
+a95 1
+register CONST bn_complex_t	*ip;
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d22 1
+a22 1
+static char RCScomplex[] = "@@(#)$Header: /m/cad/librt/RCS/complex.c,v 11.1 95/01/04 09:56:10 mike Rel4_4 $ (BRL)";
+@
+

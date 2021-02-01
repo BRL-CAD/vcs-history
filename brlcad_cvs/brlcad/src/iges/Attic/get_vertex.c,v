@@ -1,0 +1,321 @@
+head	14.6;
+access;
+symbols
+	stable-branch:14.4
+	bobWinPort-20051223-freeze:14.4
+	rel-7-6-2:14.4
+	rel-7-6-branch:14.4.0.6
+	rel-7-6-0:14.4
+	rel-7-4-2:14.4
+	rel-7-4-branch:14.4.0.4
+	bobWinPort:14.4.0.2
+	rel-7-4-0:14.4
+	rel-7-2-6:14.4
+	rel-7-2-4:14.4
+	rel-7-2-2:14.4
+	rel-7-2-0:14.4
+	rel-7-0-4:14.3
+	rel-7-0-2:14.3
+	rel-7-0-1:14.3
+	opensource-post:14.3
+	opensource-pre:1.1
+	rel-7-0-branch:1.1.0.2
+	rel-7-0:1.1;
+locks; strict;
+comment	@ * @;
+
+
+14.6
+date	2005.10.27.03.36.04;	author brlcad;	state dead;
+branches;
+next	14.5;
+
+14.5
+date	2005.10.23.04.44.31;	author brlcad;	state Exp;
+branches;
+next	14.4;
+
+14.4
+date	2005.01.30.20.30.39;	author brlcad;	state Exp;
+branches
+	14.4.6.1;
+next	14.3;
+
+14.3
+date	2004.12.21.06.38.19;	author morrison;	state Exp;
+branches;
+next	14.2;
+
+14.2
+date	2004.12.20.20.36.29;	author morrison;	state Exp;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.13;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.15.19.14;	author morrison;	state Exp;
+branches;
+next	;
+
+14.4.6.1
+date	2005.11.13.13.46.14;	author brlcad;	state dead;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.6
+log
+@moved all the geometry converter directories from src/. to src/conv/.
+@
+text
+@/*                    G E T _ V E R T E X . C
+ * BRL-CAD
+ *
+ * Copyright (C) 1993-2005 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@file get_vertex.c
+ *  Authors -
+ *	John R. Anderson
+ *
+ *  Source -
+ *	SLAD/BVLD/VMB
+ *	The U. S. Army Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005
+ *
+ */
+
+#include "./iges_struct.h"
+#include "./iges_extern.h"
+
+struct vertex **
+Get_vertex( edge_use )
+struct iges_edge_use *edge_use;
+{
+	struct iges_edge_list		*e_list;
+	struct iges_vertex_list		*v_list;
+	int				edge_index;
+	int				vert_index;
+	int				vert_de;
+
+	if( (e_list = Get_edge_list( edge_use )) == NULL )
+		return( (struct vertex **)NULL );
+
+	edge_index = edge_use->index-1;
+	if( edge_use->orient )
+	{
+		vert_de = e_list->i_edge[edge_index].start_vert_de;
+		vert_index = e_list->i_edge[edge_index].start_vert_index - 1;
+	}
+	else
+	{
+		vert_de = e_list->i_edge[edge_index].end_vert_de;
+		vert_index = e_list->i_edge[edge_index].end_vert_index - 1;
+	}
+
+	if( (v_list = Get_vertex_list( vert_de )) == NULL )
+		return( (struct vertex **)NULL );
+
+	return( &v_list->i_verts[vert_index].v );
+}
+
+int
+Put_vertex( v, edge )
+struct vertex *v;
+struct iges_edge_use *edge;
+{
+	struct iges_edge_list		*e_list;
+	struct iges_edge_list		*el;
+	struct iges_vertex_list		*v_list;
+	int				vert_index;
+	int				vert_de;
+
+	if( (e_list = Get_edge_list( edge )) == NULL )
+		return( 0 );
+
+
+	el = e_list;
+	while( el && el->edge_de != edge->edge_de )
+		el = el->next;
+
+	if( !el )
+	{
+		bu_log( "Cannot find an edge list with edge_de = %d\n" , edge->edge_de );
+		rt_bomb( "Cannot find correct edge list\n" );
+	}
+
+	if( edge->orient )
+	{
+		vert_de = el->i_edge[edge->index-1].start_vert_de;
+		vert_index = el->i_edge[edge->index-1].start_vert_index-1;
+	}
+	else
+	{
+		vert_de = el->i_edge[edge->index-1].end_vert_de;
+		vert_index = el->i_edge[edge->index-1].end_vert_index-1;
+	}
+
+
+	if( (v_list = Get_vertex_list( vert_de )) == NULL )
+		return( 0 );
+
+	if( v_list->i_verts[vert_index].v )
+	{
+		bu_log( "vertex already assigned x%x, trying to assign x%x\n", v_list->i_verts[vert_index].v, v );
+		rt_bomb( "Multiple vertex assignments\n" );
+	}
+
+	v_list->i_verts[vert_index].v = v;
+	return( 1 );
+}
+
+struct iges_edge *
+Get_edge( e_use )
+struct iges_edge_use *e_use;
+{
+	struct iges_edge_list	*e_list;
+
+	if( (e_list = Get_edge_list( e_use )) == NULL )
+		return( (struct iges_edge *)NULL );
+
+	return( &e_list->i_edge[e_use->index-1] );
+}
+
+struct vertex *
+Get_edge_start_vertex( edge )
+struct iges_edge *edge;
+{
+	struct iges_vertex_list *v_list;
+
+	if( (v_list = Get_vertex_list( edge->start_vert_de )) == NULL )
+		return( (struct vertex *)NULL );
+
+	return( v_list->i_verts[edge->start_vert_index-1].v );
+}
+
+
+struct vertex *
+Get_edge_end_vertex( edge )
+struct iges_edge *edge;
+{
+	struct iges_vertex_list *v_list;
+
+	if( (v_list = Get_vertex_list( edge->end_vert_de )) == NULL )
+		return( (struct vertex *)NULL );
+
+	return( v_list->i_verts[edge->end_vert_index-1].v );
+}
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+14.5
+log
+@trailing ws
+@
+text
+@@
+
+
+14.4
+log
+@update copyright to 2005
+@
+text
+@d29 1
+a29 1
+ *  
+d80 1
+a80 1
+	
+d101 2
+a102 2
+	
+	
+d121 1
+a121 1
+	
+@
+
+
+14.4.6.1
+log
+@merge changes from HEAD aka rel-7-6-4 to the rel-7-6-branch just in case someone peeks a gander or tries to continue/build the branch
+@
+text
+@@
+
+
+14.3
+log
+@remove the old copyright notice section
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 1993-2004 United States Government as represented by
+@
+
+
+14.2
+log
+@acquire copyright and assign GPL license
+@
+text
+@a29 3
+ *  Copyright Notice -
+ *	This software is Copyright (C) 1993-2004 by the United States Army.
+ *	All rights reserved.
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@d1 21
+a21 1
+/*
+@
+
+
+1.1
+log
+@Vast reorganization begins.  Sources moved from top-level directories into src/.
+@
+text
+@d135 10
+@
+

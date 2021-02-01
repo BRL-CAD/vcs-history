@@ -1,0 +1,817 @@
+head	11.10;
+access;
+symbols
+	ansi-20040405-merged:11.7.2.1
+	postmerge-20040405-ansi:11.8
+	premerge-20040404-ansi:11.7
+	postmerge-autoconf:11.7
+	autoconf-freeze:11.7
+	premerge-autoconf:11.7
+	postmerge-20040315-windows:11.7
+	premerge-20040315-windows:11.7
+	windows-20040315-freeze:11.7
+	autoconf-20031203:11.7
+	autoconf-20031202:11.7
+	autoconf-branch:11.7.0.10
+	phong-branch:11.7.0.8
+	photonmap-branch:11.7.0.6
+	rel-6-1-DP:11.7
+	windows-branch:11.7.0.4
+	rel-6-0-2:11.5
+	ansi-branch:11.7.0.2
+	rel-6-0-1-branch:11.5.0.2
+	hartley-6-0-post:11.6
+	hartley-6-0-pre:11.5
+	rel-6-0-1:11.5
+	rel-6-0:11.5
+	rel-5-4:11.2
+	offsite-5-3-pre:11.4
+	rel-5-3:11.2
+	rel-5-2:11.2
+	rel-5-1-branch:11.2.0.2
+	rel-5-1:11.2
+	rel-5-0:11.2
+	rel-5-0-beta:11.2
+	rel-4-5:11.2
+	ctj-4-5-post:11.2
+	ctj-4-5-pre:11.2
+	rel-4-4:11.1;
+locks; strict;
+comment	@ * @;
+
+
+11.10
+date	2004.05.21.14.57.51;	author morrison;	state dead;
+branches;
+next	11.9;
+
+11.9
+date	2004.05.10.15.30.50;	author erikg;	state Exp;
+branches;
+next	11.8;
+
+11.8
+date	2004.04.05.05.46.02;	author morrison;	state Exp;
+branches;
+next	11.7;
+
+11.7
+date	2002.08.20.17.09.02;	author jra;	state Exp;
+branches
+	11.7.2.1;
+next	11.6;
+
+11.6
+date	2002.08.15.20.56.13;	author hartley;	state Exp;
+branches;
+next	11.5;
+
+11.5
+date	2001.08.10.20.57.07;	author butler;	state Exp;
+branches;
+next	11.4;
+
+11.4
+date	2000.09.01.03.23.55;	author mike;	state Exp;
+branches;
+next	11.3;
+
+11.3
+date	2000.08.23.19.04.47;	author mike;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	96.12.13.15.05.51;	author jra;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	95.01.04.10.12.35;	author mike;	state Rel4_4;
+branches;
+next	1.6;
+
+1.6
+date	94.11.14.22.45.39;	author mike;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	94.11.14.03.38.02;	author cjohnson;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	94.09.22.04.18.30;	author mike;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	94.08.23.15.05.53;	author gdurf;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	93.09.25.11.40.27;	author mike;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	92.11.19.15.16.06;	author mike;	state Exp;
+branches;
+next	;
+
+11.7.2.1
+date	2002.09.19.18.02.41;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@Program to cut rectangles out of pix files
+@
+
+
+11.10
+log
+@moved to src/util/
+@
+text
+@/*
+ *		P I X C U T . C
+ *
+ * Extract a piece of a pix file.  If the parameters of the file to be
+ * extracted do not fit within the original pix file then the extra area is
+ * filled with a background solid color.
+ *
+ *  Author -
+ *	Christopher T. Johnson
+ *	September 12, 1992
+ *  
+ *  Source -
+ *	Paladin Software
+ *	P.O. Box 187
+ *	Aberdeen, MD	21001-0187
+ *  
+ *  Copyright Notice -
+ *	This software is Copyright (C) 1992 by Paladin Software
+ *	All rights reserved.
+ */
+#ifndef lint
+static const char RCSid[] = "@@(#)$Header: /n/xoff/cvs/brlcad/util/pixcut.c,v 11.9 2004/05/10 15:30:50 erikg Exp $";
+#endif
+
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+
+#include <stdio.h>
+#ifdef HAVE_STRING_H
+#include <string.h>
+#else
+#include <strings.h>
+#endif
+
+#include "machine.h"
+#include "bu.h"
+#include "vmath.h"
+#include "bn.h"
+
+#include "externs.h"		/* For getopt and malloc */
+
+static int	org_width = 512;	/* Default file sizes 512x512 */
+static int	org_height = 512;
+static int	new_width = 512;
+static int	new_height = 512;
+static int	base_x = 0;		/* Default to lower left corner */
+static int	base_y = 0;
+static int	Verbose = 0;
+static int	num_bytes = 3;
+
+#define SIZEBACK	256
+static unsigned char background[SIZEBACK];	/* Holds the fill background color */
+
+#if defined(SYSV)
+static char	stdiobuf[4*1024*1024];
+#endif
+
+static FILE	*input;
+static char	*in_name;
+static int	autosize = 0;
+static int	isfile = 0;
+
+static char usage[] = "\
+pixcut: Copyright (C) 1992 Paladin Software\n\
+pixcut: All rights reserved\n\
+pixcut: Usage:	[-v] [-h] [-H] [-a] [-# num_bytes] [-C red/green/blue]\n\
+		[-s in_square_size] [-w in_width] [-n in_height]\n\
+		[-S out_square_size] [-W out_width] [-N out_height]\n\
+		[-x horizontal] [-y vertical] [file_in]\n";
+
+void
+parse_color(unsigned char *bak, char *s)
+{
+	int red,green,blue;
+	int result;
+
+	result = sscanf(s, "%d/%d/%d", &red, &green, &blue);
+	if (result != 3) return;
+	bak[0] = red;
+	bak[1] = green;
+	bak[2] = blue;
+}
+
+int
+get_args(register int argc, register char **argv)
+{
+	register int c;
+
+	while ( (c = getopt(argc, argv, "vahHC:s:w:n:S:W:N:x:y:#:" )) != EOF) {
+		switch (c) {
+		case 'v':
+			Verbose = 1;
+			break;
+		case 'a':
+			autosize = 1;
+			break;
+		case 'h':
+			org_width = org_height = 1024;
+			autosize = 0;
+			break;
+		case 'H':
+			new_width = new_height = 1024;
+			break;
+		case 's':
+			org_width = org_height = atoi(optarg);
+			autosize = 0;
+			break;
+		case 'S':
+			new_width = new_height = atoi(optarg);
+			break;
+		case 'w':
+			org_width = atoi(optarg);
+			autosize = 0;
+			break;
+		case 'W':
+			new_width = atoi(optarg);
+			break;
+		case 'n':
+			org_height = atoi(optarg);
+			autosize = 0;
+			break;
+		case 'N':
+			new_height = atoi(optarg);
+			break;
+		case 'x':
+			base_x = atoi(optarg);
+			break;
+		case 'y':
+			base_y = atoi(optarg);
+			break;
+		case 'C':
+			parse_color(background, optarg);
+			break;
+		case '#':
+			num_bytes = atoi(optarg);
+			break;
+		default:		/* '?' */
+			return(0);
+		}
+	}
+	if (optind >= argc ) {
+		if ( isatty(fileno(stdin))) return(0);
+		in_name = "-";
+		input = stdin;
+	} else {
+		in_name = argv[optind];
+		if (strcmp(in_name,"-") == 0) {
+			if (isatty(fileno(stdin))) return(0);
+			input = stdin;
+		} else {
+			if ((input = fopen(in_name, "r")) == NULL ) {
+				perror(in_name);
+				(void)fprintf(stderr,
+				    "pixcut: cannot open \"%s\" for reading\n",
+				    in_name);
+				return(0);
+			}
+			isfile = 1;
+		}
+	}
+	if (argc > ++optind) {
+		(void)fprintf(stderr, "pixcut: excess argument(s) ignored\n");
+	}
+	return(1);	/* OK */
+}
+
+			
+int
+main(int argc, char **argv)
+{
+	unsigned char *inbuf, *outbuf;
+	unsigned char *buffer;
+	register int i;
+	register unsigned char *cp;
+	int finish, row, result;
+
+	for (i=0;i<SIZEBACK;i++) background[i] = 0;
+	background[2] = 1;
+
+	if (!get_args(argc,argv)) {
+		(void)fprintf(stderr,"%s",usage);
+		exit(1);
+	}
+	/* Should we autosize the input? */
+	if (isfile && autosize) {
+		int w,h;
+		if (bn_common_file_size(&w, &h, in_name, num_bytes)) {
+			org_width = w;
+			org_height = h;
+		} else {
+			(void) fprintf(stderr, "pixcut: unable to autosize\n");
+		}
+	}
+
+/*
+ * On the assumption that there will be lots more input to paw through
+ * than there will be output to write, give STDIO a big input buffer
+ * to allow decent sized transfers from the filesystem.
+ */
+#if defined( SYSV )
+	(void) setvbuf( input, stdiobuf, _IOFBF, sizeof(stdiobuf) );
+#endif
+
+/*
+ * Make a buffer will hold a single scan line of assuming a worst
+ * case cut of 1 pixel of the edge.
+ */
+	if ((buffer = (unsigned char *)malloc((org_width+new_width)*num_bytes)) == (unsigned char *)NULL ) {
+		(void) fprintf(stderr, "pixcut: Out of memory (malloc failed)\n");
+		exit(2);
+	}
+/*
+ * Spew at the user if they asked.
+ */
+	if (Verbose) {
+		(void)fprintf(stderr,"pixcut: Copyright (C) 1992 Paladin Software\n");
+		(void)fprintf(stderr,"pixcut: All rights reserved.\npixcut:\n");
+		(void)fprintf(stderr,"pixcut: original image %dx%d\n",
+		    org_width, org_height);
+		(void)fprintf(stderr,"pixcut: new image %dx%d\n",
+		    new_width, new_height);
+		(void)fprintf(stderr,"pixcut: offset %dx%d\n", base_x, base_y);
+		(void)fprintf(stderr,"pixcut: background color %d/%d/%d\n",
+		    background[0], background[1], background[2]);
+
+		if (base_x < 0 || base_y < 0 || 
+		    base_x+new_width >org_width ||
+		    base_y+new_height > org_height) {
+		    	int comma=0;
+		    	char *last = 0;
+			(void) fprintf(stderr,
+"pixcut: adding background strip on the");
+
+		    	if (base_x < 0) {
+		    		last = "left";
+		    	}
+		    	if (base_y < 0) {
+		    		if (last) {
+		    			(void) fprintf(stderr," %s",last);
+		    			comma=1;
+		    		}
+		    		last = "bottom";
+		    	}
+		    	if (base_x+new_width >org_width ){
+		    		if (last) {
+		    			if (comma) {
+		    				(void)fprintf(stderr,", %s",last);
+		    			} else {
+		    				(void)fprintf(stderr," %s",last);
+		    			}
+		    			comma=1;
+		    		}
+		    	}
+		    	if (base_y+new_height > org_height) {
+		    		if (last) {
+		    			if (comma) {
+		    				(void)fprintf(stderr,", %s",last);
+		    			} else {
+		    				(void)fprintf(stderr," %s",last);
+		    			}
+		    			comma = 1;
+		    		}
+		    		last = "top";
+		    	}
+		    	if (comma) {
+		    		(void)fprintf(stderr," and %s.\n",last);
+		    	} else {
+		    		(void)fprintf(stderr," %s.\n",last);
+		    	}
+		}
+	}
+/*
+ * If the new image does not intersect the original, then set the base_x
+ * so that it does not overlap the original but at the same time minmizes
+ * the memory hit.
+ */
+	if (base_x + new_width < 0 || base_x > org_width) {
+		base_x = org_width;
+	}
+/*
+ * Assign the inbuf and outbuf pointers so that reads and writes take place
+ * from a consistent location.
+ */
+	if (base_x < 0) {
+		outbuf = buffer;
+		inbuf = buffer - base_x*num_bytes;	/* base_x < 0 so - not + */
+	} else {
+		outbuf = buffer + base_x*num_bytes;
+		inbuf = buffer;
+	}
+/*
+ * Now fill the output buffer with the background color if needed.
+ */
+	if (base_x < 0 || base_y < 0 || base_x+new_width > org_width) {
+		for (i=0, cp = outbuf; i<new_width; i++,cp+=num_bytes) {
+			register int jj;
+			for (jj=0; jj<num_bytes && jj<SIZEBACK; jj++) {
+				cp[jj]=background[jj];
+			}
+		}
+	}
+	finish = base_y + new_height;
+	if (base_y < 0) {
+		row = base_y;
+	} else {
+		row = 0;
+	}
+/*
+ * Now sync the input file to the output file.
+ */
+	while (row < 0 && row < finish) {
+		result = fwrite(outbuf, num_bytes, new_width, stdout);
+		if (result != new_width) {
+			perror("pixcut: fwrite");
+			exit(3);
+		}
+		row++;
+	}
+
+	while(row < base_y) {
+		result = fread(inbuf, num_bytes, org_width, input);
+		row++;
+	}
+/*
+ * At this point "row" is an index into the original file.
+ */
+	while (row < finish && row < org_height) {
+		result = fread(inbuf, num_bytes, org_width, input);
+		if (result != org_width) {
+			for (cp=inbuf+result*num_bytes; result < org_width; cp+=num_bytes,++result) {
+				register int jj;
+				for (jj=0; jj<num_bytes && jj<SIZEBACK; jj++) {
+					cp[jj] = background[jj];
+				}
+			}
+			org_height = row-1;
+		}
+		result = fwrite(outbuf, num_bytes, new_width, stdout);
+		if (result != new_width) {
+			perror("pixcut: fwrite");
+			exit(3);
+		}
+		row++;
+	}
+/*
+ * Refill the output buffer if we are going to be outputing background
+ * lines.
+ */
+	if (row >= org_height) {
+		for (cp=outbuf,i=0;i<new_width;cp+=num_bytes,i++) {
+			register int jj;
+			for (jj=0; jj<num_bytes && jj<SIZEBACK;jj++) {
+				cp[jj] = background[jj];
+			}
+		}
+	}
+/*
+ * We've taken all we can from the input file, now it's time to
+ * output the remaining background lines (if any).
+ */
+	while (row < finish) {
+		result = fwrite(outbuf,num_bytes, new_width, stdout);
+		if (result != new_width) {
+			perror("pixcut: fwrite");
+			exit(3);
+		}
+		row++;
+	}
+	return(0);
+}
+@
+
+
+11.9
+log
+@change conf.h to a wrapped config.h
+@
+text
+@d22 1
+a22 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/util/pixcut.c,v 11.8 2004/04/05 05:46:02 morrison Exp $";
+@
+
+
+11.8
+log
+@merge of ansi-6-0-branch into head
+@
+text
+@d22 1
+a22 1
+static const char RCSid[] = "@@(#)$Header$";
+d25 5
+a29 1
+#include "conf.h"
+@
+
+
+11.7
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d22 1
+a22 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/util/pixcut.c,v 11.5 2001/08/10 20:57:07 butler Exp $";
+d71 1
+a71 3
+parse_color(bak, s)
+unsigned char *bak;
+char * s;
+d84 1
+a84 3
+get_args( argc, argv)
+register int argc;
+register char **argv;
+d168 1
+a168 2
+main(argc, argv)
+int argc; char **argv;
+@
+
+
+11.7.2.1
+log
+@Initial ANSIfication
+@
+text
+@d22 1
+a22 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/util/pixcut.c,v 11.7 2002/08/20 17:09:02 jra Exp $";
+d71 3
+a73 1
+parse_color(unsigned char *bak, char *s)
+d86 3
+a88 1
+get_args(register int argc, register char **argv)
+d172 2
+a173 1
+main(int argc, char **argv)
+@
+
+
+11.6
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d71 3
+a73 1
+parse_color(unsigned char *bak, char *s)
+d86 3
+a88 1
+get_args(register int argc, register char **argv)
+d172 2
+a173 1
+main(int argc, char **argv)
+@
+
+
+11.5
+log
+@Misc compiler warnings eliminated
+@
+text
+@d22 1
+a22 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/util/pixcut.c,v 11.4 2000/09/01 03:23:55 mike Exp $";
+d71 1
+a71 3
+parse_color(bak, s)
+unsigned char *bak;
+char * s;
+d84 1
+a84 3
+get_args( argc, argv)
+register int argc;
+register char **argv;
+d168 1
+a168 2
+main(argc, argv)
+int argc; char **argv;
+@
+
+
+11.4
+log
+@
+Lint fix
+@
+text
+@d22 1
+a22 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/util/pixcut.c,v 11.3 2000/08/23 19:04:47 mike Exp $";
+d28 5
+d35 4
+d85 1
+@
+
+
+11.3
+log
+@
+const RCSid
+@
+text
+@d22 1
+a22 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/util/pixcut.c,v 11.2 1996/12/13 15:05:51 jra Exp $";
+d161 1
+@
+
+
+11.2
+log
+@Mods to account for asize routines now in libbn.
+@
+text
+@d22 1
+a22 1
+static char RCSid[] = "@@(#)$Header: /m/cad/util/RCS/pixcut.c,v 11.1 1995/01/04 10:12:35 mike Rel4_4 jra $";
+@
+
+
+11.1
+log
+@Release_4.4
+@
+text
+@d22 1
+a22 1
+static char RCSid[] = "@@(#)$Header: /m/cad/util/RCS/pixcut.c,v 1.6 94/11/14 22:45:39 mike Exp $";
+d180 1
+a180 1
+		if (fb_common_file_size(&w, &h, in_name, num_bytes)) {
+@
+
+
+1.6
+log
+@Added setvbuf()
+@
+text
+@d22 1
+a22 1
+static char RCSid[] = "@@(#)$Header: /m/cad/util/RCS/pixcut.c,v 1.5 94/11/15 03:38:02 cjohnson Exp Locker: mike $";
+@
+
+
+1.5
+log
+@Add num_bytes and a first pass at long backgrounds.
+@
+text
+@d22 1
+a22 1
+static char RCSid[] = "@@(#)$Header: /m/cad/util/RCS/pixcut.c,v 1.4 1994/09/22 04:18:30 mike Exp cjohnson $";
+d44 4
+d187 9
+@
+
+
+1.4
+log
+@Pointer problem
+@
+text
+@d22 1
+a22 1
+static char RCSid[] = "@@(#)$Header: /m/cad/util/RCS/pixcut.c,v 1.3 94/08/23 15:05:53 gdurf Exp Locker: mike $";
+d39 1
+d41 2
+a42 1
+static unsigned char background[3];	/* Holds the fill background color */
+d52 1
+a52 1
+pixcut: Usage:	[-v] [-h] [-H] [-a] [-C red/green/blue]\n\
+d78 1
+a78 1
+	while ( (c = getopt(argc, argv, "vahHC:s:w:n:S:W:N:x:y:" )) != EOF) {
+d123 3
+d166 1
+a166 1
+	background[0] = background[1] = 0;
+d176 1
+a176 1
+		if (fb_common_file_size(&w, &h, in_name, 3)) {
+d188 1
+a188 1
+	if ((buffer = (unsigned char *)malloc((org_width+new_width)*3)) == (unsigned char *)NULL ) {
+d266 1
+a266 1
+		inbuf = buffer - base_x*3;	/* base_x < 0 so - not + */
+d268 1
+a268 1
+		outbuf = buffer + base_x*3;
+d275 5
+a279 4
+		for (i=0, cp = outbuf; i<new_width; i++,cp+=3) {
+			cp[0] = background[0];
+			cp[1] = background[1];
+			cp[2] = background[2];
+d292 1
+a292 1
+		result = fwrite(outbuf, 3, new_width, stdout);
+d301 1
+a301 1
+		result = fread(inbuf, 3, org_width, input);
+d308 1
+a308 1
+		result = fread(inbuf, 3, org_width, input);
+d310 5
+a314 4
+			for (cp=inbuf+result*3; result < org_width; cp+=3,++result) {
+				cp[0] = background[0];
+				cp[1] = background[1];
+				cp[2] = background[2];
+d318 1
+a318 1
+		result = fwrite(outbuf, 3, new_width, stdout);
+d330 5
+a334 4
+		for (cp=outbuf,i=0;i<new_width;cp+=3,i++) {
+			cp[0] = background[0];
+			cp[1] = background[1];
+			cp[2] = background[2];
+d342 1
+a342 1
+		result = fwrite(outbuf,3, new_width, stdout);
+@
+
+
+1.3
+log
+@Factored ifdefs
+@
+text
+@d22 1
+a22 1
+static char RCSid[] = "@@(#)$Header: /m/cad/util/RCS/pixcut.c,v 1.2 1993/09/25 11:40:27 mike Exp gdurf $";
+d183 1
+a183 1
+	if ((buffer = malloc((org_width+new_width)*3)) == NULL ) {
+@
+
+
+1.2
+log
+@Added void.
+@
+text
+@d22 1
+a22 1
+static char RCSid[] = "@@(#)$Header: /m/cad/util/RCS/pixcut.c,v 1.1 92/11/19 15:16:06 mike Exp Locker: mike $";
+d25 2
+d29 2
+a30 3
+extern int	getopt();
+extern char	*optarg;
+extern int	optind;
+a31 1
+unsigned char *malloc();
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d22 1
+a22 1
+static char RCSid[] = "@@(#)$Header:$";
+d55 1
+@

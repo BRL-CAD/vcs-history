@@ -1,0 +1,623 @@
+head	1.16;
+access;
+symbols
+	rel-7-10-4:1.14
+	STABLE:1.14.0.2
+	rel-7-10-2:1.13
+	rel-7-10-0:1.12
+	rel-7-8-4:1.5
+	rel-7-8-2:1.5
+	rel-7-8-0:1.5
+	trimnurbs-branch:1.5.0.2
+	help:1.5
+	temp_tag:1.5
+	bobWinPort-20051223-freeze:1.2
+	postmerge-20051223-bobWinPort:1.5
+	premerge-20051223-bobWinPort:1.5
+	rel-7-6-6:1.5
+	rel-7-6-4:1.5
+	rel-7-6-2:1.2
+	rel-7-6-branch:1.2.0.6
+	rel-7-6-0:1.2
+	rel-7-4-2:1.2
+	rel-7-4-branch:1.2.0.4
+	bobWinPort:1.2.0.2
+	rel-7-4-0:1.2;
+locks; strict;
+comment	@ * @;
+
+
+1.16
+date	2007.12.06.19.02.34;	author erikgreenwald;	state Exp;
+branches;
+next	1.15;
+
+1.15
+date	2007.12.05.21.24.13;	author erikgreenwald;	state Exp;
+branches;
+next	1.14;
+
+1.14
+date	2007.08.30.19.11.29;	author brlcad;	state Exp;
+branches;
+next	1.13;
+
+1.13
+date	2007.05.31.20.16.08;	author erikgreenwald;	state Exp;
+branches;
+next	1.12;
+
+1.12
+date	2007.03.20.20.05.07;	author brlcad;	state Exp;
+branches;
+next	1.11;
+
+1.11
+date	2007.02.08.06.49.18;	author brlcad;	state Exp;
+branches;
+next	1.10;
+
+1.10
+date	2007.02.02.19.46.34;	author erikgreenwald;	state Exp;
+branches;
+next	1.9;
+
+1.9
+date	2007.01.27.01.41.30;	author brlcad;	state Exp;
+branches;
+next	1.8;
+
+1.8
+date	2007.01.23.01.13.21;	author brlcad;	state Exp;
+branches;
+next	1.7;
+
+1.7
+date	2007.01.21.00.51.05;	author brlcad;	state Exp;
+branches;
+next	1.6;
+
+1.6
+date	2007.01.18.22.17.57;	author erikgreenwald;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	2005.10.30.21.58.55;	author brlcad;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	2005.09.21.16.02.42;	author twingy;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2005.09.21.02.17.11;	author twingy;	state dead;
+branches;
+next	1.2;
+
+1.2
+date	2005.06.17.19.10.47;	author erikgreenwald;	state Exp;
+branches
+	1.2.6.1;
+next	1.1;
+
+1.1
+date	2005.06.17.15.09.26;	author lbutler;	state Exp;
+branches;
+next	;
+
+1.2.6.1
+date	2005.11.13.13.46.12;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.16
+log
+@hack to quell warnings, surely breaks in double precision mode
+@
+text
+@/*                          P A T H . C
+ * BRL-CAD / ADRT
+ *
+ * Copyright (c) 2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This library is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@file path.c
+ *
+ *  Author -
+ *      Justin L. Shumaker
+ *
+ */
+
+#ifndef TIE_PRECISION
+# define TIE_PRECISION 0
+#endif
+
+#include "path.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <math.h>
+#include "umath.h"
+#include "hit.h"
+#include "adrt_struct.h"
+
+void render_path_init(render_t *render, int samples) {
+  render_path_t *d;
+
+  render->work = render_path_work;
+  render->free = render_path_free;
+  render->data = (render_path_t *)malloc(sizeof(render_path_t));
+  if (!render->data) {
+      perror("render->data");
+      exit(1);
+  }
+  d = (render_path_t *)render->data;
+  d->samples = samples;
+  d->inv_samples = 1.0 / samples;
+}
+
+
+void render_path_free(render_t *render) {
+  free(render->data);
+}
+
+
+void render_path_work(render_t *render, tie_t *tie, tie_ray_t *ray, TIE_3 *pixel) {
+  tie_ray_t new_ray;
+  tie_id_t new_id;
+  TIE_3 new_pix, accum, T, ref, bax, bay;
+  adrt_mesh_t *new_mesh;
+  tfloat sin_theta, cos_theta, sin_phi, cos_phi;
+  int i, n, propogate;
+  render_path_t *rd;
+
+
+  rd = (render_path_t *)render->data;
+
+  accum.v[0] = accum.v[1] = accum.v[2] = 0;
+
+  for(i = 0; i < rd->samples; i++) {
+    /* Prime variables */
+    new_ray = *ray;
+    propogate = 1;
+
+    /* Terminate if depth is too great. */
+    while(propogate) {
+      if((new_mesh = (adrt_mesh_t *)tie_work(tie, &new_ray, &new_id, render_hit, NULL)) && new_ray.depth < RENDER_MAX_DEPTH) {
+        if(new_mesh->attributes->ior != 1.0) {	/* Refractive Caustic */
+          /* Deal with refractive-fu */
+        } else if(new_mesh->attributes->emission > 0.0) {	/* Emitting Light Source */
+          T = new_mesh->attributes->color;
+          MATH_VEC_MUL_SCALAR(T, T, new_mesh->attributes->emission);
+          propogate = 0;
+        } else {	/* Diffuse */
+          if(new_mesh->texture) {
+            new_mesh->texture->work(new_mesh->texture, new_mesh, &new_ray, &new_id, &T);
+          } else {
+            T = new_mesh->attributes->color;
+          }
+        }
+
+        if(new_ray.depth) {
+          MATH_VEC_MUL(new_pix, new_pix, T);
+        } else {
+          new_pix = T;
+        }
+
+        new_ray.depth++;
+
+        MATH_VEC_REFLECT(ref, new_ray.dir, new_id.norm);
+
+        new_ray.pos.v[0] = new_id.pos.v[0] + new_id.norm.v[0]*TIE_PREC;
+        new_ray.pos.v[1] = new_id.pos.v[1] + new_id.norm.v[1]*TIE_PREC;
+        new_ray.pos.v[2] = new_id.pos.v[2] + new_id.norm.v[2]*TIE_PREC;
+
+        T.v[0] = new_id.norm.v[0] - new_mesh->attributes->gloss*ref.v[0];
+        T.v[1] = new_id.norm.v[1] - new_mesh->attributes->gloss*ref.v[1];
+        T.v[2] = new_id.norm.v[2] - new_mesh->attributes->gloss*ref.v[2];
+        MATH_VEC_UNITIZE(T);
+
+        /* Form Basis X */
+        bax.v[0] = T.v[0] || T.v[1] ? -T.v[1] : 1.0;
+        bax.v[1] = T.v[0];
+        bax.v[2] = 0;
+        MATH_VEC_UNITIZE(bax);
+
+        /* Form Basis Y, Simplified Cross Product of two unit vectors is a unit vector */
+        bay.v[0] = -T.v[2]*bax.v[1];
+        bay.v[1] = T.v[2]*bax.v[0];
+        bay.v[2] = T.v[0]*bax.v[1] - T.v[1]*bax.v[0];
+
+        cos_theta = math_rand();
+        sin_theta = sqrt(cos_theta);
+        cos_theta = 1-cos_theta;
+
+        cos_phi = math_rand()*MATH_2_PI;
+        sin_phi = sin(cos_phi);
+        cos_phi = cos(cos_phi);
+
+        for(n = 0; n < 3; n++) {
+          T.v[n] = sin_theta*cos_phi*bax.v[n] + sin_theta*sin_phi*bay.v[n] + cos_theta*T.v[n];
+          /* Weigh reflected vector back in */
+          new_ray.dir.v[n] = (1.0 - new_mesh->attributes->gloss)*T.v[n] + new_mesh->attributes->gloss * ref.v[n];
+        }
+
+        MATH_VEC_UNITIZE(new_ray.dir);
+      } else {
+        new_pix.v[0] = 0;
+        new_pix.v[1] = 0;
+        new_pix.v[2] = 0;
+        propogate = 0;
+      }
+    }
+
+    MATH_VEC_ADD(accum, accum, new_pix);
+  }
+
+  MATH_VEC_MUL_SCALAR((*pixel), accum, rd->inv_samples);
+}
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+1.15
+log
+@merge in updated librender
+@
+text
+@d27 4
+@
+
+
+1.14
+log
+@TFLOAT changed to tfloat.  also quell a few warnings/bugs related to passing the wrong TIE_3 pointer type.
+@
+text
+@d30 1
+d33 1
+a33 2
+#include "adrt_common.h"
+
+d57 6
+a62 6
+  tie_ray_t	new_ray;
+  tie_id_t	new_id;
+  TIE_3		new_pix, accum, T, ref, bax, bay;
+  common_mesh_t	*new_mesh;
+  tfloat	sin_theta, cos_theta, sin_phi, cos_phi;
+  int		i, n, propogate;
+d77 58
+a134 58
+      if((new_mesh = (common_mesh_t *)tie_work(tie, &new_ray, &new_id, render_hit, NULL)) && new_ray.depth < RENDER_MAX_DEPTH) {
+	if(new_mesh->prop->ior != 1.0) {	/* Refractive Caustic */
+	  /* Deal with refractive-fu */
+	} else if(new_mesh->prop->emission > 0.0) {	/* Emitting Light Source */
+	  T = new_mesh->prop->color;
+	  MATH_VEC_MUL_SCALAR(T, T, new_mesh->prop->emission);
+	  propogate = 0;
+	} else {	/* Diffuse */
+	  if(new_mesh->texture) {
+	    new_mesh->texture->work(new_mesh->texture, (struct mesh_s *)new_mesh, &new_ray, &new_id, &T);
+	  } else {
+	    T = new_mesh->prop->color;
+	  }
+	}
+
+	if(new_ray.depth) {
+	  MATH_VEC_MUL(new_pix, new_pix, T);
+	} else {
+	  new_pix = T;
+	}
+
+	new_ray.depth++;
+
+	MATH_VEC_REFLECT(ref, new_ray.dir, new_id.norm);
+
+	new_ray.pos.v[0] = new_id.pos.v[0] + new_id.norm.v[0]*TIE_PREC;
+	new_ray.pos.v[1] = new_id.pos.v[1] + new_id.norm.v[1]*TIE_PREC;
+	new_ray.pos.v[2] = new_id.pos.v[2] + new_id.norm.v[2]*TIE_PREC;
+
+	T.v[0] = new_id.norm.v[0] - new_mesh->prop->gloss*ref.v[0];
+	T.v[1] = new_id.norm.v[1] - new_mesh->prop->gloss*ref.v[1];
+	T.v[2] = new_id.norm.v[2] - new_mesh->prop->gloss*ref.v[2];
+	MATH_VEC_UNITIZE(T);
+
+	/* Form Basis X */
+	bax.v[0] = T.v[0] || T.v[1] ? -T.v[1] : 1.0;
+	bax.v[1] = T.v[0];
+	bax.v[2] = 0;
+	MATH_VEC_UNITIZE(bax);
+
+	/* Form Basis Y, Simplified Cross Product of two unit vectors is a unit vector */
+	bay.v[0] = -T.v[2]*bax.v[1];
+	bay.v[1] = T.v[2]*bax.v[0];
+	bay.v[2] = T.v[0]*bax.v[1] - T.v[1]*bax.v[0];
+
+	cos_theta = math_rand();
+	sin_theta = sqrt(cos_theta);
+	cos_theta = 1-cos_theta;
+
+	cos_phi = math_rand()*MATH_2_PI;
+	sin_phi = sin(cos_phi);
+	cos_phi = cos(cos_phi);
+
+	for(n = 0; n < 3; n++) {
+	  T.v[n] = sin_theta*cos_phi*bax.v[n] + sin_theta*sin_phi*bay.v[n] + cos_theta*T.v[n];
+	  /* Weigh reflected vector back in */
+	  new_ray.dir.v[n] = (1.0 - new_mesh->prop->gloss)*T.v[n] + new_mesh->prop->gloss * ref.v[n];
+	}
+d136 1
+a136 1
+	MATH_VEC_UNITIZE(new_ray.dir);
+d138 4
+a141 4
+	new_pix.v[0] = 0;
+	new_pix.v[1] = 0;
+	new_pix.v[2] = 0;
+	propogate = 0;
+@
+
+
+1.13
+log
+@fix various compiler warnings
+@
+text
+@d61 1
+a61 1
+  TFLOAT	sin_theta, cos_theta, sin_phi, cos_phi;
+@
+
+
+1.12
+log
+@since adrt uses malloc, add checks on use for a null return value.  this probably would be a good reason to being associating with libbu.. (this fixes sf bug 1680679 - Check return codes everywhere; submitted by Markus Elfring (elfring))
+@
+text
+@d86 1
+a86 1
+	    new_mesh->texture->work(new_mesh->texture, new_mesh, &new_ray, &new_id, &T);
+@
+
+
+1.11
+log
+@give adrt some distinctiveness in the header
+@
+text
+@d41 4
+@
+
+
+1.10
+log
+@finish changing all #defined symbols to uppercase...
+@
+text
+@d2 1
+a2 1
+ * BRL-CAD
+@
+
+
+1.9
+log
+@ws. lots and lots of ws.  see sh/ws.sh for details (cases 'abcdeg').
+@
+text
+@d57 1
+a57 1
+  tfloat	sin_theta, cos_theta, sin_phi, cos_phi;
+@
+
+
+1.8
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@d74 57
+a130 57
+        if(new_mesh->prop->ior != 1.0) {	/* Refractive Caustic */
+          /* Deal with refractive-fu */
+        } else if(new_mesh->prop->emission > 0.0) {	/* Emitting Light Source */
+          T = new_mesh->prop->color;
+          MATH_VEC_MUL_SCALAR(T, T, new_mesh->prop->emission);
+          propogate = 0;
+        } else {	/* Diffuse */
+          if(new_mesh->texture) {
+            new_mesh->texture->work(new_mesh->texture, new_mesh, &new_ray, &new_id, &T);
+          } else {
+            T = new_mesh->prop->color;
+          }
+        }
+
+        if(new_ray.depth) {
+          MATH_VEC_MUL(new_pix, new_pix, T);
+        } else {
+          new_pix = T;
+        }
+
+        new_ray.depth++;
+
+        MATH_VEC_REFLECT(ref, new_ray.dir, new_id.norm);
+
+        new_ray.pos.v[0] = new_id.pos.v[0] + new_id.norm.v[0]*TIE_PREC;
+        new_ray.pos.v[1] = new_id.pos.v[1] + new_id.norm.v[1]*TIE_PREC;
+        new_ray.pos.v[2] = new_id.pos.v[2] + new_id.norm.v[2]*TIE_PREC;
+
+        T.v[0] = new_id.norm.v[0] - new_mesh->prop->gloss*ref.v[0];
+        T.v[1] = new_id.norm.v[1] - new_mesh->prop->gloss*ref.v[1];
+        T.v[2] = new_id.norm.v[2] - new_mesh->prop->gloss*ref.v[2];
+        MATH_VEC_UNITIZE(T);
+
+        /* Form Basis X */
+        bax.v[0] = T.v[0] || T.v[1] ? -T.v[1] : 1.0;
+        bax.v[1] = T.v[0];
+        bax.v[2] = 0;
+        MATH_VEC_UNITIZE(bax);
+
+        /* Form Basis Y, Simplified Cross Product of two unit vectors is a unit vector */
+        bay.v[0] = -T.v[2]*bax.v[1];
+        bay.v[1] = T.v[2]*bax.v[0];
+        bay.v[2] = T.v[0]*bax.v[1] - T.v[1]*bax.v[0];
+
+        cos_theta = math_rand();
+        sin_theta = sqrt(cos_theta);
+        cos_theta = 1-cos_theta;
+
+        cos_phi = math_rand()*MATH_2_PI;
+        sin_phi = sin(cos_phi);
+        cos_phi = cos(cos_phi);
+
+        for(n = 0; n < 3; n++) {
+          T.v[n] = sin_theta*cos_phi*bax.v[n] + sin_theta*sin_phi*bay.v[n] + cos_theta*T.v[n];
+          /* Weigh reflected vector back in */
+          new_ray.dir.v[n] = (1.0 - new_mesh->prop->gloss)*T.v[n] + new_mesh->prop->gloss * ref.v[n];
+        }
+d132 1
+a132 1
+        MATH_VEC_UNITIZE(new_ray.dir);
+d134 4
+a137 4
+        new_pix.v[0] = 0;
+        new_pix.v[1] = 0;
+        new_pix.v[2] = 0;
+        propogate = 0;
+@
+
+
+1.7
+log
+@standard header and footer cleanup
+@
+text
+@d9 1
+a9 1
+ * as published by the Free Software Foundation.
+@
+
+
+1.6
+log
+@uppercase all #define symbols
+@
+text
+@d1 26
+d146 10
+@
+
+
+1.5
+log
+@remove C++-style // comments as there's no assumption of c99 compiler compliance yet, only c89 (mostly aix compiler though other old compilers too)
+@
+text
+@d52 1
+a52 1
+          math_vec_mul_scalar(T, T, new_mesh->prop->emission);
+d63 1
+a63 1
+          math_vec_mul(new_pix, new_pix, T);
+d70 1
+a70 1
+        math_vec_reflect(ref, new_ray.dir, new_id.norm);
+d79 1
+a79 1
+        math_vec_unitize(T);
+d85 1
+a85 1
+        math_vec_unitize(bax);
+d96 1
+a96 1
+        cos_phi = math_rand()*math_2_pi;
+d106 1
+a106 1
+        math_vec_unitize(new_ray.dir);
+d115 1
+a115 1
+    math_vec_add(accum, accum, new_pix);
+d118 1
+a118 1
+  math_vec_mul_scalar((*pixel), accum, rd->inv_samples);
+@
+
+
+1.4
+log
+@libvis->librender
+@
+text
+@d49 1
+a49 1
+          // Deal with refractive-fu
+@
+
+
+1.3
+log
+@removed
+@
+text
+@@
+
+
+1.2
+log
+@hoisting build system and making it play nice with brlcad
+@
+text
+@@
+
+
+1.2.6.1
+log
+@merge changes from HEAD aka rel-7-6-4 to the rel-7-6-branch just in case someone peeks a gander or tries to continue/build the branch
+@
+text
+@d49 1
+a49 1
+          /* Deal with refractive-fu */
+@
+
+
+1.1
+log
+@Welcome ADRT
+@
+text
+@d6 1
+a6 1
+#include "common.h"
+@
+

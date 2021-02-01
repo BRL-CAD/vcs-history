@@ -1,0 +1,421 @@
+head	11.7;
+access;
+symbols
+	ansi-20040405-merged:11.5.4.1
+	postmerge-20040405-ansi:11.6
+	premerge-20040404-ansi:11.6
+	postmerge-autoconf:11.6
+	autoconf-freeze:11.6
+	premerge-autoconf:11.6
+	postmerge-20040315-windows:11.6
+	premerge-20040315-windows:11.6
+	windows-20040315-freeze:11.5.6.1
+	autoconf-20031203:11.6
+	autoconf-20031202:11.6
+	autoconf-branch:11.6.0.4
+	phong-branch:11.6.0.2
+	photonmap-branch:11.5.0.8
+	rel-6-1-DP:11.5
+	windows-branch:11.5.0.6
+	rel-6-0-2:11.5
+	ansi-branch:11.5.0.4
+	rel-6-0-1-branch:11.5.0.2
+	hartley-6-0-post:11.5
+	hartley-6-0-pre:11.5
+	rel-6-0-1:11.5
+	rel-6-0:11.4
+	rel-5-4:11.3
+	offsite-5-3-pre:11.4
+	rel-5-3:11.3
+	rel-5-2:11.3
+	rel-5-1-branch:11.3.0.2
+	rel-5-1:11.3
+	rel-5-0:11.2
+	rel-5-0-beta:11.2;
+locks; strict;
+comment	@ * @;
+
+
+11.7
+date	2004.05.21.17.33.45;	author morrison;	state dead;
+branches;
+next	11.6;
+
+11.6
+date	2003.09.10.16.25.01;	author morrison;	state Exp;
+branches;
+next	11.5;
+
+11.5
+date	2002.05.17.12.42.24;	author morrison;	state Exp;
+branches
+	11.5.4.1
+	11.5.6.1;
+next	11.4;
+
+11.4
+date	2000.07.10.23.35.39;	author mike;	state Exp;
+branches;
+next	11.3;
+
+11.3
+date	2000.03.31.03.07.31;	author mike;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	98.07.06.19.19.06;	author mccarty;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	98.07.06.17.49.32;	author mccarty;	state Exp;
+branches;
+next	;
+
+11.5.4.1
+date	2004.03.17.21.22.54;	author morrison;	state Exp;
+branches;
+next	;
+
+11.5.6.1
+date	2004.03.10.15.06.36;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+11.7
+log
+@moved to src/proc-db/
+@
+text
+@#include <stdio.h>
+#include <stdlib.h>
+#include <math.h>
+#include "machine.h"
+#include "vmath.h"
+#include "raytrace.h"
+#include "wdb.h"
+
+
+int main(int argc, char *argv[])
+{
+  FILE *f;
+  long i, j, k, l;
+  char name[256];
+  char pname[256];
+  char number[256];
+  char w1name[256];
+  char w2name[256];
+  char firstname[256];
+  char prefix[256];
+  
+  struct wmember wm;
+  struct wmember wm2;
+  struct wmember fwm;
+  struct wmember swm;
+  struct wmember *nwm;
+
+  fastf_t first_mat[16];
+
+  fastf_t s0[24] = {0, 0, 0,
+		   0, 0, 0,
+		   15, 0, 0,
+		   15, 0, 0,
+		   0, 0, 0,
+		   0, 0, 0,
+		   15, 0, 0,
+		   15, 0, 0};
+  point_t c0 = {15, 0, 0};
+  point_t w0 = {0, 0, 0};
+  point_t w1 = {25, 0, 0};
+  fastf_t s1[24] = {-0.001, 0, 0,
+		   -0.001, 0, 0,
+		   -12.6, 0, 0,
+		   -12.6, 0, 0,
+		   -0.001, 0, 0,
+		   -0.001, 0, 0,
+		   -12.6, 0, 0,
+		   -12.6, 0, 0};
+  fastf_t xlen = .0001;
+  fastf_t ylen = -26;
+  fastf_t zlen;
+  fastf_t xt, yt;
+  fastf_t x_top_len = 20;
+  vect_t w0x = {0, 1, 0},
+	 w0z = {0, 0, -1},
+	 w1x = {0, -1, 0},
+	 w1z = {0, 0, -1},
+	 c0a = {4, 0, 0},
+	 c0b = {0, 0, 0},
+	 c0c = {4, 0, 0},
+	 c0d = {0, 0, 0},
+	 c0h = {0, 0, 0};
+  fastf_t x0, y0, z0, x1, y1, z1;
+  fastf_t height;
+  fastf_t width;
+  fastf_t pwidth;
+  fastf_t ps;
+  long numposts;
+  fastf_t zstep;
+
+  int round = 0;
+  
+  if (argc < 10)
+    {
+      fprintf(stderr, "Usage: pf <filename> <prefix> <height in mm> <spacing> <x0> <y0> <z0> ... <xn> <yn> <zn> [-r]\n");
+      exit(1);
+    }
+  strcpy(prefix, argv[2]);
+  ps = atof(argv[4]);
+
+  f = fopen(argv[1], "w");
+  mk_id(f, "Picket Fence");
+  
+  BU_LIST_INIT(&wm.l);
+  BU_LIST_INIT(&wm2.l);
+  BU_LIST_INIT(&fwm.l);
+  BU_LIST_INIT(&swm.l);
+
+  for (j = 0; j < ((argc - 4) / 3) - 1; j++)
+    {
+      if (!strcmp(argv[argc - 1], "-r"))
+	round = 1;
+      x0 = (fastf_t)atof(argv[5 + (3 * j)]);
+      y0 = (fastf_t)atof(argv[6 + (3 * j)]);
+      z0 = (fastf_t)atof(argv[7 + (3 * j)]);
+      x1 = (fastf_t)atof(argv[8 + (3 * j)]);
+      y1 = (fastf_t)atof(argv[9 + (3 * j)]);
+      z1 = (fastf_t)atof(argv[10 + (3 * j)]);
+      height = (fastf_t)atof(argv[3]);
+      width = sqrt(((x1 - x0) * (x1 - x0)) + ((y1 - y0) * (y1 - y0)));;
+      pwidth = ((fastf_t)width / 
+		(fastf_t)(((int)(width / (51+ps))) * (51+ps))) * (51+ps);
+      numposts = (width / pwidth);
+      zstep = (z1 - z0) / numposts;
+      zlen = -.076001 * height;
+      s0[4] = s0[7] = s0[16] = s0[19] = pwidth - ps;
+      s0[14] = s0[17] = s0[20] = s0[23] = height;
+      c0[1] = (pwidth - ps) / 2.0;
+      w0[2] = w1[2] = .924 * height;
+      w1[1] = pwidth - ps;
+      s1[2] = s1[11] = z0 + (height / 3);
+      s1[5] = s1[8] = z1 + (height / 3);
+      s1[14] = s1[23] = z0 + ((height / 3) + 102);
+      s1[17] = s1[20] = z1 + ((height / 3) + 102);
+      s1[4] = s1[7] = s1[16] = s1[19] = width;
+      c0b[1] = (pwidth - ps) / 2.0;
+      c0d[1] = (pwidth - ps) / 2.0;
+      c0h[2] = height;
+
+      sprintf(w1name, "%swedge1-%ld.s", prefix, j);
+      mk_wedge(f, w1name, w0, w0x, w0z, xlen, ylen, zlen, x_top_len);
+      
+      sprintf(w2name, "%swedge2-%ld.s", prefix, j);
+      mk_wedge(f, w2name, w1, w1x, w1z, xlen, ylen, zlen, x_top_len);
+      
+      sprintf(name, "%spost-%ld.s", prefix, j);
+      mk_arb8(f, name, s0);
+      mk_addmember(name, &wm, NULL, WMOP_UNION);
+      mk_addmember(w1name, &wm, NULL, WMOP_SUBTRACT);
+      mk_addmember(w2name, &wm, NULL, WMOP_SUBTRACT);
+      
+      if (round)
+	{
+	  sprintf(name, "%spost_c.s", prefix);
+	  mk_tgc(f, name, c0, c0h, c0a, c0b, c0c, c0d);
+	  mk_addmember(name, &wm, NULL, WMOP_UNION);
+	  mk_addmember(w1name, &wm, NULL, WMOP_SUBTRACT);
+	  mk_addmember(w2name, &wm, NULL, WMOP_SUBTRACT);
+	}
+      sprintf(name, "%sls%ld.s", prefix, j);
+      mk_arb8(f, name, s1);
+      mk_addmember(name, &swm, NULL, WMOP_UNION);
+      
+      for (k = 0; k < 8; k++)
+	s1[(3 * k) + 2] += (height / 3);
+      
+      sprintf(name, "%shs%ld.s", prefix, j);
+      mk_arb8(f, name, s1);
+      mk_addmember(name, &swm, NULL, WMOP_UNION);
+      
+      sprintf(pname, "%sp-%ld.c", prefix, j);
+      mk_lcomb(f, pname, &wm, 0, "plastic", "", "50 30 10", 0);
+      
+      for (i = 0; i < numposts; i++)
+	{
+	  sprintf(name, "%sp%ld-%ld.r", prefix, j, i);
+	  mk_addmember(pname, &wm2, NULL, WMOP_UNION);
+	  mk_lcomb(f, name, &wm2, 0, "plastic", "", "50 50 20", 0);
+	  nwm = mk_addmember(name, &swm, NULL, WMOP_UNION);
+	  for (k = 0; k < 16; k++)
+	    nwm->wm_mat[k] = 0;
+	  nwm->wm_mat[0] = 1;
+	  nwm->wm_mat[5] = 1;
+	  nwm->wm_mat[7] = i * pwidth;
+	  nwm->wm_mat[10] = 1;
+	  nwm->wm_mat[11] = i * zstep;
+	  nwm->wm_mat[15] = 1;
+	}
+      
+      sprintf(name, "%ssec%ld.c", prefix, j);
+      mk_lcomb(f, name, &swm, 0, "plastic", "", "50 50 20", 0);
+      nwm = mk_addmember(name, &fwm, NULL, WMOP_SUBTRACT);
+      xt = x1 - x0;
+      yt = y1 - y0;
+      xt /= sqrt((xt * xt) + (yt * yt));
+      yt /= sqrt((xt * xt) + (yt * yt));
+      nwm->wm_mat[0] = nwm->wm_mat[5] = cos(atan2(-xt, yt));
+      nwm->wm_mat[1] = -sin(atan2(-xt, yt));
+      nwm->wm_mat[3] = x0;
+      nwm->wm_mat[4] = -(nwm->wm_mat[1]);
+      nwm->wm_mat[5] = nwm->wm_mat[0];
+      nwm->wm_mat[7] = y0;
+      nwm->wm_mat[10] = 1;
+      nwm->wm_mat[11] = z0;
+      nwm->wm_mat[15] = 1;
+      nwm = mk_addmember(name, &fwm, NULL, WMOP_UNION);
+      xt = x1 - x0;
+      yt = y1 - y0;
+      xt /= sqrt((xt * xt) + (yt * yt));
+      yt /= sqrt((xt * xt) + (yt * yt));
+      nwm->wm_mat[0] = nwm->wm_mat[5] = cos(atan2(-xt, yt));
+      nwm->wm_mat[1] = -sin(atan2(-xt, yt));
+      nwm->wm_mat[3] = x0;
+      nwm->wm_mat[4] = -(nwm->wm_mat[1]);
+      nwm->wm_mat[5] = nwm->wm_mat[0];
+      nwm->wm_mat[7] = y0;
+      nwm->wm_mat[10] = 1;
+      nwm->wm_mat[11] = z0;
+      nwm->wm_mat[15] = 1;
+      if (j == 0)
+	{
+	  strcpy(firstname, name);
+	  for (l = 0; l < 16; l++)
+	    first_mat[l] = nwm->wm_mat[l];
+	}
+    }
+  nwm = mk_addmember(firstname, &fwm, NULL, WMOP_SUBTRACT);
+  for (l = 0; l < 16; l++)
+    nwm->wm_mat[l] = first_mat[l];
+  sprintf(name, "%sfence.c", prefix);
+  mk_lcomb(f, name, &fwm, 0, "plastic", "", "50 50 20", 0);
+}
+@
+
+
+11.6
+log
+@test
+@
+text
+@@
+
+
+11.5
+log
+@added matrix parameter to mk_addmember()
+@
+text
+@d9 1
+@
+
+
+11.5.4.1
+log
+@sync branch with HEAD
+@
+text
+@a8 1
+
+@
+
+
+11.5.6.1
+log
+@merge in updates from HEAD
+@
+text
+@a8 1
+
+@
+
+
+11.4
+log
+@
+raytrace.h before wdb.h
+Eliminated use of db.h
+@
+text
+@d127 3
+a129 3
+      mk_addmember(name, &wm, WMOP_UNION);
+      mk_addmember(w1name, &wm, WMOP_SUBTRACT);
+      mk_addmember(w2name, &wm, WMOP_SUBTRACT);
+d135 3
+a137 3
+	  mk_addmember(name, &wm, WMOP_UNION);
+	  mk_addmember(w1name, &wm, WMOP_SUBTRACT);
+	  mk_addmember(w2name, &wm, WMOP_SUBTRACT);
+d141 1
+a141 1
+      mk_addmember(name, &swm, WMOP_UNION);
+d148 1
+a148 1
+      mk_addmember(name, &swm, WMOP_UNION);
+d156 1
+a156 1
+	  mk_addmember(pname, &wm2, WMOP_UNION);
+d158 1
+a158 1
+	  nwm = mk_addmember(name, &swm, WMOP_UNION);
+d171 1
+a171 1
+      nwm = mk_addmember(name, &fwm, WMOP_SUBTRACT);
+d185 1
+a185 1
+      nwm = mk_addmember(name, &fwm, WMOP_UNION);
+d206 1
+a206 1
+  nwm = mk_addmember(firstname, &fwm, WMOP_SUBTRACT);
+@
+
+
+11.3
+log
+@
+Changed RT_ to BU_ / BN_
+@
+text
+@d6 1
+@
+
+
+11.2
+log
+@Fixed a bug in pickett_fence and added a man page for pickett_fence.
+@
+text
+@d82 4
+a85 4
+  RT_LIST_INIT(&wm.l);
+  RT_LIST_INIT(&wm2.l);
+  RT_LIST_INIT(&fwm.l);
+  RT_LIST_INIT(&swm.l);
+@
+
+
+11.1
+log
+@Added a program to generate picket fences.
+@
+text
+@d208 2
+a209 1
+  mk_lcomb(f, "fence.c", &fwm, 0, "plastic", "", "50 50 20", 0);
+@

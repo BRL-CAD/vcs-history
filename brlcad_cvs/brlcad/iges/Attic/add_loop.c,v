@@ -1,0 +1,643 @@
+head	11.10;
+access;
+symbols
+	ansi-20040405-merged:11.8.6.1
+	postmerge-20040405-ansi:11.9
+	premerge-20040404-ansi:11.9
+	postmerge-autoconf:11.9
+	autoconf-freeze:11.8.14.1
+	premerge-autoconf:11.9
+	ansi-20040316-freeze:11.8
+	postmerge-20040315-windows:11.9
+	premerge-20040315-windows:11.9
+	windows-20040315-freeze:11.8.8.1
+	autoconf-20031203:11.8
+	autoconf-20031202:11.8
+	autoconf-branch:11.8.0.14
+	phong-branch:11.8.0.12
+	photonmap-branch:11.8.0.10
+	rel-6-1-DP:11.8
+	windows-branch:11.8.0.8
+	rel-6-0-2:11.8
+	ansi-branch:11.8.0.6
+	rel-6-0-1-branch:11.8.0.4
+	hartley-6-0-post:11.8
+	hartley-6-0-pre:11.8
+	rel-6-0-1:11.8
+	rel-6-0:11.8
+	rel-5-4:11.8
+	offsite-5-3-pre:11.8
+	rel-5-3:11.8
+	rel-5-2:11.8
+	rel-5-1-branch:11.8.0.2
+	rel-5-1:11.8
+	rel-5-0:11.7
+	rel-5-0-beta:11.7
+	rel-4-5:11.7
+	ctj-4-5-post:11.7
+	ctj-4-5-pre:11.7
+	rel-4-4:11.6;
+locks; strict;
+comment	@ * @;
+
+
+11.10
+date	2004.05.24.04.01.07;	author morrison;	state dead;
+branches;
+next	11.9;
+
+11.9
+date	2004.02.02.17.39.04;	author morrison;	state Exp;
+branches;
+next	11.8;
+
+11.8
+date	2000.03.29.18.42.40;	author mike;	state Exp;
+branches
+	11.8.6.1
+	11.8.8.1
+	11.8.14.1;
+next	11.7;
+
+11.7
+date	95.11.28.21.35.45;	author jra;	state Exp;
+branches;
+next	11.6;
+
+11.6
+date	95.01.04.10.07.28;	author mike;	state Rel4_4;
+branches;
+next	11.5;
+
+11.5
+date	94.08.26.10.44.14;	author jra;	state Exp;
+branches;
+next	11.4;
+
+11.4
+date	94.08.25.10.46.44;	author jra;	state Exp;
+branches;
+next	11.3;
+
+11.3
+date	94.08.22.19.31.34;	author gdurf;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	94.01.07.15.16.02;	author jra;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	93.06.28.09.57.38;	author jra;	state Exp;
+branches;
+next	;
+
+11.8.6.1
+date	2004.03.17.21.16.30;	author morrison;	state Exp;
+branches;
+next	;
+
+11.8.8.1
+date	2004.03.11.23.41.13;	author morrison;	state Exp;
+branches;
+next	;
+
+11.8.14.1
+date	2004.02.12.19.41.38;	author erikg;	state Exp;
+branches;
+next	;
+
+
+desc
+@Add a loop to a face
+@
+
+
+11.10
+log
+@moved to src/iges/
+@
+text
+@/*
+ *  Authors -
+ *	John R. Anderson
+ *
+ *  Source -
+ *	SLAD/BVLD/VMB
+ *	The U. S. Army Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005
+ *  
+ *  Copyright Notice -
+ *	This software is Copyright (C) 1993-2004 by the United States Army.
+ *	All rights reserved.
+ */
+#include "./iges_struct.h"
+#include "./iges_extern.h"
+
+int
+Add_loop_to_face( s , fu , entityno , face_orient )
+struct shell *s;
+struct faceuse *fu;
+int entityno;
+int face_orient;
+{
+	struct faceuse *fu_tmp;
+	plane_t pl_fu,pl_fu_tmp;
+
+	NMG_CK_SHELL( s );
+	NMG_CK_FACEUSE( fu );
+	if( fu->orientation != OT_SAME )
+		fu = fu->fumate_p;
+	if( fu->orientation != OT_SAME )
+	{
+		bu_log( "fu x%x (%s) and mate x%x (%s) have no OT_SAME use\n" ,
+			fu , nmg_orientation( fu->orientation ) ,
+			fu->fumate_p , nmg_orientation( fu->fumate_p->orientation ) );
+		rt_bomb( "Faceuse and mate have no OT_SAME use\n" );
+			
+	}
+
+	/* first make a new face from the loop */
+	fu_tmp = Make_planar_face( s , entityno , face_orient );
+
+	if( !fu_tmp )
+		return( 0 );
+
+	if( fu_tmp->orientation != OT_SAME )
+		fu_tmp = fu_tmp->fumate_p;
+	if( fu_tmp->orientation != OT_SAME )
+	{
+		bu_log( "fu_tmp x%x (%s) nad mate x%x (%s) have no OT_SAME use\n" ,
+			fu_tmp , nmg_orientation( fu_tmp->orientation ) ,
+			fu_tmp->fumate_p , nmg_orientation( fu_tmp->fumate_p->orientation ) );
+		rt_bomb( "Faceuse and mate have no OT_SAME use\n" );
+			
+	}
+	
+
+	/* make sure OT_SAME use of this face is same direction as fu */
+	NMG_GET_FU_PLANE( pl_fu , fu );
+	NMG_GET_FU_PLANE( pl_fu_tmp , fu_tmp );
+	if( VDOT( pl_fu , pl_fu_tmp ) < 0.0 )
+		nmg_reverse_face( fu_tmp );
+
+	/* join this temporary face to the existing face */
+	nmg_jf( fu , fu_tmp );
+
+	return( 1 );
+}
+@
+
+
+11.9
+log
+@update copyright to include span through 2003
+@
+text
+@@
+
+
+11.8
+log
+@
+Converted from Release 4 names to know about libbu and libbn
+@
+text
+@d11 1
+a11 1
+ *	This software is Copyright (C) 1993 by the United States Army.
+@
+
+
+11.8.6.1
+log
+@sync branch with HEAD
+@
+text
+@d11 1
+a11 1
+ *	This software is Copyright (C) 1993-2004 by the United States Army.
+@
+
+
+11.8.8.1
+log
+@sync to HEAD...
+@
+text
+@d11 1
+a11 1
+ *	This software is Copyright (C) 1993-2004 by the United States Army.
+@
+
+
+11.8.14.1
+log
+@merge from HEAD
+@
+text
+@d11 1
+a11 1
+ *	This software is Copyright (C) 1993-2004 by the United States Army.
+@
+
+
+11.7
+log
+@Mods to handle TNURB BREP. Also added RT_EXTERNS to iges_struct.h.
+@
+text
+@d33 1
+a33 1
+		rt_log( "fu x%x (%s) and mate x%x (%s) have no OT_SAME use\n" ,
+d50 1
+a50 1
+		rt_log( "fu_tmp x%x (%s) nad mate x%x (%s) have no OT_SAME use\n" ,
+@
+
+
+11.6
+log
+@Release_4.4
+@
+text
+@a13 16
+#include "conf.h"
+
+#include <stdio.h>
+#ifdef USE_STRING_H
+#include <string.h>
+#else
+#include <strings.h>
+#endif
+
+#include "machine.h"
+#include "vmath.h"
+#include "rtlist.h"
+#include "rtstring.h"
+#include "nmg.h"
+#include "raytrace.h"
+#include "wdb.h"
+a16 2
+RT_EXTERN( struct faceuse *Make_face , ( struct shell *s, int entityno, int face_orient ) );
+
+d33 1
+a33 1
+		rt_log( "fu x%x (%s) nad mate x%x (%s) have no OT_SAME use\n" ,
+d41 1
+a41 1
+	fu_tmp = Make_face( s , entityno , face_orient );
+@
+
+
+11.5
+log
+@Re-written to use Make_face and nmg_jf.
+@
+text
+@@
+
+
+11.4
+log
+@Checkpoint.
+@
+text
+@d33 1
+a33 1
+RT_EXTERN( struct vertex **Get_vertex , (struct iges_edge_use *edge ) );
+d41 3
+a43 13
+{ 
+	int			sol_num;	/* IGES solid type number */
+	int			no_of_edges;	/* edge count for this loop */
+	int			no_of_param_curves;
+	int			vert_count=0;	/* Actual number of vertices used to make loop */
+	struct iges_edge_use	*edge_list;	/* list of edges from iges entity */
+	struct vertex		**verts;	/* list of vertices */
+	struct faceuse		*fu1;
+	vect_t			pl_lu;		/* Plane equation for plane of loop */
+	vect_t			norm;		/* Normal for plane of face */
+	int			loop_orient;
+	int			done;
+	int			i,j,k;
+d47 3
+a49 5
+
+	NMG_GET_FU_NORMAL( norm , fu );
+
+	/* Acquiring Data */
+	if( dir[entityno]->param <= pstart )
+d51 5
+a55 3
+		printf( "Illegal parameter pointer for entity D%07d (%s)\n" ,
+				dir[entityno]->direct , dir[entityno]->name );
+		return(0);
+d58 2
+a59 7
+	Readrec( dir[entityno]->param );
+	Readint( &sol_num , "" );
+	if( sol_num != 508 )
+	{
+		rt_log( "Entity #%d is not a loop (it's a type %d)\n" , entityno , sol_num );
+		rt_bomb( "Fatal error\n" );
+	}
+d61 2
+a62 14
+	Readint( &no_of_edges , "" );
+	edge_list = (struct iges_edge_use *)rt_calloc( no_of_edges , sizeof( struct iges_edge_use ) ,
+			"Add_loop_to_face (edge_list)" );
+printf( "ADD LOOP:\n" );
+	for( i=0 ; i<no_of_edges ; i++ )
+	{
+		Readint( &edge_list[i].edge_is_vertex , "\tEDGE IS VERTEX: " );
+		Readint( &edge_list[i].edge_de , "\tEDGE LIST DE: " );
+		Readint( &edge_list[i].index , "\tEDGE LIST INDEX: " );
+		Readint( &edge_list[i].orient , "\tEDGE ORIENT: " );
+		Readint( &no_of_param_curves , "" );
+		for( j=0 ; j<2*no_of_param_curves ; j++ )
+			Readint( &k , "" );
+	}
+d64 3
+a66 5
+	verts = (struct vertex **)rt_calloc( no_of_edges , sizeof( struct vertex *) ,
+		"Make_face: vertex_list **" );
+
+	/* If nmg vertices already exist, put them in the list */
+	for( i=0 ; i<no_of_edges ; i++ )
+d68 5
+a72 4
+		if( face_orient )
+			verts[i] = (*Get_vertex( &edge_list[i] ));
+		else
+			verts[no_of_edges - 1 - i] = (*Get_vertex( &edge_list[i] ));
+d74 1
+d76 5
+a80 7
+	/* list vertices */
+	for( i=0 ; i<no_of_edges ; i++ )
+	{
+		struct iges_vertex_list *vl;
+		point_t pt1,pt2,start;
+		vect_t v1,v2,cross;
+		int found;
+d82 2
+a83 18
+		vl = vertex_root;
+		found = 0;
+printf( "verts[%d] = x%x" , i , verts[i] );
+		while( vl && !found )
+		{
+			for( j=0 ; j<vl->no_of_verts ; j++ )
+			{
+				if( vl->i_verts[j].v == verts[i] )
+				{
+					found = 1;
+printf( "\t( %g %g %g)\n" , V3ARGS( vl->i_verts[j].pt ) );
+					break;
+				}
+			}
+			if( !found )
+				vl = vl->next;
+		}
+	}
+a84 129
+	/* eliminate zero length edges */
+	vert_count = no_of_edges;
+	done = 0;
+	while( !done )
+	{
+		done = 1;
+		for( i=0 ; i<vert_count ; i++ )
+		{
+			k = i + 1;
+			if( k == vert_count )
+				k = 0;
+
+			if( verts[i] == verts[k] )
+			{
+				printf( "Ignoring zero length edge\n" );
+				done = 0;
+				vert_count--;
+				for( j=i ; j<vert_count ; j++ )
+					verts[j] = verts[j+1];
+			}
+		}
+	}
+
+	if( !vert_count )
+		printf( "\tNO VERTICES LEFT IN LOOP (Addloop)\n" );
+	else
+		printf( "LOOP AFTER ELIMINATING ZERO LENGTH EDGES\n" );
+
+	VSET( pl_lu , 0.0 , 0.0 , 0.0 );
+printf( "Calculating plane for loop:\n" );
+	for( i=0 ; i<vert_count ; i++ )
+	{
+		struct iges_vertex_list *vl;
+		point_t pt1,pt2,start;
+		vect_t v1,v2,cross;
+		int found;
+
+		vl = vertex_root;
+		found = 0;
+		while( vl && !found )
+		{
+			for( j=0 ; j<vl->no_of_verts ; j++ )
+			{
+				if( vl->i_verts[j].v == verts[i] )
+				{
+					found = 1;
+printf( "\t( %g %g %g)\n" , V3ARGS( vl->i_verts[j].pt ) );
+					break;
+				}
+			}
+			if( !found )
+				vl = vl->next;
+		}
+
+		if( !found )
+			rt_bomb( "Cannot find vertex for face\n" );
+
+		if( i == 0 )
+		{
+			VMOVE( start , vl->i_verts[j].pt );
+			VMOVE( pt2 , start );
+		}
+		else
+		{
+			VMOVE( pt1 , pt2 );
+			VMOVE( pt2 , vl->i_verts[j].pt );
+			VSUB2( v1 , pt1 , start );
+			VSUB2( v2 , pt2 , start );
+			VCROSS( cross , v1 , v2 );
+			VADD2( pl_lu , pl_lu , cross );
+		}
+	}
+
+	if( VDOT( pl_lu , norm ) < 0.0 )
+	{
+		/* reverse loop */
+		for( i=0 ; i<vert_count/2 ; i++ )
+		{
+			struct vertex *v_tmp;
+
+			v_tmp = verts[i];
+			verts[i] = verts[vert_count-i-1];
+			verts[vert_count-i-1] = v_tmp;
+		}
+	}
+
+	if( vert_count )
+		fu1 = nmg_add_loop_to_face( s , fu , verts , vert_count , OT_SAME );
+
+	/* put newly created nmg vertices into vertex list */
+	for( i=0 ; i<vert_count ; i++ )
+	{
+		struct vertex **vt;
+
+		vt = Get_vertex( &edge_list[i] );
+		if( face_orient )
+			(*vt) = verts[i];
+		else
+			(*vt) = verts[vert_count - 1 - i];
+	}
+
+	printf( "LOOP:\n" );
+	for( i=0 ; i<vert_count ; i++ )
+	{
+		struct iges_vertex_list *ivlist;
+		int found;
+
+		ivlist = vertex_root;
+		found = 0;
+		while( !found && ivlist != NULL )
+		{
+			for( j=0 ; j<ivlist->no_of_verts ; j++ )
+			{
+				if( ivlist->i_verts[j].v == verts[i] )
+				{
+					printf( "\t\t\t( %g , %g , %g )\n" ,
+						ivlist->i_verts[j].pt[X],
+						ivlist->i_verts[j].pt[Y],
+						ivlist->i_verts[j].pt[Z] );
+					found = 1;
+					break;
+				}
+			}
+			ivlist = ivlist->next;
+		}
+	}
+
+	rt_free( (char *)edge_list , "Add_loop_to_face (edge_list)" );
+	rt_free( (char *)verts , "Add_loop_to_face (vertexlist)" );
+a85 5
+
+  err:
+	rt_free( (char *)edge_list , "Add_loop_to_face (edge_list)" );
+	rt_free( (char *)verts , "Add_loop_to_face (vertexlist)" );
+	return( 0 );
+@
+
+
+11.3
+log
+@Factored ifdefs
+@
+text
+@d45 1
+d49 2
+d52 1
+d55 5
+a60 1
+
+d70 6
+d79 1
+d82 4
+a85 4
+		Readint( &edge_list[i].edge_is_vertex , "" );
+		Readint( &edge_list[i].edge_de , "" );
+		Readint( &edge_list[i].index , "" );
+		Readint( &edge_list[i].orient , "" );
+d103 7
+a109 1
+	fu1 = nmg_add_loop_to_face( s , fu , verts , no_of_edges , OT_NONE );
+d111 108
+d220 1
+a220 1
+	for( i=0 ; i<no_of_edges ; i++ )
+d228 1
+a228 1
+			(*vt) = verts[no_of_edges - 1 - i];
+d232 1
+a232 1
+	for( i=0 ; i<no_of_edges ; i++ )
+a254 5
+		k = i + 1;
+		if( k == no_of_edges )
+			k = 0;
+		if( verts[i] == verts[k] )
+			printf( "******************BAD LOOP (zero length edge)\n" );
+@
+
+
+11.2
+log
+@Modified header files
+@
+text
+@d14 2
+d17 6
+a24 5
+#ifdef BSD
+#include <strings.h>
+#else
+#include <string.h>
+#endif
+@
+
+
+11.1
+log
+@Major Upgrade to IGES 5.1
+@
+text
+@a21 2
+#include "./iges_struct.h"
+#include "./iges_extern.h"
+d27 2
+d30 2
+d33 2
+a34 1
+Add_loop_to_face( fu , entityno , loop_orient )
+d37 1
+a37 1
+int loop_orient;
+d42 4
+a45 1
+	struct iges_edge	*edge_list;	/* list of edges from iges entity */
+d58 3
+a60 3
+	Readint( &sol_num , "LOOP: " );
+	Readint( &no_of_edges , "No. of edges: " );
+	edge_list = (struct iges_edge *)rt_calloc( no_of_edges , sizeof( struct iges_edge ) ,
+d62 1
+a62 1
+/*	for( i=0 ; i<no_of_edges ; i++ )
+d64 7
+a70 7
+		Readint( &edge_list[i].edge_is_vertex , "\tEdge is vertex: " );
+		Readint( &edge_list[i].edge_de , "\tEdge DE: " );
+		Readint( &edge_list[i].index , "\tIndex: " );
+		Readint( &edge_list[i].orient , "\tOrient: " );
+		Readint( &no_of_param_curves , "\tNo of curves: " );
+		for( j=0 ; j<no_of_param_curves ; j++ )
+			Readint( &k , "\t\tCurve: " );
+d72 58
+a129 1
+*/
+d131 1
+d136 1
+@

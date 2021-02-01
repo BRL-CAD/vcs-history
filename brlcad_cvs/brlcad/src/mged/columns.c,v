@@ -1,0 +1,809 @@
+head	14.11;
+access;
+symbols
+	rel-7-10-4:14.10.2.1
+	STABLE:14.10.0.2
+	stable-branch:14.3
+	rel-7-10-2:14.10
+	rel-7-10-0:14.10
+	rel-7-8-4:14.7
+	rel-7-8-2:14.7
+	rel-7-8-0:14.7
+	trimnurbs-branch:14.6.0.2
+	help:14.6
+	temp_tag:14.5
+	bobWinPort-20051223-freeze:14.3
+	postmerge-20051223-bobWinPort:14.5
+	premerge-20051223-bobWinPort:14.5
+	rel-7-6-6:14.5
+	rel-7-6-4:14.5
+	rel-7-6-2:14.3
+	rel-7-6-branch:14.3.0.6
+	rel-7-6-0:14.3
+	rel-7-4-2:14.3
+	rel-7-4-branch:14.3.0.4
+	bobWinPort:14.3.0.2
+	rel-7-4-0:14.3
+	rel-7-2-6:14.3
+	rel-7-2-4:14.3
+	rel-7-2-2:14.3
+	rel-7-2-0:14.3
+	rel-7-0-4:14.2
+	rel-7-0-2:14.2
+	rel-7-0-1:14.2
+	opensource-post:14.2
+	opensource-pre:1.4
+	rel-7-0-branch:1.4.0.2
+	rel-7-0:1.4;
+locks; strict;
+comment	@ * @;
+
+
+14.11
+date	2007.09.15.16.23.16;	author brlcad;	state Exp;
+branches;
+next	14.10;
+
+14.10
+date	2007.01.27.01.41.43;	author brlcad;	state Exp;
+branches
+	14.10.2.1;
+next	14.9;
+
+14.9
+date	2007.01.23.01.13.41;	author brlcad;	state Exp;
+branches;
+next	14.8;
+
+14.8
+date	2007.01.20.14.36.57;	author brlcad;	state Exp;
+branches;
+next	14.7;
+
+14.7
+date	2006.04.06.20.50.03;	author brlcad;	state Exp;
+branches;
+next	14.6;
+
+14.6
+date	2006.01.18.06.46.19;	author brlcad;	state Exp;
+branches
+	14.6.2.1;
+next	14.5;
+
+14.5
+date	2005.10.31.07.30.58;	author brlcad;	state Exp;
+branches;
+next	14.4;
+
+14.4
+date	2005.10.23.04.44.37;	author brlcad;	state Exp;
+branches;
+next	14.3;
+
+14.3
+date	2005.01.30.20.31.05;	author brlcad;	state Exp;
+branches
+	14.3.6.1;
+next	14.2;
+
+14.2
+date	2004.12.21.04.17.27;	author butler;	state Exp;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.17;	author morrison;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	2004.09.03.23.30.58;	author morrison;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2004.08.02.23.01.51;	author morrison;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2004.06.08.22.04.26;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.15.20.22;	author morrison;	state Exp;
+branches;
+next	;
+
+14.3.6.1
+date	2005.11.13.13.46.17;	author brlcad;	state Exp;
+branches;
+next	;
+
+14.6.2.1
+date	2006.04.07.19.30.28;	author jlowenz;	state Exp;
+branches;
+next	;
+
+14.10.2.1
+date	2007.09.28.14.04.33;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.11
+log
+@more c89 embracing.  c89 provides string.h for all of the various str*() and mem*() functions, so remove the check for its presence.  there is still likely to be work required for strict c89 conformance for the various bsd strings.h functions that may be in use.
+@
+text
+@/*                       C O L U M N S . C
+ * BRL-CAD
+ *
+ * Copyright (c) 1985-2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@file columns.c
+ *
+ *  A set of routines for printing columns of data.
+ *
+ * Functions -
+ *	col_item	Called to print an item
+ *	col_putchar	Called to annotate an item
+ *	col_eol		Called to end a line
+ *	cmpdirname	Comparison function for col_pr4v
+ *	col_pr4v	Called to sort and print directory entry names
+ *			  vertically in four columns (ala "ls -C")
+ *
+ *  Authors -
+ *	Michael John Muuss
+ *	Robert Jon Reschly Jr.
+ *
+ *  Source -
+ *	SECAD/VLD Computing Consortium, Bldg 394
+ *	The U. S. Army Ballistic Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005
+ */
+#ifndef lint
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/mged/columns.c,v 14.10 2007/01/27 01:41:43 brlcad Exp $ (BRL)";
+#endif
+
+#include "common.h"
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include "machine.h"
+#include "bu.h"
+#include "vmath.h"
+#include "raytrace.h"
+#include "db.h"
+
+#include "./ged.h"
+
+static int	col_count;		/* names listed on current line */
+static int	col_len;		/* length of previous name */
+#define TERMINAL_WIDTH	80		/* XXX */
+#define	COLUMNS	((TERMINAL_WIDTH + NAMESIZE - 1) / NAMESIZE)
+
+/*
+ *			V L S _ C O L _ I T E M
+ */
+void
+vls_col_item(
+	struct bu_vls		*str,
+	register const char	*cp)
+{
+	/* Output newline if last column printed. */
+	if( col_count >= COLUMNS || (col_len+NAMESIZE-1) >= TERMINAL_WIDTH )  {
+		/* line now full */
+		bu_vls_putc( str, '\n' );
+		col_count = 0;
+	} else if ( col_count != 0 ) {
+		/* Space over before starting new column */
+		do {
+			bu_vls_putc( str, ' ' );
+			col_len++;
+		}  while ( (col_len % NAMESIZE) != 0 );
+	}
+	/* Output string and save length for next tab. */
+	col_len = 0;
+	while ( *cp != '\0' )  {
+		bu_vls_putc( str, *cp );
+		++cp;
+		++col_len;
+	}
+	col_count++;
+}
+
+/*
+ */
+void
+vls_col_eol( struct bu_vls *str )
+{
+	if ( col_count != 0 )		/* partial line */
+		bu_vls_putc( str, '\n' );
+	col_count = 0;
+	col_len = 0;
+}
+
+
+/*
+ *			C M P D I R N A M E
+ *
+ * Given two pointers to pointers to directory entries, do a string compare
+ * on the respective names and return that value.
+ */
+int
+cmpdirname(const genptr_t a, const genptr_t b)
+{
+	register struct directory **dp1, **dp2;
+
+	dp1 = (struct directory **)a;
+	dp2 = (struct directory **)b;
+	return( strcmp( (*dp1)->d_namep, (*dp2)->d_namep));
+}
+
+/*
+ *				C O L _ P R 4 V
+ *
+ *  Given a pointer to a list of pointers to names and the number of names
+ *  in that list, sort and print that list in column order over four columns.
+ */
+void
+vls_col_pr4v(struct bu_vls *vls, struct directory **list_of_names, int num_in_list)
+{
+  int lines, i, j, namelen, this_one;
+  int k,
+      maxnamelen,      /* longest name in list */
+      cwidth,          /* column width */
+      numcol;         /* number of columns */
+
+  qsort( (genptr_t)list_of_names,
+	 (unsigned)num_in_list, (unsigned)sizeof(struct directory *),
+	 (int (*)())cmpdirname);
+
+  /*
+   * Traverse the list of names, find the longest name and set the
+   * the column width and number of columns accordingly.
+   * If the longest name is greater than 80 characters, the number of columns
+   * will be one.
+   */
+  maxnamelen = 0;
+  for( k=0; k < num_in_list; k++) {
+    namelen = strlen(list_of_names[k]->d_namep);
+    if(namelen > maxnamelen)
+      maxnamelen = namelen;
+  }
+  if(maxnamelen <= 16)
+    maxnamelen = 16;
+  cwidth = maxnamelen + 4;
+  if(cwidth > 80)
+    cwidth = 80;
+  numcol = TERMINAL_WIDTH / cwidth;
+
+  /*
+   * For the number of (full and partial) lines that will be needed,
+   * print in vertical format.
+   */
+  lines = (num_in_list + (numcol - 1)) / numcol;
+  for( i=0; i < lines; i++) {
+    for(j=0; j < numcol; j++) {
+      this_one = j * lines + i;
+      bu_vls_printf(vls, "%s", list_of_names[this_one]->d_namep);
+      namelen = strlen( list_of_names[this_one]->d_namep);
+      /*
+       * Region and ident checks here....  Since the code
+       * has been modified to push and sort on pointers,
+       * the printing of the region and ident flags must
+       * be delayed until now.  There is no way to make the
+       * decision on where to place them before now.
+       */
+      if(list_of_names[this_one]->d_flags & DIR_COMB) {
+	bu_vls_putc(vls, '/');
+	namelen++;
+      }
+      if(list_of_names[this_one]->d_flags & DIR_REGION) {
+	bu_vls_putc(vls, 'R');
+	namelen++;
+      }
+      /*
+       * Size check (partial lines), and line termination.
+       * Note that this will catch the end of the lines
+       * that are full too.
+       */
+      if( this_one + lines >= num_in_list) {
+	bu_vls_putc(vls, '\n');
+	break;
+      } else {
+	/*
+	 * Pad to next boundary as there will be
+	 * another entry to the right of this one.
+	 */
+	while( namelen++ < cwidth)
+	  bu_vls_putc(vls, ' ');
+      }
+    }
+  }
+}
+
+void
+vls_long_dpp(
+	struct bu_vls *vls,
+	struct directory **list_of_names,
+	int num_in_list,
+	int aflag,	/* print all objects */
+	int cflag,	/* print combinations */
+	int rflag,	/* print regions */
+	int sflag)	/* print solids */
+{
+  int i;
+  int isComb, isRegion;
+  int isSolid;
+  const char *type;
+  int max_nam_len = 0;
+  int max_type_len = 0;
+  struct directory *dp;
+
+  qsort( (genptr_t)list_of_names,
+	 (unsigned)num_in_list, (unsigned)sizeof(struct directory *),
+	 (int (*)())cmpdirname);
+
+  for( i=0 ; i<num_in_list ; i++ ) {
+	  int len;
+
+	  dp = list_of_names[i];
+	  len = strlen( dp->d_namep );
+	  if( len > max_nam_len )
+		  max_nam_len = len;
+
+	  if( dp->d_flags & DIR_REGION )
+		  len = 6;
+	  else if( dp->d_flags & DIR_COMB )
+		  len = 4;
+	  else if( dp->d_major_type == DB5_MAJORTYPE_ATTRIBUTE_ONLY )
+		  len = 6;
+	  else
+		  len = strlen( rt_functab[dp->d_minor_type].ft_label );
+
+	  if( len > max_type_len )
+		  max_type_len = len;
+  }
+  /*
+   * i - tracks the list item
+   */
+  for (i=0; i < num_in_list; ++i) {
+    if (list_of_names[i]->d_flags & DIR_COMB) {
+      isComb = 1;
+      isSolid = 0;
+      type = "comb";
+
+      if (list_of_names[i]->d_flags & DIR_REGION) {
+	isRegion = 1;
+	type = "region";
+      }
+      else
+	isRegion = 0;
+    } else {
+      isComb = isRegion = 0;
+      isSolid = 1;
+      type = rt_functab[list_of_names[i]->d_minor_type].ft_label;
+    }
+
+    if( list_of_names[i]->d_major_type == DB5_MAJORTYPE_ATTRIBUTE_ONLY ) {
+	    isSolid = 0;
+	    type = "global";
+    }
+
+    /* print list item i */
+    dp = list_of_names[i];
+    if (aflag ||
+	(!cflag && !rflag && !sflag) ||
+	(cflag && isComb) ||
+	(rflag && isRegion) ||
+	(sflag && isSolid)) {
+	    bu_vls_printf(vls, "%s", dp->d_namep );
+	    bu_vls_spaces(vls, max_nam_len - strlen( dp->d_namep ) );
+	    bu_vls_printf(vls, " %s", type );
+	    bu_vls_spaces(vls, max_type_len - strlen( type ) );
+	    bu_vls_printf(vls,  " %2d %2d %ld\n",
+		    dp->d_major_type, dp->d_minor_type, (long)dp->d_len);
+    }
+  }
+}
+/*
+ *				V L S _ L I N E _ D P P
+ *
+ *  Given a pointer to a list of pointers to names and the number of names
+ *  in that list, sort and print that list on the same line.
+ */
+void
+vls_line_dpp(
+	struct bu_vls *vls,
+	struct directory **list_of_names,
+	int num_in_list,
+	int aflag,	/* print all objects */
+	int cflag,	/* print combinations */
+	int rflag,	/* print regions */
+	int sflag)	/* print solids */
+{
+  int i;
+  int isComb, isRegion;
+  int isSolid;
+
+  qsort( (genptr_t)list_of_names,
+	 (unsigned)num_in_list, (unsigned)sizeof(struct directory *),
+	 (int (*)())cmpdirname);
+
+  /*
+   * i - tracks the list item
+   */
+  for (i=0; i < num_in_list; ++i) {
+    if (list_of_names[i]->d_flags & DIR_COMB) {
+      isComb = 1;
+      isSolid = 0;
+
+      if (list_of_names[i]->d_flags & DIR_REGION)
+	isRegion = 1;
+      else
+	isRegion = 0;
+    } else {
+      isComb = isRegion = 0;
+      isSolid = 1;
+    }
+
+    /* print list item i */
+    if (aflag ||
+	(!cflag && !rflag && !sflag) ||
+	(cflag && isComb) ||
+	(rflag && isRegion) ||
+	(sflag && isSolid)) {
+      bu_vls_printf(vls,  "%s ", list_of_names[i]->d_namep);
+    }
+  }
+}
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+14.10
+log
+@ws. lots and lots of ws.  see sh/ws.sh for details (cases 'abcdeg').
+@
+text
+@d42 1
+a42 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/mged/columns.c,v 14.9 2007/01/23 01:13:41 brlcad Exp $ (BRL)";
+d49 1
+a49 5
+#ifdef HAVE_STRING_H
+#  include <string.h>
+#else
+#  include <strings.h>
+#endif
+@
+
+
+14.10.2.1
+log
+@more merging from HEAD.  bring in build system tweakage updates that should fix some library symbol problems from croping up post-release.
+@
+text
+@d42 1
+a42 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/mged/columns.c,v 14.11 2007/09/15 16:23:16 brlcad Exp $ (BRL)";
+d49 5
+a53 1
+#include <string.h>
+@
+
+
+14.9
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@d42 1
+a42 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/mged/columns.c,v 14.8 2007/01/20 14:36:57 brlcad Exp $ (BRL)";
+d202 1
+a202 1
+        while( namelen++ < cwidth)
+d262 1
+a262 1
+        type = "region";
+@
+
+
+14.8
+log
+@update copyright to 2007
+@
+text
+@d8 2
+a9 3
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+d14 1
+a14 1
+ * General Public License for more details.
+d16 2
+a17 2
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+d42 1
+a42 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/mged/columns.c,v 14.7 2006/04/06 20:50:03 brlcad Exp $ (BRL)";
+@
+
+
+14.7
+log
+@quell/fix issues raised by the Intel compiler on Altix
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 1985-2006 United States Government as represented by
+d43 1
+a43 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/mged/columns.c,v 14.6 2006/01/18 06:46:19 brlcad Exp $ (BRL)";
+@
+
+
+14.6
+log
+@update copyright to 2006
+@
+text
+@d43 1
+a43 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/mged/columns.c,v 14.5 2005/10/31 07:30:58 brlcad Exp $ (BRL)";
+d49 1
+a49 1
+
+d289 2
+a290 2
+	    bu_vls_printf(vls,  " %2d %2d %d\n",
+		    dp->d_major_type, dp->d_minor_type, dp->d_len);
+@
+
+
+14.6.2.1
+log
+@update from HEAD
+@
+text
+@d43 1
+a43 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/mged/columns.c,v 14.6 2006/01/18 06:46:19 brlcad Exp $ (BRL)";
+d49 1
+a49 1
+#include <stdlib.h>
+d289 2
+a290 2
+	    bu_vls_printf(vls,  " %2d %2d %ld\n",
+		    dp->d_major_type, dp->d_minor_type, (long)dp->d_len);
+@
+
+
+14.5
+log
+@header cleanup, reorg, and general bug squashing including adding missing headers
+@
+text
+@d4 1
+a4 1
+ * Copyright (C) 1985-2005 United States Government as represented by
+d43 1
+a43 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/mged/columns.c,v 14.4 2005/10/23 04:44:37 brlcad Exp $ (BRL)";
+@
+
+
+14.4
+log
+@trailing ws
+@
+text
+@d43 1
+a43 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/mged/columns.c,v 14.3 2005/01/30 20:31:05 brlcad Exp $ (BRL)";
+a47 2
+
+
+d51 1
+a51 1
+#include <string.h>
+d53 1
+a53 1
+#include <strings.h>
+d60 2
+@
+
+
+14.3
+log
+@update copyright to 2005
+@
+text
+@d22 1
+a22 1
+ *  
+d43 1
+a43 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/mged/columns.c,v 14.2 2004/12/21 04:17:27 butler Exp $ (BRL)";
+d146 1
+a146 1
+  /* 
+d158 1
+a158 1
+  if(maxnamelen <= 16) 
+d164 1
+a164 1
+     
+d201 1
+a201 1
+	 * another entry to the right of this one. 
+d211 1
+a211 1
+vls_long_dpp( 
+@
+
+
+14.3.6.1
+log
+@merge changes from HEAD aka rel-7-6-4 to the rel-7-6-branch just in case someone peeks a gander or tries to continue/build the branch
+@
+text
+@d22 1
+a22 1
+ *
+d43 1
+a43 1
+static const char RCSid[] = "@@(#)$Header$ (BRL)";
+d48 2
+d53 1
+a53 1
+#  include <string.h>
+d55 1
+a55 1
+#  include <strings.h>
+a61 2
+#include "db.h"
+
+d146 1
+a146 1
+  /*
+d158 1
+a158 1
+  if(maxnamelen <= 16)
+d164 1
+a164 1
+
+d201 1
+a201 1
+	 * another entry to the right of this one.
+d211 1
+a211 1
+vls_long_dpp(
+@
+
+
+14.2
+log
+@GPL License changes
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 1985-2004 United States Government as represented by
+d43 1
+a43 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/mged/columns.c,v 14.1 2004/11/16 19:42:17 morrison Exp $ (BRL)";
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@d1 21
+a21 2
+/*
+ *  			C O L U M N S
+a40 4
+ *
+ *  Copyright Notice -
+ *	This software is Copyright (C) 1985-2004 by the United States Army.
+ *	All rights reserved.
+d43 1
+a43 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/mged/columns.c,v 1.4 2004/09/03 23:30:58 morrison Exp $ (BRL)";
+@
+
+
+1.4
+log
+@USE_STRING_H is no more.. it's HAVE_STRING_H
+@
+text
+@d28 1
+a28 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/mged/columns.c,v 1.3 2004/08/02 23:01:51 morrison Exp $ (BRL)";
+d330 10
+@
+
+
+1.3
+log
+@replace the wrapped config.h block with common.h
+@
+text
+@d28 1
+a28 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/mged/columns.c,v 1.2 2004/06/08 22:04:26 morrison Exp $ (BRL)";
+d37 1
+a37 1
+#ifdef USE_STRING_H
+@
+
+
+1.2
+log
+@obliterate externs.h
+@
+text
+@d28 1
+a28 1
+static const char RCSid[] = "@@(#)$Header$ (BRL)";
+d31 1
+a31 3
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+@
+
+
+1.1
+log
+@Vast reorganization begins.  Sources moved from top-level directories into src/.
+@
+text
+@d28 1
+a28 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/mged/columns.c,v 11.24 2004/05/10 15:30:48 erikg Exp $ (BRL)";
+a48 1
+#include "externs.h"
+@
+

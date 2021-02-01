@@ -1,0 +1,393 @@
+head	1.4;
+access;
+symbols
+	ansi-20040405-merged:1.2.4.1
+	postmerge-20040405-ansi:1.3
+	premerge-20040404-ansi:1.3
+	postmerge-autoconf:1.3
+	autoconf-freeze:1.3
+	premerge-autoconf:1.3
+	postmerge-20040315-windows:1.3
+	premerge-20040315-windows:1.3
+	windows-20040315-freeze:1.2.6.2
+	autoconf-20031203:1.3
+	autoconf-20031202:1.3
+	autoconf-branch:1.3.0.6
+	phong-branch:1.3.0.4
+	photonmap-branch:1.3.0.2
+	rel-6-1-DP:1.2
+	windows-branch:1.2.0.6
+	rel-6-0-2:1.2
+	ansi-branch:1.2.0.4
+	rel-6-0-1-branch:1.2.0.2
+	hartley-6-0-post:1.2
+	hartley-6-0-pre:1.2
+	rel-6-0-1:1.2
+	rel-6-0:1.2
+	rel-5-4:1.1.2.1
+	offsite-5-3-pre:1.2
+	rel-5-3:1.1.2.1
+	rel-5-2:1.1
+	rel-5-1-branch:1.1.0.2
+	rel-5-1:1.1
+	rel-5-0:1.1
+	rel-5-0-beta:1.1;
+locks; strict;
+comment	@# @;
+
+
+1.4
+date	2004.05.21.16.41.18;	author morrison;	state dead;
+branches;
+next	1.3;
+
+1.3
+date	2003.03.13.19.45.26;	author jra;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2000.12.22.00.43.50;	author bparker;	state Exp;
+branches
+	1.2.4.1
+	1.2.6.1;
+next	1.1;
+
+1.1
+date	99.05.03.14.15.43;	author bparker;	state Exp;
+branches
+	1.1.2.1;
+next	;
+
+1.1.2.1
+date	2000.12.22.00.40.26;	author bparker;	state Exp;
+branches;
+next	;
+
+1.2.4.1
+date	2004.03.17.21.23.04;	author morrison;	state Exp;
+branches;
+next	;
+
+1.2.6.1
+date	2002.09.26.23.04.16;	author morrison;	state Exp;
+branches;
+next	1.2.6.2;
+
+1.2.6.2
+date	2004.03.11.23.48.41;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.4
+log
+@moved to src/tclscripts/
+@
+text
+@# 
+#                        H O C . T C L
+#
+#	Procs for implementing "Help On Context".
+#
+#	Authors -
+#		Robert G. Parker
+#		Paul Tanenbaum
+#
+
+if {![info exists ::tk::Priv(cad_dialog)]} {
+    set ::tk::Priv(cad_dialog) .cad_dialog
+}
+
+# hoc_build_string --
+#
+# Generic procedure for building uniform "Help On Context" strings.
+#
+proc hoc_build_string { sname subject ksl } {
+    upvar $sname hoc_string
+
+    # Initialize string variables
+    set hoc_string ""
+    set summary ""
+    set synopsis ""
+    set description ""
+    set examples ""
+    set accelerator ""
+    set range ""
+    set see_also ""
+
+    # Set string variables according to { keyword string } list
+    foreach ks $ksl {
+	switch [lindex $ks 0] {
+	    summary {
+		set summary [lindex $ks 1]
+	    }
+	    synopsis {
+		set synopsis [lindex $ks 1]
+	    }
+	    description {
+		set description [lindex $ks 1]
+	    }
+	    examples {
+		set examples [lindex $ks 1]
+	    }
+	    accelerator {
+		set accelerator [lindex $ks 1]
+	    }
+	    range {
+		set range [lindex $ks 1]
+	    }
+	    see_also {
+		set see_also [lindex $ks 1]
+	    }
+	}
+    }
+
+    # Build hoc_string
+    if { $summary != "" } {
+	set hoc_string $summary
+    }
+
+    if { $synopsis != "" } {
+	set hoc_string "$hoc_string\nSYNOPSIS\n\t$synopsis"
+    }
+
+    if { $description != "" } {
+	set  hoc_string "$hoc_string\n\nDESCRIPTION\n\t$description"
+    }
+
+    if { $examples != "" } {
+	set hoc_string "$hoc_string\n\nEXAMPLES\n\t$examples"
+    }
+
+    if { $accelerator != "" } {
+	set hoc_string "$hoc_string\n\nACCELERATOR\n\t$accelerator"
+    }
+
+    if { $range != "" } {
+	set hoc_string "$hoc_string\n\nRANGE\n\t$range"
+    }
+
+    if { $see_also != "" } {
+	set hoc_string "$hoc_string\n\nSEE ALSO\n\t$see_also"
+    }
+
+    if { $hoc_string == "" } {
+	set hoc_string "No information was found for \\\"$subject\\\""
+    }
+}
+
+# create_hoc_binding --
+#
+# Create bindings to call help on context dialog.
+#
+proc hoc_create_binding { w subject ksl } {
+    global hoc_data
+
+    if ![winfo exists $w] {
+	return
+    }
+
+    hoc_build_string hoc_string $subject $ksl
+    lappend hoc_data($w) $subject $hoc_string
+
+    # cause right mouse button click to bring up dialog widget
+    bind $w <ButtonPress-3><ButtonRelease-3> "hoc_callback $w %X %Y"
+}
+
+# hoc_create_label_binding --
+#
+# Calls hoc_create_binding, then create <Enter> and <Leave> bindings
+# to highlight the label.
+#
+proc hoc_create_label_binding { w subject ksl } {
+    hoc_create_binding $w "$subject" "$ksl"
+
+    # Create bindings to highlight the label
+    bind $w <Enter> "$w configure -background #ececec"
+    bind $w <Leave> "$w configure -background #d9d9d9"
+}
+
+# hoc_register_data --
+#
+# Register help on context data.
+#
+proc hoc_register_data { index subject ksl } {
+    global hoc_data
+
+    if [info exists hoc_data($index)] {
+	set hoc_data($index) ""
+    }
+
+    hoc_build_string hoc_string $subject $ksl
+    lappend hoc_data($index) $subject $hoc_string
+}
+
+# hoc_register_menu_data --
+#
+# Call hoc_register_data with an appropriate index.
+#
+proc hoc_register_menu_data { title label subject ksl } {
+    hoc_register_data $title,$label $subject $ksl
+}
+
+# hoc_dialog --
+#
+# Call cad_dialog with hoc_data.
+#
+proc hoc_dialog { w index } {
+    global hoc_data
+    global ::tk::Priv
+
+    set screen [winfo screen $w]
+
+    if {[info exists hoc_data($index)]} {
+	set subject [lindex $hoc_data($index) 0]
+	set description [lindex $hoc_data($index) 1]
+	cad_dialog $::tk::Priv(cad_dialog) $screen $subject $description info 0 Dismiss
+    }
+}
+
+# hoc_menu_callback --
+#
+# Call hoc_dialog with an appropriate index.
+#
+proc hoc_menu_callback { w } {
+    set title [lindex [$w configure -title] 4]
+    set label [$w entrycget active -label]
+
+    hoc_dialog $w $title,$label
+}
+
+# hoc_callback --
+#
+# Call hoc_dialog using $w as an index into hoc_data.
+#
+proc hoc_callback { w x y } {
+    # Check to see if the triggering event actually occurred within $w.
+    set cwin [winfo containing $x $y]
+    if { $cwin != $w } {
+	return
+    }
+
+    hoc_dialog $w $w
+}
+@
+
+
+1.3
+log
+@Update to tcl/tk 8.4 and itcl 3.2.1
+@
+text
+@@
+
+
+1.2
+log
+@Use $tkPriv(cad_dialog) for dialog name
+@
+text
+@d11 2
+a12 2
+if {![info exists tkPriv(cad_dialog)]} {
+    set tkPriv(cad_dialog) .cad_dialog
+d153 1
+a153 1
+    global tkPriv
+d160 1
+a160 1
+	cad_dialog $tkPriv(cad_dialog) $screen $subject $description info 0 Dismiss
+@
+
+
+1.2.4.1
+log
+@sync branch with HEAD
+@
+text
+@d11 2
+a12 2
+if {![info exists ::tk::Priv(cad_dialog)]} {
+    set ::tk::Priv(cad_dialog) .cad_dialog
+d153 1
+a153 1
+    global ::tk::Priv
+d160 1
+a160 1
+	cad_dialog $::tk::Priv(cad_dialog) $screen $subject $description info 0 Dismiss
+@
+
+
+1.2.6.1
+log
+@Modifications (on a 6.0 source distribution) for initial port to windows (merged with sources close to 6.0.2)
+@
+text
+@d11 2
+a12 2
+if {![info exists ::tk::Priv(cad_dialog)]} {
+    set ::tk::Priv(cad_dialog) .cad_dialog
+d153 1
+a153 1
+    variable ::tk::Priv
+d160 1
+a160 1
+	cad_dialog $Priv(cad_dialog) $screen $subject $description info 0 Dismiss
+@
+
+
+1.2.6.2
+log
+@sync to HEAD...
+@
+text
+@d153 1
+a153 1
+    global ::tk::Priv
+d160 1
+a160 1
+	cad_dialog $::tk::Priv(cad_dialog) $screen $subject $description info 0 Dismiss
+@
+
+
+1.1
+log
+@*- procs for implementing help on context
+@
+text
+@d11 4
+d153 1
+d157 1
+a157 1
+    if [info exists hoc_data($index)] {
+d160 1
+a160 1
+	cad_dialog $w.hocDialog $screen $subject $description info 0 Dismiss
+@
+
+
+1.1.2.1
+log
+@Use tkPriv(cad_dialog) for dialog name.
+@
+text
+@a10 4
+if {![info exists tkPriv(cad_dialog)]} {
+    set tkPriv(cad_dialog) .cad_dialog
+}
+
+a148 1
+    global tkPriv
+d152 1
+a152 1
+    if {[info exists hoc_data($index)]} {
+d155 1
+a155 1
+	cad_dialog $tkPriv(cad_dialog) $screen $subject $description info 0 Dismiss
+@
+

@@ -1,0 +1,219 @@
+head	14.2;
+access;
+symbols
+	rel-7-10-4:14.1
+	STABLE:14.1.0.10
+	stable-branch:14.1
+	rel-7-10-2:14.1
+	rel-7-10-0:14.1
+	rel-7-8-4:14.1
+	rel-7-8-2:14.1
+	rel-7-8-0:14.1
+	trimnurbs-branch:14.1.0.8
+	help:14.1
+	temp_tag:14.1
+	bobWinPort-20051223-freeze:14.1
+	postmerge-20051223-bobWinPort:14.1
+	premerge-20051223-bobWinPort:14.1
+	rel-7-6-6:14.1
+	rel-7-6-4:14.1
+	rel-7-6-2:14.1
+	rel-7-6-branch:14.1.0.6
+	rel-7-6-0:14.1
+	rel-7-4-2:14.1
+	rel-7-4-branch:14.1.0.4
+	bobWinPort:14.1.0.2
+	rel-7-4-0:14.1
+	rel-7-2-6:14.1
+	rel-7-2-4:14.1
+	rel-7-2-2:14.1
+	rel-7-2-0:14.1
+	rel-7-0-4:14.1
+	rel-7-0-2:14.1
+	rel-7-0-1:14.1
+	opensource-post:14.1
+	opensource-pre:1.1
+	rel-7-0-branch:1.1.0.2
+	rel-7-0:1.1;
+locks; strict;
+comment	@# @;
+
+
+14.2
+date	2007.09.14.15.21.36;	author erikgreenwald;	state Exp;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.19;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.14.49.52;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.2
+log
+@removed trailing whitespace
+@
+text
+@# all.tcl --
+#
+# This file contains a top-level script to run all of the Tcl
+# tests.  Execute it by invoking "source all.test" when running tcltest
+# in this directory.
+#
+# Copyright (c) 1998-2000 by Ajuba Solutions
+# All rights reserved.
+#
+# RCS: @@(#) $Id: all.tcl,v 14.1 2004/11/16 19:42:19 morrison Exp $
+
+package require tcltest
+namespace import -force ::tcltest::*
+
+# Look for the -exedir flag and find a suitable tclsh executable.
+
+if {(![info exists argv]) || ([llength $argv] < 1)} {
+    set flagArray {}
+} else {
+    set flagArray $argv
+}
+
+array set flag $flagArray
+if {[info exists flag(-exedir)]} {
+    set shell [lindex \
+	    [glob -nocomplain \
+	    [file join $flag(-exedir) wish*.bin] \
+	    [file join $flag(-exedir) wish*]] 0]
+} else {
+    set shell $::tcltest::tcltest
+}
+
+set ::tcltest::testSingleFile false
+
+# use [pwd] trick to expand relative file paths to absolute paths - MMc
+set cwd [pwd]
+cd [file dirname [info script]]
+set ::tcltest::testsDirectory [pwd]
+cd $cwd
+
+set logfile [file join $::tcltest::temporaryDirectory Log.txt]
+
+puts stdout "Using interp: $shell"
+puts stdout "Running tests in working dir: $::tcltest::testsDirectory"
+if {[llength $::tcltest::skip] > 0} {
+    puts stdout "Skipping tests that match:  $::tcltest::skip"
+}
+if {[llength $::tcltest::match] > 0} {
+    puts stdout "Only running tests that match:  $::tcltest::match"
+}
+
+if {[llength $::tcltest::skipFiles] > 0} {
+    puts stdout "Skipping test files that match:  $::tcltest::skipFiles"
+}
+if {[llength $::tcltest::matchFiles] > 0} {
+    puts stdout "Only sourcing test files that match:  $::tcltest::matchFiles"
+}
+
+set timeCmd {clock format [clock seconds]}
+puts stdout "Tests began at [eval $timeCmd]"
+
+# source each of the specified tests
+foreach file [lsort [::tcltest::getMatchingFiles]] {
+    set tail [file tail $file]
+    puts stdout $tail
+
+    # Change to the tests directory so the value of the following
+    # variable is set correctly when we spawn the child test processes
+
+    cd $::tcltest::testsDirectory
+    set cmd [concat [list | $shell $file] [split $argv] \
+	    [list -outfile $logfile]]
+    if {[catch {
+	set pipeFd [open $cmd "r"]
+	while {[gets $pipeFd line] >= 0} {
+	    puts $::tcltest::outputChannel $line
+	}
+	close $pipeFd
+    } msg]} {
+	# Print results to ::tcltest::outputChannel.
+	puts $::tcltest::outputChannel $msg
+    }
+
+    # Now concatenate the temporary log file to
+    # ::tcltest::outputChannel
+    if {[catch {
+	set fd [open $logfile "r"]
+	while {![eof $fd]} {
+	    gets $fd line
+	    if {![eof $fd]} {
+		if {[regexp {^([^:]+):\tTotal\t([0-9]+)\tPassed\t([0-9]+)\tSkipped\t([0-9]+)\tFailed\t([0-9]+)} $line null testFile Total Passed Skipped Failed]} {
+		    foreach index [list "Total" "Passed" "Skipped" \
+			    "Failed"] {
+			incr ::tcltest::numTests($index) [set $index]
+		    }
+		    incr ::tcltest::numTestFiles
+		    if {$Failed > 0} {
+			lappend ::tcltest::failFiles $testFile
+		    }
+		}
+		puts $::tcltest::outputChannel $line
+	    }
+	}
+	close $fd
+    } msg]} {
+	puts $::tcltest::outputChannel $msg
+    }
+}
+
+set numFailures [llength $::tcltest::failFiles]
+
+# cleanup
+puts stdout "\nTests ended at [eval $timeCmd]"
+::tcltest::cleanupTests 1
+
+if {$numFailures > 0} {
+    return -code error -errorcode $numFailures \
+	    -errorinfo "Found $numFailures test file failures"
+} else {
+    return
+}
+exit
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@d9 2
+a10 2
+# 
+# RCS: @@(#) $Id: all.tcl,v 1.1 2004/05/20 14:49:52 morrison Exp $
+d74 1
+a74 1
+	set pipeFd [open $cmd "r"] 
+d85 1
+a85 1
+    # ::tcltest::outputChannel 
+@
+
+
+1.1
+log
+@Sources that are external to BRL-CAD are moved from the top level to src/other/.
+@
+text
+@d10 1
+a10 1
+# RCS: @@(#) $Id: all.tcl,v 1.1 2003/03/13 13:20:38 jra Exp $
+@
+

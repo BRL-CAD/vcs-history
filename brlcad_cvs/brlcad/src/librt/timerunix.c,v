@@ -1,0 +1,612 @@
+head	14.15;
+access;
+symbols
+	rel-7-10-4:14.14
+	STABLE:14.14.0.2
+	stable-branch:14.6
+	rel-7-10-2:14.14
+	rel-7-10-0:14.14
+	rel-7-8-4:14.10
+	rel-7-8-2:14.9
+	rel-7-8-0:14.9
+	trimnurbs-branch:14.9.0.2
+	help:14.9
+	temp_tag:14.8
+	bobWinPort-20051223-freeze:14.7
+	postmerge-20051223-bobWinPort:14.8
+	premerge-20051223-bobWinPort:14.8
+	rel-7-6-6:14.8
+	rel-7-6-4:14.8
+	rel-7-6-2:14.7
+	rel-7-6-branch:14.7.0.4
+	rel-7-6-0:14.7
+	rel-7-4-2:14.6
+	rel-7-4-branch:14.6.0.2
+	bobWinPort:14.7.0.2
+	rel-7-4-0:14.6
+	rel-7-2-6:14.6
+	rel-7-2-4:14.6
+	rel-7-2-2:14.6
+	rel-7-2-0:14.6
+	rel-7-0-4:14.5
+	rel-7-0-2:14.5
+	rel-7-0-1:14.5
+	opensource-post:14.5
+	opensource-pre:1.3
+	rel-7-0-branch:1.3.0.2
+	rel-7-0:1.3;
+locks; strict;
+comment	@ * @;
+
+
+14.15
+date	2007.11.08.03.40.00;	author brlcad;	state Exp;
+branches;
+next	14.14;
+
+14.14
+date	2007.01.27.01.41.42;	author brlcad;	state Exp;
+branches;
+next	14.13;
+
+14.13
+date	2007.01.23.01.13.39;	author brlcad;	state Exp;
+branches;
+next	14.12;
+
+14.12
+date	2007.01.21.04.45.45;	author brlcad;	state Exp;
+branches;
+next	14.11;
+
+14.11
+date	2007.01.20.14.36.56;	author brlcad;	state Exp;
+branches;
+next	14.10;
+
+14.10
+date	2006.09.16.02.04.26;	author lbutler;	state Exp;
+branches;
+next	14.9;
+
+14.9
+date	2006.01.18.06.46.17;	author brlcad;	state Exp;
+branches;
+next	14.8;
+
+14.8
+date	2005.10.23.04.44.36;	author brlcad;	state Exp;
+branches;
+next	14.7;
+
+14.7
+date	2005.08.12.22.31.08;	author lbutler;	state Exp;
+branches
+	14.7.4.1;
+next	14.6;
+
+14.6
+date	2005.01.30.20.31.03;	author brlcad;	state Exp;
+branches;
+next	14.5;
+
+14.5
+date	2004.12.21.06.38.21;	author morrison;	state Exp;
+branches;
+next	14.4;
+
+14.4
+date	2004.12.21.06.18.48;	author morrison;	state Exp;
+branches;
+next	14.3;
+
+14.3
+date	2004.12.21.05.45.24;	author morrison;	state Exp;
+branches;
+next	14.2;
+
+14.2
+date	2004.12.21.04.18.21;	author morrison;	state Exp;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.16;	author morrison;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2004.08.02.23.01.49;	author morrison;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2004.06.08.19.57.55;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.15.20.11;	author morrison;	state Exp;
+branches;
+next	;
+
+14.7.4.1
+date	2005.11.13.13.46.17;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.15
+log
+@the unix timer has the same time_t problem that the nt timer had, being that it would be crash-worthy if time_t is actually a 64-bit type
+@
+text
+@/*                     T I M E R U N I X . C
+ * BRL-CAD
+ *
+ * Copyright (c) 1985-2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This library is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@addtogroup timer */
+/** @@{ */
+/** @@file timerunix.c
+ *
+ * To provide timing information for RT.
+ *	This version for any non-BSD UNIX system, including
+ *	System III, Vr1, Vr2.
+ *	Version 6 & 7 should also be able to use this (untested).
+ *	The time() and times() sys-calls are used for all timing.
+ *
+ *  Author -
+ *	Michael John Muuss
+ *
+ *  Source -
+ *	SECAD/VLD Computing Consortium, Bldg 394
+ *	The U. S. Army Ballistic Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005
+ *
+ */
+
+#ifndef lint
+static const char RCStimer[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/librt/timerunix.c,v 14.14 2007/01/27 01:41:42 brlcad Exp $ (BRL)";
+#endif
+
+#include "common.h"
+
+
+#include <stdio.h>
+#ifdef HAVE_MEMORY_H
+#include <memory.h>
+#endif
+#include <sys/types.h>
+#include <sys/times.h>
+#include <sys/param.h>
+
+#ifdef HAVE_SYS_MACHD_H
+# include <sys/machd.h>
+#endif
+
+#ifndef HZ
+	/* It's not always in sys/param.h;  if not, guess */
+#	define	HZ		60
+#	define	DEFAULT_HZ	yes
+#endif
+
+#include "machine.h"
+#include "bu.h"
+
+/* Standard System V stuff */
+static time_t time0;
+static struct tms tms0;
+
+/*
+ *			R T _ P R E P _ T I M E R
+ */
+void
+rt_prep_timer(void)
+{
+	(void)time(&time0);
+	(void)times(&tms0);
+}
+
+/*
+ *			R T _ G E T _ T I M E R
+ *
+ *  Reports on the passage of time, since rt_prep_timer() was called.
+ *  Explicit return is number of CPU seconds.
+ *  String return is descriptive.
+ *  If "elapsed" pointer is non-null, number of elapsed seconds are returned.
+ *  Times returned will never be zero.
+ */
+double
+rt_get_timer(struct bu_vls *vp, double *elapsed)
+{
+	time_t	now;
+	double	user_cpu_secs;
+	double	sys_cpu_secs;
+	double	elapsed_secs;
+	double	percent;
+	struct tms tmsnow;
+
+	/* Real time.  1 second resolution. */
+	(void)time(&now);
+	elapsed_secs = now-time0;
+
+	/* CPU time */
+	(void)times(&tmsnow);
+	user_cpu_secs = (tmsnow.tms_utime + tmsnow.tms_cutime) -
+		(tms0.tms_utime + tms0.tms_cutime );
+	user_cpu_secs /= HZ;
+	sys_cpu_secs = (tmsnow.tms_stime + tmsnow.tms_cstime) -
+		(tms0.tms_stime + tms0.tms_cstime );
+	sys_cpu_secs /= HZ;
+	if( user_cpu_secs < 0.00001 )  user_cpu_secs = 0.00001;
+	if( elapsed_secs < 0.00001 )  elapsed_secs = user_cpu_secs;	/* It can't be any less! */
+
+	if( elapsed )  *elapsed = elapsed_secs;
+
+	if( vp )  {
+		percent = user_cpu_secs/elapsed_secs*100.0;
+		BU_CK_VLS(vp);
+#ifdef DEFAULT_HZ
+		bu_vls_printf( vp,
+"%g user + %g sys in %g elapsed secs (%g%%) WARNING: HZ=60 assumed, fix librt/timerunix.c",
+			user_cpu_secs, sys_cpu_secs, elapsed_secs, percent );
+#else
+		bu_vls_printf( vp,
+			"%g user + %g sys in %g elapsed secs (%g%%)",
+			user_cpu_secs, sys_cpu_secs, elapsed_secs, percent );
+#endif
+	}
+	return( user_cpu_secs );
+}
+
+/*
+ *			R T _ R E A D _ T I M E R
+ *
+ *  Compatability routine
+ */
+double
+rt_read_timer(char *str, int len)
+{
+	struct bu_vls	vls;
+	double		cpu;
+	int		todo;
+
+	if( !str )  return  rt_get_timer( (struct bu_vls *)0, (double *)0 );
+
+	bu_vls_init( &vls );
+	cpu = rt_get_timer( &vls, (double *)0 );
+	todo = bu_vls_strlen( &vls );
+	if( todo > len )  todo = len-1;
+	strncpy( str, bu_vls_addr(&vls), todo );
+	str[todo] = '\0';
+	return cpu;
+}
+
+/** @@} */
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+14.14
+log
+@ws. lots and lots of ws.  see sh/ws.sh for details (cases 'abcdeg').
+@
+text
+@d41 1
+a41 1
+static const char RCStimer[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/librt/timerunix.c,v 14.13 2007/01/23 01:13:39 brlcad Exp $ (BRL)";
+d69 1
+a69 1
+static long time0;
+d94 1
+a94 1
+	long	now;
+@
+
+
+14.13
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@d41 1
+a41 1
+static const char RCStimer[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/librt/timerunix.c,v 14.12 2007/01/21 04:45:45 brlcad Exp $ (BRL)";
+a46 1
+
+@
+
+
+14.12
+log
+@ugh, what tedium.  put some effort towards cleaning up the doxygen labels and making the headers more consistent.  also exclusively using @@ for doxygen instead of \ to try to keep things more consistent.
+@
+text
+@d9 1
+a9 2
+ * as published by the Free Software Foundation; either version 2 of
+ * the License, or (at your option) any later version.
+d14 1
+a14 1
+ * Library General Public License for more details.
+d41 1
+a41 1
+static const char RCStimer[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/librt/timerunix.c,v 14.11 2007/01/20 14:36:56 brlcad Exp $ (BRL)";
+@
+
+
+14.11
+log
+@update copyright to 2007
+@
+text
+@a20 1
+
+d22 1
+a22 1
+/*@@{*/
+d24 1
+d42 1
+a42 1
+static const char RCStimer[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/librt/timerunix.c,v 14.10 2006/09/16 02:04:26 lbutler Exp $ (BRL)";
+d159 1
+a159 1
+/*@@}*/
+@
+
+
+14.10
+log
+@Doxygen updates
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 1985-2006 United States Government as represented by
+d42 1
+a42 1
+static const char RCStimer[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/librt/timerunix.c,v 14.9 2006/01/18 06:46:17 brlcad Exp $ (BRL)";
+@
+
+
+14.9
+log
+@update copyright to 2006
+@
+text
+@d22 1
+a22 1
+/** \addtogroup librt */
+a39 1
+/*@@}*/
+d42 1
+a42 1
+static const char RCStimer[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/librt/timerunix.c,v 14.8 2005/10/23 04:44:36 brlcad Exp $ (BRL)";
+d159 1
+@
+
+
+14.8
+log
+@trailing ws
+@
+text
+@d4 1
+a4 1
+ * Copyright (C) 1985-2005 United States Government as represented by
+d43 1
+a43 1
+static const char RCStimer[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/librt/timerunix.c,v 14.7 2005/08/12 22:31:08 lbutler Exp $ (BRL)";
+@
+
+
+14.7
+log
+@Doxygen changes
+@
+text
+@d33 1
+a33 1
+ *  
+d38 1
+a38 1
+ *  
+d43 1
+a43 1
+static const char RCStimer[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/librt/timerunix.c,v 14.6 2005/01/30 20:31:03 brlcad Exp $ (BRL)";
+d110 1
+a110 1
+	user_cpu_secs = (tmsnow.tms_utime + tmsnow.tms_cutime) - 
+d113 1
+a113 1
+	sys_cpu_secs = (tmsnow.tms_stime + tmsnow.tms_cstime) - 
+d139 1
+a139 1
+ * 
+@
+
+
+14.7.4.1
+log
+@merge changes from HEAD aka rel-7-6-4 to the rel-7-6-branch just in case someone peeks a gander or tries to continue/build the branch
+@
+text
+@d33 1
+a33 1
+ *
+d38 1
+a38 1
+ *
+d43 1
+a43 1
+static const char RCStimer[] = "@@(#)$Header$ (BRL)";
+d110 1
+a110 1
+	user_cpu_secs = (tmsnow.tms_utime + tmsnow.tms_cutime) -
+d113 1
+a113 1
+	sys_cpu_secs = (tmsnow.tms_stime + tmsnow.tms_cstime) -
+d139 1
+a139 1
+ *
+@
+
+
+14.6
+log
+@update copyright to 2005
+@
+text
+@d21 3
+d25 1
+a25 3
+ *
+ * Function -
+ *	To provide timing information for RT.
+d40 2
+d43 1
+a43 1
+static const char RCStimer[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/librt/timerunix.c,v 14.5 2004/12/21 06:38:21 morrison Exp $ (BRL)";
+@
+
+
+14.5
+log
+@remove the old copyright notice section
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 1985-2004 United States Government as represented by
+d40 1
+a40 1
+static const char RCStimer[] = "@@(#)$Header: /cvs/brlcad/src/librt/timerunix.c,v 14.4 2004/12/21 06:18:48 morrison Exp $ (BRL)";
+@
+
+
+14.4
+log
+@they should have received a copy of the LGPL with LGPL'd files
+@
+text
+@a37 3
+ *  Copyright Notice -
+ *	This software is Copyright (C) 1985-2004 by the United States Army.
+ *	All rights reserved.
+d40 1
+a40 1
+static const char RCStimer[] = "@@(#)$Header: /cvs/brlcad/src/librt/timerunix.c,v 14.3 2004/12/21 05:45:24 morrison Exp $ (BRL)";
+@
+
+
+14.3
+log
+@s/GNU Library General/GNU Lesser General/g
+@
+text
+@d17 2
+a18 2
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+d43 1
+a43 1
+static const char RCStimer[] = "@@(#)$Header: /cvs/brlcad/src/librt/timerunix.c,v 14.2 2004/12/21 04:18:21 morrison Exp $ (BRL)";
+@
+
+
+14.2
+log
+@assign copyright and LGPL
+@
+text
+@d8 1
+a8 1
+ * modify it under the terms of the GNU Library General Public License
+d43 1
+a43 1
+static const char RCStimer[] = "@@(#)$Header: /cvs/brlcad/src/librt/timerunix.c,v 14.1 2004/11/16 19:42:16 morrison Exp $ (BRL)";
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@d1 21
+a21 2
+/*
+ *			T I M E R U N I X . C
+d43 1
+a43 1
+static const char RCStimer[] = "@@(#)$Header: /cvs/brlcad/src/librt/timerunix.c,v 1.3 2004/08/02 23:01:49 morrison Exp $ (BRL)";
+@
+
+
+1.3
+log
+@replace the wrapped config.h block with common.h
+@
+text
+@d24 1
+a24 1
+static const char RCStimer[] = "@@(#)$Header: /cvs/brlcad/src/librt/timerunix.c,v 1.2 2004/06/08 19:57:55 morrison Exp $ (BRL)";
+d140 10
+@
+
+
+1.2
+log
+@bye bye externs.h
+@
+text
+@d24 1
+a24 1
+static const char RCStimer[] = "@@(#)$Header$ (BRL)";
+d27 1
+a27 3
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+@
+
+
+1.1
+log
+@Vast reorganization begins.  Sources moved from top-level directories into src/.
+@
+text
+@d24 1
+a24 1
+static const char RCStimer[] = "@@(#)$Header: /cvs/brlcad/librt/timerunix.c,v 11.10 2004/05/10 15:30:47 erikg Exp $ (BRL)";
+a51 1
+#include "externs.h"
+@
+

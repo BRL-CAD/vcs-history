@@ -1,0 +1,473 @@
+head	11.5;
+access;
+symbols
+	ansi-20040405-merged:11.2.4.1
+	postmerge-20040405-ansi:11.3
+	premerge-20040404-ansi:11.3
+	postmerge-autoconf:11.3
+	autoconf-freeze:11.2.12.2
+	premerge-autoconf:11.3
+	postmerge-20040315-windows:11.3
+	premerge-20040315-windows:11.3
+	windows-20040315-freeze:11.2.6.1
+	autoconf-20031203:11.2
+	autoconf-20031202:11.2
+	autoconf-branch:11.2.0.12
+	phong-branch:11.2.0.10
+	photonmap-branch:11.2.0.8
+	rel-6-1-DP:11.2
+	windows-branch:11.2.0.6
+	rel-6-0-2:11.2
+	ansi-branch:11.2.0.4
+	rel-6-0-1-branch:11.2.0.2
+	hartley-6-0-post:11.2
+	hartley-6-0-pre:11.2
+	rel-6-0-1:11.2
+	rel-6-0:11.2
+	offsite-5-3-pre:11.1;
+locks; strict;
+comment	@ * @;
+
+
+11.5
+date	2004.05.21.18.07.38;	author morrison;	state dead;
+branches;
+next	11.4;
+
+11.4
+date	2004.05.10.15.30.47;	author erikg;	state Exp;
+branches;
+next	11.3;
+
+11.3
+date	2004.02.02.17.39.30;	author morrison;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	2001.04.20.22.31.12;	author morrison;	state Exp;
+branches
+	11.2.4.1
+	11.2.6.1
+	11.2.12.1;
+next	11.1;
+
+11.1
+date	2000.07.11.02.57.08;	author mike;	state Exp;
+branches;
+next	;
+
+11.2.4.1
+date	2004.03.17.21.21.48;	author morrison;	state Exp;
+branches;
+next	;
+
+11.2.6.1
+date	2004.03.11.23.45.48;	author morrison;	state Exp;
+branches;
+next	;
+
+11.2.12.1
+date	2004.02.12.19.41.24;	author erikg;	state Exp;
+branches;
+next	11.2.12.2;
+
+11.2.12.2
+date	2004.03.15.14.07.34;	author erikg;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+11.5
+log
+@moved to src/
+@
+text
+@/*
+ *			R E G 4
+ *
+ *  WARNING:  Old leftover routines that only work with v4 databases.
+ *
+ *
+ *
+ *  Library for writing MGED databases from arbitrary procedures.
+ *
+ *  This module contains routines to create combinations, and regions.
+ *
+ *  It is expected that this library will grow as experience is gained.
+ *
+ *  Authors -
+ *	Michael John Muuss
+ *	Paul R. Stay
+ *	Bill Mermagen Jr.
+ *
+ *  Source -
+ *	SECAD/VLD Computing Consortium, Bldg 394
+ *	The U. S. Army Ballistic Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005-5066
+ *  
+ *  Copyright Notice -
+ *	This software is Copyright (C) 1987-2004 by the United States Army.
+ *	All rights reserved.
+ */
+#ifndef lint
+static const char RCSid[] = "@@(#)$Header: /n/xoff/cvs/brlcad/libwdb/reg4.c,v 11.4 2004/05/10 15:30:47 erikg Exp $ (BRL)";
+#endif
+
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+
+#include <stdio.h>
+#include <math.h>
+#ifdef USE_STRING_H
+#include <string.h>
+#else
+#include <strings.h>
+#endif
+#include "machine.h"
+#include "externs.h"
+#include "bu.h"
+#include "db.h"
+#include "vmath.h"
+#include "bn.h"
+#include "raytrace.h"
+#include "wdb.h"
+
+/* -------------------- Begin old code, compat only -------------------- */
+
+static float ident_mat[16] = {
+	1.0, 0.0, 0.0, 0.0,
+	0.0, 1.0, 0.0, 0.0,
+	0.0, 0.0, 1.0, 0.0,
+	0.0, 0.0, 0.0, 1.0
+};
+
+/*
+ *			M K _ C O M B
+ *
+ *  Make a combination with material properties info.
+ *  Must be followed by 'len' mk_memb() calls before any other mk_* routines.
+ *
+ *  XXX WARNING:  This routine should not be called by new code.
+ *  XXX use mk_lcomb() instead.
+ */
+int
+mk_comb( fp, name, len, region, matname, matparm, rgb, inherit )
+FILE			*fp;
+const char		*name;
+int			len;
+int			region;
+const char		*matname;
+const char		*matparm;
+const unsigned char	*rgb;
+int			inherit;
+{
+	union record rec;
+
+	BU_ASSERT_LONG( mk_version, <=, 4 );
+
+	bzero( (char *)&rec, sizeof(rec) );
+	rec.c.c_id = ID_COMB;
+	/* XXX What values to pass for FASTGEN plate and volume regions? */
+	if( region )
+		rec.c.c_flags = DBV4_REGION;
+	else
+		rec.c.c_flags = DBV4_NON_REGION;
+	NAMEMOVE( name, rec.c.c_name );
+	rec.c.c_pad1 = len;		/* backwards compat, was c_length */
+	if( matname ) {
+		strncpy( rec.c.c_matname, matname, sizeof(rec.c.c_matname) );
+		if( matparm )
+			strncpy( rec.c.c_matparm, matparm,
+				sizeof(rec.c.c_matparm) );
+	}
+	if( rgb )  {
+		rec.c.c_override = 1;
+		rec.c.c_rgb[0] = rgb[0];
+		rec.c.c_rgb[1] = rgb[1];
+		rec.c.c_rgb[2] = rgb[2];
+	}
+	rec.c.c_inherit = inherit;
+	if( fwrite( (char *)&rec, sizeof(rec), 1, fp ) != 1 )
+		return(-1);
+	return(0);
+}
+
+/*
+ *			M K _ R C O M B
+ *
+ *  Make a combination with material properties info.
+ *  Must be followed by 'len' mk_memb() calls before any other mk_* routines.
+ *  Like mk_comb except for additional region parameters.
+ *
+ *  XXX WARNING:  This routine should not be called by new code.
+ *  XXX use mk_addmember() instead.
+ */
+int
+mk_rcomb( fp, name, len, region, matname, matparm, rgb, id, air, material, los, inherit )
+FILE		*fp;
+const char	*name;
+int		len;
+int		region;
+const char	*matname;
+const char	*matparm;
+const unsigned char	*rgb;
+int		id;
+int		air;
+int		material;
+int		los;
+int		inherit;
+{
+	union record rec;
+
+	BU_ASSERT_LONG( mk_version, <=, 4 );
+
+	bzero( (char *)&rec, sizeof(rec) );
+	rec.c.c_id = ID_COMB;
+	if( region ){
+		switch( region )  {
+		case DBV4_NON_REGION:	/* sanity, fixes a non-bool arg */
+		case DBV4_REGION:
+		case DBV4_REGION_FASTGEN_PLATE:
+		case DBV4_REGION_FASTGEN_VOLUME:
+			rec.c.c_flags = region;
+			break;
+		default:
+			rec.c.c_flags = DBV4_REGION;
+		}
+		rec.c.c_inherit = inherit;
+		rec.c.c_regionid = id;
+		rec.c.c_aircode = air;
+		rec.c.c_material = material;
+		rec.c.c_los = los;
+	}
+	else
+		rec.c.c_flags = DBV4_NON_REGION;
+	NAMEMOVE( name, rec.c.c_name );
+	rec.c.c_pad1 = len;		/* backwards compat, was c_length */
+	if( matname ) {
+		strncpy( rec.c.c_matname, matname, sizeof(rec.c.c_matname) );
+		if( matparm )
+			strncpy( rec.c.c_matparm, matparm,
+				sizeof(rec.c.c_matparm) );
+	}
+	if( rgb )  {
+		rec.c.c_override = 1;
+		rec.c.c_rgb[0] = rgb[0];
+		rec.c.c_rgb[1] = rgb[1];
+		rec.c.c_rgb[2] = rgb[2];
+	}
+
+	if( fwrite( (char *)&rec, sizeof(rec), 1, fp ) != 1 )
+		return(-1);
+	return(0);
+}
+
+
+/*
+ *			M K _ F C O M B
+ *
+ *  Make a simple combination header ("fast" version).
+ *  Must be followed by 'len' mk_memb() calls before any other mk_* routines.
+ *
+ *  XXX WARNING:  This routine should not be called by new code.
+ */
+int
+mk_fcomb( fp, name, len, region )
+FILE		*fp;
+const char	*name;
+int		len;
+int		region;
+{
+	union record rec;
+
+	BU_ASSERT_LONG( mk_version, <=, 4 );
+
+	bzero( (char *)&rec, sizeof(rec) );
+	rec.c.c_id = ID_COMB;
+	if( region )
+		rec.c.c_flags = DBV4_REGION;
+	else
+		rec.c.c_flags = DBV4_NON_REGION;
+	NAMEMOVE( name, rec.c.c_name );
+	rec.c.c_pad1 = len;		/* backwards compat, was c_length */
+	if( fwrite( (char *)&rec, sizeof(rec), 1, fp ) != 1 )
+		return(-1);
+	return(0);
+}
+
+/*
+ *			M K _ M E M B
+ *
+ *  Must be part of combination/member clump of records.
+ *
+ *  XXX WARNING:  This routine should not be called by new code.
+ */
+int
+mk_memb( fp, name, mat, bool_op )
+FILE		*fp;
+const char	*name;
+const mat_t	mat;
+int		bool_op;
+{
+	union record rec;
+	register int i;
+
+	BU_ASSERT_LONG( mk_version, <=, 4 );
+
+	bzero( (char *)&rec, sizeof(rec) );
+	rec.M.m_id = ID_MEMB;
+	NAMEMOVE( name, rec.M.m_instname );
+	if( bool_op )
+		rec.M.m_relation = bool_op;
+	else
+		rec.M.m_relation = UNION;
+	if( mat ) {
+		for( i=0; i<16; i++ )
+			rec.M.m_mat[i] = mat[i];  /* double -> float */
+	} else {
+		for( i=0; i<16; i++ )
+			rec.M.m_mat[i] = ident_mat[i];
+	}
+	if( fwrite( (char *)&rec, sizeof(rec), 1, fp ) != 1 )
+		return(-1);
+	return(0);
+}
+
+/* -------------------- End old code, compat only -------------------- */
+@
+
+
+11.4
+log
+@change conf.h to a wrapped config.h
+@
+text
+@d29 1
+a29 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/libwdb/reg4.c,v 11.3 2004/02/02 17:39:30 morrison Exp $ (BRL)";
+@
+
+
+11.3
+log
+@update copyright to include span through 2003
+@
+text
+@d29 1
+a29 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/libwdb/reg4.c,v 11.2 2001/04/20 22:31:12 morrison Exp $ (BRL)";
+d32 5
+a36 1
+#include "conf.h"
+@
+
+
+11.2
+log
+@CONST to const
+@
+text
+@d25 1
+a25 1
+ *	This software is Copyright (C) 1987 by the United States Army.
+d29 1
+a29 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/libwdb/reg4.c,v 11.1 2000/07/11 02:57:08 mike Exp $ (BRL)";
+@
+
+
+11.2.4.1
+log
+@sync branch with HEAD
+@
+text
+@d25 1
+a25 1
+ *	This software is Copyright (C) 1987-2004 by the United States Army.
+d29 1
+a29 1
+static const char RCSid[] = "@@(#)$Header$ (BRL)";
+@
+
+
+11.2.6.1
+log
+@sync to HEAD...
+@
+text
+@d25 1
+a25 1
+ *	This software is Copyright (C) 1987-2004 by the United States Army.
+d29 1
+a29 1
+static const char RCSid[] = "@@(#)$Header: /n/cad/c/CVS/brlcad/libwdb/reg4.c,v 11.3 2004/02/02 17:39:30 morrison Exp $ (BRL)";
+@
+
+
+11.2.12.1
+log
+@merge from HEAD
+@
+text
+@d25 1
+a25 1
+ *	This software is Copyright (C) 1987-2004 by the United States Army.
+d29 1
+a29 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/libwdb/reg4.c,v 11.3 2004/02/02 17:39:30 morrison Exp $ (BRL)";
+@
+
+
+11.2.12.2
+log
+@merge from head
+@
+text
+@d29 1
+a29 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/libwdb/reg4.c,v 11.2.12.1 2004/02/12 19:41:24 erikg Exp $ (BRL)";
+@
+
+
+11.1
+log
+@
+Old v4-only code.
+@
+text
+@d29 1
+a29 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/libwdb/reg.c,v 11.11 2000/07/11 02:36:50 mike Exp $ (BRL)";
+d71 1
+a71 1
+CONST char		*name;
+d74 3
+a76 3
+CONST char		*matname;
+CONST char		*matparm;
+CONST unsigned char	*rgb;
+d123 1
+a123 1
+CONST char	*name;
+d126 3
+a128 3
+CONST char	*matname;
+CONST char	*matparm;
+CONST unsigned char	*rgb;
+d192 1
+a192 1
+CONST char	*name;
+d223 2
+a224 2
+CONST char	*name;
+CONST mat_t	mat;
+@
+

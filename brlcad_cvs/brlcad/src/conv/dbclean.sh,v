@@ -1,0 +1,372 @@
+head	14.9;
+access;
+symbols
+	rel-7-10-4:14.9
+	STABLE:14.9.0.2
+	stable-branch:14.5
+	rel-7-10-2:14.9
+	rel-7-10-0:14.9
+	rel-7-8-4:14.7
+	rel-7-8-2:14.7
+	rel-7-8-0:14.7
+	trimnurbs-branch:14.7.0.2
+	help:14.7
+	temp_tag:14.6
+	bobWinPort-20051223-freeze:14.5
+	postmerge-20051223-bobWinPort:14.6
+	premerge-20051223-bobWinPort:14.6
+	rel-7-6-6:14.6
+	rel-7-6-4:14.6
+	rel-7-6-2:14.5
+	rel-7-6-branch:14.5.0.6
+	rel-7-6-0:14.5
+	rel-7-4-2:14.5
+	rel-7-4-branch:14.5.0.4
+	bobWinPort:14.5.0.2
+	rel-7-4-0:14.5
+	rel-7-2-6:14.5
+	rel-7-2-4:14.5
+	rel-7-2-2:14.5
+	rel-7-2-0:14.5
+	rel-7-0-4:14.4
+	rel-7-0-2:14.4
+	rel-7-0-1:14.4
+	opensource-post:14.4
+	opensource-pre:1.1
+	rel-7-0-branch:1.1.0.2
+	rel-7-0:1.1;
+locks; strict;
+comment	@# @;
+
+
+14.9
+date	2007.01.23.01.13.25;	author brlcad;	state Exp;
+branches;
+next	14.8;
+
+14.8
+date	2007.01.20.14.36.43;	author brlcad;	state Exp;
+branches;
+next	14.7;
+
+14.7
+date	2006.01.18.06.46.13;	author brlcad;	state Exp;
+branches;
+next	14.6;
+
+14.6
+date	2005.10.23.04.44.29;	author brlcad;	state Exp;
+branches;
+next	14.5;
+
+14.5
+date	2005.01.30.20.30.19;	author brlcad;	state Exp;
+branches
+	14.5.6.1;
+next	14.4;
+
+14.4
+date	2004.12.21.01.31.47;	author morrison;	state Exp;
+branches;
+next	14.3;
+
+14.3
+date	2004.12.21.01.07.59;	author butler;	state Exp;
+branches;
+next	14.2;
+
+14.2
+date	2004.12.18.02.37.56;	author morrison;	state Exp;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.12;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.15.18.50;	author morrison;	state Exp;
+branches;
+next	;
+
+14.5.6.1
+date	2005.11.13.13.46.13;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.9
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@#!/bin/sh
+#                      D B C L E A N . S H
+# BRL-CAD
+#
+# Copyright (c) 1991-2007 United States Government as represented by
+# the U.S. Army Research Laboratory.
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU Lesser General Public License
+# version 2.1 as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public
+# License along with this file; see the file named COPYING for more
+# information.
+###
+
+# This shell program compacts mged (.g) databases to remove spaces left
+# by the kill/killall commands.  This is achieved by converting the
+# database to ASCII and then back to .g format.
+# Note: when the converters are unable to convert a solid and it is skipped,
+# the conversions will go to completion and a new database --- without those
+# solids --- results.  Caveat Emptor.
+
+# Author: Susanne Muuss, J.D.
+
+
+# Test to see that two command line arguments are seen: the original
+# database name, and a new database name.
+
+if test "$#" -lt 2
+then
+	echo "Usage: $0 in.g out.g"
+	exit 1
+fi
+
+# Test to check whether the name of the input database is the same
+# as that of the output database.  If so, complain and abort to
+# prevent loosing the original database.
+
+if test $1 = $2
+then
+	echo " $0 ERROR: input and output name must be different"
+	exit 1
+fi
+
+# Set a temp file to be in /usr/tmp and include the process id.  That
+# way, the directory wherein dbclean is invoked need not be writable for
+# the user, and also, it prevents a clash if two users compact the same
+# database at the same time. Note: TMP=/user.... cannot be written with
+# spaces around the equal sign or else the output from the first conversion
+# goes to standard out.
+# Trap sudden interrupts and clean up any debris left by dbclean at that
+# time.
+
+TMP=/usr/tmp/tmp.$$
+echo $TMP
+rm -f $2
+trap "rm -f $TMP; exit 1"  1 2 3 15
+
+# Check to see that the output file is writeable.  If not, complain and
+# abort
+
+if touch $2
+then
+	eval
+else
+	echo "$0 ERROR: $2 permission denied"
+	exit 1
+fi
+
+# Do the conversions with g2asc and asc2g.  If either conversion does
+# not succeed, put out an error message and abort.  Finally, at the
+# end of the conversion, remove the temporary file.
+
+if g2asc < $1 > $TMP
+then
+	eval
+else
+	echo "$0 ERROR: g2asc failed on $1"
+	rm -f $TMP
+	exit 1
+fi
+
+if asc2g < $TMP > $2
+then
+	eval
+else
+	echo "$0 ERROR: asc2g failed on $2"
+	rm -f $TMP $2
+	exit 1
+fi
+
+# Now clean up after a successful conversion and exit.
+
+rm -f $TMP
+exit 0
+
+# Local Variables:
+# mode: sh
+# tab-width: 8
+# sh-indentation: 4
+# sh-basic-offset: 4
+# indent-tabs-mode: t
+# End:
+# ex: shiftwidth=4 tabstop=8
+@
+
+
+14.8
+log
+@update copyright to 2007
+@
+text
+@d9 2
+a10 3
+# modify it under the terms of the GNU General Public License as
+# published by the Free Software Foundation; either version 2 of the
+# License, or (at your option) any later version.
+d15 1
+a15 1
+# General Public License for more details.
+d17 2
+a18 2
+# You should have received a copy of the GNU General Public License
+# along with this file; see the file named COPYING for more
+@
+
+
+14.7
+log
+@update copyright to 2006
+@
+text
+@d5 1
+a5 1
+# Copyright (c) 1991-2006 United States Government as represented by
+@
+
+
+14.6
+log
+@trailing ws
+@
+text
+@d5 1
+a5 1
+# Copyright (C) 1991-2005 United States Government as represented by
+@
+
+
+14.5
+log
+@update copyright to 2005
+@
+text
+@d64 1
+a64 1
+trap "rm -f $TMP; exit 1"  1 2 3 15 
+@
+
+
+14.5.6.1
+log
+@merge changes from HEAD aka rel-7-6-4 to the rel-7-6-branch just in case someone peeks a gander or tries to continue/build the branch
+@
+text
+@d64 1
+a64 1
+trap "rm -f $TMP; exit 1"  1 2 3 15
+@
+
+
+14.4
+log
+@should remove the bsd license then, and fix the copyright date
+@
+text
+@d5 1
+a5 1
+# Copyright (c) 1991-2004 United States Government as represented by
+@
+
+
+14.3
+log
+@Changes to move to the GPL license
+@
+text
+@a7 35
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions
+# are met:
+#
+# 1. Redistributions of source code must retain the above copyright
+# notice, this list of conditions and the following disclaimer.
+#
+# 2. Redistributions in binary form must reproduce the above 
+# copyright notice, this list of conditions and the following
+# disclaimer in the documentation and/or other materials provided
+# with the distribution.
+#
+# 3. The name of the author may not be used to endorse or promote
+# products derived from this software without specific prior written
+# permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS
+# OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+# WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+# ARE DISCLAIMED. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY
+# DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+# DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE
+# GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+# WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+# NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+# SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+#
+###
+
+# BRL-CAD		D B C L E A N . S H
+#
+# Copyright (c) 2004 United States Government as represented by the
+# U.S. Army Research Laboratory.
+#
+d21 1
+a21 2
+#
+
+a30 2
+# Copyright (C), 1991, U.S. Army
+
+@
+
+
+14.2
+log
+@acquire copyright and BSD license
+@
+text
+@d38 21
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@d2 35
+@
+
+
+1.1
+log
+@Vast reorganization begins.  Sources moved from top-level directories into src/.
+@
+text
+@d85 9
+@
+

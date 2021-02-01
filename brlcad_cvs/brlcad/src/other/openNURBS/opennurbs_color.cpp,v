@@ -1,0 +1,350 @@
+head	1.2;
+access;
+symbols
+	rel-7-10-4:1.1
+	STABLE:1.1.0.2
+	rel-7-10-2:1.1
+	rel-7-10-0:1.1;
+locks; strict;
+comment	@// @;
+
+
+1.2
+date	2007.09.14.15.21.40;	author erikgreenwald;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2007.01.05.15.20.20;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.2
+log
+@removed trailing whitespace
+@
+text
+@/* $Header: /cvsroot/brlcad/brlcad/src/other/openNURBS/opennurbs_color.cpp,v 1.1 2007/01/05 15:20:20 brlcad Exp $ */
+/* $NoKeywords: $ */
+/*
+//
+// Copyright (c) 1993-2001 Robert McNeel & Associates. All rights reserved.
+// Rhinoceros is a registered trademark of Robert McNeel & Assoicates.
+//
+// THIS SOFTWARE IS PROVIDED "AS IS" WITHOUT EXPRESS OR IMPLIED WARRANTY.
+// ALL IMPLIED WARRANTIES OF FITNESS FOR ANY PARTICULAR PURPOSE AND OF
+// MERCHANTABILITY ARE HEREBY DISCLAIMED.
+//
+// For complete openNURBS copyright information see <http://www.opennurbs.org>.
+//
+////////////////////////////////////////////////////////////////
+*/
+
+#include "opennurbs.h"
+
+ON_Color::ON_Color() : m_color(0)
+{}
+
+ON_Color::ON_Color(unsigned int colorref) : m_color(colorref)
+{}
+
+ON_Color::ON_Color(int r, int g, int b) : m_color(0)
+{
+  SetRGB(r,g,b);
+}
+
+ON_Color::ON_Color(int r, int g, int b, int a) : m_color(0)
+{
+  SetRGBA(r,g,b,a);
+}
+
+ON_Color::operator unsigned int() const
+{
+  return m_color;
+}
+
+int ON_Color::Compare( const ON_Color& b ) const
+{
+  unsigned int bc = b;
+  return (((int)m_color) - ((int)bc));
+}
+
+int ON_Color::Red() const
+{ return m_color & 0xFF;}
+
+int ON_Color::Green() const
+{ return (m_color>>8) & 0xFF;}
+
+int ON_Color::Blue() const
+{ return (m_color>>16) & 0xFF;}
+
+int ON_Color::Alpha() const
+{ return (m_color>>24) & 0xFF;}
+
+double ON_Color::FractionRed() const
+{
+  //return Red()/255.0;
+  return (m_color & 0xFF)*0.003921568627450980392156862745; // better fodder for optimizer
+}
+
+double ON_Color::FractionGreen() const
+{
+  //return Green()/255.0;
+  return ((m_color>>8) & 0xFF)*0.003921568627450980392156862745; // better fodder for optimizer
+}
+
+double ON_Color::FractionBlue() const
+{
+  //return Blue()/255.0;
+  return ((m_color>>16) & 0xFF)*0.003921568627450980392156862745; // better fodder for optimizer
+}
+
+double ON_Color::FractionAlpha() const
+{
+  //return Alpha()/255.0;
+  return ((m_color>>24) & 0xFF)*0.003921568627450980392156862745; // better fodder for optimizer
+}
+
+void ON_Color::SetRGB(int r,int g,int b) // 0 to 255
+{
+  SetRGBA(r,g,b,0);
+}
+
+void ON_Color::SetFractionalRGB(double r,double g,double b)
+{
+  SetFractionalRGBA(r,g,b,0.0);
+}
+
+void ON_Color::SetAlpha(int alpha)
+{
+	if (alpha < 0 ) alpha = 0; else if ( alpha > 255 ) alpha = 255;
+	m_color = (m_color & 0x00FFFFFF) | (alpha << 24 );
+}
+
+void ON_Color::SetFractionalAlpha(double alpha)
+{
+	if (alpha < 0.0 ) alpha = 0.0; else if ( alpha > 1.0 ) alpha = 1.0;
+  SetAlpha((int)(alpha*255.0));
+}
+
+void
+ON_Color::SetRGBA( int red, int green, int blue, int alpha )
+{
+	if (red   < 0 ) red   = 0; else if ( red   > 255 ) red   = 255;
+	if (green < 0 ) green = 0; else if ( green > 255 ) green = 255;
+	if (blue  < 0 ) blue  = 0; else if ( blue  > 255 ) blue  = 255;
+	if (alpha < 0 ) alpha = 0; else if ( alpha > 255 ) alpha = 255;
+	m_color = (alpha << 24 ) | (blue << 16) | (green << 8) | red;
+}
+
+void
+ON_Color::SetFractionalRGBA( double red, double green, double blue, double alpha )
+{
+	if (red   < 0.0 ) red   = 0.0; else if ( red   > 1.0 ) red   = 1.0;
+	if (green < 0.0 ) green = 0.0; else if ( green > 1.0 ) green = 1.0;
+	if (blue  < 0.0 ) blue  = 0.0; else if ( blue  > 1.0 ) blue  = 1.0;
+	if (alpha < 0.0 ) alpha = 0.0; else if ( alpha > 1.0 ) alpha = 1.0;
+  SetRGBA( (int)(red*255.0), (int)(green*255.0), (int)(blue*255.0), (int)(alpha*255.0) );
+}
+
+double ON_Color::Hue() const
+{
+  // returns 0 to 2*pi
+  // 0    = red,  pi/3   = yellow, 2*pi/3 = green,
+  // pi   = cyan, 4*pi/3 = blue,   5*pi/3 = magenta,
+  // 2*pi = red
+  double h;
+  int r = Red();
+  int g = Green();
+  int b = Blue();
+  int minrgb, maxrgb;
+  if ( r <= g ) {minrgb = r; maxrgb = g;} else {minrgb = g; maxrgb = r;}
+  if (minrgb > b) minrgb = b; else if (maxrgb < b ) maxrgb = b;
+  if ( maxrgb != minrgb ) {
+    double d = 1.0/(maxrgb - minrgb);
+    if ( r == maxrgb) {
+      h = (g - b)*d;
+      if ( h < 0.0 )
+        h += 6.0;
+    }
+    else if ( g == maxrgb)
+      h = 2.0 + (b - r)*d;
+    else
+      h = 4.0 + (r - g)*d;
+    h *= ON_PI/3.0;
+  }
+  else
+    h = 0.0;
+  return h;
+}
+
+double ON_Color::Saturation() const
+{
+  // 0.0 to 1.0    0.0 = gray,  1.0 = saturated
+  double s;
+  int r = Red();
+  int g = Green();
+  int b = Blue();
+  int minrgb, maxrgb;
+  if ( r <= g ) {minrgb = r; maxrgb = g;} else {minrgb = g; maxrgb = r;}
+  if (minrgb > b) minrgb = b; else if (maxrgb < b ) maxrgb = b;
+  if ( maxrgb > 0 ) {
+    s = ((double)(maxrgb - minrgb))/((double)maxrgb);
+  }
+  else
+    s = 0.0;
+  return s;
+}
+
+double ON_Color::Value() const
+{
+  // 0.0 to 1.0    0.0 = black, 1.0 = white
+  int r = Red();
+  int g = Green();
+  int b = Blue();
+  int maxrgb = ( r <= g ) ? g : r; if ( maxrgb < b ) maxrgb = b;
+  return (maxrgb/255.0);
+}
+
+void ON_Color::SetHSV(
+       double hue,         // hue in radians
+       double saturation, // satuation 0.0 = gray, 1.0 = saturated
+       double value       // value
+       )
+{
+  int i;
+  double f, p, q, t, r, g, b;
+  if ( saturation <= 1.0/256.0 ) {
+    r = value;
+    g = value;
+    b = value;
+  }
+  else  {
+    hue *= 3.0 / ON_PI;  // (6.0 / 2.0 * ON_PI);
+    i = (int)floor(hue);
+    if ( i < 0 || i > 5 ) {
+      hue = fmod(hue,6.0);
+      if ( hue < 0.0 )
+        hue += 6.0;
+      i = (int)floor(hue);
+    }
+    f = hue - i;
+    p = value * ( 1.0 - saturation);
+    q = value * ( 1.0 - ( saturation * f) );
+    t = value * ( 1.0 - ( saturation * ( 1.0 - f) ) );
+    switch( i)
+    {
+    case 0:
+      r = value; g = t; b = p; break;
+    case 1:
+      r = q; g = value; b = p; break;
+    case 2:
+      r = p; g = value; b = t; break;
+    case 3:
+      r = p; g = q; b = value; break;
+    case 4:
+      r = t; g = p; b = value; break;
+    case 5:
+      r = value; g = p; b = q; break;
+    default:
+      r = 0; g = 0; b = 0; break; // to keep lint quiet
+    }
+  }
+  SetFractionalRGB(r,g,b);
+}
+
+@
+
+
+1.1
+log
+@initial import of the openNURBS initiative's nurbs toolkit.  the toolkit consists of code for reading/writing .3dm files used by Rhino as well as nurbs evaluation and other geometry processing facilities.  the library is being evaluated for .3dm support as well as potentially gutting the existing nurbs primitive and using openNURBS evaluation routines instead (still probably need to implement ray shot evaluation).  this is version 200612050 (aka 4.0).
+
+this is also a C++ library, the first integration of an external C++ dependency into BRL-CAD.  additional support/infrastructure will be needed to support this in configure.  there's still, however, a policy/convention of "containment" so that C++ does not propagate into the existing BRL-CAD libraries.  any additions that utilize c++ still have to be entirely modular (and optional) for the time being.
+@
+text
+@d1 1
+a1 1
+/* $Header: /src4/opennurbs/opennurbs_color.cpp 3     9/24/05 10:51a Lasor $ */
+d11 1
+a11 1
+//				
+d19 1
+a19 1
+ON_Color::ON_Color() : m_color(0) 
+d22 1
+a22 1
+ON_Color::ON_Color(unsigned int colorref) : m_color(colorref) 
+d25 1
+a25 1
+ON_Color::ON_Color(int r, int g, int b) : m_color(0) 
+d30 1
+a30 1
+ON_Color::ON_Color(int r, int g, int b, int a) : m_color(0) 
+d59 1
+a59 1
+{ 
+d64 2
+a65 2
+double ON_Color::FractionGreen() const       
+{ 
+d70 2
+a71 2
+double ON_Color::FractionBlue() const       
+{ 
+d76 2
+a77 2
+double ON_Color::FractionAlpha() const       
+{ 
+d94 1
+a94 1
+	if (alpha < 0 ) alpha = 0; else if ( alpha > 255 ) alpha = 255;	
+d100 1
+a100 1
+	if (alpha < 0.0 ) alpha = 0.0; else if ( alpha > 1.0 ) alpha = 1.0;	
+d107 4
+a110 4
+	if (red   < 0 ) red   = 0; else if ( red   > 255 ) red   = 255;	
+	if (green < 0 ) green = 0; else if ( green > 255 ) green = 255;	
+	if (blue  < 0 ) blue  = 0; else if ( blue  > 255 ) blue  = 255;	
+	if (alpha < 0 ) alpha = 0; else if ( alpha > 255 ) alpha = 255;	
+d117 4
+a120 4
+	if (red   < 0.0 ) red   = 0.0; else if ( red   > 1.0 ) red   = 1.0;	
+	if (green < 0.0 ) green = 0.0; else if ( green > 1.0 ) green = 1.0;	
+	if (blue  < 0.0 ) blue  = 0.0; else if ( blue  > 1.0 ) blue  = 1.0;	
+	if (alpha < 0.0 ) alpha = 0.0; else if ( alpha > 1.0 ) alpha = 1.0;	
+d126 2
+a127 2
+  // returns 0 to 2*pi 
+  // 0    = red,  pi/3   = yellow, 2*pi/3 = green, 
+d146 1
+a146 1
+    else 
+d183 2
+a184 2
+void ON_Color::SetHSV( 
+       double hue,         // hue in radians 
+d186 1
+a186 1
+       double value       // value     
+d204 2
+a205 2
+    }    
+    f = hue - i;    
+d212 1
+a212 1
+      r = value; g = t; b = p; break;      
+d222 1
+a222 1
+      r = value; g = p; b = q; break;      
+d225 1
+a225 1
+    }    
+@
+

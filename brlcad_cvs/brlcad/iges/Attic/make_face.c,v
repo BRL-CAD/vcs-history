@@ -1,0 +1,711 @@
+head	11.13;
+access;
+symbols
+	ansi-20040405-merged:11.11.4.1
+	postmerge-20040405-ansi:11.12
+	premerge-20040404-ansi:11.12
+	postmerge-autoconf:11.12
+	autoconf-freeze:11.11.12.2
+	premerge-autoconf:11.12
+	ansi-20040316-freeze:11.11
+	postmerge-20040315-windows:11.12
+	premerge-20040315-windows:11.12
+	windows-20040315-freeze:11.11.6.1
+	autoconf-20031203:11.11
+	autoconf-20031202:11.11
+	autoconf-branch:11.11.0.12
+	phong-branch:11.11.0.10
+	photonmap-branch:11.11.0.8
+	rel-6-1-DP:11.11
+	windows-branch:11.11.0.6
+	rel-6-0-2:11.11
+	ansi-branch:11.11.0.4
+	rel-6-0-1-branch:11.11.0.2
+	hartley-6-0-post:11.11
+	hartley-6-0-pre:11.11
+	rel-6-0-1:11.11
+	rel-6-0:11.11
+	rel-5-4:11.10
+	offsite-5-3-pre:11.11
+	rel-5-3:11.10
+	rel-5-2:11.10
+	rel-5-1-branch:11.10.0.2
+	rel-5-1:11.10
+	rel-5-0:11.8
+	rel-5-0-beta:11.8
+	rel-4-5:11.8
+	ctj-4-5-post:11.8
+	ctj-4-5-pre:11.8
+	rel-4-4:11.5;
+locks; strict;
+comment	@ * @;
+
+
+11.13
+date	2004.05.24.04.01.08;	author morrison;	state dead;
+branches;
+next	11.12;
+
+11.12
+date	2004.02.02.17.39.05;	author morrison;	state Exp;
+branches;
+next	11.11;
+
+11.11
+date	2000.08.24.04.10.48;	author mike;	state Exp;
+branches
+	11.11.4.1
+	11.11.6.1
+	11.11.12.1;
+next	11.10;
+
+11.10
+date	2000.03.29.18.42.46;	author mike;	state Exp;
+branches;
+next	11.9;
+
+11.9
+date	2000.03.24.21.27.30;	author jra;	state Exp;
+branches;
+next	11.8;
+
+11.8
+date	96.10.28.18.43.10;	author jra;	state Exp;
+branches;
+next	11.7;
+
+11.7
+date	95.12.06.13.25.06;	author jra;	state Exp;
+branches;
+next	11.6;
+
+11.6
+date	95.11.28.21.35.45;	author jra;	state Exp;
+branches;
+next	11.5;
+
+11.5
+date	95.01.04.10.07.55;	author mike;	state Rel4_4;
+branches;
+next	11.4;
+
+11.4
+date	94.08.26.09.06.34;	author jra;	state Exp;
+branches;
+next	11.3;
+
+11.3
+date	94.08.22.19.31.50;	author gdurf;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	94.01.07.15.15.16;	author jra;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	93.06.28.10.06.51;	author jra;	state Exp;
+branches;
+next	;
+
+11.11.4.1
+date	2004.03.17.21.16.32;	author morrison;	state Exp;
+branches;
+next	;
+
+11.11.6.1
+date	2004.03.11.23.41.14;	author morrison;	state Exp;
+branches;
+next	;
+
+11.11.12.1
+date	2004.02.12.19.41.39;	author erikg;	state Exp;
+branches;
+next	11.11.12.2;
+
+11.11.12.2
+date	2004.03.15.14.06.12;	author erikg;	state Exp;
+branches;
+next	;
+
+
+desc
+@Process an IGES loop entity
+@
+
+
+11.13
+log
+@moved to src/iges/
+@
+text
+@/*
+ *  Authors -
+ *	John R. Anderson
+ *
+ *  Source -
+ *	SLAD/BVLD/VMB
+ *	The U. S. Army Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005
+ *  
+ *  Copyright Notice -
+ *	This software is Copyright (C) 1993-2004 by the United States Army.
+ *	All rights reserved.
+ */
+#ifndef lint
+static const char RCSid[] = "@@(#)$Header: /n/xoff/cvs/brlcad/iges/make_face.c,v 11.12 2004/02/02 17:39:05 morrison Exp $ (BRL)";
+#endif
+
+#include "./iges_struct.h"
+#include "./iges_extern.h"
+
+fastf_t nmg_loop_plane_area();
+
+struct faceuse *
+Make_planar_face( s , entityno , face_orient )
+struct shell *s;
+int entityno;
+int face_orient;
+{ 
+
+	int			sol_num;	/* IGES solid type number */
+	int			no_of_edges;	/* edge count for this loop */
+	int			no_of_param_curves;
+	int			vert_count=0;	/* Actual number of vertices used to make face */
+	struct iges_edge_use	*edge_list;	/* list of edgeuses from iges loop entity */
+	struct faceuse		*fu=NULL;	/* NMG face use */
+	struct loopuse		*lu;		/* NMG loop use */
+	struct vertex		***verts;	/* list of vertices */
+	struct iges_vertex_list	*v_list;
+	int			done;
+	int			i,j,k;
+
+	/* Acquiring Data */
+
+	if( dir[entityno]->param <= pstart )
+	{
+		bu_log( "Illegal parameter pointer for entity D%07d (%s)\n" ,
+				dir[entityno]->direct , dir[entityno]->name );
+		return(0);
+	}
+
+	Readrec( dir[entityno]->param );
+	Readint( &sol_num , "" );
+	if( sol_num != 508 )
+	{
+		bu_log( "Entity #%d is not a loop (it's a %s)\n" , entityno , iges_type(sol_num) );
+		rt_bomb( "Fatal error\n" );
+	}
+
+	Readint( &no_of_edges , "" );
+	edge_list = (struct iges_edge_use *)bu_calloc( no_of_edges , sizeof( struct iges_edge_use ) ,
+			"Make_face (edge_list)" );
+	for( i=0 ; i<no_of_edges ; i++ )
+	{
+		Readint( &edge_list[i].edge_is_vertex , "" );
+		Readint( &edge_list[i].edge_de , "" );
+		Readint( &edge_list[i].index , "" );
+		Readint( &edge_list[i].orient , "" );
+		if( !face_orient ) /* need opposite orientation of edge */
+		{
+			if( edge_list[i].orient )
+				edge_list[i].orient = 0;
+			else
+				edge_list[i].orient = 1;
+		}
+		edge_list[i].root = (struct iges_param_curve *)NULL;
+		Readint( &no_of_param_curves , "" );
+		for( j=0 ; j<no_of_param_curves ; j++ )
+		{
+			struct iges_param_curve *new_crv;
+			struct iges_param_curve *crv;
+
+			Readint( &k , "" );	/* ignore iso-parametric flag */
+			new_crv = (struct iges_param_curve *)bu_malloc( sizeof( struct iges_param_curve ),
+				"Make_planar_face: new_crv" );
+			if( edge_list[i].root == (struct iges_param_curve *)NULL )
+				edge_list[i].root = new_crv;
+			else
+			{
+				crv = edge_list[i].root;
+				while( crv->next != (struct iges_param_curve *)NULL )
+					crv = crv->next;
+				crv->next = new_crv;
+			}
+			Readint( &new_crv->curve_de, "" );
+			new_crv->next = (struct iges_param_curve *)NULL;
+		}
+	}
+
+	verts = (struct vertex ***)bu_calloc( no_of_edges , sizeof( struct vertex **) ,
+		"Make_face: vertex_list **" );
+
+	for( i=0 ; i<no_of_edges ; i++ )
+	{
+		if( face_orient )
+			verts[i] = Get_vertex( &edge_list[i] );
+		else
+			verts[no_of_edges-1-i] = Get_vertex( &edge_list[i] );
+	}
+
+	/* eliminate zero length edges */
+	vert_count = no_of_edges;
+	done = 0;
+	while( !done )
+	{
+		done = 1;
+		for( i=0 ; i<vert_count ; i++ )
+		{
+			k = i + 1;
+			if( k == vert_count )
+				k = 0;
+
+			if( verts[i] == verts[k] )
+			{
+				bu_log( "Ignoring zero length edge\n" );
+				done = 0;
+				vert_count--;
+				for( j=i ; j<vert_count ; j++ )
+					verts[j] = verts[j+1];
+			}
+		}
+	}
+
+	if( vert_count )
+	{
+		plane_t			pl;		/* Plane equation for face */
+		fastf_t			area;		/* area of loop */
+		fastf_t dist;
+		vect_t min2max;
+		point_t outside_pt;
+
+		fu = nmg_cmface( s, verts, vert_count );
+
+		/* associate geometry */
+		v_list = vertex_root;
+		while( v_list != NULL )
+		{
+			for( i=0 ; i < v_list->no_of_verts ; i++ )
+			{
+				if( v_list->i_verts[i].v != NULL && v_list->i_verts[i].v->vg_p == NULL )
+				{
+					NMG_CK_VERTEX( v_list->i_verts[i].v );
+					nmg_vertex_gv( v_list->i_verts[i].v ,
+						v_list->i_verts[i].pt );
+				}
+			}
+			v_list = v_list->next;
+		}
+
+		lu = BU_LIST_FIRST( loopuse , &fu->lu_hd );
+		NMG_CK_LOOPUSE( lu );
+
+		area = nmg_loop_plane_area( lu , pl );
+		if( area < 0.0 )
+		{
+			bu_log( "Could not calculate area for face (entityno = %d)\n", entityno );
+			nmg_pr_fu_briefly( fu, "" );
+			nmg_kfu( fu );
+			fu = (struct faceuse *)NULL;
+			goto err;
+		}
+
+		nmg_face_g( fu , pl );
+		nmg_face_bb( fu->f_p , &tol );
+
+		/* find a point that is surely outside the loop */
+		VSUB2( min2max , fu->f_p->max_pt , fu->f_p->min_pt );
+		VADD2( outside_pt , fu->f_p->max_pt , min2max );
+
+		/* move it to the plane of the face */
+		dist = DIST_PT_PLANE( outside_pt , pl );
+		VJOIN1( outside_pt , outside_pt , -dist , pl );
+
+		if( nmg_class_pt_lu_except( outside_pt , lu, (struct edge *)NULL , &tol ) != NMG_CLASS_AoutB )
+		{
+			nmg_reverse_face( fu );
+			if( fu->orientation != OT_SAME )
+			{
+				fu = fu->fumate_p;
+				if( fu->orientation != OT_SAME )
+					rt_bomb( "Make_face: no OT_SAME use for a face!!!\n" );
+			}
+		}
+	}
+	else
+		bu_log( "No edges left!!\n" );
+
+  err:
+	bu_free( (char *)edge_list , "Make_face (edge_list)" );
+	bu_free( (char *)verts , "Make_face (vertexlist)" );
+	return( fu );
+}
+@
+
+
+11.12
+log
+@update copyright to include span through 2003
+@
+text
+@d15 1
+a15 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/iges/make_face.c,v 11.11 2000/08/24 04:10:48 mike Exp $ (BRL)";
+@
+
+
+11.11
+log
+@
+mk_addmember
+RCSid
+@
+text
+@d11 1
+a11 1
+ *	This software is Copyright (C) 1993 by the United States Army.
+d15 1
+a15 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/iges/make_face.c,v 11.10 2000/03/29 18:42:46 mike Exp $ (BRL)";
+@
+
+
+11.11.4.1
+log
+@sync branch with HEAD
+@
+text
+@d11 1
+a11 1
+ *	This software is Copyright (C) 1993-2004 by the United States Army.
+d15 1
+a15 1
+static const char RCSid[] = "@@(#)$Header$ (BRL)";
+@
+
+
+11.11.6.1
+log
+@sync to HEAD...
+@
+text
+@d11 1
+a11 1
+ *	This software is Copyright (C) 1993-2004 by the United States Army.
+d15 1
+a15 1
+static const char RCSid[] = "@@(#)$Header: /n/cad/c/CVS/brlcad/iges/make_face.c,v 11.12 2004/02/02 17:39:05 morrison Exp $ (BRL)";
+@
+
+
+11.11.12.1
+log
+@merge from HEAD
+@
+text
+@d11 1
+a11 1
+ *	This software is Copyright (C) 1993-2004 by the United States Army.
+d15 1
+a15 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/iges/make_face.c,v 11.12 2004/02/02 17:39:05 morrison Exp $ (BRL)";
+@
+
+
+11.11.12.2
+log
+@merge from head
+@
+text
+@d15 1
+a15 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/iges/make_face.c,v 11.11.12.1 2004/02/12 19:41:39 erikg Exp $ (BRL)";
+@
+
+
+11.10
+log
+@
+Converted from Release 4 names to know about libbu and libbn
+@
+text
+@d15 1
+a15 1
+static char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/iges/make_face.c,v 11.9 2000/03/24 21:27:30 jra Exp $ (BRL)";
+@
+
+
+11.9
+log
+@Was missing a declaration for an external function
+@
+text
+@d15 1
+a15 1
+static char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/iges/make_face.c,v 11.8 1996/10/28 18:43:10 jra Exp $ (BRL)";
+d46 1
+a46 1
+		rt_log( "Illegal parameter pointer for entity D%07d (%s)\n" ,
+d55 1
+a55 1
+		rt_log( "Entity #%d is not a loop (it's a %s)\n" , entityno , iges_type(sol_num) );
+d60 1
+a60 1
+	edge_list = (struct iges_edge_use *)rt_calloc( no_of_edges , sizeof( struct iges_edge_use ) ,
+d83 1
+a83 1
+			new_crv = (struct iges_param_curve *)rt_malloc( sizeof( struct iges_param_curve ),
+d99 1
+a99 1
+	verts = (struct vertex ***)rt_calloc( no_of_edges , sizeof( struct vertex **) ,
+d124 1
+a124 1
+				rt_log( "Ignoring zero length edge\n" );
+d159 1
+a159 1
+		lu = RT_LIST_FIRST( loopuse , &fu->lu_hd );
+d165 1
+a165 1
+			rt_log( "Could not calculate area for face (entityno = %d)\n", entityno );
+d195 1
+a195 1
+		rt_log( "No edges left!!\n" );
+d198 2
+a199 2
+	rt_free( (char *)edge_list , "Make_face (edge_list)" );
+	rt_free( (char *)verts , "Make_face (vertexlist)" );
+@
+
+
+11.8
+log
+@Replaced cal to  nmg_classify_pt_loop() with nmg_class_pt_lu_except().
+@
+text
+@d15 1
+a15 1
+static char RCSid[] = "@@(#)$Header: /m/cad/iges/RCS/make_face.c,v 11.7 1995/12/06 13:25:06 jra Exp jra $ (BRL)";
+d21 2
+d165 2
+a166 1
+			rt_log( "Could not calculate area for face\n" );
+@
+
+
+11.7
+log
+@All logging done via rt_log
+@
+text
+@d15 1
+a15 1
+static char RCSid[] = "@@(#)$Header: /m/cad/iges/RCS/make_face.c,v 11.6 1995/11/28 21:35:45 jra Exp jra $ (BRL)";
+d180 1
+a180 1
+		if( nmg_classify_pt_loop( outside_pt , lu , &tol ) != NMG_CLASS_AoutB )
+@
+
+
+11.6
+log
+@Mods to handle TNURB BREP. Also added RT_EXTERNS to iges_struct.h.
+@
+text
+@d15 1
+a15 1
+static char RCSid[] = "@@(#)$Header: /m/cad/iges/RCS/make_face.c,v 11.5 1995/01/04 10:07:55 mike Rel4_4 jra $ (BRL)";
+d44 1
+a44 1
+		printf( "Illegal parameter pointer for entity D%07d (%s)\n" ,
+@
+
+
+11.5
+log
+@Release_4.4
+@
+text
+@d15 1
+a15 1
+static char RCSid[] = "@@(#)$Header: /m/cad/iges/RCS/make_face.c,v 11.4 94/08/26 09:06:34 jra Exp $ (BRL)";
+a17 13
+#include "conf.h"
+
+#include <stdio.h>
+#ifdef USE_STRING_H
+#include <string.h>
+#else
+#include <strings.h>
+#endif
+
+#include "machine.h"
+#include "vmath.h"
+#include "raytrace.h"
+#include "wdb.h"
+a20 3
+RT_EXTERN( struct vertex **Get_vertex , (struct iges_edge_use *edge ) );
+RT_EXTERN( struct faceuse *nmg_cmface , ( struct shell *s, struct vertex ***verts, int no_of_edges ) );
+
+d22 1
+a22 1
+Make_face( s , entityno , face_orient )
+d53 1
+a53 1
+		rt_log( "Entity #%d is not a loop (it's a type %d)\n" , entityno , sol_num );
+d73 1
+d75 20
+a94 2
+		for( j=0 ; j<2*no_of_param_curves ; j++ )
+			Readint( &k , "" );
+d122 1
+a122 1
+				printf( "Ignoring zero length edge\n" );
+d182 1
+a182 1
+			nmg_reverse_face( fu , &tol );
+d191 2
+@
+
+
+11.4
+log
+@Modified to use Orient_loops.
+@
+text
+@d15 1
+a15 1
+static char RCSid[] = "@@(#)$Header: /m/cad/iges-g/RCS/main.c,v 11.5 94/08/26 09:05:19 jra Exp $ (BRL)";
+@
+
+
+11.3
+log
+@Factored ifdefs
+@
+text
+@d14 4
+d47 1
+d50 1
+d52 2
+d66 1
+a66 2
+	printf( "Make Face (loop at %d), passed orient = %d\n" , entityno*2+1 , face_orient );
+	Readint( &sol_num , "LOOP: " );
+d73 1
+a73 1
+	Readint( &no_of_edges , "no of edges: " );
+d78 4
+a81 4
+		Readint( &edge_list[i].edge_is_vertex , "\n\tEdge is Vertex: " );
+		Readint( &edge_list[i].edge_de , "\tEdge DE: " );
+		Readint( &edge_list[i].index , "\tEdge index: " );
+		Readint( &edge_list[i].orient , "\tEdge orient: " );
+a83 1
+printf( "Face orientation is %d, so switch edge (%d) orientation from %d to" , face_orient , i , edge_list[i].orient );
+a87 1
+printf( " %d\n" , edge_list[i].orient );
+a96 1
+	printf( "\t\tLOOP:\n" );
+d105 4
+a108 1
+	for( i=0 ; i<no_of_edges ; i++ )
+d110 6
+a115 3
+		struct iges_vertex_list *vl;
+		struct iges_vertex *iv;
+		int found;
+d117 24
+a140 3
+		found = 0;
+		vl  = vertex_root;
+		while( vl != NULL && !found )
+d142 1
+a142 1
+			for( j=0 ; j<vl->no_of_verts ; j++ )
+d144 1
+a144 1
+				if( &vl->i_verts[j].v == verts[i] )
+d146 3
+a148 6
+					printf( "\t\t\t( %g , %g , %g )\n" ,
+						vl->i_verts[j].pt[X],
+						vl->i_verts[j].pt[Y],
+						vl->i_verts[j].pt[Z] );
+					found = 1;
+					break;
+d151 1
+a151 1
+			vl = vl->next;
+d154 2
+a155 6
+		k = i + 1;
+		if( k == no_of_edges )
+			k = 0;
+		if( verts[i] == verts[k] )
+			printf( "******************BAD LOOP (zero length edge)\n" );
+	}
+d157 8
+a164 1
+	fu = nmg_cmface( s, verts, no_of_edges );
+d166 22
+a187 3
+	rt_free( (char *)edge_list , "Make_face (edge_list)" );
+	rt_free( (char *)verts , "Make_face (vertexlist)" );
+	return( fu );
+@
+
+
+11.2
+log
+@Modified header files
+@
+text
+@d14 2
+d17 6
+a24 5
+#ifdef BSD
+#include <strings.h>
+#else
+#include <string.h>
+#endif
+@
+
+
+11.1
+log
+@Major Upgrade to IGES 5.1
+@
+text
+@d22 2
+a25 5
+#include "rtlist.h"
+#include "rtstring.h"
+#include "nmg.h"
+#include "raytrace.h"
+#include "wdb.h"
+d28 1
+d31 1
+a31 1
+Make_face( s , entityno , loop_orient )
+d34 1
+a34 1
+int loop_orient;
+d55 9
+a63 2
+	Readint( &sol_num , "" );
+	Readint( &no_of_edges , "" );
+d68 13
+a80 4
+		Readint( &edge_list[i].edge_is_vertex , "" );
+		Readint( &edge_list[i].edge_de , "" );
+		Readint( &edge_list[i].index , "" );
+		Readint( &edge_list[i].orient , "" );
+d82 1
+a82 1
+		for( j=0 ; j<no_of_param_curves ; j++ )
+d89 1
+d91 38
+a128 1
+		verts[i] = Get_vertex( &edge_list[i] );
+@

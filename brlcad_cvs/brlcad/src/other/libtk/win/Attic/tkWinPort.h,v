@@ -1,0 +1,221 @@
+head	14.2;
+access;
+symbols
+	stable-branch:14.1
+	rel-7-8-4:14.1
+	rel-7-8-2:14.1
+	rel-7-8-0:14.1
+	trimnurbs-branch:14.1.0.8
+	help:14.1
+	temp_tag:14.1
+	bobWinPort-20051223-freeze:14.1
+	postmerge-20051223-bobWinPort:14.1
+	premerge-20051223-bobWinPort:14.1
+	rel-7-6-6:14.1
+	rel-7-6-4:14.1
+	rel-7-6-2:14.1
+	rel-7-6-branch:14.1.0.6
+	rel-7-6-0:14.1
+	rel-7-4-2:14.1
+	rel-7-4-branch:14.1.0.4
+	bobWinPort:14.1.0.2
+	rel-7-4-0:14.1
+	rel-7-2-6:14.1
+	rel-7-2-4:14.1
+	rel-7-2-2:14.1
+	rel-7-2-0:14.1
+	rel-7-0-4:14.1
+	rel-7-0-2:14.1
+	rel-7-0-1:14.1
+	opensource-post:14.1
+	opensource-pre:1.1
+	rel-7-0-branch:1.1.0.2
+	rel-7-0:1.1;
+locks; strict;
+comment	@ * @;
+
+
+14.2
+date	2007.03.02.21.47.51;	author brlcad;	state dead;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.29;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.14.53.49;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.2
+log
+@upgrade tcl/tk from 8.4.6 to 8.5a5; also move to a recursive configure, using AC_CONFIG_SUBDIRS to call upon tcl, tk, and enigma's configure scripts as needed instead of redoing their build systems for our purpose.  this has a rather drastic impact on the way the libraries are linked together, including the need to compile tcl/tk static so as to avoid libtool portability issues as well as letting us take advantage of their build system for reduced maintenance and easing future upgrades.  undoubtedly more build issues to be worked out with other platforms given the extent of this change.  this does move us one step closer towards correctly linking against system tcl/tk installations too.
+@
+text
+@/*
+ * tkWinPort.h --
+ *
+ *	This header file handles porting issues that occur because of
+ *	differences between Windows and Unix. It should be the only
+ *	file that contains #ifdefs to handle different flavors of OS.
+ *
+ * Copyright (c) 1995-1996 Sun Microsystems, Inc.
+ *
+ * See the file "license.terms" for information on usage and redistribution
+ * of this file, and for a DISCLAIMER OF ALL WARRANTIES.
+ *
+ * RCS: @@(#) $Id: tkWinPort.h,v 14.1 2004/11/16 19:42:29 morrison Exp $
+ */
+
+#ifndef _WINPORT
+#define _WINPORT
+
+#include <X11/Xlib.h>
+#include <X11/cursorfont.h>
+#include <X11/keysym.h>
+#include <X11/Xatom.h>
+#include <X11/Xutil.h>
+
+#include <malloc.h>
+#include <errno.h>
+#include <ctype.h>
+#include <math.h>
+#include <stdlib.h>
+#include <string.h>
+#include <limits.h>
+#include <fcntl.h>
+#include <io.h>
+
+/*
+ * Need to block out this include for building extensions with MetroWerks
+ * compiler for Win32.
+ */
+
+#ifndef __MWERKS__
+#include <sys/stat.h>
+#endif
+
+#include <time.h>
+#ifdef __CYGWIN__
+#    define _T(x) L##x
+#else
+#    include <tchar.h>
+#endif
+
+#ifdef _MSC_VER
+#    define hypot _hypot
+#endif /* _MSC_VER */
+
+#ifndef __GNUC__
+#    define strncasecmp strnicmp
+#    define strcasecmp stricmp
+#endif
+
+#define NBBY 8
+
+#ifndef OPEN_MAX
+#define OPEN_MAX 32
+#endif
+
+/*
+ * The following define causes Tk to use its internal keysym hash table
+ */
+
+#define REDO_KEYSYM_LOOKUP
+
+/*
+ * The following macro checks to see whether there is buffered
+ * input data available for a stdio FILE.
+ */
+
+#ifdef _MSC_VER
+#    define TK_READ_DATA_PENDING(f) ((f)->_cnt > 0)
+#else /* _MSC_VER */
+#    define TK_READ_DATA_PENDING(f) ((f)->level > 0)
+#endif /* _MSC_VER */
+
+/*
+ * The following stubs implement various calls that don't do anything
+ * under Windows.
+ */
+
+#define TkFreeWindowId(dispPtr,w)
+#define TkInitXId(dispPtr)
+#define TkpCmapStressed(tkwin,colormap) (0)
+#define XFlush(display)
+#define XGrabServer(display)
+#define XUngrabServer(display)
+#define TkpSync(display)
+
+/*
+ * The following functions are implemented as macros under Windows.
+ */
+
+#define XFree(data) {if ((data) != NULL) ckfree((char *) (data));}
+#define XNoOp(display) {display->request++;}
+#define XSynchronize(display, bool) {display->request++;}
+#define XSync(display, bool) {display->request++;}
+#define XVisualIDFromVisual(visual) (visual->visualid)
+
+/*
+ * The following Tk functions are implemented as macros under Windows.
+ */
+
+#define TkpGetPixel(p) (((((p)->red >> 8) & 0xff) \
+	| ((p)->green & 0xff00) | (((p)->blue << 8) & 0xff0000)) | 0x20000000)
+
+/*
+ * These calls implement native bitmaps which are not currently 
+ * supported under Windows.  The macros eliminate the calls.
+ */
+
+#define TkpDefineNativeBitmaps()
+#define TkpCreateNativeBitmap(display, source) None
+#define TkpGetNativeAppBitmap(display, name, w, h) None
+
+/*
+ * Define timezone for gettimeofday.
+ */
+
+struct timezone {
+    int tz_minuteswest;
+    int tz_dsttime;
+};
+
+#ifndef _TCLINT
+#include <tclInt.h>
+#endif
+
+#endif /* _WINPORT */
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@d13 1
+a13 1
+ * RCS: @@(#) $Id: tkWinPort.h,v 1.1 2004/05/20 14:53:49 morrison Exp $
+@
+
+
+1.1
+log
+@Sources that are external to BRL-CAD are moved from the top level to src/other/.
+@
+text
+@d13 1
+a13 1
+ * RCS: @@(#) $Id: tkWinPort.h,v 1.3 2004/03/04 19:49:33 morrison Exp $
+@
+

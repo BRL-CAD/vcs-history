@@ -1,0 +1,488 @@
+head	11.8;
+access;
+symbols
+	ansi-20040405-merged:11.5.2.1
+	postmerge-20040405-ansi:11.6
+	premerge-20040404-ansi:11.5
+	postmerge-autoconf:11.5
+	autoconf-freeze:11.5
+	premerge-autoconf:11.5
+	postmerge-20040315-windows:11.5
+	premerge-20040315-windows:11.5
+	windows-20040315-freeze:11.5
+	autoconf-20031203:11.5
+	autoconf-20031202:11.5
+	autoconf-branch:11.5.0.10
+	phong-branch:11.5.0.8
+	photonmap-branch:11.5.0.6
+	rel-6-1-DP:11.5
+	windows-branch:11.5.0.4
+	rel-6-0-2:11.3
+	ansi-branch:11.5.0.2
+	rel-6-0-1-branch:11.3.0.2
+	hartley-6-0-post:11.4
+	hartley-6-0-pre:11.3
+	rel-6-0-1:11.3
+	rel-6-0:11.3
+	rel-5-4:11.1
+	offsite-5-3-pre:11.2
+	rel-5-3:11.1
+	rel-5-2:11.1
+	rel-5-1-branch:11.1.0.2
+	rel-5-1:11.1
+	rel-5-0:11.1
+	rel-5-0-beta:11.1
+	rel-4-5:11.1
+	ctj-4-5-post:11.1
+	ctj-4-5-pre:11.1
+	rel-4-4:11.1
+	rel-4-0:10.1;
+locks; strict;
+comment	@ * @;
+
+
+11.8
+date	2004.05.21.16.38.48;	author morrison;	state dead;
+branches;
+next	11.7;
+
+11.7
+date	2004.05.10.15.30.50;	author erikg;	state Exp;
+branches;
+next	11.6;
+
+11.6
+date	2004.04.05.05.46.00;	author morrison;	state Exp;
+branches;
+next	11.5;
+
+11.5
+date	2002.08.20.17.08.48;	author jra;	state Exp;
+branches
+	11.5.2.1;
+next	11.4;
+
+11.4
+date	2002.08.15.20.56.00;	author hartley;	state Exp;
+branches;
+next	11.3;
+
+11.3
+date	2001.08.10.20.44.36;	author jra;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	2000.08.24.22.46.18;	author mike;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	95.01.04.10.20.39;	author mike;	state Rel4_4;
+branches;
+next	10.2;
+
+10.2
+date	94.08.11.16.51.22;	author gdurf;	state Exp;
+branches;
+next	10.1;
+
+10.1
+date	91.10.12.06.52.21;	author mike;	state Rel4_0;
+branches;
+next	1.1;
+
+1.1
+date	91.01.24.20.33.56;	author butler;	state Exp;
+branches;
+next	;
+
+11.5.2.1
+date	2002.09.19.18.02.28;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@Original distribution of Rel. 3 patchlevel 2
+@
+
+
+11.8
+log
+@moved to src/tools/
+@
+text
+@/*
+ * This software is copyrighted as noted below.  It may be freely copied,
+ * modified, and redistributed, provided that the copyright notice is 
+ * preserved on all copies.
+ * 
+ * There is no warranty or other guarantee of fitness for this software,
+ * it is provided solely "as is".  Bug reports or fixes may be sent
+ * to the author, who may or may not act on them as he desires.
+ *
+ * You may not include this software in a program or other software product
+ * without supplying the source, or without informing the end-user that the 
+ * source is available for no extra charge.
+ *
+ * If you modify this software, you should include a notice giving the
+ * name of the person performing the modification, the date of modification,
+ * and the reason for such modification.
+ */
+/* 
+ * paint2rle.c - Convert MacPaint images to RLE.
+ * 
+ * Author:	John W. Peterson
+ * 		Computer Science Dept.
+ * 		University of Utah
+ * Date:	Wed Oct 15 1986
+ * Copyright (c) 1986, John W. Peterson
+ *
+ * Usage is:
+ *   paint2rle [-c [r] [g] [b] [alpha]] [-r] [-o outfile.rle] [infile.paint] 
+ *
+ * -r 		Inverts the pixels in the macpaint file
+ *  r,g,b,a	Allows the value of the resulting RLE file to be specified.
+ *
+ * The rleflip is needed because MacPaint images have their origin at the
+ * top left instead of the bottom.
+ */
+
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+
+#include <stdio.h>
+
+#include <stdlib.h>
+
+#ifdef USE_STRING_H
+#include <string.h>
+#else
+#include <strings.h>
+#endif
+
+#include "machine.h"
+#include "rle.h"
+
+/* Default color values */
+int redval = 255, grnval = 255, bluval = 255, alfval = 255;
+unsigned char in_line[72];
+rle_pixel **outrows;
+int  xlat[256];
+int invert_flag = 0, oflag = 0;
+
+void init(void), read_scan(FILE *infile), write_scan(void);
+
+int
+main(int argc, char **argv)
+{ 
+    char 	       *in_fname = NULL,
+    		       *out_fname = NULL;
+    int			cflag = 0;
+    FILE	       *infile;
+    int i;
+
+    if ( scanargs( argc, argv,
+		   "% c%-red%dgreen%dblue%dalpha%d r%- o%-outfile!s infile.paint%s",
+		   &cflag, &redval, &grnval, &bluval, &alfval, &invert_flag,
+		   &oflag, &out_fname, &in_fname ) == 0)
+	exit(-1);
+  
+    infile = rle_open_f( "painttorle", in_fname, "r" );
+    rle_dflt_hdr.rle_file = rle_open_f("painttorle", out_fname, "w");
+
+    rle_dflt_hdr.xmax = 575;
+    rle_dflt_hdr.ymax = 719;
+    rle_dflt_hdr.alpha = 1;
+    rle_dflt_hdr.ncolors = 3;
+    RLE_SET_BIT( rle_dflt_hdr, RLE_ALPHA );	/* So it gets generated */
+
+    if (rle_row_alloc( &rle_dflt_hdr, &outrows ))
+    {
+	fprintf(stderr, "painttorle: No heap space\n");
+	exit(-2);
+    }
+
+    rle_addhist( argv, (rle_hdr *)NULL, &rle_dflt_hdr );
+    rle_put_setup( &rle_dflt_hdr );
+    /* initialize bit-twiddling tables */
+    init();
+
+    /* read and discard 512 byte MacPaint header */
+    for (i=0; i<512; i++)
+	getc(infile);
+
+    /* Read and process each of the 720 MacPaint scan lines */
+    for (i=0; i < 720; i++)
+    {
+	read_scan( infile );
+	write_scan();
+    }
+
+    rle_puteof( &rle_dflt_hdr );
+    exit(0);
+}
+
+/* 
+ * Read a line from the MacPaint file, uncompressing the data into in_line 
+ */
+void
+read_scan(FILE *infile)
+{
+    int in_pos, count, data_byte;
+
+    in_pos = 0;
+    while (in_pos < 72)
+    {
+	count = getc(infile);
+	if (count > 127) count -= 256;
+
+	if (count >= 0) {	/* run of raw bytes */
+	    count++;		/* # of bytes to read */
+	    while (count--)
+		in_line[in_pos++] = getc(infile);
+	}
+	else {			/* run of repeated byte */
+	    count = -count+1;	/* repetition factor */
+	    data_byte = getc(infile); /* byte to repeat */
+
+	    while (count--)
+		in_line[in_pos++] = data_byte;
+	}
+    }
+}
+
+/*
+ * Write out a scanline
+ */
+void
+write_scan(void)
+{
+    register int i, j;
+    register int bit;
+    int outval, outpos;
+
+    /* Convert the array of bits to an array of pixels */
+
+    for (i = 0; i < 72; i++ )
+    {
+	for (bit = 7; bit >= 0; bit--)
+	{
+	    outval = xlat[in_line[i] & 0xff] & 0xff;
+	    outval = (outval >> bit) & 1; /* Convert to boolean */
+	    if (invert_flag) outval = 1-outval;
+	    outpos = i*8 + (7-bit);
+	    if (outval)
+	    {
+		outrows[RLE_ALPHA][outpos] = alfval;
+		outrows[RLE_RED][outpos]   = redval;
+		outrows[RLE_GREEN][outpos] = grnval;
+		outrows[RLE_BLUE][outpos]  = bluval;
+	    }
+	    else
+	    {
+		for( j = RLE_ALPHA; j <= RLE_BLUE; j++ )
+		    outrows[j][outpos] = 0;
+	    }
+ 	}
+    }
+    rle_putrow( outrows, 576, &rle_dflt_hdr );
+}
+
+/* Set up some tables for converting bits to bytes */
+void
+init(void)
+{
+    int bits[8], i, j;
+
+    /* initialize translation table */
+    j = 1;
+    for( i=0; i<8; i++ )
+    {
+	bits[i] = j;
+	j *= (1 << 1);
+    }
+
+    for( i=0; i<256; i++ )
+    {
+	if( i &	  1 )	xlat[i] = bits[0];
+	else		xlat[i] = 0;
+
+	if( i &   2 )	xlat[i] += bits[1];
+	if( i &   4 )	xlat[i] += bits[2];
+	if( i &   8 )   xlat[i] += bits[3];
+	if( i &  16 )	xlat[i] += bits[4];
+	if( i &  32 )	xlat[i] += bits[5];
+	if( i &  64 )	xlat[i] += bits[6];
+	if( i & 128 )	xlat[i] += bits[7];
+    }
+}
+@
+
+
+11.7
+log
+@change conf.h to a wrapped config.h
+@
+text
+@@
+
+
+11.6
+log
+@merge of ansi-6-0-branch into head
+@
+text
+@d37 5
+a41 1
+#include "conf.h"
+@
+
+
+11.5
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d59 1
+a59 1
+void init(), read_scan(), write_scan();
+d62 1
+a62 3
+main(argc,argv) 
+int argc;
+char *argv[];
+d115 1
+a115 2
+read_scan( infile )
+FILE *infile;
+d144 1
+a144 1
+write_scan()
+d179 1
+a179 1
+init() 
+@
+
+
+11.5.2.1
+log
+@Initial ANSIfication
+@
+text
+@d59 1
+a59 1
+void init(void), read_scan(FILE *infile), write_scan(void);
+d62 3
+a64 1
+main(int argc, char **argv)
+d117 2
+a118 1
+read_scan(FILE *infile)
+d147 1
+a147 1
+write_scan(void)
+d182 1
+a182 1
+init(void)
+@
+
+
+11.4
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d59 1
+a59 1
+void init(void), read_scan(FILE *infile), write_scan(void);
+d62 3
+a64 1
+main(int argc, char **argv)
+d117 2
+a118 1
+read_scan(FILE *infile)
+d147 1
+a147 1
+write_scan(void)
+d182 1
+a182 1
+init(void)
+@
+
+
+11.3
+log
+@lint
+@
+text
+@d59 1
+a59 1
+void init(), read_scan(), write_scan();
+d62 1
+a62 3
+main(argc,argv) 
+int argc;
+char *argv[];
+d115 1
+a115 2
+read_scan( infile )
+FILE *infile;
+d144 1
+a144 1
+write_scan()
+d179 1
+a179 1
+init() 
+@
+
+
+11.2
+log
+@
+lint
+@
+text
+@d41 8
+@
+
+
+11.1
+log
+@Release_4.4
+@
+text
+@d53 1
+a53 1
+void
+@
+
+
+10.2
+log
+@Altered #defines and #includes to conform to BRL-CAD standards
+@
+text
+@@
+
+
+10.1
+log
+@Release_4.0
+@
+text
+@d37 2
+d40 2
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@@

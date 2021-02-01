@@ -1,0 +1,142 @@
+head	14.2;
+access;
+symbols
+	rel-7-0-4:14.1
+	rel-7-0-2:14.1
+	rel-7-0-1:14.1
+	opensource-post:14.1
+	opensource-pre:1.1
+	rel-7-0-branch:1.1.0.2
+	rel-7-0:1.1;
+locks; strict;
+comment	@ * @;
+
+
+14.2
+date	2005.01.27.15.25.06;	author brlcad;	state dead;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.30;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.14.54.12;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.2
+log
+@begin update to zlib 1.2.2, delete old
+@
+text
+@/* maketree.c -- make inffixed.h table for decoding fixed codes
+ * Copyright (C) 1995-2002 Mark Adler
+ * For conditions of distribution and use, see copyright notice in zlib.h 
+ */
+
+/* WARNING: this file should *not* be used by applications. It is
+   part of the implementation of the compression library and is
+   subject to change. Applications should only use zlib.h.
+ */
+
+/* This program is included in the distribution for completeness.
+   You do not need to compile or run this program since inffixed.h
+   is already included in the distribution.  To use this program
+   you need to compile zlib with BUILDFIXED defined and then compile
+   and link this program with the zlib library.  Then the output of
+   this program can be piped to inffixed.h. */
+
+#include <stdio.h>
+#include <stdlib.h>
+#include "zutil.h"
+#include "inftrees.h"
+
+/* simplify the use of the inflate_huft type with some defines */
+#define exop word.what.Exop
+#define bits word.what.Bits
+
+/* generate initialization table for an inflate_huft structure array */
+void maketree(uInt b, inflate_huft *t)
+{
+  int i, e;
+
+  i = 0;
+  while (1)
+  {
+    e = t[i].exop;
+    if (e && (e & (16+64)) == 0)        /* table pointer */
+    {
+      fprintf(stderr, "maketree: cannot initialize sub-tables!\n");
+      exit(1);
+    }
+    if (i % 4 == 0)
+      printf("\n   ");
+    printf(" {{{%u,%u}},%u}", t[i].exop, t[i].bits, t[i].base);
+    if (++i == (1<<b))
+      break;
+    putchar(',');
+  }
+  puts("");
+}
+
+/* create the fixed tables in C initialization syntax */
+void main(void)
+{
+  int r;
+  uInt bl, bd;
+  inflate_huft *tl, *td;
+  z_stream z;
+
+  z.zalloc = zcalloc;
+  z.opaque = (voidpf)0;
+  z.zfree = zcfree;
+  r = inflate_trees_fixed(&bl, &bd, &tl, &td, &z);
+  if (r)
+  {
+    fprintf(stderr, "inflate_trees_fixed error %d\n", r);
+    return;
+  }
+  puts("/* inffixed.h -- table for decoding fixed codes");
+  puts(" * Generated automatically by the maketree.c program");
+  puts(" */");
+  puts("");
+  puts("/* WARNING: this file should *not* be used by applications. It is");
+  puts("   part of the implementation of the compression library and is");
+  puts("   subject to change. Applications should only use zlib.h.");
+  puts(" */");
+  puts("");
+  printf("local uInt fixed_bl = %d;\n", bl);
+  printf("local uInt fixed_bd = %d;\n", bd);
+  printf("local inflate_huft fixed_tl[] = {");
+  maketree(bl, tl);
+  puts("  };");
+  printf("local inflate_huft fixed_td[] = {");
+  maketree(bd, td);
+  puts("  };");
+}
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@@
+
+
+1.1
+log
+@Sources that are external to BRL-CAD are moved from the top level to src/other/.
+@
+text
+@@
+

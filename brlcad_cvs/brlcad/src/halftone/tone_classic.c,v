@@ -1,0 +1,428 @@
+head	14.11;
+access;
+symbols
+	rel-7-10-4:14.11
+	STABLE:14.11.0.2
+	stable-branch:14.4
+	rel-7-10-2:14.11
+	rel-7-10-0:14.9
+	rel-7-8-4:14.6
+	rel-7-8-2:14.6
+	rel-7-8-0:14.6
+	trimnurbs-branch:14.6.0.2
+	help:14.6
+	temp_tag:14.5
+	bobWinPort-20051223-freeze:14.4
+	postmerge-20051223-bobWinPort:14.5
+	premerge-20051223-bobWinPort:14.5
+	rel-7-6-6:14.5
+	rel-7-6-4:14.5
+	rel-7-6-2:14.4
+	rel-7-6-branch:14.4.0.6
+	rel-7-6-0:14.4
+	rel-7-4-2:14.4
+	rel-7-4-branch:14.4.0.4
+	bobWinPort:14.4.0.2
+	rel-7-4-0:14.4
+	rel-7-2-6:14.4
+	rel-7-2-4:14.4
+	rel-7-2-2:14.4
+	rel-7-2-0:14.4
+	rel-7-0-4:14.3
+	rel-7-0-2:14.3
+	rel-7-0-1:14.3
+	opensource-post:14.3
+	opensource-pre:1.2
+	rel-7-0-branch:1.2.0.2
+	rel-7-0:1.2;
+locks; strict;
+comment	@ * @;
+
+
+14.11
+date	2007.07.26.01.13.54;	author brlcad;	state Exp;
+branches;
+next	14.10;
+
+14.10
+date	2007.05.14.21.04.30;	author brlcad;	state Exp;
+branches;
+next	14.9;
+
+14.9
+date	2007.01.27.01.41.34;	author brlcad;	state Exp;
+branches;
+next	14.8;
+
+14.8
+date	2007.01.23.01.13.32;	author brlcad;	state Exp;
+branches;
+next	14.7;
+
+14.7
+date	2007.01.20.14.36.50;	author brlcad;	state Exp;
+branches;
+next	14.6;
+
+14.6
+date	2006.01.18.06.46.15;	author brlcad;	state Exp;
+branches;
+next	14.5;
+
+14.5
+date	2005.10.23.04.44.30;	author brlcad;	state Exp;
+branches;
+next	14.4;
+
+14.4
+date	2005.01.30.20.30.38;	author brlcad;	state Exp;
+branches
+	14.4.6.1;
+next	14.3;
+
+14.3
+date	2004.12.21.07.18.57;	author morrison;	state Exp;
+branches;
+next	14.2;
+
+14.2
+date	2004.12.20.20.33.01;	author morrison;	state Exp;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.13;	author morrison;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2004.08.02.23.01.47;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.15.19.10;	author morrison;	state Exp;
+branches;
+next	;
+
+14.4.6.1
+date	2005.11.13.13.46.14;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.11
+log
+@remove ephemeral data like phone numbers and addresses, including the misleading 'source' statements on code that is continually evolving and receiving contributions from many many sources
+@
+text
+@/*                  T O N E _ C L A S S I C . C
+ * BRL-CAD
+ *
+ * Copyright (c) 2004-2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@file tone_classic.c
+ *
+ *  Author -
+ *	Christopher T. Johnson	- 90/03/21
+ *
+ */
+#ifndef lint
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/halftone/tone_classic.c,v 14.10 2007/05/14 21:04:30 brlcad Exp $ (BRL)";
+#endif
+
+#include "common.h"
+
+#include <stdio.h>
+
+#include "machine.h"
+#include "vmath.h"
+#include "raytrace.h"
+
+
+extern int Debug;
+extern int Levels;
+extern struct bn_unif *RandomFlag;
+/*
+ * Clustered-Dot ordered dither at 45 degrees.
+ *	Page 86 of Digital Halftoning.
+ */
+static unsigned char	ordered[6][6] = {
+	{5,4,3,14,15,16},
+	{6,1,2,13,18,17},
+	{9,7,8,10,12,11},
+	{14,15,16,5,4,3},
+	{13,18,17,6,1,2},
+	{10,12,11,9,7,8}};
+
+/*	tone_classic	classic diaginal clustered halftones.
+ *
+ * Entry:
+ *	Pix	Pixel value	0-255
+ * The following are not used but are here for consistency with
+ * other halftoning methods.
+ *	X	Current column
+ *	Y	Current row
+ *	NX	Next column
+ *	NY	Next row
+ *	New	New row flag.
+ *
+ * Exit:
+ *	returns	0-Levels
+ *
+ * Uses:
+ *	Debug	- Global Debug value
+ *	Levels	- Number of Intensity Levels
+ *	RandomFlag - Show we toss random numbers?
+ *
+ * Author:
+ *	Christopher T. Johnson	- 90/03/21
+ */
+int
+tone_classic(int pix, int x, int y, int nx, int ny, int new)
+{
+	register int threshold = 14*ordered[( x + 3) % 6][ y % 6];
+	if (RandomFlag) {
+		threshold += BN_UNIF_DOUBLE(RandomFlag)*63;
+	}
+	return ((pix*Levels + threshold)/255);
+}
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+14.10
+log
+@gah, pick up where someone left off over half a decade ago.  finish updating all of the compat4 symbols throughout the code to their new names.  finally. it's done.  make the deprecated headers obsolete -- make compat4.h obsolete too so we can be sure that all of the changes are now picked up by the compiler as errors.  this change will likely impact muves if they've similarly not updated to the new names too, so the headers are kept with a #warning for now (though will likely disappear down the road entirely).
+@
+text
+@a24 5
+ *  Source -
+ *	SECAD/VLD Computing Consortium, Bldg 394
+ *	The U. S. Army Ballistic Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005-5066
+ *
+d27 1
+a27 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/halftone/tone_classic.c,v 14.9 2007/01/27 01:41:34 brlcad Exp $ (BRL)";
+@
+
+
+14.9
+log
+@ws. lots and lots of ws.  see sh/ws.sh for details (cases 'abcdeg').
+@
+text
+@d32 1
+a32 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/halftone/tone_classic.c,v 14.8 2007/01/23 01:13:32 brlcad Exp $ (BRL)";
+a36 1
+
+d42 1
+a42 1
+#include "msr.h"
+d46 1
+a46 1
+extern struct msr_unif *RandomFlag;
+d87 1
+a87 1
+		threshold += MSR_UNIF_DOUBLE(RandomFlag)*63;
+@
+
+
+14.8
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@d32 1
+a32 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/halftone/tone_classic.c,v 14.7 2007/01/20 14:36:50 brlcad Exp $ (BRL)";
+a37 1
+
+@
+
+
+14.7
+log
+@update copyright to 2007
+@
+text
+@d8 2
+a9 3
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+d14 1
+a14 1
+ * General Public License for more details.
+d16 2
+a17 2
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+d32 1
+a32 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/halftone/tone_classic.c,v 14.6 2006/01/18 06:46:15 brlcad Exp $ (BRL)";
+@
+
+
+14.6
+log
+@update copyright to 2006
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 2004-2006 United States Government as represented by
+d33 1
+a33 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/halftone/tone_classic.c,v 14.5 2005/10/23 04:44:30 brlcad Exp $ (BRL)";
+@
+
+
+14.5
+log
+@trailing ws
+@
+text
+@d4 1
+a4 1
+ * Copyright (C) 2004-2005 United States Government as represented by
+d33 1
+a33 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/halftone/tone_classic.c,v 14.4 2005/01/30 20:30:38 brlcad Exp $ (BRL)";
+@
+
+
+14.4
+log
+@update copyright to 2005
+@
+text
+@d25 1
+a25 1
+ *  
+d30 1
+a30 1
+ *  
+d33 1
+a33 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/halftone/tone_classic.c,v 14.3 2004/12/21 07:18:57 morrison Exp $ (BRL)";
+@
+
+
+14.4.6.1
+log
+@merge changes from HEAD aka rel-7-6-4 to the rel-7-6-branch just in case someone peeks a gander or tries to continue/build the branch
+@
+text
+@d25 1
+a25 1
+ *
+d30 1
+a30 1
+ *
+d33 1
+a33 1
+static const char RCSid[] = "@@(#)$Header$ (BRL)";
+@
+
+
+14.3
+log
+@the significantly modified pd files are incorporated as new works and assigned copyright, so remove the old statement.
+@
+text
+@d4 2
+a5 2
+ * Copyright (c) 2004 United States Government as represented by the
+ * U.S. Army Research Laboratory.
+d33 1
+a33 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/halftone/tone_classic.c,v 14.2 2004/12/20 20:33:01 morrison Exp $ (BRL)";
+@
+
+
+14.2
+log
+@acquire copyright and assign GPL license
+@
+text
+@a30 2
+ *  Distribution Status -
+ *	Public Domain, Distribution Unlimitied.
+d33 1
+a33 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/halftone/tone_classic.c,v 14.1 2004/11/16 19:42:13 morrison Exp $ (BRL)";
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@d1 21
+a21 2
+/*
+ *			T O N E _ C L A S S I C
+d35 1
+a35 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/halftone/tone_classic.c,v 1.2 2004/08/02 23:01:47 morrison Exp $ (BRL)";
+@
+
+
+1.2
+log
+@replace the wrapped config.h block with common.h
+@
+text
+@d16 1
+a16 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/halftone/tone_classic.c,v 1.1 2004/05/20 15:19:10 morrison Exp $ (BRL)";
+d77 10
+@
+
+
+1.1
+log
+@Vast reorganization begins.  Sources moved from top-level directories into src/.
+@
+text
+@d16 1
+a16 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/halftone/tone_classic.c,v 11.6 2004/05/10 15:30:42 erikg Exp $ (BRL)";
+d19 1
+a19 3
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+@
+

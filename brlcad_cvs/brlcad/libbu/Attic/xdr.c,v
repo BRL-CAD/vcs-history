@@ -1,0 +1,436 @@
+head	11.10;
+access;
+symbols
+	ansi-20040405-merged:11.7.2.1
+	postmerge-20040405-ansi:11.8
+	premerge-20040404-ansi:11.7
+	postmerge-autoconf:11.7
+	autoconf-freeze:11.7
+	premerge-autoconf:11.7
+	ansi-20040316-freeze:11.7.2.1
+	postmerge-20040315-windows:11.7
+	premerge-20040315-windows:11.7
+	windows-20040315-freeze:11.7
+	autoconf-20031203:11.7
+	autoconf-20031202:11.7
+	autoconf-branch:11.7.0.10
+	phong-branch:11.7.0.8
+	photonmap-branch:11.7.0.6
+	rel-6-1-DP:11.7
+	windows-branch:11.7.0.4
+	rel-6-0-2:11.5
+	ansi-branch:11.7.0.2
+	rel-6-0-1-branch:11.5.0.2
+	hartley-6-0-post:11.6
+	hartley-6-0-pre:11.5
+	rel-6-0-1:11.5
+	rel-6-0:11.5
+	rel-5-4:11.3
+	offsite-5-3-pre:11.4
+	rel-5-3:11.3
+	rel-5-2:11.3
+	rel-5-1-branch:11.3.0.2
+	rel-5-1:11.3
+	rel-5-0:11.2
+	rel-5-0-beta:11.2;
+locks; strict;
+comment	@ * @;
+
+
+11.10
+date	2004.05.21.18.06.25;	author morrison;	state dead;
+branches;
+next	11.9;
+
+11.9
+date	2004.05.10.15.30.44;	author erikg;	state Exp;
+branches;
+next	11.8;
+
+11.8
+date	2004.04.05.07.46.16;	author morrison;	state Exp;
+branches;
+next	11.7;
+
+11.7
+date	2002.08.20.17.07.42;	author jra;	state Exp;
+branches
+	11.7.2.1;
+next	11.6;
+
+11.6
+date	2002.08.15.20.54.55;	author hartley;	state Exp;
+branches;
+next	11.5;
+
+11.5
+date	2001.04.20.22.29.07;	author morrison;	state Exp;
+branches;
+next	11.4;
+
+11.4
+date	2000.07.07.05.20.14;	author cjohnson;	state Exp;
+branches;
+next	11.3;
+
+11.3
+date	2000.03.28.18.55.11;	author mike;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	99.01.13.04.06.17;	author mike;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	99.01.13.02.22.41;	author mike;	state Exp;
+branches;
+next	;
+
+11.7.2.1
+date	2002.09.19.18.01.15;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+11.10
+log
+@moved to src/
+@
+text
+@/*
+ *			X D R . C
+ *
+ *  Routines to implement an external data representation (XDR)
+ *  compatible with the usual InterNet standards, e.g.:
+ *  big-endian, twos-compliment fixed point, and IEEE floating point.
+ *
+ *  Author -
+ *	Michael John Muuss
+ *
+ *  Source -
+ *	The U. S. Army Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005-5068  USA
+ *  
+ *  Distribution Status -
+ *	Public Domain, Distribution Unlimited.
+ */
+#ifndef lint
+static const char libbu_xdr_RCSid[] = "@@(#)$Header: /n/xoff/cvs/brlcad/libbu/xdr.c,v 11.9 2004/05/10 15:30:44 erikg Exp $ (ARL)";
+#endif
+
+
+
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+
+#include <stdio.h>
+#include <ctype.h>
+#include <math.h>
+#ifdef USE_STRING_H
+# include <string.h>
+#else
+# include <strings.h>
+#endif
+
+#include "machine.h"
+#include "externs.h"
+#include "bu.h"
+
+
+/*
+ *  Routines to insert/extract short/long's into char arrays,
+ *  independend of machine byte order and word-alignment.
+ *  Uses encoding compatible with routines found in libpkg,
+ *  and BSD system routines ntohl(), ntons(), ntohl(), ntohs().
+ */
+
+/*
+ *			B U _ G S H O R T
+ */
+unsigned short
+bu_gshort(const unsigned char *msgp)
+{
+	register const unsigned char *p = msgp;
+#ifdef vax
+	/*
+	 * vax compiler doesn't put shorts in registers
+	 */
+	register unsigned long u;
+#else
+	register unsigned short u;
+#endif
+
+	u = *p++ << 8;
+	return ((unsigned short)(u | *p));
+}
+
+/*
+ *			B U _ G L O N G
+ */
+unsigned long
+bu_glong(const unsigned char *msgp)
+{
+	register const unsigned char *p = msgp;
+	register unsigned long u;
+
+	u = *p++; u <<= 8;
+	u |= *p++; u <<= 8;
+	u |= *p++; u <<= 8;
+	return (u | *p);
+}
+
+/*
+ *			B U _ P S H O R T
+ */
+unsigned char *
+bu_pshort(register unsigned char *msgp, register int s)
+{
+
+	msgp[1] = s;
+	msgp[0] = s >> 8;
+	return(msgp+2);
+}
+
+/*
+ *			B U _ P L O N G
+ */
+unsigned char *
+bu_plong(register unsigned char *msgp, register long unsigned int l)
+{
+
+	msgp[3] = l;
+	msgp[2] = (l >>= 8);
+	msgp[1] = (l >>= 8);
+	msgp[0] = l >> 8;
+	return(msgp+4);
+}
+
+#if 0
+/* XXX How do we get "struct timeval" declared for all of bu.h? */
+/*
+ *			B U _ G T I M E V A L
+ *
+ *  Get a timeval structure from an external representation
+ *  which "on the wire" is a 64-bit seconds, followed by a 32-bit usec.
+ */
+typedef unsigned char ext_timeval_t[8+4];	/* storage for on-wire format */
+
+void
+bu_gtimeval( tvp, msgp )
+struct timeval *tvp;
+const unsigned char *msgp;
+{
+	tvp->tv_sec = (((time_t)BU_GLONG( msgp+0 )) << 32) |
+		BU_GLONG( msgp+4 );
+	tvp->tv_usec = BU_GLONG( msgp+8 );
+}
+
+unsigned char *
+bu_ptimeval( msgp, tvp )
+const struct timeval *tvp;
+unsigned char *msgp;
+{
+	long upper = (long)(tvp->tv_sec >> 32);
+	long lower = (long)(tvp->tv_sec & 0xFFFFFFFFL);
+
+	(void)bu_plong( msgp+0, upper );
+	(void)bu_plong( msgp+4, lower );
+	return bu_plong( msgp+8, tvp->tv_usec );
+}
+#endif
+@
+
+
+11.9
+log
+@change conf.h to a wrapped config.h
+@
+text
+@d19 1
+a19 1
+static const char libbu_xdr_RCSid[] = "@@(#)$Header: /cvs/brlcad/libbu/xdr.c,v 11.8 2004/04/05 07:46:16 morrison Exp $ (ARL)";
+@
+
+
+11.8
+log
+@merge of ansi-6-0-branch into HEAD
+@
+text
+@d19 1
+a19 1
+static const char libbu_xdr_RCSid[] = "@@(#)$Header$ (ARL)";
+d24 5
+a28 1
+#include "conf.h"
+@
+
+
+11.7
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d19 1
+a19 1
+static const char libbu_xdr_RCSid[] = "@@(#)$Header: /c/CVS/brlcad/libbu/xdr.c,v 11.5 2001/04/20 22:29:07 morrison Exp $ (ARL)";
+d51 1
+a51 2
+bu_gshort(msgp)
+const unsigned char *msgp;
+d71 1
+a71 2
+bu_glong(msgp)
+const unsigned char *msgp;
+d86 1
+a86 3
+bu_pshort(msgp, s)
+register unsigned char *msgp;
+register int s;
+d98 1
+a98 3
+bu_plong(msgp, l)
+register unsigned char *msgp;
+register unsigned long l;
+@
+
+
+11.7.2.1
+log
+@Initial ANSIfication
+@
+text
+@d19 1
+a19 1
+static const char libbu_xdr_RCSid[] = "@@(#)$Header: /c/CVS/brlcad/libbu/xdr.c,v 11.7 2002/08/20 17:07:42 jra Exp $ (ARL)";
+d51 2
+a52 1
+bu_gshort(const unsigned char *msgp)
+d72 2
+a73 1
+bu_glong(const unsigned char *msgp)
+d88 3
+a90 1
+bu_pshort(register unsigned char *msgp, register int s)
+d102 3
+a104 1
+bu_plong(register unsigned char *msgp, register long unsigned int l)
+@
+
+
+11.6
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d51 2
+a52 1
+bu_gshort(const unsigned char *msgp)
+d72 2
+a73 1
+bu_glong(const unsigned char *msgp)
+d88 3
+a90 1
+bu_pshort(register unsigned char *msgp, register int s)
+d102 3
+a104 1
+bu_plong(register unsigned char *msgp, register long unsigned int l)
+@
+
+
+11.5
+log
+@CONST to const
+@
+text
+@d19 1
+a19 1
+static const char libbu_xdr_RCSid[] = "@@(#)$Header: /c/CVS/brlcad/libbu/xdr.c,v 11.4 2000/07/07 05:20:14 cjohnson Exp $ (ARL)";
+d51 1
+a51 2
+bu_gshort(msgp)
+const unsigned char *msgp;
+d71 1
+a71 2
+bu_glong(msgp)
+const unsigned char *msgp;
+d86 1
+a86 3
+bu_pshort(msgp, s)
+register unsigned char *msgp;
+register int s;
+d98 1
+a98 3
+bu_plong(msgp, l)
+register unsigned char *msgp;
+register unsigned long l;
+@
+
+
+11.4
+log
+@LINT
+@
+text
+@d19 1
+a19 1
+static const char libbu_xdr_RCSid[] = "@@(#)$Header: /c/CVS/brlcad/libbu/xdr.c,v 11.3 2000/03/28 18:55:11 mike Exp $ (ARL)";
+d52 1
+a52 1
+CONST unsigned char *msgp;
+d54 1
+a54 1
+	register CONST unsigned char *p = msgp;
+d73 1
+a73 1
+CONST unsigned char *msgp;
+d75 1
+a75 1
+	register CONST unsigned char *p = msgp;
+@
+
+
+11.3
+log
+@
+Put libbu_filename_ prefixes on RCSid variables.
+@
+text
+@d19 1
+a19 1
+static char libbu_xdr_RCSid[] = "@@(#)$Header: /c/CVS/brlcad/libbu/xdr.c,v 11.2 1999/01/13 04:06:17 mike Exp $ (ARL)";
+@
+
+
+11.2
+log
+@Put in bu_gtimeval() and bu_ptimeval(), #if 0'ed.
+I didn't want to wrestle with getting "struct timeval" defined
+everywhere, before the release.
+@
+text
+@d19 1
+a19 1
+static char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/libbu/xdr.c,v 11.1 1999/01/13 02:22:41 mike Exp $ (ARL)";
+@
+
+
+11.1
+log
+@Split bu_plong() and other XDR routines out into xdr.c
+@
+text
+@d19 1
+a19 1
+static char RCSid[] = "@@(#)$Header$ (ARL)";
+d113 34
+@

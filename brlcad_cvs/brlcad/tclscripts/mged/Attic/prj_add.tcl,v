@@ -1,0 +1,506 @@
+head	1.7;
+access;
+symbols
+	ansi-20040405-merged:1.6
+	postmerge-20040405-ansi:1.6
+	premerge-20040404-ansi:1.6
+	postmerge-autoconf:1.6
+	autoconf-freeze:1.6
+	premerge-autoconf:1.6
+	postmerge-20040315-windows:1.6
+	premerge-20040315-windows:1.6
+	windows-20040315-freeze:1.6
+	autoconf-20031203:1.6
+	autoconf-20031202:1.6
+	autoconf-branch:1.6.0.12
+	phong-branch:1.6.0.10
+	photonmap-branch:1.6.0.8
+	rel-6-1-DP:1.6
+	windows-branch:1.6.0.6
+	rel-6-0-2:1.6
+	ansi-branch:1.6.0.4
+	rel-6-0-1-branch:1.6.0.2
+	hartley-6-0-post:1.6
+	hartley-6-0-pre:1.6
+	rel-6-0-1:1.6
+	rel-6-0:1.6
+	rel-5-4:1.2.2.2
+	offsite-5-3-pre:1.4
+	rel-5-3:1.2.2.2
+	rel-5-2:1.2
+	rel-5-1-branch:1.2.0.2
+	rel-5-1:1.2
+	rel-5-0:1.2
+	rel-5-0-beta:1.2;
+locks; strict;
+comment	@# @;
+
+
+1.7
+date	2004.05.21.16.41.30;	author morrison;	state dead;
+branches;
+next	1.6;
+
+1.6
+date	2001.11.05.15.48.49;	author butler;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	2001.09.05.20.53.43;	author bparker;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	2000.11.20.16.35.37;	author bparker;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2000.11.20.14.34.11;	author jra;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	99.01.25.05.29.57;	author butler;	state Exp;
+branches
+	1.2.2.1;
+next	1.1;
+
+1.1
+date	99.01.22.10.50.19;	author butler;	state Exp;
+branches;
+next	;
+
+1.2.2.1
+date	2000.11.20.14.37.29;	author jra;	state Exp;
+branches;
+next	1.2.2.2;
+
+1.2.2.2
+date	2000.11.20.16.33.25;	author bparker;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.7
+log
+@moved to src/tclscripts/
+@
+text
+@#
+#			P R J _ A D D . T C L
+#
+# "more arguments needed::[lindex $prompts $i]"
+# Author -
+#	Lee A. Butler
+#
+# Source -
+#	The U. S. Army Research Laboratory
+#	Aberdeen Proving Ground, Maryland  21005
+#
+# Distribution Notice -
+#	Re-distribution of this software is restricted, as described in
+#       your "Statement of Terms and Conditions for the Release of
+#       The BRL-CAD Package" agreement.
+#
+# Description -
+#	helper proc to build input files for the "prj" shader
+#
+# Modifications -
+#	Bob Parker:
+#	     Added code to prompt user for input using the
+#		   "more arguments needed::" hack.
+#	     Replaced combination of "puts" and return with "error"
+#		   so that a calling script will know an error occured.
+#
+# Usage: prj_add shaderfile image_filename image_width image_height
+#
+proc prj_add {args} {
+    global local2base
+
+	set prompts {{shaderfile: } {image_file: } {width: } {height: }}
+	set usage "Usage:
+\tprj_add \[-t\] \[-n\] \[-b\] shaderfile \[image_file\] \[width\] \[height\]
+\tAppends image filename + current view parameters to shader"
+
+	set argc [llength $args]
+	if {$argc > 7} {
+	    error $usage
+	}
+
+	set through 0
+	set behind 0
+	set antialias 1
+
+	set n 0
+	foreach opt $args {
+	    switch -- $opt {
+		"-t" {
+		    set through 1
+		}
+		"-b" {
+		    set behind 1
+		}
+		"-n" {
+		    set antialias 0
+		}
+		default {
+		    break
+		}
+	    }
+
+	    incr n
+	}
+
+	set i [expr {$argc - $n}]
+	switch -- $i {
+	    0 {
+		error $usage
+	    }
+	    1 {
+		error "more arguments needed::[lindex $prompts $i]"
+	    }
+	    2 {
+		error "more arguments needed::[lindex $prompts $i]"
+	    }
+	    3 {
+		error "more arguments needed::[lindex $prompts $i]"
+	    }
+	}
+
+	set shaderfile [lindex $args $n]
+	set image [lindex $args [expr {$n + 1}]]
+	set width [lindex $args [expr {$n + 2}]]
+	set height [lindex $args [expr {$n + 3}]]
+
+	if ![file exists $image] {
+		error "Image file $image does not exist"
+	}
+
+	if [file exists $shaderfile] {
+		if [catch {open $shaderfile a} fd] {
+		    error "error appending to $shaderfile: $fd"
+		}
+	} else {
+		if [catch {open $shaderfile w} fd] {
+		    error "error opening $shaderfile: $fd"
+		}
+	}
+
+	puts $fd "image=\"$image\""
+	puts $fd "w=$width"
+	puts $fd "n=$height"
+	puts $fd "through=$through"
+	puts $fd "antialias=$antialias"
+	puts $fd "behind=$behind"
+
+	
+
+	puts $fd "viewsize=[expr [view size] * $local2base]"
+	regsub -all { } [vscale [view eye] $local2base] "," eye_pt
+	puts $fd "eye_pt=$eye_pt"
+
+	regsub -all { } [view quat] "," orientation
+	puts $fd "orientation=$orientation"
+
+	close $fd
+}
+@
+
+
+1.6
+log
+@Changed so that view size and eye pt are output in mm rather than current
+units, since that is what the projection shader expects.
+@
+text
+@@
+
+
+1.5
+log
+@*- change viewget to view
+@
+text
+@d4 1
+d30 2
+d38 1
+a38 1
+	if {7 < $argc} {
+d69 1
+a69 1
+		error "more arguments needed::[lindex $prompts $i]"
+d107 5
+a111 2
+	puts $fd "viewsize=[view size]"
+	regsub -all { } [view eye] "," eye_pt
+@
+
+
+1.4
+log
+@Added code to prompt user for input using the
+	"more arguments needed::" hack.
+Replaced combination of "puts" and return with "error"
+	so that a calling script will know an error occured.
+@
+text
+@d104 2
+a105 2
+	puts $fd "viewsize=[viewget size]"
+	regsub -all { } [viewget eye] "," eye_pt
+d108 1
+a108 1
+	regsub -all { } [viewget quat] "," orientation
+@
+
+
+1.3
+log
+@Added options for antialias, through and behind
+@
+text
+@d19 6
+d29 4
+a32 2
+	set prompts { {shaderfile: } {image_file: } {width: } {height: }}
+	set usage  {Usage prj_add [-t] [-n] [-b] shaderfile [image_file] [width] [height]\n}
+d34 3
+a36 4
+	if {[llength $args] == 0} {
+		puts $usage
+		puts {Appends image filename + current view parameters to shader}
+		return
+d39 3
+a41 3
+	set through "0"
+	set behind "0"
+	set antialias "1"
+a42 1
+	set argc [llength $args]
+d44 7
+a50 9
+	set opt [lindex $args $n]
+	while { [string match "-*" $opt ] } {
+		switch -- $opt {
+			"-t" { set through "1" }
+			"-b" { set behind "1" }
+			"-n" { set antialias "0" }
+			default {
+				error "Unrecognized option ($opt)\n$usage"
+			}
+d52 9
+a60 3
+		incr n
+		if { $n >= $argc } break
+		set opt [lindex $args $n]
+d63 14
+a76 3
+	set need [expr $n + 4]
+	if { $need != $argc } {
+		error $usage
+d80 3
+a82 6
+	incr n
+	set image [lindex $args $n]
+	incr n
+	set width [lindex $args $n]
+	incr n
+	set height [lindex $args $n]
+d85 1
+a85 2
+		puts "Image file $image does not exist"
+		return
+d90 1
+a90 2
+			puts "error appending to $shaderfile: $fd"
+			return
+d94 1
+a94 2
+			puts "error opening $shaderfile: $fd"
+			return
+@
+
+
+1.2
+log
+@Changes for prism tracing.
+@
+text
+@d24 1
+d27 1
+a27 1
+		puts {Usage prj_add shaderfile [image_file] [width] [height]}
+d32 24
+a55 7
+	set n [llength $args]
+	while {$n < 4} {
+		puts -nonewline "[lindex $prompts $n]"
+		flush stdout
+		gets stdin foo
+		lappend args $foo
+		set n [expr $n + 1]
+d58 7
+a64 4
+	set shaderfile [lindex $args 0]
+	set image [lindex $args 1]
+	set width [lindex $args 2]
+	set height [lindex $args 3]
+d86 3
+a88 3
+	puts $fd "through=0"
+	puts $fd "antialias=1"
+	puts $fd "behind=0"
+@
+
+
+1.2.2.1
+log
+@Added options for antialias, through and behind
+@
+text
+@a23 1
+	set usage  {Usage prj_add [-t] [-n] [-b] shaderfile [image_file] [width] [height]\n}
+d26 1
+a26 1
+		puts $usage
+d31 7
+a37 24
+	set through "0"
+	set behind "0"
+	set antialias "1"
+
+	set argc [llength $args]
+	set n 0
+	set opt [lindex $args $n]
+	while { [string match "-*" $opt ] } {
+		switch -- $opt {
+			"-t" { set through "1" }
+			"-b" { set behind "1" }
+			"-n" { set antialias "0" }
+			default {
+				error "Unrecognized option ($opt)\n$usage"
+			}
+		}
+		incr n
+		if { $n >= $argc } break
+		set opt [lindex $args $n]
+	}
+
+	set need [expr $n + 4]
+	if { $need != $argc } {
+		error $usage
+d40 4
+a43 7
+	set shaderfile [lindex $args $n]
+	incr n
+	set image [lindex $args $n]
+	incr n
+	set width [lindex $args $n]
+	incr n
+	set height [lindex $args $n]
+d65 3
+a67 3
+	puts $fd "through=$through"
+	puts $fd "antialias=$antialias"
+	puts $fd "behind=$behind"
+@
+
+
+1.2.2.2
+log
+@Added code to prompt user for input using the
+	"more arguments needed::" hack.
+Replaced combination of "puts" and return with "error"
+	so that a calling script will know an error occured.
+@
+text
+@a18 6
+# Modifications -
+#	Bob Parker:
+#	     Added code to prompt user for input using the
+#		   "more arguments needed::" hack.
+#	     Replaced combination of "puts" and return with "error"
+#		   so that a calling script will know an error occured.
+d23 2
+a24 4
+	set prompts {{shaderfile: } {image_file: } {width: } {height: }}
+	set usage "Usage:
+\tprj_add \[-t\] \[-n\] \[-b\] shaderfile \[image_file\] \[width\] \[height\]
+\tAppends image filename + current view parameters to shader"
+d26 4
+a29 3
+	set argc [llength $args]
+	if {7 < $argc} {
+	    error $usage
+d32 3
+a34 3
+	set through 0
+	set behind 0
+	set antialias 1
+d36 1
+d38 9
+a46 7
+	foreach opt $args {
+	    switch -- $opt {
+		"-t" {
+		    set through 1
+		}
+		"-b" {
+		    set behind 1
+d48 3
+a50 9
+		"-n" {
+		    set antialias 0
+		}
+		default {
+		    break
+		}
+	    }
+
+	    incr n
+d53 3
+a55 14
+	set i [expr {$argc - $n}]
+	switch -- $i {
+	    0 {
+		error "more arguments needed::[lindex $prompts $i]"
+	    }
+	    1 {
+		error "more arguments needed::[lindex $prompts $i]"
+	    }
+	    2 {
+		error "more arguments needed::[lindex $prompts $i]"
+	    }
+	    3 {
+		error "more arguments needed::[lindex $prompts $i]"
+	    }
+d59 6
+a64 3
+	set image [lindex $args [expr {$n + 1}]]
+	set width [lindex $args [expr {$n + 2}]]
+	set height [lindex $args [expr {$n + 3}]]
+d67 2
+a68 1
+		error "Image file $image does not exist"
+d73 2
+a74 1
+		    error "error appending to $shaderfile: $fd"
+d78 2
+a79 1
+		    error "error opening $shaderfile: $fd"
+@
+
+
+1.1
+log
+@proc to help with the creation of projection shader input files
+@
+text
+@d65 3
+@

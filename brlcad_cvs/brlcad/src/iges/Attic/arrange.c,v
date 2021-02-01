@@ -1,0 +1,300 @@
+head	14.7;
+access;
+symbols
+	stable-branch:14.4
+	bobWinPort-20051223-freeze:14.4
+	rel-7-6-2:14.4
+	rel-7-6-branch:14.4.0.6
+	rel-7-6-0:14.4
+	rel-7-4-2:14.4
+	rel-7-4-branch:14.4.0.4
+	bobWinPort:14.4.0.2
+	rel-7-4-0:14.4
+	rel-7-2-6:14.4
+	rel-7-2-4:14.4
+	rel-7-2-2:14.4
+	rel-7-2-0:14.4
+	rel-7-0-4:14.3
+	rel-7-0-2:14.3
+	rel-7-0-1:14.3
+	opensource-post:14.3
+	opensource-pre:1.1
+	rel-7-0-branch:1.1.0.2
+	rel-7-0:1.1;
+locks; strict;
+comment	@ * @;
+
+
+14.7
+date	2005.10.27.03.36.04;	author brlcad;	state dead;
+branches;
+next	14.6;
+
+14.6
+date	2005.10.23.04.44.31;	author brlcad;	state Exp;
+branches;
+next	14.5;
+
+14.5
+date	2005.09.09.09.44.08;	author brlcad;	state Exp;
+branches;
+next	14.4;
+
+14.4
+date	2005.01.30.20.30.39;	author brlcad;	state Exp;
+branches
+	14.4.6.1;
+next	14.3;
+
+14.3
+date	2004.12.21.06.38.19;	author morrison;	state Exp;
+branches;
+next	14.2;
+
+14.2
+date	2004.12.20.20.36.29;	author morrison;	state Exp;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.13;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.15.19.12;	author morrison;	state Exp;
+branches;
+next	;
+
+14.4.6.1
+date	2005.11.13.13.46.14;	author brlcad;	state dead;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.7
+log
+@moved all the geometry converter directories from src/. to src/conv/.
+@
+text
+@/*                       A R R A N G E . C
+ * BRL-CAD
+ *
+ * Copyright (C) 1990-2005 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@file arrange.c
+ *  Authors -
+ *	John R. Anderson
+ *	Susanne L. Muuss
+ *	Earl P. Weaver
+ *
+ *  Source -
+ *	VLD/ASB Building 1065
+ *	The U. S. Army Ballistic Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005
+ *
+ */
+/*	This routine manipulates the boolean tree towards the form
+	that BRL-CAD likes, i.e. (((a+b)-c)+d) as opposed to (a+(b-(c-d))).
+	The tree is traversed in LRN order.	*/
+
+#include "./iges_struct.h"
+
+Arrange( root )
+struct node *root;
+{
+	struct node *Copytree(),*Pop(),*ptr,*ptra,*ptrb,*ptrc,*ptrd,*ptr1,*ptr2;
+	int retval=1;
+
+	ptr = root;
+	while( 1 )
+	{
+		while( ptr != NULL )
+		{
+			Push( ptr );
+			ptr = ptr->left;
+		}
+		ptr = Pop();
+		if( ptr->op == Subtract )
+		{
+			if( ptr->right->op == Subtract || ptr->right->op == Intersect )
+			{
+			/*	(a-(b"+ or-"c)) => ((a-b)u(a"+ or -"c))	*/
+				retval = 0;
+				ptra = ptr->left;
+				ptrb = ptr->right->left;
+				ptrc = ptr->right->right;
+				ptr1 = ptr->right;
+				ptr2 = (struct node *)bu_malloc( sizeof( struct node ), "Arrange: ptr2" );
+				ptr->left = ptr2;
+				ptr1->left = ptra;
+				ptr2->left = Copytree( ptra , ptr2 );
+				ptr2->right = ptrb;
+				ptr->op = Union;
+				if( ptr1->op == Intersect )
+					ptr1->op = Subtract;
+				else
+					ptr1->op = Intersect;
+				ptr2->op = Subtract;
+				ptr2->parent = ptr;
+				ptrb->parent = ptr2;
+				ptra->parent = ptr1;
+			}
+		}
+		if( ptr->op == Intersect && ptr->left->op > Union && ptr->right->op > Union )
+		{
+		/*	(a"+ or -"b)+(c"+ or -"d) => (((a+c)"+ or -"b)"+ or -"d)	*/
+			retval = 0;
+			ptra = ptr->left->left;
+			ptrb = ptr->left->right;
+			ptrc = ptr->right->left;
+			ptrd = ptr->right->right;
+			ptr1 = ptr->left;
+			ptr2 = ptr->right;
+			ptr->left = ptr2;
+			ptr->right = ptrd;
+			ptr2->left = ptr1;
+			ptr2->right = ptrb;
+			ptr1->right = ptrc;
+			ptr->op = ptr2->op;
+			ptr2->op = ptr1->op;
+			ptr1->op = Intersect;
+			ptrb->parent = ptr2;
+			ptr1->parent = ptr2;
+			ptrc->parent = ptr1;
+			ptrd->parent = ptr;
+		}
+		else if( ptr->op == Intersect )
+		{
+			if( ptr->right->op > Union )
+			{
+			/*	(a+(b"+ or -"c)) => ((b"+ or -"c)+a)	*/
+				retval = 0;
+				ptra = ptr->left;
+				ptr->left = ptr->right;
+				ptr->right = ptra;
+			}
+		}
+
+		if( ptr == root )
+			return( retval );
+
+		if( ptr != ptr->parent->right )
+			ptr = ptr->parent->right;
+		else
+			ptr = NULL;
+
+	}
+}
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+14.6
+log
+@trailing ws
+@
+text
+@@
+
+
+14.5
+log
+@BRL-CAD not BRLCAD, consistency
+@
+text
+@d31 1
+a31 1
+ *  
+@
+
+
+14.4
+log
+@update copyright to 2005
+@
+text
+@d34 1
+a34 1
+	that BRLCAD likes, i.e. (((a+b)-c)+d) as opposed to (a+(b-(c-d))).
+@
+
+
+14.4.6.1
+log
+@merge changes from HEAD aka rel-7-6-4 to the rel-7-6-branch just in case someone peeks a gander or tries to continue/build the branch
+@
+text
+@@
+
+
+14.3
+log
+@remove the old copyright notice section
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 1990-2004 United States Government as represented by
+@
+
+
+14.2
+log
+@acquire copyright and assign GPL license
+@
+text
+@a31 3
+ *  Copyright Notice -
+ *	This software is Copyright (C) 1990-2004 by the United States Army.
+ *	All rights reserved.
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@d1 21
+a21 1
+/*
+@
+
+
+1.1
+log
+@Vast reorganization begins.  Sources moved from top-level directories into src/.
+@
+text
+@d108 10
+@
+

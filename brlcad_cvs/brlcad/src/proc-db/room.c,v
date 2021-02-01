@@ -1,0 +1,787 @@
+head	14.11;
+access;
+symbols
+	rel-7-10-4:14.10
+	STABLE:14.10.0.2
+	stable-branch:14.3
+	rel-7-10-2:14.10
+	rel-7-10-0:14.9
+	rel-7-8-4:14.6
+	rel-7-8-2:14.6
+	rel-7-8-0:14.6
+	trimnurbs-branch:14.5.0.2
+	help:14.5
+	temp_tag:14.4
+	bobWinPort-20051223-freeze:14.3
+	postmerge-20051223-bobWinPort:14.4
+	premerge-20051223-bobWinPort:14.4
+	rel-7-6-6:14.4
+	rel-7-6-4:14.4
+	rel-7-6-2:14.3
+	rel-7-6-branch:14.3.0.6
+	rel-7-6-0:14.3
+	rel-7-4-2:14.3
+	rel-7-4-branch:14.3.0.4
+	bobWinPort:14.3.0.2
+	rel-7-4-0:14.3
+	rel-7-2-6:14.3
+	rel-7-2-4:14.3
+	rel-7-2-2:14.3
+	rel-7-2-0:14.3
+	rel-7-0-4:14.2
+	rel-7-0-2:14.2
+	rel-7-0-1:14.2
+	opensource-post:14.2
+	opensource-pre:1.3
+	rel-7-0-branch:1.3.0.2
+	rel-7-0:1.3;
+locks; strict;
+comment	@ * @;
+
+
+14.11
+date	2007.12.02.22.34.23;	author brlcad;	state Exp;
+branches;
+next	14.10;
+
+14.10
+date	2007.07.26.01.13.58;	author brlcad;	state Exp;
+branches;
+next	14.9;
+
+14.9
+date	2007.01.27.01.41.45;	author brlcad;	state Exp;
+branches;
+next	14.8;
+
+14.8
+date	2007.01.23.01.13.44;	author brlcad;	state Exp;
+branches;
+next	14.7;
+
+14.7
+date	2007.01.20.14.36.59;	author brlcad;	state Exp;
+branches;
+next	14.6;
+
+14.6
+date	2006.04.05.19.54.28;	author brlcad;	state Exp;
+branches;
+next	14.5;
+
+14.5
+date	2006.01.18.06.46.23;	author brlcad;	state Exp;
+branches
+	14.5.2.1;
+next	14.4;
+
+14.4
+date	2005.10.23.04.44.37;	author brlcad;	state Exp;
+branches;
+next	14.3;
+
+14.3
+date	2005.01.30.20.31.09;	author brlcad;	state Exp;
+branches
+	14.3.6.1;
+next	14.2;
+
+14.2
+date	2004.12.21.03.46.08;	author butler;	state Exp;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.30;	author morrison;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2004.08.02.23.01.52;	author morrison;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2004.06.08.22.04.33;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.15.20.41;	author morrison;	state Exp;
+branches;
+next	;
+
+14.3.6.1
+date	2005.11.13.13.46.19;	author brlcad;	state Exp;
+branches;
+next	;
+
+14.5.2.1
+date	2006.04.07.19.34.20;	author jlowenz;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.11
+log
+@woo hoo, finally got through most of the flawfinder level 4 issues related to string buffer limits (leaving issues that can probably/mostly be ignored).  these changes mostly invovlved using the n-variants of the various string processing functions so that the buffers being written to are properly clamped.
+@
+text
+@/*                          R O O M . C
+ * BRL-CAD
+ *
+ * Copyright (c) 2004-2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@file room.c
+ *
+ *  Program to generate procedural rooms.
+ *
+ *  Author -
+ *	Michael John Muuss
+ *
+ */
+#ifndef lint
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/proc-db/room.c,v 14.10 2007/07/26 01:13:58 brlcad Exp $ (BRL)";
+#endif
+
+#include "common.h"
+
+#include <stdlib.h>
+#include <stdio.h>
+#include <math.h>
+#include "machine.h"
+#include "vmath.h"
+#include "bu.h"
+#include "bn.h"
+#include "vmath.h"
+#include "raytrace.h"
+#include "wdb.h"
+
+
+#define HEIGHT	4000		/* 4 meter high walls */
+
+#define EAST	1
+#define NORTH	2
+#define WEST	4
+#define	SOUTH	8
+
+mat_t	identity;
+double degtorad = 0.0174532925199433;
+double sin60;
+
+struct mtab {
+	char	mt_name[64];
+	char	mt_param[96];
+} mtab[] = {
+	{"plastic",	""},
+	{"glass",	""},
+	{"plastic",	""},
+	{"mirror",	""},
+	{"plastic",	""},
+	{"testmap",	""},
+	{"plastic",	""}
+};
+int	nmtab = sizeof(mtab)/sizeof(struct mtab);
+
+#define PICK_MAT	((rand() % nmtab) )
+
+void make_room(char *rname, fastf_t *imin, fastf_t *imax, fastf_t *thickness, struct wmember *headp);
+void make_walls(char *rname, fastf_t *imin, fastf_t *imax, fastf_t *thickness, int bits, struct wmember *headp);
+void make_pillar(char *prefix, int ix, int iy, fastf_t *center, fastf_t *lwh, struct wmember *headp);
+void make_carpet(char *rname, fastf_t *min, fastf_t *max, char *file, struct wmember *headp);
+extern void get_rgb( unsigned char *rgb );
+
+struct rt_wdb	*outfp;
+
+int
+main(int argc, char **argv)
+{
+	vect_t	norm;
+	unsigned char	rgb[3];
+	int	ix;
+	double	x;
+	double	size;
+	int	quant;
+	struct wmember head;
+	vect_t	bmin, bmax, bthick;
+	vect_t	r1min, r1max, r1thick;
+	vect_t	lwh;		/* length, width, height */
+	vect_t	pbase;
+
+	BU_LIST_INIT( &head.l );
+
+	MAT_IDN( identity );
+	sin60 = sin(60.0 * 3.14159265358979323846264 / 180.0);
+
+	outfp = wdb_fopen("room.g");
+	mk_id( outfp, "Procedural Rooms" );
+
+	/* Create the building */
+	VSET( bmin, 0, 0, 0 );
+	VSET( bmax, 80000, 60000, HEIGHT );
+	VSET( bthick, 100, 100, 100 );
+	make_room( "bldg", bmin, bmax, bthick, &head );
+
+	/* Create the first room */
+	VSET( r1thick, 100, 100, 0 );
+	VMOVE( r1min, bmin );
+	VSET( r1max, 40000, 10000, HEIGHT );
+	VADD2( r1max, r1min, r1max );
+	make_walls( "rm1", r1min, r1max, r1thick, NORTH|EAST, &head );
+	make_carpet( "rm1carpet", r1min, r1max, "carpet.pix", &head );
+
+	/* Create the golden earth */
+	VSET( norm, 0, 0, 1 );
+	mk_half( outfp, "plane", norm, -bthick[Z]-10.0 );
+	rgb[0] = 240;	/* gold/brown */
+	rgb[1] = 180;
+	rgb[2] = 64;
+	mk_region1( outfp, "plane.r", "plane", NULL, NULL, rgb );
+	(void)mk_addmember( "plane.r", &head.l, NULL, WMOP_UNION );
+
+	/* Create the display pillars */
+	size = 4000;	/* separation between centers */
+	quant = 5;	/* pairs */
+	VSET( lwh, 400, 400, 1000 );
+	for( ix=quant-1; ix>=0; ix-- )  {
+		x = 10000 + ix*size;
+		VSET( pbase, x, 10000*.25, r1min[Z] );
+		make_pillar( "Pil", ix, 0, pbase, lwh, &head );
+		VSET( pbase, x, 10000*.75, r1min[Z] );
+		make_pillar( "Pil", ix, 1, pbase, lwh, &head );
+	}
+
+#ifdef never
+	/* Create some light */
+	white[0] = white[1] = white[2] = 255;
+	base = size*(quant/2+1);
+	VSET( aim, 0, 0, 0 );
+	VSET( pos, base, base, minheight+maxheight*bn_rand0to1(randp) );
+	do_light( "l1", pos, aim, 1, 100.0, white, &head );
+	VSET( pos, -base, base, minheight+maxheight*bn_rand0to1(randp) );
+	do_light( "l2", pos, aim, 1, 100.0, white, &head );
+	VSET( pos, -base, -base, minheight+maxheight*bn_rand0to1(randp) );
+	do_light( "l3", pos, aim, 1, 100.0, white, &head );
+	VSET( pos, base, -base, minheight+maxheight*bn_rand0to1(randp) );
+	do_light( "l4", pos, aim, 1, 100.0, white, &head );
+#endif
+
+	/* Build the overall combination */
+	mk_lfcomb( outfp, "room", &head, 0 );
+
+	return 0;
+}
+
+void
+make_room(char *rname, fastf_t *imin, fastf_t *imax, fastf_t *thickness, struct wmember *headp)
+
+			/* Interior RPP min point */
+
+
+{
+	struct wmember head;
+	char	name[32];
+	vect_t	omin;
+	vect_t	omax;
+
+	BU_LIST_INIT( &head.l );
+
+	VSUB2( omin, imin, thickness );
+	VADD2( omax, imax, thickness );
+
+	snprintf( name, 32, "o%s", rname );
+	mk_rpp( outfp, name, omin, omax );
+	(void)mk_addmember( name, &head.l, NULL, WMOP_UNION );
+
+	snprintf( name, 32, "i%s", rname );
+	mk_rpp( outfp, name, imin, imax );
+	mk_addmember( name, &head.l, NULL, WMOP_SUBTRACT );
+
+	mk_lfcomb( outfp, rname, &head, 1 );
+	(void)mk_addmember( rname, &(headp->l), NULL, WMOP_UNION );
+}
+
+void
+make_walls(char *rname, fastf_t *imin, fastf_t *imax, fastf_t *thickness, int bits, struct wmember *headp)
+
+			/* Interior RPP min point */
+
+
+{
+	struct wmember head;
+	char	name[32];
+	vect_t	omin, omax;	/* outer dimensions */
+	vect_t	wmin, wmax;
+	int	mask;
+
+	BU_LIST_INIT( &head.l );
+
+	/* thickness[Z] = 0; */
+
+	/*
+	 *  Set exterior dimensions to interior dimensions.
+	 *  Then, thicken them as necessary due to presence of
+	 *  exterior walls.
+	 *  It may be useful to return the exterior min,max.
+	 */
+	VMOVE( omin, imin );
+	VMOVE( omax, imax );
+	if( bits & EAST )
+		omax[X] += thickness[X];
+	if( bits & WEST )
+		omin[X] -= thickness[X];
+	if( bits & NORTH )
+		omax[Y] += thickness[Y];
+	if( bits & SOUTH )
+		omin[Y] -= thickness[Y];
+
+	for( mask=8; mask > 0; mask >>= 1 )  {
+		if( (bits & mask) == 0 )  continue;
+
+		VMOVE( wmin, omin );
+		VMOVE( wmax, omax );
+
+		switch( mask )  {
+		case SOUTH:
+			/* South (-Y) wall */
+			snprintf( name, 32, "S%s", rname );
+			wmax[Y] = imin[Y];
+			break;
+		case WEST:
+			/* West (-X) wall */
+			snprintf( name, 32, "W%s", rname );
+			wmax[X] = imin[X];
+			break;
+		case NORTH:
+			/* North (+Y) wall */
+			snprintf( name, 32, "N%s", rname );
+			wmin[Y] = imax[Y];
+			break;
+		case EAST:
+			/* East (+X) wall */
+			snprintf( name, 32, "E%s", rname );
+			wmin[X] = imax[X];
+			break;
+		}
+		mk_rpp( outfp, name, wmin, wmax );
+		(void)mk_addmember( name, &head.l, NULL, WMOP_UNION );
+	}
+
+	mk_lfcomb( outfp, rname, &head, 1 );
+	(void)mk_addmember( rname, &(headp->l), NULL, WMOP_UNION );
+}
+
+void
+make_pillar(char *prefix, int ix, int iy, fastf_t *center, fastf_t *lwh, struct wmember *headp)
+
+
+				/* center of base */
+
+
+{
+	vect_t	min, max;
+	unsigned char	rgb[4];		/* needs all 4 */
+	char	pilname[32], rname[32], sname[32], oname[32];
+	int	i;
+	struct wmember head;
+	struct wmember *wp;
+
+	BU_LIST_INIT( &head.l );
+
+	snprintf( pilname, 32, "%s%d,%d", prefix, ix, iy );
+	snprintf( rname, 32, "%s.r", pilname );
+	snprintf( sname, 32, "%s.s", pilname );
+	snprintf( oname, 32, "Obj%d,%d", ix, iy );
+
+	VMOVE( min, center );
+	min[X] -= lwh[X];
+	min[Y] -= lwh[Y];
+	VADD2( max, center, lwh );
+	mk_rpp( outfp, sname, min, max );
+
+	/* Needs to be in a region, with color!  */
+	get_rgb(rgb);
+	i = PICK_MAT;
+	mk_region1( outfp, rname, sname,
+		mtab[i].mt_name, mtab[i].mt_param, rgb );
+
+	(void)mk_addmember( rname, &head.l, NULL, WMOP_UNION );
+	wp = mk_addmember( oname, &head.l, NULL, WMOP_UNION );
+	MAT_DELTAS( wp->wm_mat, center[X], center[Y], center[Z]+lwh[Z] );
+	mk_lfcomb( outfp, pilname, &head, 0 );
+
+	(void)mk_addmember( pilname, &(headp->l), NULL, WMOP_UNION );
+}
+
+void
+make_carpet(char *rname, fastf_t *min, fastf_t *max, char *file, struct wmember *headp)
+{
+	char	sname[32];
+	char	args[128];
+	vect_t	cmin, cmax;
+
+	VMOVE( cmin, min );
+	VMOVE( cmax, max );
+	cmax[Z] = cmin[Z] + 10;		/* not very plush carpet */
+	min[Z] = cmax[Z];		/* raise the caller's floor */
+
+	snprintf( sname, 32, "%s.s", rname );
+	snprintf( args, 128, "texture file=%s;plastic", file );
+	mk_rpp( outfp, sname, cmin, cmax );
+	mk_region1( outfp, rname, sname,
+		"stack", args,
+		(unsigned char *)0 );
+
+	(void)mk_addmember( rname, &(headp->l), NULL, WMOP_UNION );
+}
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+14.10
+log
+@remove ephemeral data like phone numbers and addresses, including the misleading 'source' statements on code that is continually evolving and receiving contributions from many many sources
+@
+text
+@d29 1
+a29 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/proc-db/room.c,v 14.9 2007/01/27 01:41:45 brlcad Exp $ (BRL)";
+d177 1
+a177 1
+	sprintf( name, "o%s", rname );
+d181 1
+a181 1
+	sprintf( name, "i%s", rname );
+d232 1
+a232 1
+			sprintf( name, "S%s", rname );
+d237 1
+a237 1
+			sprintf( name, "W%s", rname );
+d242 1
+a242 1
+			sprintf( name, "N%s", rname );
+d247 1
+a247 1
+			sprintf( name, "E%s", rname );
+d276 4
+a279 4
+	sprintf( pilname, "%s%d,%d", prefix, ix, iy );
+	sprintf( rname, "%s.r", pilname );
+	sprintf( sname, "%s.s", pilname );
+	sprintf( oname, "Obj%d,%d", ix, iy );
+d313 2
+a314 2
+	sprintf( sname, "%s.s", rname );
+	sprintf( args, "texture file=%s;plastic", file );
+@
+
+
+14.9
+log
+@ws. lots and lots of ws.  see sh/ws.sh for details (cases 'abcdeg').
+@
+text
+@a26 4
+ *  Source -
+ *	SECAD/VLD Computing Consortium, Bldg 394
+ *	The U. S. Army Ballistic Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005-5066
+d29 1
+a29 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/proc-db/room.c,v 14.8 2007/01/23 01:13:44 brlcad Exp $ (BRL)";
+@
+
+
+14.8
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@d33 1
+a33 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/proc-db/room.c,v 14.7 2007/01/20 14:36:59 brlcad Exp $ (BRL)";
+d167 1
+a167 2
+      	     		/* Interior RPP min point */
+
+d196 1
+a196 3
+      	     		/* Interior RPP min point */
+
+
+d267 1
+a267 2
+
+      	       			/* center of base */
+@
+
+
+14.7
+log
+@update copyright to 2007
+@
+text
+@d8 2
+a9 3
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+d14 1
+a14 1
+ * General Public License for more details.
+d16 2
+a17 2
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+d33 1
+a33 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/proc-db/room.c,v 14.6 2006/04/05 19:54:28 brlcad Exp $ (BRL)";
+@
+
+
+14.6
+log
+@more header/warning cleanup from Intel compiler warnings on Altix
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 2004-2006 United States Government as represented by
+d34 1
+a34 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/proc-db/room.c,v 14.5 2006/01/18 06:46:23 brlcad Exp $ (BRL)";
+@
+
+
+14.5
+log
+@update copyright to 2006
+@
+text
+@d34 1
+a34 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/proc-db/room.c,v 14.4 2005/10/23 04:44:37 brlcad Exp $ (BRL)";
+d39 1
+a39 2
+
+
+@
+
+
+14.5.2.1
+log
+@update from HEAD
+@
+text
+@d34 1
+a34 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/proc-db/room.c,v 14.5 2006/01/18 06:46:23 brlcad Exp $ (BRL)";
+d39 2
+a40 1
+#include <stdlib.h>
+@
+
+
+14.4
+log
+@trailing ws
+@
+text
+@d4 1
+a4 1
+ * Copyright (C) 2004-2005 United States Government as represented by
+d34 1
+a34 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/proc-db/room.c,v 14.3 2005/01/30 20:31:09 brlcad Exp $ (BRL)";
+@
+
+
+14.3
+log
+@update copyright to 2005
+@
+text
+@d22 1
+a22 1
+ * 
+d27 1
+a27 1
+ *  
+d34 1
+a34 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/proc-db/room.c,v 14.2 2004/12/21 03:46:08 butler Exp $ (BRL)";
+d168 1
+a168 1
+    	       
+d170 3
+a172 3
+      	     
+      	          
+                      
+d198 1
+a198 1
+    	       
+d200 4
+a203 4
+      	     
+      	          
+   	     
+                      
+d270 3
+a272 3
+    	        
+   	   
+   	   
+d274 2
+a275 2
+      	    
+                      
+@
+
+
+14.3.6.1
+log
+@merge changes from HEAD aka rel-7-6-4 to the rel-7-6-branch just in case someone peeks a gander or tries to continue/build the branch
+@
+text
+@d22 1
+a22 1
+ *
+d27 1
+a27 1
+ *
+d34 1
+a34 1
+static const char RCSid[] = "@@(#)$Header$ (BRL)";
+d168 1
+a168 1
+
+d170 3
+a172 3
+
+
+
+d198 1
+a198 1
+
+d200 4
+a203 4
+
+
+
+
+d270 3
+a272 3
+
+
+
+d274 2
+a275 2
+
+
+@
+
+
+14.2
+log
+@GPL license changes
+@
+text
+@d4 2
+a5 2
+ * Copyright (c) 2004 United States Government as represented by the
+ * U.S. Army Research Laboratory.
+d34 1
+a34 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/proc-db/room.c,v 14.1 2004/11/16 19:42:30 morrison Exp $ (BRL)";
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@d1 21
+a21 2
+/*
+ *			R O O M . C
+a31 4
+ *  
+ *  Copyright 
+ *	This software is Copyright (C) 1988-2004 by the United States Army.
+ *	All rights reserved.
+d34 1
+a34 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/proc-db/room.c,v 1.3 2004/08/02 23:01:52 morrison Exp $ (BRL)";
+@
+
+
+1.3
+log
+@replace the wrapped config.h block with common.h
+@
+text
+@d19 1
+a19 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/proc-db/room.c,v 1.2 2004/06/08 22:04:33 morrison Exp $ (BRL)";
+d317 10
+@
+
+
+1.2
+log
+@obliterate externs.h
+@
+text
+@d19 1
+a19 1
+static const char RCSid[] = "@@(#)$Header$ (BRL)";
+d22 1
+a22 3
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+@
+
+
+1.1
+log
+@Vast reorganization begins.  Sources moved from top-level directories into src/.
+@
+text
+@d19 1
+a19 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/proc-db/room.c,v 11.16 2004/05/10 15:30:49 erikg Exp $ (BRL)";
+a31 1
+#include "externs.h"
+@
+

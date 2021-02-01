@@ -1,0 +1,751 @@
+head	14.13;
+access;
+symbols
+	rel-7-10-4:14.12
+	STABLE:14.12.0.2
+	stable-branch:14.4
+	rel-7-10-2:14.12
+	rel-7-10-0:14.11
+	rel-7-8-4:14.8
+	rel-7-8-2:14.8
+	rel-7-8-0:14.8
+	trimnurbs-branch:14.8.0.2
+	help:14.8
+	temp_tag:14.7
+	bobWinPort-20051223-freeze:14.4
+	postmerge-20051223-bobWinPort:14.7
+	premerge-20051223-bobWinPort:14.7
+	rel-7-6-6:14.7
+	rel-7-6-4:14.7
+	rel-7-6-2:14.4
+	rel-7-6-branch:14.4.0.6
+	rel-7-6-0:14.4
+	rel-7-4-2:14.4
+	rel-7-4-branch:14.4.0.4
+	bobWinPort:14.4.0.2
+	rel-7-4-0:14.4
+	rel-7-2-6:14.4
+	rel-7-2-4:14.4
+	rel-7-2-2:14.4
+	rel-7-2-0:14.4
+	rel-7-0-4:14.3
+	rel-7-0-2:14.3
+	rel-7-0-1:14.3
+	opensource-post:14.3
+	opensource-pre:1.5
+	rel-7-0-branch:1.5.0.2
+	rel-7-0:1.5;
+locks; strict;
+comment	@ * @;
+
+
+14.13
+date	2007.10.29.05.25.45;	author brlcad;	state Exp;
+branches;
+next	14.12;
+
+14.12
+date	2007.07.26.01.13.53;	author brlcad;	state Exp;
+branches;
+next	14.11;
+
+14.11
+date	2007.01.27.01.41.34;	author brlcad;	state Exp;
+branches;
+next	14.10;
+
+14.10
+date	2007.01.23.01.13.27;	author brlcad;	state Exp;
+branches;
+next	14.9;
+
+14.9
+date	2007.01.20.14.36.48;	author brlcad;	state Exp;
+branches;
+next	14.8;
+
+14.8
+date	2006.01.18.06.46.15;	author brlcad;	state Exp;
+branches;
+next	14.7;
+
+14.7
+date	2005.10.23.04.44.30;	author brlcad;	state Exp;
+branches;
+next	14.6;
+
+14.6
+date	2005.09.21.19.00.27;	author brlcad;	state Exp;
+branches;
+next	14.5;
+
+14.5
+date	2005.09.21.17.17.18;	author brlcad;	state Exp;
+branches;
+next	14.4;
+
+14.4
+date	2005.01.30.20.30.21;	author brlcad;	state Exp;
+branches
+	14.4.6.1;
+next	14.3;
+
+14.3
+date	2004.12.21.06.38.19;	author morrison;	state Exp;
+branches;
+next	14.2;
+
+14.2
+date	2004.12.18.06.09.12;	author morrison;	state Exp;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.13;	author morrison;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	2004.09.08.20.31.24;	author kermit;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	2004.08.02.23.01.47;	author morrison;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2004.06.09.17.56.22;	author erikg;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2004.06.08.22.04.12;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.15.19.02;	author morrison;	state Exp;
+branches;
+next	;
+
+14.4.6.1
+date	2005.11.13.13.46.13;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.13
+log
+@more flawfinding quellage and bu_exiting
+@
+text
+@/*                    F B S C A N P L O T . C
+ * BRL-CAD
+ *
+ * Copyright (c) 1986-2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ *
+ */
+/** @@file fbscanplot.c
+ *
+ *  Plot an RGB profile of a framebuffer scanline.
+ *
+ *  Author -
+ *	Phillip Dykstra
+ *
+ */
+#ifndef lint
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/fb/fbscanplot.c,v 14.12 2007/07/26 01:13:53 brlcad Exp $ (BRL)";
+#endif
+
+#include "common.h"
+
+#ifdef HAVE_UNISTD_H
+# include <unistd.h>
+#endif
+#include <stdlib.h>
+#include <stdio.h>
+
+#include "machine.h"
+#include "bu.h"
+#include "fb.h"
+
+unsigned char	*scan;		/* Scanline to be examined */
+unsigned char	*outline;	/* output line buffer */
+unsigned char	*backgnd;	/* copy of line to be overlaid */
+
+int	yline;			/* line to plot */
+int	scr_width = 0;		/* framebuffer width */
+int	scr_height = 0;		/* framebuffer height */
+int	verbose = 0;		/* output scanline values to stdout */
+int	fb_overlay = 0;		/* plot on background, else black with grid */
+int	cmap_crunch = 0;	/* Plot values after passing through color map */
+int	reverse = 0;		/* highlight chosen line by inverting it */
+char	*outframebuffer = NULL;
+FBIO	*fbp, *fboutp;
+ColorMap map;
+
+char usage[] = "\
+Usage: fbscanplot [-h] [-v] [-c] [-o] [-r]\n\
+	[-W scr_width] [-F outframebuffer] yline\n";
+
+int
+get_args(int argc, register char **argv)
+{
+	register int c;
+
+	while ( (c = bu_getopt( argc, argv, "cvhorW:F:" )) != EOF ) {
+		switch( c )  {
+		case 'c':
+			cmap_crunch++;
+			break;
+		case 'v':
+			verbose++;
+			break;
+		case 'h':
+			scr_width = scr_height = 1024;
+			break;
+		case 'o':
+			fb_overlay++;
+			break;
+		case 'r':
+			reverse++;
+			break;
+		case 'W':
+			scr_width = atoi(bu_optarg);
+			break;
+		case 'F':
+			outframebuffer = bu_optarg;
+			break;
+		default:		/* '?' */
+			return(0);
+		}
+	}
+
+	if( bu_optind >= argc )
+		return(0);
+	else
+		yline = atoi( argv[bu_optind] );
+
+	if ( argc > ++bu_optind )
+		return(0);	/* too many args */
+
+	return(1);		/* OK */
+}
+
+int
+main(int argc, char **argv)
+{
+	register unsigned char *ip, *op;
+	register int y;
+	int	x;
+	int	yoffset;	/* position of plot on screen */
+
+	if ( !get_args( argc, argv ) )  {
+		bu_exit(1, "%s", usage );
+	}
+
+	if( (fbp = fb_open( NULL, scr_width, scr_height )) == NULL )
+		bu_exit( 2, "Unable to open framebuffer\n" );
+	scr_width = fb_getwidth(fbp);
+	scr_height = fb_getheight(fbp);
+
+	if( outframebuffer != NULL ) {
+		if( (fboutp = fb_open( outframebuffer, scr_width, scr_width )) == NULL )
+			bu_exit( 3, "Unable to open framebuffer\n" );
+	} else
+		fboutp = fbp;
+
+	/* Allocate the buffers */
+	scan = (unsigned char *)bu_malloc( (scr_width+2) * sizeof(RGBpixel), "scan" );
+	outline = (unsigned char *)bu_malloc( (scr_width+2) * sizeof(RGBpixel), "outline");
+	backgnd = (unsigned char *)bu_malloc( (scr_width+2) * sizeof(RGBpixel), "backgnd" );
+
+	/* Read the scanline to be examined */
+	if( fb_read( fbp, 0, yline, scan+3, scr_width ) != scr_width )
+		bu_exit(4, "Unable to read scanline from framebuffer\n");
+
+	fb_make_linear_cmap(&map);
+	if( cmap_crunch )  {
+		if( fb_rmap( fbp, &map ) < 0 )
+			fprintf(stderr,"fbscanplot: error reading colormap\n");
+	}
+
+	/* extend the edges with one duplicate pixel each way */
+	scan[0*3+RED] = scan[1*3+RED];
+	scan[0*3+GRN] = scan[1*3+GRN];
+	scan[0*3+BLU] = scan[1*3+BLU];
+	scan[(scr_width+1)*3+RED] = scan[scr_width*3+RED];
+	scan[(scr_width+1)*3+GRN] = scan[scr_width*3+GRN];
+	scan[(scr_width+1)*3+BLU] = scan[scr_width*3+BLU];
+
+	/* figure out where to put it on the screen */
+	if( fb_overlay == 0 && fboutp == fbp && yline < scr_height/2 ) {
+		yoffset = scr_height - 256;
+		if( yoffset <= yline )
+			yoffset = 0;
+	} else
+		yoffset = 0;
+
+	if( reverse ) {
+		/* Output the negative of the chosen line */
+		for( x = 0; x < scr_width; x++ ) {
+			outline[x*3+RED] = 255 - scan[(x+1)*3+RED];
+			outline[x*3+GRN] = 255 - scan[(x+1)*3+GRN];
+			outline[x*3+BLU] = 255 - scan[(x+1)*3+BLU];
+		}
+		fb_write( fbp, 0, yline, outline, scr_width );
+	}
+
+	/* The scanplot takes 256 lines, one for each intensity value */
+	for( y = 0; y < 256; y++ ) {
+		if( fb_overlay )
+			fb_read( fboutp, 0, y+yoffset, backgnd, scr_width );
+
+		ip = &scan[1*3+RED];
+		op = &outline[0*3+RED];
+		for( x = 0; x < scr_width; x++, op += 3, ip += 3 ) {
+			if( y > (int)map.cm_red[ip[RED]]>>8 ) {
+				op[RED] = 0;
+			} else {
+				if( y >= (int)map.cm_red[ip[RED-3]]>>8 ||
+				    y >= (int)map.cm_red[ip[RED+3]]>>8 ||
+				    y == (int)map.cm_red[ip[RED]]>>8 )
+					op[RED] = 255;
+				else
+					op[RED] = 0;
+			}
+
+			if( y > (int)map.cm_green[ip[GRN]]>>8 ) {
+				op[GRN] = 0;
+			} else {
+				if( y >= (int)map.cm_green[ip[GRN-3]]>>8 ||
+				    y >= (int)map.cm_green[ip[GRN+3]]>>8 ||
+				    y == (int)map.cm_green[ip[GRN]]>>8 )
+					op[GRN] = 255;
+				else
+					op[GRN] = 0;
+			}
+
+			if( y > (int)map.cm_blue[ip[BLU]]>>8 ) {
+				op[BLU] = 0;
+			} else {
+				if( y >= (int)map.cm_blue[ip[BLU-3]]>>8 ||
+				    y >= (int)map.cm_blue[ip[BLU+3]]>>8 ||
+				    y == (int)map.cm_blue[ip[BLU]]>>8 )
+					op[BLU] = 255;
+				else
+					op[BLU] = 0;
+			}
+
+			if( fb_overlay ) {
+				/* background */
+				if( op[RED] == 0 && op[GRN] == 0 && op[BLU] == 0 ) {
+					op[RED] = backgnd[x*3+RED];
+					op[GRN] = backgnd[x*3+GRN];
+					op[BLU] = backgnd[x*3+BLU];
+				}
+			} else {
+				/* Grid lines */
+				if( (y & 63) == 0 && op[RED] == 0
+				 && op[GRN] == 0 && op[BLU] == 0 ) {
+					op[RED] = 128;
+					op[GRN] = 128;
+					op[BLU] = 128;
+				} else if( (y & 15) == 0 && op[RED] == 0
+				 && op[GRN] == 0 && op[BLU] == 0 ) {
+					op[RED] = 64;
+					op[GRN] = 64;
+					op[BLU] = 64;
+				}
+			}
+		}
+
+		fb_write( fboutp, 0, y+yoffset, outline, scr_width );
+	}
+
+	if( verbose ) {
+		for( x = 0; x < scr_width; x++ )
+			printf( "%3d: %3d %3d %3d\n", x,
+			   scan[(x+1)*3+RED], scan[(x+1)*3+GRN], scan[(x+1)*3+BLU] );
+	}
+
+	bu_free(scan, "scan");
+	bu_free(outline, "outline");
+	bu_free(backgnd, "backgnd");
+
+	fb_close( fbp );
+	if( fboutp != fbp )
+		fb_close( fboutp );
+
+	return 0;
+}
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+14.12
+log
+@remove ephemeral data like phone numbers and addresses, including the misleading 'source' statements on code that is continually evolving and receiving contributions from many many sources
+@
+text
+@d30 1
+a30 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/fb/fbscanplot.c,v 14.11 2007/01/27 01:41:34 brlcad Exp $ (BRL)";
+d117 1
+a117 2
+		fprintf( stderr, usage );
+		exit( 1 );
+d121 1
+a121 1
+		exit( 2 );
+d127 1
+a127 1
+			exit( 3 );
+d132 3
+a134 3
+	scan = (unsigned char *)malloc( (scr_width+2) * sizeof(RGBpixel) );
+	outline = (unsigned char *)malloc( (scr_width+2) * sizeof(RGBpixel) );
+	backgnd = (unsigned char *)malloc( (scr_width+2) * sizeof(RGBpixel) );
+d138 1
+a138 1
+		exit(4);
+d245 4
+d253 1
+a253 1
+	exit( 0 );
+@
+
+
+14.11
+log
+@ws. lots and lots of ws.  see sh/ws.sh for details (cases 'abcdeg').
+@
+text
+@a27 5
+ *  Source -
+ *	SECAD/VLD Computing Consortium, Bldg 394
+ *	The U. S. Army Ballistic Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005-5066
+ *
+d30 1
+a30 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/fb/fbscanplot.c,v 14.10 2007/01/23 01:13:27 brlcad Exp $ (BRL)";
+@
+
+
+14.10
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@d35 1
+a35 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/fb/fbscanplot.c,v 14.9 2007/01/20 14:36:48 brlcad Exp $ (BRL)";
+d230 3
+a232 3
+				 	op[RED] = 128;
+				 	op[GRN] = 128;
+				 	op[BLU] = 128;
+d235 3
+a237 3
+				 	op[RED] = 64;
+				 	op[GRN] = 64;
+				 	op[BLU] = 64;
+@
+
+
+14.9
+log
+@update copyright to 2007
+@
+text
+@d8 2
+a9 3
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+d14 1
+a14 1
+ * General Public License for more details.
+d16 2
+a17 2
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+d35 1
+a35 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/fb/fbscanplot.c,v 14.8 2006/01/18 06:46:15 brlcad Exp $ (BRL)";
+@
+
+
+14.8
+log
+@update copyright to 2006
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 1986-2006 United States Government as represented by
+d36 1
+a36 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/fb/fbscanplot.c,v 14.7 2005/10/23 04:44:30 brlcad Exp $ (BRL)";
+@
+
+
+14.7
+log
+@trailing ws
+@
+text
+@d4 1
+a4 1
+ * Copyright (C) 1986-2005 United States Government as represented by
+d36 1
+a36 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/fb/fbscanplot.c,v 14.6 2005/09/21 19:00:27 brlcad Exp $ (BRL)";
+@
+
+
+14.6
+log
+@needs bu.h for bu_getopt
+@
+text
+@d28 1
+a28 1
+ *  
+d33 1
+a33 1
+ *  
+d36 1
+a36 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/fb/fbscanplot.c,v 14.5 2005/09/21 17:17:18 brlcad Exp $ (BRL)";
+d44 1
+a44 1
+#include <stdlib.h>                                                                                                                                                                            
+@
+
+
+14.5
+log
+@use bu_optarg, bu_optind and bu_getopt
+@
+text
+@d36 1
+a36 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/fb/fbscanplot.c,v 14.4 2005/01/30 20:30:21 brlcad Exp $ (BRL)";
+d48 1
+@
+
+
+14.4
+log
+@update copyright to 2005
+@
+text
+@d36 1
+a36 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/fb/fbscanplot.c,v 14.3 2004/12/21 06:38:19 morrison Exp $ (BRL)";
+d74 1
+a74 1
+	while ( (c = getopt( argc, argv, "cvhorW:F:" )) != EOF ) {
+d92 1
+a92 1
+			scr_width = atoi(optarg);
+d95 1
+a95 1
+			outframebuffer = optarg;
+d102 1
+a102 1
+	if( optind >= argc )
+d105 1
+a105 1
+		yline = atoi( argv[optind] );
+d107 1
+a107 1
+	if ( argc > ++optind )
+@
+
+
+14.4.6.1
+log
+@merge changes from HEAD aka rel-7-6-4 to the rel-7-6-branch just in case someone peeks a gander or tries to continue/build the branch
+@
+text
+@d28 1
+a28 1
+ *
+d33 1
+a33 1
+ *
+d36 1
+a36 1
+static const char RCSid[] = "@@(#)$Header$ (BRL)";
+d44 1
+a44 1
+#include <stdlib.h>
+a47 1
+#include "bu.h"
+d74 1
+a74 1
+	while ( (c = bu_getopt( argc, argv, "cvhorW:F:" )) != EOF ) {
+d92 1
+a92 1
+			scr_width = atoi(bu_optarg);
+d95 1
+a95 1
+			outframebuffer = bu_optarg;
+d102 1
+a102 1
+	if( bu_optind >= argc )
+d105 1
+a105 1
+		yline = atoi( argv[bu_optind] );
+d107 1
+a107 1
+	if ( argc > ++bu_optind )
+@
+
+
+14.3
+log
+@remove the old copyright notice section
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 1986-2004 United States Government as represented by
+d36 1
+a36 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/fb/fbscanplot.c,v 14.2 2004/12/18 06:09:12 morrison Exp $ (BRL)";
+@
+
+
+14.2
+log
+@assign copyright and GPL license
+@
+text
+@a33 3
+ *  Copyright Notice -
+ *	This software is Copyright (C) 1986-2004 by the United States Army.
+ *	All rights reserved.
+d36 1
+a36 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/fb/fbscanplot.c,v 14.1 2004/11/16 19:42:13 morrison Exp $ (BRL)";
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@d1 22
+a22 2
+/*
+ *			F B S C A N P L O T . C
+d39 1
+a39 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/fb/fbscanplot.c,v 1.5 2004/09/08 20:31:24 kermit Exp $ (BRL)";
+@
+
+
+1.5
+log
+@Added <stdlib.h> to fix implicit cast (for IA64 architecture).
+@
+text
+@d19 1
+a19 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/fb/fbscanplot.c,v 1.4 2004/08/02 23:01:47 morrison Exp $ (BRL)";
+d240 10
+@
+
+
+1.4
+log
+@replace the wrapped config.h block with common.h
+@
+text
+@d19 1
+a19 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/fb/fbscanplot.c,v 1.3 2004/06/09 17:56:22 erikg Exp $ (BRL)";
+d27 1
+a27 1
+                                                                                                                                                                            
+d29 1
+@
+
+
+1.3
+log
+@fix missing header issues
+@
+text
+@d19 1
+a19 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/fb/fbscanplot.c,v 1.2 2004/06/08 22:04:12 morrison Exp $ (BRL)";
+d22 1
+a22 3
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+@
+
+
+1.2
+log
+@obliterate externs.h
+@
+text
+@d19 1
+a19 1
+static const char RCSid[] = "@@(#)$Header$ (BRL)";
+d26 4
+a29 2
+
+
+@
+
+
+1.1
+log
+@Vast reorganization begins.  Sources moved from top-level directories into src/.
+@
+text
+@d19 1
+a19 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/fb/fbscanplot.c,v 11.9 2004/05/10 15:30:42 erikg Exp $ (BRL)";
+a29 1
+#include "externs.h"
+@
+

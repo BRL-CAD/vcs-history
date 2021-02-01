@@ -1,0 +1,509 @@
+head	14.12;
+access;
+symbols
+	rel-7-10-4:14.12
+	STABLE:14.12.0.2
+	stable-branch:14.6
+	rel-7-10-2:14.12
+	rel-7-10-0:14.12
+	rel-7-8-4:14.9
+	rel-7-8-2:14.8
+	rel-7-8-0:14.8
+	trimnurbs-branch:14.8.0.2
+	help:14.8
+	temp_tag:14.7
+	bobWinPort-20051223-freeze:14.6
+	postmerge-20051223-bobWinPort:14.7
+	premerge-20051223-bobWinPort:14.7
+	rel-7-6-6:14.7
+	rel-7-6-4:14.7
+	rel-7-6-2:14.6
+	rel-7-6-branch:14.6.0.6
+	rel-7-6-0:14.6
+	rel-7-4-2:14.6
+	rel-7-4-branch:14.6.0.4
+	bobWinPort:14.6.0.2
+	rel-7-4-0:14.6
+	rel-7-2-6:14.6
+	rel-7-2-4:14.6
+	rel-7-2-2:14.6
+	rel-7-2-0:14.5
+	rel-7-0-4:14.4
+	rel-7-0-2:14.4
+	rel-7-0-1:14.4
+	opensource-post:14.4
+	opensource-pre:1.2
+	rel-7-0-branch:1.2.0.2
+	rel-7-0:1.2;
+locks; strict;
+comment	@ * @;
+
+
+14.12
+date	2007.01.27.01.41.37;	author brlcad;	state Exp;
+branches;
+next	14.11;
+
+14.11
+date	2007.01.23.01.13.36;	author brlcad;	state Exp;
+branches;
+next	14.10;
+
+14.10
+date	2007.01.20.14.36.53;	author brlcad;	state Exp;
+branches;
+next	14.9;
+
+14.9
+date	2006.08.08.22.16.24;	author brlcad;	state Exp;
+branches;
+next	14.8;
+
+14.8
+date	2006.01.18.06.46.16;	author brlcad;	state Exp;
+branches;
+next	14.7;
+
+14.7
+date	2005.10.23.04.44.34;	author brlcad;	state Exp;
+branches;
+next	14.6;
+
+14.6
+date	2005.03.28.06.31.37;	author bob1961;	state Exp;
+branches
+	14.6.6.1;
+next	14.5;
+
+14.5
+date	2005.01.30.20.30.55;	author brlcad;	state Exp;
+branches;
+next	14.4;
+
+14.4
+date	2004.12.21.06.18.44;	author morrison;	state Exp;
+branches;
+next	14.3;
+
+14.3
+date	2004.12.21.05.45.23;	author morrison;	state Exp;
+branches;
+next	14.2;
+
+14.2
+date	2004.12.21.04.03.25;	author morrison;	state Exp;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.15;	author morrison;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2004.08.02.23.01.49;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.15.19.51;	author morrison;	state Exp;
+branches;
+next	;
+
+14.6.6.1
+date	2005.11.13.13.46.16;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.12
+log
+@ws. lots and lots of ws.  see sh/ws.sh for details (cases 'abcdeg').
+@
+text
+@/*                       S H _ N U L L . C
+ * BRL-CAD
+ *
+ * Copyright (c) 2004-2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This library is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@file sh_null.c
+ *
+ * Notes -
+ * This is the null, aka invisible, shader.  It is potentially useful as a performance
+ * metric as well as to hide objects from a scene rendering.  It simply does nothing.
+ *
+ * This is the most basic shader.
+ *
+ * Author -
+ * Christopher Sean Morrison
+ *
+ * Source -
+ * The U.S. Army Research Laboratory
+ * Aberdeen Proving Ground, Maryland  21005-5068  USA
+ */
+#include "common.h"
+
+
+#include <stdio.h>
+#include <math.h>
+#include "machine.h"
+#include "vmath.h"
+#include "raytrace.h"
+#include "rtprivate.h"
+
+extern int rr_render(struct application *ap, struct partition *pp, struct shadework *swp);
+
+HIDDEN int	sh_null_setup(register struct region *rp, struct bu_vls *matparm, char **dpp, struct mfuncs *mfp, struct rt_i *rtip);
+HIDDEN int	sh_null_render(struct application *ap, struct partition *pp, struct shadework *swp, char *dp);
+HIDDEN void	sh_null_print(register struct region *rp, char *dp);
+HIDDEN void	sh_null_free(char *cp);
+
+/* The "mfuncs" table describes what the user interface may call this shader.
+ * The null shader may be referred to as null or invisible.  Note that the
+ * four shader functions *must* be defined, even if they do nothing.
+ */
+struct mfuncs null_mfuncs[] = {
+	{MF_MAGIC,	"null",		0,		MFI_HIT,	0,
+	sh_null_setup,	sh_null_render,	sh_null_print,	sh_null_free },
+
+	{MF_MAGIC,	"invisible",		0,		MFI_HIT,	0,
+	sh_null_setup,	sh_null_render,	sh_null_print,	sh_null_free },
+
+	{0,		(char *)0,	0,		0,		0,
+	0,		0,		0,		0 }
+};
+
+
+/*	N U L L _ S E T U P
+ *
+ *	This routine is called (at prep time) once for each region which uses this
+ *  shader.  Any shader-specific initialization should be done here.  It should
+ *  return 1 on success and -1 on failure.  Alternatively, this routine should
+ *  return 0 to delete this region's shader information after setup (i.e. it's
+ *  not needed for whatever reason to it won't be rendered).
+ *
+ *  The null shader has nothing to do during setup since it doesn't actually
+ *  have anything to do during render0.  It's setup returns 0 since there's no
+ *  need to keep any region info.  This means that sh_null_render will not even
+ *  get called.
+ */
+HIDDEN int
+sh_null_setup( register struct region *rp, struct bu_vls *matparm, char **dpp, struct mfuncs *mfp, struct rt_i *rtip ) {
+
+	/* no point to check the arguments since we do nothing with them.  we leave the error
+	 * checking to elsewhere when used.
+	 */
+
+	/* no point in keeping this region's data around */
+	return 0;
+}
+
+
+/*
+ *	N U L L _ R E N D E R
+ *
+ *	This is called (from viewshade() in shade.c) once for each hit point
+ *	to be shaded.  The purpose here is to fill in values in the shadework
+ *	structure.  This is, of course, not necessary when setup returns 0.
+ *
+ *  The null shader actually does "something", though it is not called.
+ *  It has to at least pass the ray through so that it can actually
+ *  raytrace what is visible behind the invisible object.  Otherwise,
+ *  an empty black void would be rendered.  this is not really important
+ *  though, since it shouldn't normally be called.
+ */
+HIDDEN int
+sh_null_render( struct application *ap, struct partition *pp, struct shadework *swp, char *dp ) {
+
+	/* check the validity of the arguments we got */
+	RT_AP_CHECK(ap);
+	RT_CHECK_PT(pp);
+	/* shadework structures do not have magic numbers or other means to test
+	 * their validity
+	 */
+
+	bu_log("Who called sh_null_render explicitly?");
+
+	/* here is what actually makes the object invisible/null instead of being a
+	 * black void (if render ever is called).
+	 */
+	(void)rr_render(ap, pp, swp);
+
+	return(1);
+}
+
+
+/*
+ *	N U L L _ P R I N T
+ *
+ * This routine is called if setup fails (which it never should).
+ */
+HIDDEN void
+sh_null_print( register struct region *rp, char *dp ) {
+	bu_log("%S uses the null shader\n", rp->reg_name);
+}
+
+
+/*
+ *	N U L L _ F R E E
+ *
+ *  This routine is called after all rendering has completed.  The intent is
+ *  normally to release any specific structures that were allocated during
+ *  setup or rendering.
+ *
+ *  The null shader allocates nothing.  Therefore it releases nothing.
+ */
+HIDDEN void
+sh_null_free( char *cp ) {
+}
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+14.11
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@a37 1
+
+@
+
+
+14.10
+log
+@update copyright to 2007
+@
+text
+@d9 1
+a9 2
+ * as published by the Free Software Foundation; either version 2 of
+ * the License, or (at your option) any later version.
+d14 1
+a14 1
+ * Library General Public License for more details.
+@
+
+
+14.9
+log
+@avoid debug mode namespace conflicts with libfb's null interface (where HIDDEN becomes /**/)
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 2004-2006 United States Government as represented by
+@
+
+
+14.8
+log
+@update copyright to 2006
+@
+text
+@d49 4
+a52 2
+HIDDEN int	null_setup(register struct region *rp, struct bu_vls *matparm, char **dpp, struct mfuncs *mfp, struct rt_i *rtip), null_render(struct application *ap, struct partition *pp, struct shadework *swp, char *dp);
+HIDDEN void	null_print(register struct region *rp, char *dp), null_free(char *cp);
+d60 1
+a60 1
+	null_setup,	null_render,	null_print,	null_free },
+d63 1
+a63 1
+	null_setup,	null_render,	null_print,	null_free },
+d80 1
+a80 1
+ *  need to keep any region info.  This means that null_render will not even
+d84 1
+a84 1
+null_setup( register struct region *rp, struct bu_vls *matparm, char **dpp, struct mfuncs *mfp, struct rt_i *rtip ) {
+d109 1
+a109 1
+null_render( struct application *ap, struct partition *pp, struct shadework *swp, char *dp ) {
+d118 1
+a118 1
+	bu_log("Who called null_render explicitly?");
+d135 1
+a135 1
+null_print( register struct region *rp, char *dp ) {
+d150 1
+a150 1
+null_free( char *cp ) {
+@
+
+
+14.7
+log
+@trailing ws
+@
+text
+@d4 1
+a4 1
+ * Copyright (C) 2004-2005 United States Government as represented by
+@
+
+
+14.6
+log
+@Add code to allow liboptical to be a Windows DLL
+@
+text
+@d23 1
+a23 1
+ * Notes - 
+d53 1
+a53 1
+ * The null shader may be referred to as null or invisible.  Note that the 
+d76 3
+a78 3
+ *  The null shader has nothing to do during setup since it doesn't actually 
+ *  have anything to do during render0.  It's setup returns 0 since there's no 
+ *  need to keep any region info.  This means that null_render will not even 
+d100 2
+a101 2
+ *  The null shader actually does "something", though it is not called.  
+ *  It has to at least pass the ray through so that it can actually 
+d129 1
+a129 1
+ * 
+d140 1
+a140 1
+ *  
+@
+
+
+14.6.6.1
+log
+@merge changes from HEAD aka rel-7-6-4 to the rel-7-6-branch just in case someone peeks a gander or tries to continue/build the branch
+@
+text
+@d23 1
+a23 1
+ * Notes -
+d53 1
+a53 1
+ * The null shader may be referred to as null or invisible.  Note that the
+d76 3
+a78 3
+ *  The null shader has nothing to do during setup since it doesn't actually
+ *  have anything to do during render0.  It's setup returns 0 since there's no
+ *  need to keep any region info.  This means that null_render will not even
+d100 2
+a101 2
+ *  The null shader actually does "something", though it is not called.
+ *  It has to at least pass the ray through so that it can actually
+d129 1
+a129 1
+ *
+d140 1
+a140 1
+ *
+@
+
+
+14.5
+log
+@update copyright to 2005
+@
+text
+@a44 2
+#include "shadefuncs.h"
+#include "shadework.h"
+@
+
+
+14.4
+log
+@they should have received a copy of the LGPL with LGPL'd files
+@
+text
+@d4 2
+a5 2
+ * Copyright (c) 2004 United States Government as represented by the
+ * U.S. Army Research Laboratory.
+@
+
+
+14.3
+log
+@s/GNU Library General/GNU Lesser General/g
+@
+text
+@d17 2
+a18 2
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+@
+
+
+14.2
+log
+@assign copyright and LGPL
+@
+text
+@d8 1
+a8 1
+ * modify it under the terms of the GNU Library General Public License
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@d1 21
+a21 2
+/*
+ *	S H _ N U L L . C
+@
+
+
+1.2
+log
+@replace the wrapped config.h block with common.h
+@
+text
+@d133 10
+@
+
+
+1.1
+log
+@Vast reorganization begins.  Sources moved from top-level directories into src/.
+@
+text
+@d17 1
+a17 3
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+@
+

@@ -1,0 +1,756 @@
+head	14.19;
+access;
+symbols
+	rel-7-10-4:14.17
+	STABLE:14.17.0.2
+	stable-branch:14.6
+	rel-7-10-2:14.16
+	rel-7-10-0:14.15
+	rel-7-8-4:14.10
+	rel-7-8-2:14.9
+	rel-7-8-0:14.9
+	trimnurbs-branch:14.9.0.2
+	help:14.9
+	temp_tag:14.8
+	bobWinPort-20051223-freeze:14.7
+	postmerge-20051223-bobWinPort:14.8
+	premerge-20051223-bobWinPort:14.8
+	rel-7-6-6:14.8
+	rel-7-6-4:14.8
+	rel-7-6-2:14.7
+	rel-7-6-branch:14.7.0.4
+	rel-7-6-0:14.7
+	rel-7-4-2:14.6
+	rel-7-4-branch:14.6.0.2
+	bobWinPort:14.7.0.2
+	rel-7-4-0:14.6
+	rel-7-2-6:14.6
+	rel-7-2-4:14.6
+	rel-7-2-2:14.6
+	rel-7-2-0:14.6
+	rel-7-0-4:14.5
+	rel-7-0-2:14.5
+	rel-7-0-1:14.5
+	opensource-post:14.5
+	opensource-pre:1.2
+	rel-7-0-branch:1.2.0.2
+	rel-7-0:1.2;
+locks; strict;
+comment	@ * @;
+
+
+14.19
+date	2007.12.06.15.20.33;	author brlcad;	state Exp;
+branches;
+next	14.18;
+
+14.18
+date	2007.09.15.16.23.07;	author brlcad;	state Exp;
+branches;
+next	14.17;
+
+14.17
+date	2007.08.30.18.44.27;	author erikgreenwald;	state Exp;
+branches;
+next	14.16;
+
+14.16
+date	2007.07.26.01.13.55;	author brlcad;	state Exp;
+branches;
+next	14.15;
+
+14.15
+date	2007.01.27.01.41.35;	author brlcad;	state Exp;
+branches;
+next	14.14;
+
+14.14
+date	2007.01.26.03.11.03;	author brlcad;	state Exp;
+branches;
+next	14.13;
+
+14.13
+date	2007.01.23.01.13.33;	author brlcad;	state Exp;
+branches;
+next	14.12;
+
+14.12
+date	2007.01.21.04.45.41;	author brlcad;	state Exp;
+branches;
+next	14.11;
+
+14.11
+date	2007.01.20.14.36.50;	author brlcad;	state Exp;
+branches;
+next	14.10;
+
+14.10
+date	2006.09.02.14.02.14;	author lbutler;	state Exp;
+branches;
+next	14.9;
+
+14.9
+date	2006.01.18.06.46.16;	author brlcad;	state Exp;
+branches;
+next	14.8;
+
+14.8
+date	2005.10.23.04.44.31;	author brlcad;	state Exp;
+branches;
+next	14.7;
+
+14.7
+date	2005.08.12.22.28.35;	author lbutler;	state Exp;
+branches
+	14.7.4.1;
+next	14.6;
+
+14.6
+date	2005.01.30.20.30.44;	author brlcad;	state Exp;
+branches;
+next	14.5;
+
+14.5
+date	2004.12.21.07.18.57;	author morrison;	state Exp;
+branches;
+next	14.4;
+
+14.4
+date	2004.12.21.06.18.43;	author morrison;	state Exp;
+branches;
+next	14.3;
+
+14.3
+date	2004.12.21.05.45.20;	author morrison;	state Exp;
+branches;
+next	14.2;
+
+14.2
+date	2004.12.21.01.52.15;	author morrison;	state Exp;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.13;	author morrison;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2004.08.02.23.01.48;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.15.19.27;	author morrison;	state Exp;
+branches;
+next	;
+
+14.7.4.1
+date	2005.11.13.13.46.15;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.19
+log
+@add a check to make sure we don't exceed available buffer space for the dynamic number-of-digit printing
+@
+text
+@/*                          A X I S . C
+ * BRL-CAD
+ *
+ * Copyright (c) 2004-2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This library is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@addtogroup axis */
+/** @@{ */
+/** @@file axis.c
+ *
+ * @@brief
+ *	This routine is used to generate an axis for a graph.
+ * It draws an axis with a linear scale, places tic marks every inch,
+ * labels the tics, and uses the supplied title for the axis.
+ *
+ *	The strategy behind this routine is to split the axis
+ * into SEGMENTS, which run from one tick to the next.  The
+ * origin of the first segment (x,y), the origin of the bottom
+ * of the first tick (xbott,ybott), and the origin of the first
+ * tick label (xnum,ynum) are computed along with the delta x
+ * and delta y (xincr,yincr) which describes the interval to
+ * the start of the next tick.
+ *
+ *  @@author
+ *	Michael John Muuss
+ *@@n	August 01, 1978
+ *
+ */
+/** @@} */
+
+#ifndef lint
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/libbn/axis.c,v 14.18 2007/09/15 16:23:07 brlcad Exp $ (BRL)";
+#endif
+
+#include "common.h"
+
+#include <stdio.h>
+#include <math.h>
+#include <string.h>
+
+#include "machine.h"
+#include "vmath.h"
+#include "plot3.h"
+
+#define	TICK_YLEN	(char_width)	/**< @@brief tick is 1 character height */
+#define	NUM_YOFF	(3*char_width)	/**< @@brief numbers offset from line */
+#define	TITLE_YOFF	(5*char_width)	/**< @@brief title offset from line */
+
+void
+/**
+ *
+ */
+tp_3axis(FILE *fp,
+	 char *string,		/**< label for axis */
+	 fastf_t *origin,
+	 fastf_t *rot,
+	 double length,		/**< length of axis */
+	 int ccw,    		/**< 0=clockwise, !0=counter clockwise (ccw) */
+	 int ndigits,		/**< # digits wide */
+	 double label_start,	/**< label starting value */
+	 double label_incr,	/**< label increment between ticks */
+	 double tick_separation,/**< plot distance between ticks */
+	 double char_width)	/**< character scale (size) */
+{
+	register int i;
+	int	nticks;
+	point_t	tick_bottom;			/* -Y point of tick */
+	vect_t	axis_incr;			/* +X vect between ticks */
+	vect_t	axis_dir;
+	point_t	title_left;			/* left edge of title */
+	point_t	cur_point;
+	point_t	num_start;
+	point_t	num_center;			/* center point of number */
+	point_t	num_last_end;			/* end of last number */
+	vect_t	temp;
+	vect_t	diff;
+	mat_t	xlate_to_0;
+	mat_t	mat;				/* combined transform */
+	char	fmt[32];
+	char	str[64];
+
+	/* Determine direction for ticks */
+	if( ccw )
+		ccw = -1;			/* counter clockwise */
+	else
+		ccw = 1;			/* clockwise */
+
+	if( NEAR_ZERO(tick_separation, SMALL) )  tick_separation = 1;
+
+	/*
+	 *  The point "origin" will be the center of the axis rotation.
+	 *  On the assumption that this origin point is not at (0,0,0),
+	 *  translate origin to (0,0,0) & apply the provided rotation matrix.
+	 *  If the user provides translation or
+	 *  scaling in his matrix, it will also be applied, but in most
+	 *  cases that would not be useful.
+	 */
+	MAT_IDN( xlate_to_0 );
+	MAT_DELTAS_VEC( xlate_to_0, origin);
+	bn_mat_mul( mat, rot, xlate_to_0 );
+	VMOVE( cur_point, origin );
+
+	/* Compute the bottom of the first tick */
+	VSET( temp, 0, -TICK_YLEN * ccw, 0 );
+	MAT4X3PNT( tick_bottom, mat, temp );
+
+	/* Compute the start of this tick's label */
+	VSET( temp, 0, -NUM_YOFF * ccw, 0 );
+	MAT4X3PNT( num_center, mat, temp );
+	temp[X] = -char_width*ndigits;
+	MAT4X3PNT( num_last_end, mat, temp );
+
+	/* Determine the increment between ticks */
+	VSET( temp, 1, 0, 0 );
+	MAT4X3VEC( axis_dir, mat, temp );
+	VSCALE( axis_incr, axis_dir, tick_separation );
+
+	/* Center the title, and find left edge */
+	VSET( temp, 0.5*(length - strlen(string)*char_width), -TITLE_YOFF*ccw, 0 );
+	MAT4X3PNT( title_left, mat, temp );
+	tp_3symbol(fp, string, title_left, rot, char_width );
+
+	nticks = length/tick_separation+0.5;
+	pdv_3move( fp, cur_point );
+	for( i=0; i<=nticks; i++) {
+		/*
+		 *  First, draw a tick.
+		 *  Then, if room, draw a numeric label.
+		 *  If last tick, done.
+		 *  Otherwise, advance in axis_dir direction.
+		 */
+		pdv_3cont( fp, tick_bottom );
+
+		if (ndigits > 64) {
+		    bu_bomb("ERROR: Number of digits exceeds available buffer space");
+		}
+
+		if( ndigits > 0 )  {
+			double f;
+			snprintf( fmt, 32, "%%%dg", ndigits);
+			snprintf( str, 64, fmt, label_start );
+			f = strlen(str) * char_width * 0.5;
+			VJOIN1( num_start, num_center, -f, axis_dir );
+
+			/* Only label this tick if the number will not
+			 * overlap with the previous number.
+			 */
+			VSUB2( diff, num_start, num_last_end );
+			if( VDOT( diff, axis_dir ) >= 0 )  {
+				tp_3symbol( fp, str, num_start, rot, char_width );
+				VJOIN1( num_last_end, num_center, f, axis_dir );
+			}
+		}
+
+		if( i == nticks )  break;
+
+		/* Advance, and draw next axis segment */
+		pdv_3move( fp, cur_point );
+		VADD2( cur_point, cur_point, axis_incr );
+		VADD2( tick_bottom, tick_bottom, axis_incr );
+		VADD2( num_center, num_center, axis_incr );
+
+		label_start += label_incr;
+
+		pdv_3cont( fp, cur_point);		/* draw axis */
+	}
+}
+
+void
+PL_FORTRAN(f3axis, F3AXIS)(fp, string, x, y, z, length, theta, ccw,
+	ndigits, label_start, label_incr, tick_separation, char_width )
+FILE		**fp;
+char		*string;	/* label for axis */
+float		*x,*y,*z;		/* start coordinates for axis */
+float		*length;	/* length of axis */
+float		*theta;		/* rotation off X-axis, in degrees */
+int		*ccw;
+int		*ndigits;	/* # digits wide */
+float		*label_start;	/* minimum value on axis */
+float		*label_incr;		/* increment for each tick */
+float		*tick_separation;		/* distance between ticks */
+float		*char_width;	/* character scale (size) */
+{
+	char buf[128];
+	mat_t	mat;
+	vect_t	pnt;
+
+	VSET( pnt, *x, *y, *z );
+	MAT_IDN(mat);
+	bn_mat_angles( mat, 0.0, 0.0, *theta );
+	strncpy( buf, string, sizeof(buf)-1 );
+	buf[sizeof(buf)-1] = '\0';
+	tp_3axis( *fp, buf, pnt, mat, *length, *ccw,
+		*ndigits, *label_start, *label_incr,
+		*tick_separation, *char_width );
+}
+/** @@} */
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+14.18
+log
+@more c89 embracing.  c89 provides string.h for all of the various str*() and mem*() functions, so remove the check for its presence.  there is still likely to be work required for strict c89 conformance for the various bsd strings.h functions that may be in use.
+@
+text
+@d45 1
+a45 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/libbn/axis.c,v 14.17 2007/08/30 18:44:27 erikgreenwald Exp $ (BRL)";
+d147 4
+@
+
+
+14.17
+log
+@various minor fixes from "flawfinder" and compiler warnings
+@
+text
+@d45 1
+a45 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/libbn/axis.c,v 14.16 2007/07/26 01:13:55 brlcad Exp $ (BRL)";
+a49 1
+
+a51 1
+#ifdef HAVE_STRING_H
+a52 3
+#else
+#include <strings.h>
+#endif
+@
+
+
+14.16
+log
+@remove ephemeral data like phone numbers and addresses, including the misleading 'source' statements on code that is continually evolving and receiving contributions from many many sources
+@
+text
+@d45 1
+a45 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/libbn/axis.c,v 14.15 2007/01/27 01:41:35 brlcad Exp $ (BRL)";
+d154 2
+a155 2
+			sprintf( fmt, "%%%dg", ndigits);
+			sprintf( str, fmt, label_start );
+@
+
+
+14.15
+log
+@ws. lots and lots of ws.  see sh/ws.sh for details (cases 'abcdeg').
+@
+text
+@a40 5
+ *  @@par Source -
+ *	SECAD/VLD Computing Consortium, Bldg 394
+ *@@n	The U. S. Army Ballistic Research Laboratory
+ *@@n	Aberdeen Proving Ground, Maryland  21005-5066
+ *
+d45 1
+a45 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/libbn/axis.c,v 14.14 2007/01/26 03:11:03 brlcad Exp $ (BRL)";
+@
+
+
+14.14
+log
+@simplify, use MAT_DELTAS_VEC when setting translation elements to a given vector
+@
+text
+@d50 1
+a50 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/libbn/axis.c,v 14.13 2007/01/23 01:13:33 brlcad Exp $ (BRL)";
+a55 1
+
+@
+
+
+14.13
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@d50 1
+a50 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/libbn/axis.c,v 14.12 2007/01/21 04:45:41 brlcad Exp $ (BRL)";
+d123 1
+a123 1
+	MAT_DELTAS( xlate_to_0,	 origin[X],  origin[Y],  origin[Z] );
+@
+
+
+14.12
+log
+@ugh, what tedium.  put some effort towards cleaning up the doxygen labels and making the headers more consistent.  also exclusively using @@ for doxygen instead of \ to try to keep things more consistent.
+@
+text
+@d9 1
+a9 2
+ * as published by the Free Software Foundation; either version 2 of
+ * the License, or (at your option) any later version.
+d14 1
+a14 1
+ * Library General Public License for more details.
+d50 1
+a50 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/libbn/axis.c,v 14.11 2007/01/20 14:36:50 brlcad Exp $ (BRL)";
+@
+
+
+14.11
+log
+@update copyright to 2007
+@
+text
+@d21 2
+a22 3
+
+/** \addtogroup axis */
+/*@@{*/
+d24 1
+d48 1
+a48 1
+/*@@}*/
+d51 1
+a51 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/libbn/axis.c,v 14.10 2006/09/02 14:02:14 lbutler Exp $ (BRL)";
+d218 1
+a218 1
+/*@@}*/
+@
+
+
+14.10
+log
+@Doxygen comments
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 2004-2006 United States Government as represented by
+d51 1
+a51 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/libbn/axis.c,v 14.9 2006/01/18 06:46:16 brlcad Exp $ (BRL)";
+@
+
+
+14.9
+log
+@update copyright to 2006
+@
+text
+@d22 1
+a22 1
+/** \addtogroup libbn */
+d25 1
+d38 1
+a38 1
+ *  Author -
+d40 1
+a40 1
+ *	August 01, 1978
+d42 1
+a42 1
+ *  Source -
+d44 2
+a45 2
+ *	The U. S. Army Ballistic Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005-5066
+d51 1
+a51 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/libbn/axis.c,v 14.8 2005/10/23 04:44:31 brlcad Exp $ (BRL)";
+d70 3
+a72 3
+#define	TICK_YLEN	(char_width)	/* tick is 1 character height */
+#define	NUM_YOFF	(3*char_width)	/* numbers offset from line */
+#define	TITLE_YOFF	(5*char_width)	/* title offset from line */
+d75 14
+a88 12
+tp_3axis(FILE *fp, char *string, fastf_t *origin, fastf_t *rot, double length, int ccw, int ndigits, double label_start, double label_incr, double tick_separation, double char_width)
+
+    	        		/* label for axis */
+
+
+      	       			/* length of axis */
+   	    			/* 0=clockwise, !0=counter clockwise (ccw) */
+   	        		/* # digits wide */
+      	            		/* label starting value */
+      	           		/* label increment between ticks */
+      	                	/* plot distance between ticks */
+      	           		/* character scale (size) */
+d218 1
+a218 1
+
+@
+
+
+14.8
+log
+@trailing ws
+@
+text
+@d4 1
+a4 1
+ * Copyright (C) 2004-2005 United States Government as represented by
+d50 1
+a50 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/libbn/axis.c,v 14.7 2005/08/12 22:28:35 lbutler Exp $ (BRL)";
+@
+
+
+14.7
+log
+@Doxygen changes
+@
+text
+@d40 1
+a40 1
+ *  
+d45 1
+a45 1
+ *  
+d50 1
+a50 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/libbn/axis.c,v 14.6 2005/01/30 20:30:44 brlcad Exp $ (BRL)";
+d75 1
+a75 1
+    	    
+d77 2
+a78 2
+       	       
+     	    
+@
+
+
+14.7.4.1
+log
+@merge changes from HEAD aka rel-7-6-4 to the rel-7-6-branch just in case someone peeks a gander or tries to continue/build the branch
+@
+text
+@d40 1
+a40 1
+ *
+d45 1
+a45 1
+ *
+d50 1
+a50 1
+static const char RCSid[] = "@@(#)$Header$ (BRL)";
+d75 1
+a75 1
+
+d77 2
+a78 2
+
+
+@
+
+
+14.6
+log
+@update copyright to 2005
+@
+text
+@d21 3
+a24 1
+ *
+d47 2
+d50 1
+a50 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/libbn/axis.c,v 14.5 2004/12/21 07:18:57 morrison Exp $ (BRL)";
+@
+
+
+14.5
+log
+@the significantly modified pd files are incorporated as new works and assigned copyright, so remove the old statement.
+@
+text
+@d4 2
+a5 2
+ * Copyright (c) 2004 United States Government as represented by the
+ * U.S. Army Research Laboratory.
+d46 1
+a46 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/libbn/axis.c,v 14.4 2004/12/21 06:18:43 morrison Exp $ (BRL)";
+@
+
+
+14.4
+log
+@they should have received a copy of the LGPL with LGPL'd files
+@
+text
+@a43 2
+ *  Distribution Status -
+ *	Public Domain, Distribution Unlimitied.
+d46 1
+a46 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/libbn/axis.c,v 14.3 2004/12/21 05:45:20 morrison Exp $ (BRL)";
+@
+
+
+14.3
+log
+@s/GNU Library General/GNU Lesser General/g
+@
+text
+@d17 2
+a18 2
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+d48 1
+a48 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/libbn/axis.c,v 14.2 2004/12/21 01:52:15 morrison Exp $ (BRL)";
+@
+
+
+14.2
+log
+@assign copyright and LGPL
+@
+text
+@d8 1
+a8 1
+ * modify it under the terms of the GNU Library General Public License
+d48 1
+a48 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/libbn/axis.c,v 14.1 2004/11/16 19:42:13 morrison Exp $ (BRL)";
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@d1 21
+a21 2
+/*
+ *			T P _ A X I S
+d48 1
+a48 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/libbn/axis.c,v 1.2 2004/08/02 23:01:48 morrison Exp $ (BRL)";
+@
+
+
+1.2
+log
+@replace the wrapped config.h block with common.h
+@
+text
+@d29 1
+a29 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/libbn/axis.c,v 1.1 2004/05/20 15:19:27 morrison Exp $ (BRL)";
+d194 10
+@
+
+
+1.1
+log
+@Vast reorganization begins.  Sources moved from top-level directories into src/.
+@
+text
+@d29 1
+a29 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/libbn/axis.c,v 11.8 2004/05/10 15:30:43 erikg Exp $ (BRL)";
+d32 1
+a32 3
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+@
+

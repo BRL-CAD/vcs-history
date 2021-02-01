@@ -1,0 +1,806 @@
+head	14.15;
+access;
+symbols
+	rel-7-10-4:14.12
+	STABLE:14.12.0.2
+	rel-7-10-2:14.12
+	rel-7-10-0:14.11
+	rel-7-8-4:14.8
+	rel-7-8-2:14.8
+	rel-7-8-0:14.8
+	trimnurbs-branch:14.8.0.2
+	help:14.8
+	temp_tag:14.7
+	bobWinPort-20051223-freeze:14.4
+	postmerge-20051223-bobWinPort:14.7
+	premerge-20051223-bobWinPort:14.7
+	rel-7-6-6:14.7
+	rel-7-6-4:14.7
+	rel-7-6-2:14.4
+	rel-7-6-branch:14.4.0.6
+	rel-7-6-0:14.4
+	rel-7-4-2:14.4
+	rel-7-4-branch:14.4.0.4
+	bobWinPort:14.4.0.2
+	rel-7-4-0:14.4
+	rel-7-2-6:14.3
+	rel-7-2-4:14.3
+	rel-7-2-2:14.3
+	rel-7-2-0:14.3
+	rel-7-0-4:14.2
+	rel-7-0-2:14.2
+	rel-7-0-1:14.2
+	opensource-post:14.2
+	opensource-pre:1.4
+	rel-7-0-branch:1.4.0.2
+	rel-7-0:1.4;
+locks; strict;
+comment	@ * @;
+
+
+14.15
+date	2007.11.21.20.49.11;	author erikgreenwald;	state Exp;
+branches;
+next	14.14;
+
+14.14
+date	2007.11.21.18.55.37;	author erikgreenwald;	state Exp;
+branches;
+next	14.13;
+
+14.13
+date	2007.09.15.16.23.23;	author brlcad;	state Exp;
+branches;
+next	14.12;
+
+14.12
+date	2007.07.26.01.13.59;	author brlcad;	state Exp;
+branches;
+next	14.11;
+
+14.11
+date	2007.01.27.01.41.53;	author brlcad;	state Exp;
+branches;
+next	14.10;
+
+14.10
+date	2007.01.23.01.13.52;	author brlcad;	state Exp;
+branches;
+next	14.9;
+
+14.9
+date	2007.01.20.14.37.05;	author brlcad;	state Exp;
+branches;
+next	14.8;
+
+14.8
+date	2006.01.18.06.46.27;	author brlcad;	state Exp;
+branches;
+next	14.7;
+
+14.7
+date	2005.10.23.04.44.39;	author brlcad;	state Exp;
+branches;
+next	14.6;
+
+14.6
+date	2005.09.22.00.21.51;	author brlcad;	state Exp;
+branches;
+next	14.5;
+
+14.5
+date	2005.09.21.19.05.37;	author brlcad;	state Exp;
+branches;
+next	14.4;
+
+14.4
+date	2005.06.30.00.08.37;	author erikgreenwald;	state Exp;
+branches
+	14.4.6.1;
+next	14.3;
+
+14.3
+date	2005.01.30.20.31.32;	author brlcad;	state Exp;
+branches;
+next	14.2;
+
+14.2
+date	2004.12.21.03.45.40;	author butler;	state Exp;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.32;	author morrison;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	2004.08.02.23.01.53;	author morrison;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2004.06.09.18.21.39;	author erikg;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2004.06.08.22.04.43;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.15.21.42;	author morrison;	state Exp;
+branches;
+next	;
+
+14.4.6.1
+date	2005.11.13.13.46.20;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.15
+log
+@pass bu_exit a NULL instead of an empty string
+@
+text
+@/*                      B W F I L T E R . C
+ * BRL-CAD
+ *
+ * Copyright (c) 1986-2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@file bwfilter.c
+ *
+ *  Filters a black and white file with an arbitrary 3x3 kernel.
+ *  Leaves the outer rows untouched.
+ *  Allows an alternate divisor and offset to be given.
+ *
+ *  Author -
+ *	Phillip Dykstra
+ *	15 Aug 1985
+ *
+ */
+#ifndef lint
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/bwfilter.c,v 14.14 2007/11/21 18:55:37 erikgreenwald Exp $ (BRL)";
+#endif
+
+#include "common.h"
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#ifdef HAVE_UNISTD_H
+#  include <unistd.h>
+#endif
+
+#include "machine.h"
+#include "bu.h"
+
+
+#define MAXLINE		(8*1024)
+#define DEFAULT_WIDTH	512
+unsigned char	line1[MAXLINE], line2[MAXLINE], line3[MAXLINE], obuf[MAXLINE];
+unsigned char	*top, *middle, *bottom, *temp;
+
+/* The filter kernels */
+struct	kernels {
+	char	*name;
+	char	*uname;		/* What is needed to recognize it */
+	int	kern[9];
+	int	kerndiv;	/* Divisor for kernel */
+	int	kernoffset;	/* To be added to result */
+} kernel[] = {
+	{ "Low Pass", "lo", {3, 5, 3, 5, 10, 5, 3, 5, 3}, 42, 0 },
+	{ "Laplacian", "la", {-1, -1, -1, -1, 8, -1, -1, -1, -1}, 16, 128 },
+	{ "High Pass", "hi", {-1, -2, -1, -2,13, -2, -1, -2, -1}, 1, 0 },
+	{ "Horizontal Gradiant", "hg", {1, 0, -1, 1, 0, -1, 1, 0, -1}, 6, 128},
+	{ "Vertical Gradient", "vg", {1, 1, 1, 0, 0, 0, -1, -1, -1}, 6, 128 },
+	{ "Boxcar Average", "b", {1, 1, 1, 1, 1, 1, 1, 1, 1}, 9, 0 },
+	{ NULL, NULL, {0, 0, 0, 0, 0, 0, 0, 0, 0}, 0, 0 },
+};
+
+int	*kern;
+int	kerndiv;
+int	kernoffset;
+int	width = DEFAULT_WIDTH;
+int	height = DEFAULT_WIDTH;
+int	verbose = 0;
+int	dflag = 0;	/* Different divisor specified */
+int	oflag = 0;	/* Different offset specified */
+
+char *file_name;
+FILE *infp;
+
+void	select_filter(char *str), dousage(void);
+
+char	usage[] = "\
+Usage: bwfilter [-f type] [-v] [-d div] [-o offset]\n\
+	[-s squaresize] [-w width] [-n height] [file.bw] > file.bw\n";
+
+int
+get_args(int argc, register char **argv)
+{
+	register int c;
+
+	while ( (c = bu_getopt( argc, argv, "vf:d:o:w:n:s:" )) != EOF )  {
+		switch( c )  {
+		case 'v':
+			verbose++;
+			break;
+		case 'f':
+			select_filter(bu_optarg);
+			break;
+		case 'd':
+			dflag++;
+			kerndiv = atoi(bu_optarg);
+			break;
+		case 'o':
+			oflag++;
+			kernoffset = atoi(bu_optarg);
+			break;
+		case 'w':
+			width = atoi(bu_optarg);
+			break;
+		case 'n':
+			height = atoi(bu_optarg);
+			break;
+		case 's':
+			width = height = atoi(bu_optarg);
+			break;
+		default:		/* '?' */
+			return(0);
+		}
+	}
+
+	if( bu_optind >= argc )  {
+		if( isatty(fileno(stdin)) )
+			return(0);
+		file_name = "-";
+		infp = stdin;
+	} else {
+		file_name = argv[bu_optind];
+		if( (infp = fopen(file_name, "r")) == NULL )  {
+			(void)fprintf( stderr,
+				"bwfilter: cannot open \"%s\" for reading\n",
+				file_name );
+			return(0);
+		}
+	}
+
+	if( isatty(fileno(stdout)) )
+		return(0);
+
+	if ( argc > ++bu_optind )
+		(void)fprintf( stderr, "bwfilter: excess argument(s) ignored\n" );
+
+	return(1);		/* OK */
+}
+
+int
+main(int argc, char **argv)
+{
+	int	x, y;
+	int	value, r1, r2, r3;
+	int	max, min;
+
+	/* Select Default Filter (low pass) */
+	select_filter( "low" );
+
+	if ( !get_args( argc, argv ) )  {
+		dousage();
+		bu_exit ( 1, NULL );
+	}
+
+	if( width > MAXLINE )  {
+		fprintf(stderr, "bwfilter:  limited to scanlines of %d\n", MAXLINE);
+		bu_exit (1, NULL);
+	}
+
+	/*
+	 * Read in bottom and middle lines.
+	 * Write out bottom untouched.
+	 */
+	bottom = &line1[0];
+	middle = &line2[0];
+	top    = &line3[0];
+	fread( bottom, sizeof( char ), width, infp );
+	fread( middle, sizeof( char ), width, infp );
+	fwrite( bottom, sizeof( char ), width, stdout );
+
+	if(verbose) {
+		for( x = 0; x < 11; x++ )
+			fprintf(stderr, "kern[%d] = %d\n", x, kern[x]);
+	}
+
+	max = 0;
+	min = 255;
+
+	for( y = 1; y < height-1; y++ ) {
+		/* read in top line */
+		fread( top, sizeof( char ), width, infp );
+		obuf[0] = middle[0];
+		/* Filter a line */
+		for( x = 1; x < width-1; x++ ) {
+			r1 = top[x-1] * kern[0] + top[x] * kern[1] + top[x+1] * kern[2];
+			r2 = middle[x-1] * kern[3] + middle[x] * kern[4] + middle[x+1] * kern[5];
+			r3 = bottom[x-1] * kern[6] + bottom[x] * kern[7] + bottom[x+1] * kern[8];
+			value = (r1+r2+r3) / kerndiv + kernoffset;
+			if( value > max ) max = value;
+			if( value < min ) min = value;
+			if( verbose && (value > 255 || value < 0) ) {
+				fprintf(stderr,"Value %d\n", value);
+				fprintf(stderr,"r1=%d, r2=%d, r3=%d\n", r1, r2, r3);
+			}
+			if( value < 0 )
+				obuf[x] = 0;
+			else if( value > 255 )
+				obuf[x] = 255;
+			else
+				obuf[x] = value;
+		}
+		obuf[width-1] = middle[width-1];
+		fwrite( obuf, sizeof( char ), width, stdout );
+		/* Adjust row pointers */
+		temp = bottom;
+		bottom = middle;
+		middle = top;
+		top = temp;
+	}
+	/* write out last line untouched */
+	fwrite( top, sizeof( char ), width, stdout );
+
+	/* Give advise on scaling factors */
+	if( verbose )
+		fprintf( stderr, "Max = %d,  Min = %d\n", max, min );
+
+	bu_exit ( 0, NULL );
+}
+
+/*
+ *	S E L E C T _ F I L T E R
+ *
+ *  Looks at the command line string and selects a filter
+ *  based on it.
+ */
+void
+select_filter(char *str)
+{
+	int	i;
+
+	i = 0;
+	while( kernel[i].name != NULL ) {
+		if( strncmp( str, kernel[i].uname, strlen( kernel[i].uname ) ) == 0 )
+			break;
+		i++;
+	}
+
+	if( kernel[i].name == NULL ) {
+		/* No match, output list and exit */
+		fprintf( stderr, "Unrecognized filter type \"%s\"\n", str );
+		dousage();
+		bu_exit ( 3, NULL );
+	}
+
+	/* Have a match, set up that kernel */
+	kern = &kernel[i].kern[0];
+	if( dflag == 0 )
+		kerndiv = kernel[i].kerndiv;
+	if( oflag == 0 )
+		kernoffset = kernel[i].kernoffset;
+}
+
+void
+dousage(void)
+{
+	int	i;
+
+	fputs( usage, stderr );
+	i = 0;
+	while( kernel[i].name != NULL ) {
+		fprintf( stderr, "%-10s%s\n", kernel[i].uname, kernel[i].name );
+		i++;
+	}
+}
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+14.14
+log
+@exit->bu_exit where applicable
+@
+text
+@d32 1
+a32 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/bwfilter.c,v 14.13 2007/09/15 16:23:23 brlcad Exp $ (BRL)";
+d160 1
+a160 1
+		bu_exit ( 1, "" );
+d165 1
+a165 1
+		bu_exit (1, "");
+d225 1
+a225 1
+	bu_exit ( 0, "" );
+d250 1
+a250 1
+		bu_exit ( 3, "" );
+@
+
+
+14.13
+log
+@more c89 embracing.  c89 provides string.h for all of the various str*() and mem*() functions, so remove the check for its presence.  there is still likely to be work required for strict c89 conformance for the various bsd strings.h functions that may be in use.
+@
+text
+@d32 1
+a32 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/bwfilter.c,v 14.12 2007/07/26 01:13:59 brlcad Exp $ (BRL)";
+d160 1
+a160 1
+		exit( 1 );
+d165 1
+a165 1
+		exit(1);
+d225 1
+a225 1
+	exit( 0 );
+d250 1
+a250 1
+		exit( 3 );
+@
+
+
+14.12
+log
+@remove ephemeral data like phone numbers and addresses, including the misleading 'source' statements on code that is continually evolving and receiving contributions from many many sources
+@
+text
+@d32 1
+a32 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/bwfilter.c,v 14.11 2007/01/27 01:41:53 brlcad Exp $ (BRL)";
+a36 4
+#ifdef HAVE_UNISTD_H
+# include <unistd.h>
+#endif
+
+a38 1
+#ifdef HAVE_STRING_H
+d40 3
+a42 2
+#else
+#include <strings.h>
+@
+
+
+14.11
+log
+@ws. lots and lots of ws.  see sh/ws.sh for details (cases 'abcdeg').
+@
+text
+@a29 4
+ *  Source -
+ *	SECAD/VLD Computing Consortium, Bldg 394
+ *	The U. S. Army Ballistic Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005-5066
+d32 1
+a32 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/bwfilter.c,v 14.10 2007/01/23 01:13:52 brlcad Exp $ (BRL)";
+@
+
+
+14.10
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@d36 1
+a36 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/bwfilter.c,v 14.9 2007/01/20 14:37:05 brlcad Exp $ (BRL)";
+d95 1
+a95 1
+        [-s squaresize] [-w width] [-n height] [file.bw] > file.bw\n";
+@
+
+
+14.9
+log
+@update copyright to 2007
+@
+text
+@d8 2
+a9 3
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+d14 1
+a14 1
+ * General Public License for more details.
+d16 2
+a17 2
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+d36 1
+a36 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/bwfilter.c,v 14.8 2006/01/18 06:46:27 brlcad Exp $ (BRL)";
+@
+
+
+14.8
+log
+@update copyright to 2006
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 1986-2006 United States Government as represented by
+d37 1
+a37 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/bwfilter.c,v 14.7 2005/10/23 04:44:39 brlcad Exp $ (BRL)";
+@
+
+
+14.7
+log
+@trailing ws
+@
+text
+@d4 1
+a4 1
+ * Copyright (C) 1986-2005 United States Government as represented by
+d37 1
+a37 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/bwfilter.c,v 14.6 2005/09/22 00:21:51 brlcad Exp $ (BRL)";
+@
+
+
+14.6
+log
+@add bu.h for bu_getopt stuff
+@
+text
+@d30 1
+a30 1
+ *  
+d37 1
+a37 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/bwfilter.c,v 14.5 2005/09/21 19:05:37 brlcad Exp $ (BRL)";
+d45 1
+a45 1
+                                                                                                                                                                            
+@
+
+
+14.5
+log
+@needs bu.h for bu_getopt
+@
+text
+@d37 1
+a37 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/bwfilter.c,v 14.4 2005/06/30 00:08:37 erikgreenwald Exp $ (BRL)";
+d55 2
+@
+
+
+14.4
+log
+@added missing includes
+@
+text
+@d37 1
+a37 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/bwfilter.c,v 14.3 2005/01/30 20:31:32 brlcad Exp $ (BRL)";
+d101 1
+a101 1
+	while ( (c = getopt( argc, argv, "vf:d:o:w:n:s:" )) != EOF )  {
+d107 1
+a107 1
+			select_filter(optarg);
+d111 1
+a111 1
+			kerndiv = atoi(optarg);
+d115 1
+a115 1
+			kernoffset = atoi(optarg);
+d118 1
+a118 1
+			width = atoi(optarg);
+d121 1
+a121 1
+			height = atoi(optarg);
+d124 1
+a124 1
+			width = height = atoi(optarg);
+d131 1
+a131 1
+	if( optind >= argc )  {
+d137 1
+a137 1
+		file_name = argv[optind];
+d149 1
+a149 1
+	if ( argc > ++optind )
+@
+
+
+14.4.6.1
+log
+@merge changes from HEAD aka rel-7-6-4 to the rel-7-6-branch just in case someone peeks a gander or tries to continue/build the branch
+@
+text
+@d30 1
+a30 1
+ *
+d37 1
+a37 1
+static const char RCSid[] = "@@(#)$Header$ (BRL)";
+d45 1
+a45 1
+
+a54 2
+#include "bu.h"
+
+d101 1
+a101 1
+	while ( (c = bu_getopt( argc, argv, "vf:d:o:w:n:s:" )) != EOF )  {
+d107 1
+a107 1
+			select_filter(bu_optarg);
+d111 1
+a111 1
+			kerndiv = atoi(bu_optarg);
+d115 1
+a115 1
+			kernoffset = atoi(bu_optarg);
+d118 1
+a118 1
+			width = atoi(bu_optarg);
+d121 1
+a121 1
+			height = atoi(bu_optarg);
+d124 1
+a124 1
+			width = height = atoi(bu_optarg);
+d131 1
+a131 1
+	if( bu_optind >= argc )  {
+d137 1
+a137 1
+		file_name = argv[bu_optind];
+d149 1
+a149 1
+	if ( argc > ++bu_optind )
+@
+
+
+14.3
+log
+@update copyright to 2005
+@
+text
+@d37 1
+a37 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/bwfilter.c,v 14.2 2004/12/21 03:45:40 butler Exp $ (BRL)";
+d47 1
+@
+
+
+14.2
+log
+@GPL license changes
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 1986-2004 United States Government as represented by
+d37 1
+a37 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/util/bwfilter.c,v 14.1 2004/11/16 19:42:32 morrison Exp $ (BRL)";
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@d1 21
+a21 2
+/*
+ *		B W F I L T E R . C
+a34 4
+ *  
+ *  Copyright Notice -
+ *	This software is Copyright (C) 1986-2004 by the United States Army.
+ *	All rights reserved.
+d37 1
+a37 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/util/bwfilter.c,v 1.4 2004/08/02 23:01:53 morrison Exp $ (BRL)";
+@
+
+
+1.4
+log
+@replace the wrapped config.h block with common.h
+@
+text
+@d22 1
+a22 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/util/bwfilter.c,v 1.3 2004/06/09 18:21:39 erikg Exp $ (BRL)";
+d264 10
+@
+
+
+1.3
+log
+@include unistd.h for getopt stuff
+@
+text
+@d22 1
+a22 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/util/bwfilter.c,v 1.2 2004/06/08 22:04:43 morrison Exp $ (BRL)";
+d25 1
+a25 3
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+@
+
+
+1.2
+log
+@obliterate externs.h
+@
+text
+@d22 1
+a22 1
+static const char RCSid[] = "@@(#)$Header$ (BRL)";
+d29 4
+@
+
+
+1.1
+log
+@Vast reorganization begins.  Sources moved from top-level directories into src/.
+@
+text
+@d22 1
+a22 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/util/bwfilter.c,v 11.10 2004/05/10 15:30:50 erikg Exp $ (BRL)";
+a28 2
+
+
+a36 1
+#include "externs.h"			/* For getopt */
+@
+

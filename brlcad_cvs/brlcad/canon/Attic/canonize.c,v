@@ -1,0 +1,425 @@
+head	11.4;
+access;
+symbols
+	ansi-20040405-merged:11.1.6.1
+	postmerge-20040405-ansi:11.2
+	premerge-20040404-ansi:11.2
+	postmerge-autoconf:11.2
+	autoconf-freeze:11.1.14.2
+	premerge-autoconf:11.2
+	ansi-20040316-freeze:11.1
+	postmerge-20040315-windows:11.2
+	premerge-20040315-windows:11.2
+	windows-20040315-freeze:11.1.8.1
+	autoconf-20031203:11.1
+	autoconf-20031202:11.1
+	autoconf-branch:11.1.0.14
+	phong-branch:11.1.0.12
+	photonmap-branch:11.1.0.10
+	rel-6-1-DP:11.1
+	windows-branch:11.1.0.8
+	rel-6-0-2:11.1
+	ansi-branch:11.1.0.6
+	rel-6-0-1-branch:11.1.0.4
+	hartley-6-0-post:11.1
+	hartley-6-0-pre:11.1
+	rel-6-0-1:11.1
+	rel-6-0:11.1
+	rel-5-4:11.1
+	offsite-5-3-pre:11.1
+	rel-5-3:11.1
+	rel-5-2:11.1
+	rel-5-1-branch:11.1.0.2
+	rel-5-1:11.1
+	rel-5-0:11.1
+	rel-5-0-beta:11.1
+	rel-4-5:11.1
+	ctj-4-5-post:11.1
+	ctj-4-5-pre:11.1
+	rel-4-4:11.1;
+locks; strict;
+comment	@ * @;
+
+
+11.4
+date	2004.05.24.04.16.47;	author morrison;	state dead;
+branches;
+next	11.3;
+
+11.3
+date	2004.05.10.15.30.41;	author erikg;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	2004.02.02.17.38.59;	author morrison;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	95.01.04.10.35.42;	author mike;	state Rel4_4;
+branches
+	11.1.6.1
+	11.1.8.1
+	11.1.14.1;
+next	1.5;
+
+1.5
+date	94.12.01.19.20.09;	author mike;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	94.08.24.14.23.56;	author gdurf;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	93.06.14.11.54.00;	author butler;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	92.05.14.01.26.48;	author butler;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	92.05.12.19.09.40;	author butler;	state Exp;
+branches;
+next	;
+
+11.1.6.1
+date	2004.03.17.21.15.53;	author morrison;	state Exp;
+branches;
+next	;
+
+11.1.8.1
+date	2004.03.11.23.40.28;	author morrison;	state Exp;
+branches;
+next	;
+
+11.1.14.1
+date	2004.02.12.19.40.42;	author erikg;	state Exp;
+branches;
+next	11.1.14.2;
+
+11.1.14.2
+date	2004.03.15.14.06.06;	author erikg;	state Exp;
+branches;
+next	;
+
+
+desc
+@User agent for queuing BRLCAD PIX(5) to Canon CLC500 using MDQS.
+@
+
+
+11.4
+log
+@moved to src/canon/
+@
+text
+@/*
+ *			C A N O N I Z E
+ *
+ *  Queue an image to a Canon CLC500 via qpr/MDQS
+ *
+ *  Author -
+ *	Lee A. Butler
+ *  
+ *  Source -
+ *	The U. S. Army Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005-5068  USA
+ *  
+ *  Distribution Notice -
+ *	Re-distribution of this software is restricted, as described in
+ *	your "Statement of Terms and Conditions for the Release of
+ *	The BRL-CAD Package" agreement.
+ *
+ *  Copyright Notice -
+ *	This software is Copyright (C) 1994-2004 by the United States Army
+ *	in all countries except the USA.  All rights reserved.
+ */
+#ifndef lint
+static char RCSid[] = "@@(#)$Header: /n/xoff/cvs/brlcad/canon/canonize.c,v 11.3 2004/05/10 15:30:41 erikg Exp $ (ARL)";
+#endif
+
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+
+#include <stdio.h>
+#ifdef USE_STRING_H
+#include <string.h>
+#else
+#include <strings.h>
+#endif
+
+#include "externs.h"
+
+#include "./canon.h"
+
+char cmdbuf[64]="/usr/mdqs/bin/qpr -q "; /* queue name filled in by main() */
+
+/*	Q U E U E
+ *
+ *	send an image off into the printer queuing system
+ */
+void
+queue(fd)
+FILE *fd;
+{
+	char img_buffer[8 * 1024];
+	int img_bytes, i, args, bytes_read;
+	FILE *pfd;
+	
+	img_bytes = width * height * 3;
+
+	/* open a pipe to the queuing program */
+	if ((pfd = popen(cmdbuf, "w")) == (FILE *)NULL) {
+			fprintf(stderr, "%s: ", progname);
+			perror(cmdbuf);
+			exit(-1);
+	}
+
+	if (ipu_debug)
+		fprintf(stderr, "pipe open\n");
+
+	fprintf(pfd, "CLC500"); /* magic cookie */
+
+	/* write the command line options out to the data stream */
+	for (args=1 ; args < arg_c ; args++) {
+
+		if (!strcmp(arg_v[args], "-a")) {
+			fprintf(pfd, " -w %d -n %d", width, height);
+		} if (!strcmp(arg_v[args], "-d")) {
+			args += 2;	/* skip device specification */
+		} if (!strcmp(arg_v[args], "-v") ||
+		      !strcmp(arg_v[args], "-V")) {
+			continue;	/* skip verbose specification */
+		} else {
+			fprintf(pfd, " %s", arg_v[args]);
+		}
+	}
+	fprintf(pfd, "\n");
+
+	if (ipu_debug)
+		fprintf(stderr, "args written\n");
+
+	/* write the image down the pipe */
+	for( bytes_read = 0 ;
+	    bytes_read < img_bytes &&
+	    (i = fread(img_buffer, 1, sizeof(img_buffer), fd)) ;
+	    bytes_read += i ) {
+		fwrite(img_buffer, 1, i, pfd);
+	}
+
+	if (ipu_debug)
+		fprintf(stderr, "image written\n");
+
+	pclose(pfd);
+
+	if (ipu_debug)
+		fprintf(stderr, "image queued\n");
+}
+
+
+int
+main(ac, av)
+int ac;
+char *av[];
+{
+	int arg_ind;
+	FILE *fd;
+
+
+	/* copy the relevant command line options */
+	if ((arg_ind = parse_args(ac, av)) >= ac) {
+		if (isatty(fileno(stdin)))
+			usage("Specify image on cmd line or redirect from standard input\n");
+
+		if (autosize) usage("Cannot autosize stdin\n");
+
+		strncat(cmdbuf, print_queue, sizeof(cmdbuf)-strlen(cmdbuf)-1);
+
+		queue(stdin);
+
+		return(0);
+	}
+
+	strncat(cmdbuf, print_queue, sizeof(cmdbuf)-strlen(cmdbuf)-1);
+
+	for ( ; arg_ind < ac ; arg_ind++) {
+		if (autosize &&
+		    !fb_common_file_size( &width, &height, av[arg_ind], 3)) {
+		    	fprintf(stderr,
+		    		"unable to autosize \"%s\"\n",
+		    		av[arg_ind]);
+		    	return(-1);
+		}
+
+		if ((fd=fopen(av[arg_ind], "r")) == (FILE *)NULL) {
+			fprintf(stderr, "%s: ", progname);
+			perror(av[arg_ind]);
+			return(-1);
+		}
+		queue(fd);
+		fclose(fd);
+	}
+	return(0);
+}
+@
+
+
+11.3
+log
+@change conf.h to a wrapped config.h
+@
+text
+@d23 1
+a23 1
+static char RCSid[] = "@@(#)$Header: /cvs/brlcad/canon/canonize.c,v 11.2 2004/02/02 17:38:59 morrison Exp $ (ARL)";
+@
+
+
+11.2
+log
+@update copyright to include span through 2003
+@
+text
+@d23 1
+a23 1
+static char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/canon/canonize.c,v 11.1 1995/01/04 10:35:42 mike Rel4_4 $ (ARL)";
+d26 5
+a30 1
+#include "conf.h"
+@
+
+
+11.1
+log
+@Release_4.4
+@
+text
+@d19 1
+a19 1
+ *	This software is Copyright (C) 1994 by the United States Army
+d23 1
+a23 1
+static char RCSid[] = "@@(#)$Header: /m/cad/canon/RCS/canonize.c,v 1.5 94/12/01 19:20:09 mike Exp $ (ARL)";
+@
+
+
+11.1.6.1
+log
+@sync branch with HEAD
+@
+text
+@d19 1
+a19 1
+ *	This software is Copyright (C) 1994-2004 by the United States Army
+d23 1
+a23 1
+static char RCSid[] = "@@(#)$Header$ (ARL)";
+@
+
+
+11.1.8.1
+log
+@sync to HEAD...
+@
+text
+@d19 1
+a19 1
+ *	This software is Copyright (C) 1994-2004 by the United States Army
+d23 1
+a23 1
+static char RCSid[] = "@@(#)$Header: /n/cad/c/CVS/brlcad/canon/canonize.c,v 11.2 2004/02/02 17:38:59 morrison Exp $ (ARL)";
+@
+
+
+11.1.14.1
+log
+@merge from HEAD
+@
+text
+@d19 1
+a19 1
+ *	This software is Copyright (C) 1994-2004 by the United States Army
+d23 1
+a23 1
+static char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/canon/canonize.c,v 11.2 2004/02/02 17:38:59 morrison Exp $ (ARL)";
+@
+
+
+11.1.14.2
+log
+@merge from head
+@
+text
+@d23 1
+a23 1
+static char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/canon/canonize.c,v 11.1.14.1 2004/02/12 19:40:42 erikg Exp $ (ARL)";
+@
+
+
+1.5
+log
+@Added externs.h for Solaris
+@
+text
+@d23 1
+a23 1
+static char RCSid[] = "@@(#)$Header$ (ARL)";
+@
+
+
+1.4
+log
+@Factored ifdefs
+@
+text
+@d1 2
+a2 1
+/*	C A N O N I Z E --- queue an image to a Canon CLC500 via qpr/MDQS
+d4 17
+d22 4
+d34 2
+@
+
+
+1.3
+log
+@fixed bug with freeing non-malloc() memory
+@
+text
+@d4 2
+d7 1
+d9 4
+@
+
+
+1.2
+log
+@stopped canonize from sending the verbose flags to pix-ipu
+@
+text
+@d34 2
+a66 1
+	free(img_buffer);
+d115 1
+a115 1
+
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d41 3
+@

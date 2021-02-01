@@ -1,0 +1,532 @@
+head	14.12;
+access;
+symbols
+	rel-7-10-4:14.9
+	STABLE:14.9.0.2
+	rel-7-10-2:14.9
+	rel-7-10-0:14.9
+	rel-7-8-4:14.7
+	rel-7-8-2:14.5
+	rel-7-8-0:14.5
+	trimnurbs-branch:14.5.0.2
+	help:14.5
+	temp_tag:14.4
+	bobWinPort-20051223-freeze:14.3
+	postmerge-20051223-bobWinPort:14.4
+	premerge-20051223-bobWinPort:14.4
+	rel-7-6-6:14.4
+	rel-7-6-4:14.4
+	rel-7-6-2:14.3
+	rel-7-6-branch:14.3.0.6
+	rel-7-6-0:14.3
+	rel-7-4-2:14.3
+	rel-7-4-branch:14.3.0.4
+	bobWinPort:14.3.0.2
+	rel-7-4-0:14.3
+	rel-7-2-6:14.3
+	rel-7-2-4:14.3
+	rel-7-2-2:14.3
+	rel-7-2-0:14.3
+	rel-7-0-4:14.2
+	rel-7-0-2:14.2
+	rel-7-0-1:14.2
+	opensource-post:14.2
+	opensource-pre:1.1
+	rel-7-0-branch:1.1.0.2
+	rel-7-0:1.1;
+locks; strict;
+comment	@ * @;
+
+
+14.12
+date	2007.12.16.15.59.41;	author brlcad;	state Exp;
+branches;
+next	14.11;
+
+14.11
+date	2007.11.21.20.49.13;	author erikgreenwald;	state Exp;
+branches;
+next	14.10;
+
+14.10
+date	2007.11.21.18.55.37;	author erikgreenwald;	state Exp;
+branches;
+next	14.9;
+
+14.9
+date	2007.01.23.01.13.55;	author brlcad;	state Exp;
+branches;
+next	14.8;
+
+14.8
+date	2007.01.20.14.37.06;	author brlcad;	state Exp;
+branches;
+next	14.7;
+
+14.7
+date	2006.07.30.18.58.57;	author brlcad;	state Exp;
+branches;
+next	14.6;
+
+14.6
+date	2006.07.09.18.03.40;	author brlcad;	state Exp;
+branches;
+next	14.5;
+
+14.5
+date	2006.01.18.06.46.27;	author brlcad;	state Exp;
+branches;
+next	14.4;
+
+14.4
+date	2005.10.23.04.44.39;	author brlcad;	state Exp;
+branches;
+next	14.3;
+
+14.3
+date	2005.01.30.20.31.33;	author brlcad;	state Exp;
+branches
+	14.3.6.1;
+next	14.2;
+
+14.2
+date	2004.12.21.03.45.40;	author butler;	state Exp;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.32;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.15.21.45;	author morrison;	state Exp;
+branches;
+next	;
+
+14.3.6.1
+date	2005.11.13.13.46.20;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.12
+log
+@convert all bzero calls to memset
+@
+text
+@/*                          L O W P . C
+ * BRL-CAD
+ *
+ * Copyright (c) 2004-2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@file lowp.c
+ *  Read 3 .pix files, and do a 3D low-pass filter on them.
+ *
+ *  Mike Muuss, BRL.
+ *
+ *  $Revision: 14.11 $
+ */
+#include "common.h"
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <strings.h>
+
+#include "machine.h"
+#include "bu.h"
+
+
+#define MAX_LINE	10000		/* Max pixels/line */
+static int scanbytes;			/* # of bytes of scanline */
+
+unsigned char *in1, *in2, *in3;
+
+/* Output line */
+unsigned char out1[MAX_LINE*3] = {0};
+
+static int nlines;		/* Number of input lines */
+static int pix_line;		/* Number of pixels/line */
+
+char usage[] = "Usage: lowp file1.pix file2.pix file3.pix [width] > out.pix\n";
+
+int infd1, infd2, infd3;		/* input fd's */
+
+int
+main(int argc, char **argv)
+{
+	int x,y;
+	int readval;
+
+	if( argc < 2 )  {
+		fprintf(stderr,"%s", usage);
+		bu_exit (1, NULL);
+	}
+
+	nlines = 512;
+	if( (infd1 = open( argv[1], 0 )) < 0 )  {
+		perror( argv[1] );
+		bu_exit (3, NULL);
+	}
+	if( (infd2 = open( argv[2], 0 )) < 0 )  {
+		perror( argv[2] );
+		bu_exit (3, NULL);
+	}
+	if( (infd3 = open( argv[3], 0 )) < 0 )  {
+		perror( argv[3] );
+		bu_exit (3, NULL);
+	}
+	if( argc == 5 ) {
+		nlines = atoi(argv[4] );
+	}
+
+	pix_line = nlines;	/* Square pictures */
+	scanbytes = nlines * pix_line * 3;
+	in1 = (unsigned char  *) bu_malloc( scanbytes, "lowp in1" );
+	in2 = (unsigned char  *) bu_malloc( scanbytes, "lowp in2" );
+	in3 = (unsigned char  *) bu_malloc( scanbytes, "lowp in3" );
+
+	readval = read(infd1, in1, scanbytes);
+	if (readval != scanbytes ) {
+	    if (readval < 0) {
+		perror("lowp READ ERROR");
+	    }
+	    bu_exit (0, NULL);
+	}
+	readval = read(infd3, in3, scanbytes);
+	if (readval != scanbytes ) {
+	    if (readval < 0) {
+		perror("lowp READ ERROR");
+	    }
+	    bu_exit (0, NULL);
+	}
+	readval = read(infd3, in3, scanbytes);
+	if (readval != scanbytes ) {
+	    if (readval < 0) {
+		perror("lowp READ ERROR");
+	    }
+	    bu_exit (0, NULL);
+	}
+
+	/* First and last are black */
+	memset(out1, 0, pix_line*3);
+	write( 1, out1, pix_line*3 );
+
+	for( y=1; y < nlines-2; y++ )  {
+		static unsigned char *op;
+
+		op = out1+3;
+
+		/* do (width-2)*3 times, borders are black */
+		for( x=3; x < (pix_line-2)*3; x++ )  {
+			register int i;
+			register unsigned char *a, *b, *c;
+
+			i = (y*pix_line)*3+x;
+			a = in1+i;
+			b = in2+i;
+			c = in3+i;
+			i = pix_line*3;
+			*op++ = ( (int)
+a[-i-3]    + a[-i  ]*3  + a[-i+3]    +
+a[  -3]*3  + a[   0]*5  + a[   3]*3  +
+a[ i-3]    + a[ i  ]*3  + a[ i+3]    +
+
+b[-i-3]*3  + b[-i  ]*5  + b[-i+3]*3  +
+b[  -3]*5  + b[   0]*10 + b[   3]*5  +
+b[ i-3]*3  + b[ i  ]*5  + b[ i+3]*3  +
+
+c[-i-3]    + c[-i  ]*3  + c[-i+3]    +
+c[  -3]*3  + c[   0]*5  + c[   3]*3  +
+c[ i-3]    + c[ i  ]*3  + c[ i+3]
+				) / 84;
+		}
+		write( 1, out1, pix_line*3 );
+	}
+
+	/* First and last are black */
+	memset(out1, 0, pix_line*3);
+	write( 1, out1, pix_line*3 );
+
+	return 0;
+}
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+14.11
+log
+@pass bu_exit a NULL instead of an empty string
+@
+text
+@d25 1
+a25 1
+ *  $Revision: 14.10 $
+d109 1
+a109 1
+	bzero( out1, pix_line*3 );
+d145 1
+a145 1
+	bzero( out1, pix_line*3 );
+@
+
+
+14.10
+log
+@exit->bu_exit where applicable
+@
+text
+@d25 1
+a25 1
+ *  $Revision: 14.9 $
+d60 1
+a60 1
+		bu_exit (1, "");
+d66 1
+a66 1
+		bu_exit (3, "");
+d70 1
+a70 1
+		bu_exit (3, "");
+d74 1
+a74 1
+		bu_exit (3, "");
+d91 1
+a91 1
+	    bu_exit (0, "");
+d98 1
+a98 1
+	    bu_exit (0, "");
+d105 1
+a105 1
+	    bu_exit (0, "");
+@
+
+
+14.9
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@d25 1
+a25 1
+ *  $Revision: 14.8 $
+d60 1
+a60 1
+		exit(1);
+d66 1
+a66 1
+		exit(3);
+d70 1
+a70 1
+		exit(3);
+d74 1
+a74 1
+		exit(3);
+d91 1
+a91 1
+	    exit(0);
+d98 1
+a98 1
+	    exit(0);
+d105 1
+a105 1
+	    exit(0);
+@
+
+
+14.8
+log
+@update copyright to 2007
+@
+text
+@d8 2
+a9 3
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+d14 1
+a14 1
+ * General Public License for more details.
+d16 2
+a17 2
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+d25 1
+a25 1
+ *  $Revision: 14.7 $
+@
+
+
+14.7
+log
+@missing std headers
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 2004-2006 United States Government as represented by
+d26 1
+a26 1
+ *  $Revision: 14.6 $
+@
+
+
+14.6
+log
+@revive lowp, updating the code to use bu_malloc instead of malloc and adding additional error checking for the read() calls
+@
+text
+@d26 1
+a26 1
+ *  $Revision: 14.5 $
+d31 2
+@
+
+
+14.5
+log
+@update copyright to 2006
+@
+text
+@d26 1
+a26 1
+ *  $Revision: 14.4 $
+d28 2
+d32 5
+a36 1
+#define MAX_LINE	1024		/* Max pixels/line */
+d42 1
+a42 1
+unsigned char out1[MAX_LINE*3];
+d54 2
+a55 1
+	static int x,y;
+d75 1
+a75 1
+	if( argc == 5 )
+d77 1
+d81 25
+a105 9
+	in1 = (unsigned char  *) malloc( scanbytes );
+	in2 = (unsigned char  *) malloc( scanbytes );
+	in3 = (unsigned char  *) malloc( scanbytes );
+	if( read( infd1, in1, scanbytes ) != scanbytes )
+		exit(0);
+	if( read( infd2, in2, scanbytes ) != scanbytes )
+		exit(0);
+	if( read( infd3, in3, scanbytes ) != scanbytes )
+		exit(0);
+d146 2
+@
+
+
+14.4
+log
+@trailing ws
+@
+text
+@d4 1
+a4 1
+ * Copyright (C) 2004-2005 United States Government as represented by
+d26 1
+a26 1
+ *  $Revision: 14.3 $
+@
+
+
+14.3
+log
+@update copyright to 2005
+@
+text
+@d23 1
+a23 1
+ *  
+d26 1
+a26 1
+ *  $Revision: 14.2 $
+@
+
+
+14.3.6.1
+log
+@merge changes from HEAD aka rel-7-6-4 to the rel-7-6-branch just in case someone peeks a gander or tries to continue/build the branch
+@
+text
+@d23 1
+a23 1
+ *
+d26 1
+a26 1
+ *  $Revision$
+@
+
+
+14.2
+log
+@GPL license changes
+@
+text
+@d4 2
+a5 2
+ * Copyright (c) 2004 United States Government as represented by the
+ * U.S. Army Research Laboratory.
+d26 1
+a26 1
+ *  $Revision: 14.1 $
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@d1 21
+a21 1
+/*
+d26 1
+a26 1
+ *  $Revision: 1.1 $
+@
+
+
+1.1
+log
+@Vast reorganization begins.  Sources moved from top-level directories into src/.
+@
+text
+@d6 1
+a6 1
+ *  $Revision: 11.5 $
+d103 10
+@
+

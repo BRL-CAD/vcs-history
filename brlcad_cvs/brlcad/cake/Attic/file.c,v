@@ -1,0 +1,983 @@
+head	11.5;
+access;
+symbols
+	ansi-20040405-merged:11.4
+	premerge-autoconf:11.4
+	ansi-20040316-freeze:11.4
+	postmerge-20040315-windows:11.4
+	premerge-20040315-windows:11.4
+	windows-20040315-freeze:11.4
+	autoconf-20031203:11.4
+	autoconf-20031202:11.4
+	phong-branch:11.4.0.12
+	photonmap-branch:11.4.0.10
+	rel-6-1-DP:11.4
+	windows-branch:11.4.0.8
+	rel-6-0-2:11.4
+	ansi-branch:11.4.0.6
+	rel-6-0-1-branch:11.4.0.4
+	hartley-6-0-post:11.4
+	hartley-6-0-pre:11.4
+	rel-6-0-1:11.4
+	rel-6-0:11.4
+	rel-5-4:11.4
+	offsite-5-3-pre:11.4
+	rel-5-3:11.4
+	rel-5-2:11.4
+	rel-5-1-branch:11.4.0.2
+	rel-5-1:11.4
+	rel-5-0:11.3
+	rel-5-0-beta:11.2
+	rel-4-5:11.2
+	ctj-4-5-post:11.2
+	ctj-4-5-pre:11.2
+	rel-4-4:1.7
+	rel-4-0:1.5
+	rel-3-5:1.2
+	rel-3-0:1.2
+	AUTOCONF:11.4.0.14;
+locks; strict;
+comment	@ * @;
+
+
+11.5
+date	2004.03.18.18.15.14;	author erikg;	state dead;
+branches;
+next	11.4;
+
+11.4
+date	2000.05.31.02.54.32;	author cjohnson;	state Exp;
+branches
+	11.4.14.1;
+next	11.3;
+
+11.3
+date	99.06.10.15.25.41;	author mike;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	97.05.22.16.57.55;	author mike;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	95.01.05.06.00.05;	author mike;	state Rel4_4;
+branches;
+next	1.7;
+
+1.7
+date	94.12.07.17.13.56;	author mike;	state Exp;
+branches;
+next	1.6;
+
+1.6
+date	94.11.03.13.33.53;	author mike;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	91.09.23.21.44.05;	author butler;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	91.06.12.06.50.42;	author mike;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	90.11.27.16.34.14;	author mike;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	88.09.17.04.01.59;	author mike;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	88.06.11.00.55.55;	author mike;	state Original;
+branches;
+next	;
+
+11.4.14.1
+date	2004.03.18.18.10.24;	author erikg;	state dead;
+branches;
+next	;
+
+
+desc
+@cake
+@
+
+
+11.5
+log
+@merge of AUTOCONF branch in to HEAD
+@
+text
+@/*
+**	File system interface module.
+*/
+
+static	char
+rcs_id[] = "$Header: /cvs/brlcad/cake/file.c,v 11.4 2000/05/31 02:54:32 cjohnson Exp $";
+
+#include	"cake.h"
+#include	<errno.h>
+#include	<sys/stat.h>
+#ifndef		ATT
+#if defined(__MACHINETYPE__vax)
+#include	<dir.h>
+typedef struct	direct Dirent;
+#else
+#include	<dirent.h>
+typedef	struct	dirent	Dirent;
+#endif
+#include	<sys/time.h>
+#else
+#include	<time.h>
+typedef	struct	direct	Dirent;
+#endif
+
+typedef	struct	timeval		Tval;
+typedef	struct	timezone	Tzone;
+typedef	struct	stat		Stat;
+
+extern	int	errno;
+
+static	char	dir_name[30] = "/tmp/CakeXXXXXX";
+
+/*
+**	Create the directory to be used for all temporary storage.
+*/
+void
+dir_start()
+{
+	reg	bool	successful;
+
+	mktemp(dir_name);
+
+#ifdef	ATT
+	{
+		extern	int	cake_proc();
+		extern	int	cake_wait();
+		reg	int	pid;
+		int		code;
+
+		sprintf(scratchbuf, "mkdir %s", dir_name);
+		pid = cake_proc(new_name(scratchbuf), Exec, (char *) NULL,
+			(Node *) NULL, (int (*)()) NULL, (List *) NULL);
+		code = cake_wait(pid);
+		successful = code == 0;
+	}
+#else
+	successful = mkdir(dir_name, 0700) == 0;
+#endif
+
+	if (! successful)
+	{
+		sprintf(scratchbuf, "cake system error, mkdir %s", dir_name);
+		perror(scratchbuf);
+		exit_cake(FALSE);
+	}
+
+#ifdef	ATT
+	if (chmod(dir_name, 0700) != 0)
+	{
+		sprintf(scratchbuf, "cake system error, chmod 700 %s", dir_name);
+		perror(scratchbuf);
+		exit_cake(FALSE);
+	}
+#endif
+}
+
+/*
+**	Clean up /tmp when we are finished
+*/
+void
+dir_finish()
+{
+#ifndef	LEAVE_DIR
+#ifdef	ATT
+	extern	int	cake_proc();
+	extern	int	cake_wait();
+	reg	int	pid;
+	int		code;
+
+	sprintf(scratchbuf, "/bin/rm -fr %s", dir_name);
+	pid = cake_proc(new_name(scratchbuf), Exec, (char *) NULL,
+		(Node *) NULL, (int (*)()) NULL, (List *) NULL);
+	code = cake_wait(pid);
+	if (code != 0)
+	{
+		fprintf(stderr, "cake system error: cannot remove %s\n", dir_name);
+		return;
+	}
+#else
+	char		buf[1024];
+	reg	DIR	*dirp;
+	reg	Dirent	*dp;
+	reg	int	nameoffset;
+
+	if ((dirp = opendir(dir_name)) == NULL)
+	{
+		sprintf(scratchbuf, "cake system error, opendir %s", dir_name);
+		perror(scratchbuf);
+		return;
+	}
+
+	strcpy(buf, dir_name);
+	strcat(buf, "/");
+	nameoffset = strlen(buf);
+
+	for (dp = readdir(dirp); dp != NULL; dp = readdir(dirp))
+		if (strdiff(dp->d_name, ".") && strdiff(dp->d_name, ".."))
+		{
+			buf[nameoffset] = '\0';
+			strcat(buf, dp->d_name);
+			cdebug("dir_finish unlink %s\n", buf);
+			if (unlink(buf) != 0)
+			{
+				sprintf(scratchbuf, "cake system error, unlink %s", buf);
+				perror(scratchbuf);
+			}
+		}
+
+	closedir(dirp);
+
+	cdebug("rmdir %s\n", dir_name);
+	if (rmdir(dir_name) != 0)
+	{
+		sprintf(scratchbuf, "cake system error, rmdir %s", dir_name);
+		perror(scratchbuf);
+	}
+#endif
+#endif
+}
+
+/*
+**	Get a new filename in our private directory.
+**	These files are used to store shell scripts
+**	and the output of actions.
+**
+**	These names MUST be different from those generated
+**	by get_savename, so they have different prefixes.
+*/
+
+char *
+get_newname()
+{
+	char		buf[100];
+	static	int	count = 0;
+
+	++count;
+	sprintf(buf, "%s/gen_%d", dir_name, count);
+	return new_name(buf);
+}
+
+/*
+**	Save a nonvolatile file for later comparison.
+**	Any slashes in the filename are replaced by colons
+**	to avoid reference to nonexistent directories.
+*/
+void
+save_novol(node)
+reg	Node	*node;
+{
+	char		buf[MAXSIZE];
+	reg	FILE	*ifp, *ofp;
+	reg	int	c;
+
+	if (nflag)
+	{
+		node->n_stime = node->n_rtime;
+		return;
+	}
+
+	put_trail("save_novol", "start");
+	cdebug("saving %s\n", node->n_name);
+	node->n_stime = node->n_rtime;
+
+	get_savename(node->n_name, buf);
+	if ((ifp = fopen(node->n_name, "r")) == NULL)
+	{
+		if (errno == ENOENT)
+		{
+			cdebug("%s does not exist, considered volatile\n", node->n_name);
+			reset_node(node, nf_NONVOL);
+			put_trail("save_novol", "finish");
+			return;
+		}
+
+		sprintf(scratchbuf, "cake system error, fopen (r) %s", node->n_name);
+		perror(scratchbuf);
+		printf("cake: considering %s volatile\n", node->n_name);
+		reset_node(node, nf_NONVOL);
+		put_trail("save_novol", "finish");
+		return;
+	}
+
+	if ((ofp = fopen(buf, "w")) == NULL)
+	{
+		sprintf(scratchbuf, "cake system error, fopen (w) %s", buf);
+		perror(scratchbuf);
+		printf("cake: considering %s volatile\n", node->n_name);
+		reset_node(node, nf_NONVOL);
+		put_trail("save_novol", "finish");
+		return;
+	}
+
+	while ((c = getc(ifp)) != EOF)
+		putc(c, ofp);
+	
+	fclose(ifp);
+	fclose(ofp);
+	put_trail("save_novol", "finish");
+}
+
+/*
+**	See if the given file has been changed since saved.
+*/
+
+bool
+diff_novol(node)
+reg	Node	*node;
+{
+	char		buf[MAXSIZE];
+	reg	FILE	*i1fp, *i2fp;
+	reg	int	c;
+	reg	bool	diff;
+
+	if (nflag)
+		return FALSE;
+
+	put_trail("diff_novol", "start");
+	cdebug("comparing saved copy of %s: ", node->n_name);
+
+	get_savename(node->n_name, buf);
+	if ((i1fp = fopen(node->n_name, "r")) == NULL)
+	{
+		sprintf(scratchbuf, "cake system error, fopen (r) %s", node->n_name);
+		perror(scratchbuf);
+		printf("cake: considering %s different\n", node->n_name);
+		reset_node(node, nf_NONVOL);
+		put_trail("diff_novol", "finish");
+		return TRUE;;
+	}
+
+	if ((i2fp = fopen(buf, "r")) == NULL)
+	{
+		sprintf(scratchbuf, "cake system error, fopen (r) %s", buf);
+		perror(scratchbuf);
+		printf("cake: considering %s different\n", node->n_name);
+		reset_node(node, nf_NONVOL);
+		put_trail("diff_novol", "finish");
+		return TRUE;;
+	}
+
+	diff = FALSE;
+	while ((c = getc(i1fp)) != EOF)
+		if (getc(i2fp) != c)
+		{
+			diff = TRUE;
+			break;
+		}
+	
+	if (getc(i2fp) != EOF)
+		diff = TRUE;
+	
+	fclose(i1fp);
+	fclose(i2fp);
+	cdebug("diff_novol unlink %s\n", buf);
+	if (unlink(buf) != 0)
+	{
+		sprintf(scratchbuf, "cake system error, unlink %s", buf);
+		perror(scratchbuf);
+		put_trail("diff_novol", "finish");
+		return TRUE;
+	}
+
+	cdebug("%s\n", diff? "different": "same");
+	put_trail("diff_novol", "finish");
+	return diff;
+}
+
+/*
+**	Get the the name of the saved copy of the given file.
+*/
+void
+get_savename(name, buf)
+reg	char	*name;
+reg	char	buf[];
+{
+	extern	char	*noslash();
+
+	strcpy(buf, dir_name);
+	strcat(buf, "/save_");
+	strcat(buf, noslash(name));
+}
+
+/*
+**	Remove any slashes from a filename.
+*/
+
+char *
+noslash(name)
+reg	char	*name;
+{
+	char		buf[MAXSIZE];
+	reg	int	i;
+	reg	char	*s;
+
+	i = 0;
+	for (s = name; *s != '\0'; s++)
+		if (*s == '/')
+			buf[i++] = ':';
+		else
+			buf[i++] = *s;
+	
+	buf[i] = '\0';
+	return new_name(buf);
+}
+
+/*
+**	Perform a stat on the given file. The only relevant info
+**	is the return code, indicating whether the file exists or not
+**	and its last modify (or status change) date. Note that if a
+**	file does not exist, it is by definition volatile. An aside
+**	considers all directories precious.
+*/
+void
+node_stat(node)
+reg	Node	*node;
+{
+	extern	int	stat();
+	Stat		statbuf;
+
+	if (node->n_name != (char *) NULL && stat(node->n_name, &statbuf) == 0)
+	{
+		set_node(node, nf_EXIST);
+		if ((statbuf.st_mode & S_IFMT) == S_IFDIR)
+			set_node(node, nf_PRECIOUS);
+
+		node->n_rtime = cflag? statbuf.st_ctime: statbuf.st_mtime;
+	}
+	else
+	{
+		reset_node(node, nf_EXIST);
+		reset_node(node, nf_NONVOL);
+		node->n_rtime = GENESIS;
+	}
+}
+
+/*
+**	Restore the previous stat of a nonvol file,
+**	both in the filesystem and in cake's memory.
+**	However, make sure that it will not need to be
+**	remade again and again to discover this anew
+**	while its ancestors remain the same.
+*/
+void
+node_resetstat(node)
+reg	Node	*node;
+{
+	node_stat(node);
+	if (off_node(node, nf_EXIST))
+		return;
+
+	cake_utimes(node, max(node->n_stime, node->n_utime));
+	node->n_utime = node->n_rtime;
+}
+
+/*
+**	Set up the stat of a file as the latest ancestor's,
+**	both in the filesystem and in cake's memory.
+*/
+void
+node_setstat(node)
+reg	Node	*node;
+{
+	extern	time_t	get_youngest();
+	reg	time_t	youngest;
+
+	node_stat(node);
+	if (off_node(node, nf_EXIST))
+		return;
+
+	youngest = get_youngest(node, FALSE);
+	if (youngest != node->n_utime && youngest != GENESIS)
+	{
+		fprintf(stderr, "cake internal error: youngest is mismatched for %s\n",
+			node->n_name);
+		exit_cake(TRUE);
+	}
+
+	cake_utimes(node, node->n_utime);
+}
+
+/*
+**	Return the time, converting formats.
+*/
+
+time_t
+cake_gettime()
+{
+#ifdef	ATT
+	extern	time_t	time();
+	long		val;
+
+	if (time(&val) == (time_t)-1)
+	{
+		sprintf(scratchbuf, "cake system error, time");
+		perror(scratchbuf);
+		exit_cake(FALSE);
+	}
+
+	return (time_t) val;
+#else
+	Tzone		tzone;
+	Tval		tval;
+
+	if (gettimeofday(&tval, &tzone) != 0)
+	{
+		sprintf(scratchbuf, "cake system error, gettimeofday");
+		perror(scratchbuf);
+		exit_cake(FALSE);
+	}
+
+	return (time_t) tval.tv_sec;
+#endif
+}
+
+/*
+**	Issue the system call utimes after expanding its arguments
+**	from time_t to Tval. If the time given is GENESIS, use the
+**	current time instead.
+*/
+
+#ifdef	ATT
+typedef	struct	utimbuf
+{
+	time_t	actime;
+	time_t	modtime;
+} Utimbuf;
+#endif
+
+void
+cake_utimes(node, newtime)
+reg	Node	*node;
+time_t		newtime;
+{
+#ifdef	ATT
+	extern	int	utime();
+#else
+	extern	int	utimes();
+#endif
+	extern	int	stat();
+	Stat		statbuf;
+#ifdef	ATT
+	Utimbuf		timbuf;
+	long		vals[2];
+#else
+	Tzone		tzone;
+	Tval		tvals[2];
+#endif
+
+	cdebug("resetting time for %s to %d, %s",
+		node->n_name, newtime, ctime(&newtime));
+
+#ifdef	ATT
+	if (time(&vals[0]) == -1)
+	{
+		sprintf(scratchbuf, "cake system error, time");
+		perror(scratchbuf);
+		exit_cake(FALSE);
+	}
+#else
+	if (gettimeofday(&tvals[0], &tzone) != 0)
+	{
+		sprintf(scratchbuf, "cake system error, gettimeofday");
+		perror(scratchbuf);
+		exit_cake(FALSE);
+	}
+#endif
+
+	if (newtime == GENESIS)
+	{
+		cdebug("reinterpreting GENESIS\n");
+#ifdef	ATT
+		if (time(&vals[1]) == -1)
+		{
+			sprintf(scratchbuf, "cake system error, time");
+			perror(scratchbuf);
+			exit_cake(FALSE);
+		}
+#else
+		if (gettimeofday(&tvals[1], &tzone) != 0)
+		{
+			sprintf(scratchbuf, "cake system error, gettimeofday");
+			perror(scratchbuf);
+			exit_cake(FALSE);
+		}
+#endif
+	}
+	else
+	{
+#ifdef	ATT
+		vals[1] = (long) newtime;
+#else
+		tvals[1].tv_sec  = newtime;
+		tvals[1].tv_usec = 0;
+#endif
+	}
+
+#ifdef	ATT
+	timbuf.actime  = vals[0];
+	timbuf.modtime = vals[1];
+	node->n_rtime  = vals[1];
+#else
+	node->n_rtime  = (time_t) tvals[1].tv_sec;
+#endif
+
+	if (nflag)
+		return;
+
+#ifdef	ATT
+	if (utime(node->n_name, &timbuf) != 0)
+#else
+	if (utimes(node->n_name, tvals) != 0)
+#endif
+	{
+		sprintf(scratchbuf, "cake system error, utime(s) %s", node->n_name);
+		perror(scratchbuf);
+		fprintf(stderr, "cake: continuing\n");
+	}
+
+#ifdef	CAKEDEBUG
+	if (cakedebug)
+	{
+		if (stat(node->n_name, &statbuf) != 0)
+			printf("cannot verify utimes\n");
+		else
+		{
+			print_time("accessed", statbuf.st_atime);
+			print_time("modified", statbuf.st_mtime);
+			print_time("changed ", statbuf.st_ctime);
+		}
+	}
+#endif
+}
+
+/*
+**	See if the given file exists.
+*/
+
+bool
+exist(name)
+reg	char	*name;
+{
+	Stat	statbuf;
+
+	if (stat(name, &statbuf) == 0)
+		return TRUE;
+	else
+		return FALSE;
+}
+
+/*
+**	Remove the given file.
+*/
+void
+cake_remove(name)
+reg	char	*name;
+{
+#ifdef	CAREFUL
+	if (! Xflag)
+	{
+		extern	int	getpid();
+		extern	int	cake_proc();
+		extern	int	cake_wait();
+		extern	char	*noslash();
+		reg	int	pid, cakepid;
+		Stat		statbuf;
+		int		code;
+		char		buf[80];
+
+#ifndef	ATT
+		if (lstat(name, &statbuf) != 0)
+		{
+			sprintf(scratchbuf, "cake system error, lstat %s", name);
+			perror(scratchbuf);
+			fprintf(stderr, "cake: continuing\n");
+			return;
+		}
+
+		if ((statbuf.st_mode & S_IFMT) == S_IFLNK)
+		{
+			printf("removing the symbolic link %s\n", name);
+			cdebug("cake_remove unlink %s\n", name);
+			if (unlink(name) != 0)
+			{
+				sprintf(scratchbuf, "cake system error, unlink %s", name);
+				perror(scratchbuf);
+				fprintf(stderr, "cake: continuing\n");
+			}
+
+			return;
+		}
+#endif
+
+		cakepid = getpid();
+		printf("moving %s to /tmp\n", name);
+		sprintf(buf, "mv %s /tmp/%s.%d", name, noslash(name), cakepid);
+		pid = cake_proc(buf, Exec, (char *) NULL, (Node *) NULL,
+			(int (*)()) NULL, (List *) NULL);
+		code = cake_wait(pid);
+		if (code != 0)
+		{
+			fprintf(stderr, "cake system error: '%s' failed\n", buf);
+			fprintf(stderr, "cake: continuing\n");
+			return;
+		}
+
+		sprintf(buf, "/tmp/%s.%d", noslash(name), cakepid);
+		if (chmod(buf, 0600) != 0)
+		{
+			sprintf(scratchbuf, "cake system error, chmod %s", buf);
+			perror(scratchbuf);
+			fprintf(stderr, "cake: continuing\n");
+			return;
+		}
+
+		return;
+	}
+#endif
+
+	cdebug("cake_remove unlink %s\n", name);
+	if (unlink(name) != 0)
+	{
+		sprintf(scratchbuf, "cake system error, unlink %s", name);
+		perror(scratchbuf);
+		fprintf(stderr, "cake: continuing\n");
+	}
+}
+@
+
+
+11.4
+log
+@vax still needs #include <dir.h>
+@
+text
+@d6 1
+a6 1
+rcs_id[] = "$Header: /c/CVS/brlcad/cake/file.c,v 11.3 1999/06/10 15:25:41 mike Exp $";
+@
+
+
+11.4.14.1
+log
+@merge from head
+@
+text
+@d6 1
+a6 1
+rcs_id[] = "$Header: /cvs/brlcad/cake/file.c,v 11.4 2000/05/31 02:54:32 cjohnson Exp $";
+@
+
+
+11.3
+log
+@
+Fixed to remove nasty warnings on FreeBSD.
+@
+text
+@d6 1
+a6 1
+rcs_id[] = "$Header: /c/CVS/brlcad/cake/file.c,v 11.2 1997/05/22 16:57:55 mike Exp $";
+d12 4
+d18 1
+@
+
+
+11.2
+log
+@Added (void) declarations for IRIX 6 compiler.
+@
+text
+@d6 1
+a6 1
+rcs_id[] = "$Header: /m/cad/cake/RCS/file.c,v 11.1 1995/01/05 06:00:05 mike Rel4_4 mike $";
+d12 2
+a13 1
+#include	<sys/dir.h>
+d17 1
+a22 1
+typedef	struct	direct	Dirent;
+@
+
+
+11.1
+log
+@Release_4_4
+@
+text
+@d6 1
+a6 1
+rcs_id[] = "$Header: /m/cad/cake/RCS/file.c,v 1.7 94/12/07 17:13:56 mike Exp $";
+d30 1
+a30 1
+
+d74 1
+a74 1
+
+d160 1
+a160 1
+
+d285 1
+a285 1
+
+d327 1
+a327 1
+
+d357 1
+a357 1
+
+d373 1
+a373 1
+
+d443 1
+d567 1
+a567 1
+
+@
+
+
+1.7
+log
+@GCC lint
+@
+text
+@d6 1
+a6 1
+rcs_id[] = "$Header: /m/cad/cake/RCS/file.c,v 1.6 94/11/03 13:33:53 mike Exp Locker: mike $";
+@
+
+
+1.6
+log
+@Typedef
+@
+text
+@d6 1
+a6 1
+rcs_id[] = "$Header: /m/cad/cake/RCS/file.c,v 1.5 91/09/23 21:44:05 butler Exp Locker: mike $";
+d14 2
+@
+
+
+1.5
+log
+@changes for convex.
+@
+text
+@d6 1
+a6 1
+rcs_id[] = "$Header: /m/cad/cake/RCS/file.c,v 1.4 91/06/12 06:50:42 mike Exp $";
+d401 1
+a401 1
+	extern	long	time();
+d404 1
+a404 1
+	if (time(&val) == -1)
+@
+
+
+1.4
+log
+@Modified carry_out(), action(), and cake_wait() to return an int,
+rather that a "union wait" (aka typedef Wait).
+The Cray UNICOS 5.1 /bin/cc seems unable to successfully return
+a union.
+@
+text
+@d6 1
+a6 1
+rcs_id[] = "$Header: /m/cad/cake/RCS/file.c,v 1.3 90/11/27 16:34:14 mike Exp $";
+d19 1
+a19 6
+#if defined(__convex__)
+	/* This is a hack, because Convex no longer defines struct direct */
+	typedef struct dirent	Dirent;
+#else
+	typedef	struct	direct	Dirent;
+#endif
+@
+
+
+1.3
+log
+@Odd Convex bug
+@
+text
+@d6 1
+a6 1
+rcs_id[] = "$Header: /m/cad/cake/RCS/file.c,v 1.2 88/09/17 04:01:59 mike Exp $";
+d43 1
+a43 1
+		extern	Wait	cake_wait();
+d45 1
+a45 1
+		Wait		code;
+d51 1
+a51 1
+		successful = code.w_status == 0;
+d83 1
+a83 1
+	extern	Wait	cake_wait();
+d85 1
+a85 1
+	Wait		code;
+d91 1
+a91 1
+	if (code.w_status != 0)
+d578 1
+a578 1
+		extern	Wait	cake_wait();
+d582 1
+a582 1
+		Wait		code;
+d615 1
+a615 1
+		if (code.w_status != 0)
+@
+
+
+1.2
+log
+@moved #include of <sys/dir.h> into #ifndef ATT
+@
+text
+@d6 1
+a6 1
+rcs_id[] = "$Header: file.c,v 1.1 88/06/11 00:55:55 mike Locked $";
+d19 6
+a24 1
+typedef	struct	direct		Dirent;
+@
+
+
+1.1
+log
+@Original CAKE version from net.sources
+@
+text
+@d6 1
+a6 1
+rcs_id[] = "$Header: /mip/zs/src/sys/cake/RCS/file.c,v 1.14 86/07/19 12:23:08 zs Exp $";
+a9 1
+#include	<sys/dir.h>
+d12 1
+@

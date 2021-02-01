@@ -1,0 +1,618 @@
+head	1.12;
+access;
+symbols
+	ansi-20040405-merged:1.5.2.2
+	postmerge-20040405-ansi:1.9
+	premerge-20040404-ansi:1.8
+	postmerge-autoconf:1.8
+	autoconf-freeze:1.7.4.1
+	premerge-autoconf:1.8
+	ansi-20040316-freeze:1.5.2.1
+	postmerge-20040315-windows:1.8
+	premerge-20040315-windows:1.8
+	windows-20040315-freeze:1.5.4.1
+	autoconf-20031203:1.7
+	autoconf-20031202:1.7
+	autoconf-branch:1.7.0.4
+	phong-branch:1.7.0.2
+	photonmap-branch:1.5.0.6
+	rel-6-1-DP:1.5
+	windows-branch:1.5.0.4
+	rel-6-0-2:1.3
+	ansi-branch:1.5.0.2
+	rel-6-0-1-branch:1.3.0.2
+	hartley-6-0-post:1.4
+	hartley-6-0-pre:1.3
+	rel-6-0-1:1.3
+	rel-6-0:1.3;
+locks; strict;
+comment	@ * @;
+
+
+1.12
+date	2004.05.24.04.18.40;	author morrison;	state dead;
+branches;
+next	1.11;
+
+1.11
+date	2004.05.10.15.30.41;	author erikg;	state Exp;
+branches;
+next	1.10;
+
+1.10
+date	2004.05.04.20.56.04;	author morrison;	state Exp;
+branches;
+next	1.9;
+
+1.9
+date	2004.04.05.07.50.06;	author morrison;	state Exp;
+branches;
+next	1.8;
+
+1.8
+date	2004.02.02.17.38.58;	author morrison;	state Exp;
+branches;
+next	1.7;
+
+1.7
+date	2003.08.27.18.54.37;	author justin;	state Exp;
+branches
+	1.7.4.1;
+next	1.6;
+
+1.6
+date	2003.08.08.22.38.11;	author morrison;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	2002.08.20.17.07.19;	author jra;	state Exp;
+branches
+	1.5.2.1
+	1.5.4.1
+	1.5.6.1;
+next	1.4;
+
+1.4
+date	2002.08.15.20.54.32;	author hartley;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2001.07.11.17.49.01;	author jra;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2001.04.18.22.23.20;	author bparker;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2001.04.17.20.34.21;	author bparker;	state Exp;
+branches;
+next	;
+
+1.5.2.1
+date	2002.09.19.18.00.33;	author morrison;	state Exp;
+branches;
+next	1.5.2.2;
+
+1.5.2.2
+date	2004.03.17.21.15.52;	author morrison;	state Exp;
+branches;
+next	;
+
+1.5.4.1
+date	2004.03.11.23.40.27;	author morrison;	state Exp;
+branches;
+next	;
+
+1.5.6.1
+date	2003.08.26.14.03.15;	author justin;	state Exp;
+branches;
+next	;
+
+1.7.4.1
+date	2004.02.12.18.39.43;	author erikg;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.12
+log
+@moved to src/bwish/
+@
+text
+@/*
+ *				M A I N . C
+ *
+ *  This file provides the main() function for both BWISH and BTCLSH.
+ *  While initializing Tcl, Itcl and various BRLCAD libraries it sets
+ *  things up to provide command history and command line editing.
+ *
+ *  Author -
+ *	  Robert G. Parker
+ *
+ *  Source -
+ *	The U. S. Army Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005-5068  USA
+ *  
+ *  Distribution Notice -
+ *	Re-distribution of this software is restricted, as described in
+ *	your "Statement of Terms and Conditions for the Release of
+ *	The BRL-CAD Package" license agreement.
+ *
+ *  Copyright Notice -
+ *	This software is Copyright (C) 1998-2004 by the United States Army
+ *	in all countries except the USA.  All rights reserved.
+ *
+ */
+
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+#ifdef BWISH
+#include "itk.h"
+#else
+#include "itcl.h"
+#include "tclInt.h"
+#endif
+
+#include "machine.h"
+#include "externs.h"
+#include "bu.h"
+#include "vmath.h"
+#include "bn.h"
+#include "raytrace.h"
+#ifdef BWISH
+#include "dm.h"
+#endif
+
+/* XXX -- it's probably a bad idea to import itcl/itk/iwidgets into
+ * the global namespace..  allow for easy means to disable the import.
+ */
+#define IMPORT_ITCL	1
+#define IMPORT_ITK	1
+#define IMPORT_IWIDGETS	1
+
+extern int cmdInit(Tcl_Interp *interp);
+extern void Cad_Main(int argc, char **argv, Tcl_AppInitProc (*appInitProc), Tcl_Interp *interp);
+extern void Tk_CreateCanvasBezierType();
+
+static int Cad_AppInit(Tcl_Interp *interp);
+#ifdef BWISH
+Tk_Window tkwin;
+#endif
+
+Tcl_Interp *interp;
+
+
+int
+main(int argc, char **argv)
+{
+	/* Create the interpreter */
+	interp = Tcl_CreateInterp();
+	Cad_Main(argc, argv, Cad_AppInit, interp);
+
+	return 0;
+}
+
+static int
+Cad_AppInit(Tcl_Interp *interp)
+{
+	struct bu_vls vls;
+	char *pathname;
+
+	/* Initialize Tcl */
+	if (Tcl_Init(interp) == TCL_ERROR) {
+		bu_log("Tcl_Init error %s\n", interp->result);
+		return TCL_ERROR;
+	}
+
+#ifdef BWISH
+	/* Initialize Tk */
+	if (Tk_Init(interp) == TCL_ERROR) {
+		bu_log("Tk_Init error %s\n", interp->result);
+		return TCL_ERROR;
+	} 
+	Tcl_StaticPackage(interp, "Tk", Tk_Init, Tk_SafeInit);
+#endif
+
+	/* Initialize [incr Tcl] */
+	if (Itcl_Init(interp) == TCL_ERROR) {
+		bu_log("Itcl_Init error %s\n", interp->result);
+		return TCL_ERROR;
+	}
+	Tcl_StaticPackage(interp, "Itcl", Itcl_Init, Itcl_SafeInit);
+
+#ifdef BWISH
+	/* Initialize [incr Tk] */
+	if (Itk_Init(interp) == TCL_ERROR) {
+		bu_log("Itk_Init error %s\n", interp->result);
+		return TCL_ERROR;
+	}
+	Tcl_StaticPackage(interp, "Itk", Itk_Init, (Tcl_PackageInitProc *) NULL);
+#endif
+
+#ifdef IMPORT_TCL
+	/* Import [incr Tcl] commands into the global namespace. */
+	if (Tcl_Import(interp, Tcl_GetGlobalNamespace(interp),
+		       "::itcl::*", /* allowOverwrite */ 1) != TCL_OK) {
+		bu_log("Tcl_Import error %s\n", interp->result);
+		return TCL_ERROR;
+	}
+#endif
+
+#ifdef BWISH
+
+#  ifdef IMPORT_ITK
+	/* Import [incr Tk] commands into the global namespace */
+	if (Tcl_Import(interp, Tcl_GetGlobalNamespace(interp),
+		       "::itk::*", /* allowOverwrite */ 1) != TCL_OK) {
+		bu_log("Tcl_Import error %s\n", interp->result);
+		return TCL_ERROR;
+	}
+#  endif  /* IMPORT_ITK */
+
+	/* Initialize the Iwidgets package */
+	if (Tcl_Eval(interp, "package require Iwidgets") != TCL_OK) {
+		bu_log("Tcl_Eval error %s\n", interp->result);
+		return TCL_ERROR;
+	}
+
+#  ifdef IMPORT_IWIDGETS
+	/* Import iwidgets into the global namespace */
+	if (Tcl_Import(interp, Tcl_GetGlobalNamespace(interp),
+		       "::iwidgets::*", /* allowOverwrite */ 1) != TCL_OK) {
+		bu_log("Tcl_Import error %s\n", interp->result);
+		return TCL_ERROR;
+	}
+#  endif  /* IMPORT_IWIDGETS */
+
+#endif  /* BWISH */
+
+	if (Tcl_Eval(interp, "auto_mkindex_parser::slavehook { _%@@namespace import -force ::itcl::* }") != TCL_OK) {
+	  return TCL_ERROR;
+	}
+
+#ifdef BWISH
+	if (Tcl_Eval(interp, "auto_mkindex_parser::slavehook { _%@@namespace import -force ::tk::* }") != TCL_OK) {
+	  return TCL_ERROR;
+	}
+	if (Tcl_Eval(interp, "auto_mkindex_parser::slavehook { _%@@namespace import -force ::itk::* }") != TCL_OK) {
+	  return TCL_ERROR;
+	}
+
+	/* Initialize libdm */
+	if (Dm_Init(interp) == TCL_ERROR) {
+		bu_log("Dm_Init error %s\n", interp->result);
+		return TCL_ERROR;
+	}
+	Tcl_StaticPackage(interp, "Dm", Dm_Init, (Tcl_PackageInitProc *) NULL);
+
+	/* Initialize libfb */
+	if (Fb_Init(interp) == TCL_ERROR) {
+		bu_log("Fb_Init error %s\n", interp->result);
+		return TCL_ERROR;
+	}
+	Tcl_StaticPackage(interp, "Fb", Fb_Init, (Tcl_PackageInitProc *) NULL);
+#endif
+
+	/* Initialize libbu */
+	if (Bu_Init(interp) == TCL_ERROR) {
+		bu_log("Bu_Init error %s\n", interp->result);
+		return TCL_ERROR;
+	}
+
+	/* Initialize libbn */
+	if (Bn_Init(interp) == TCL_ERROR) {
+		bu_log("Bn_Init error %s\n", interp->result);
+		return TCL_ERROR;
+	}
+
+	/* Initialize librt */
+	if (Rt_Init(interp) == TCL_ERROR) {
+		bu_log("Rt_Init error %s\n", interp->result);
+		return TCL_ERROR;
+	}
+	Tcl_StaticPackage(interp, "Rt", Rt_Init, (Tcl_PackageInitProc *) NULL);
+
+#ifdef BWISH
+	if ((tkwin = Tk_MainWindow(interp)) == NULL)
+		return TCL_ERROR;
+
+	/* Add Bezier Curves to the canvas widget */
+	Tk_CreateCanvasBezierType();
+#endif
+
+	/* Locate the BRL-CAD-specific Tcl scripts */
+	pathname = bu_brlcad_path("");
+
+	bu_vls_init(&vls);
+	bu_vls_printf(&vls, "lappend auto_path %stclscripts %stclscripts/lib %stclscripts/util",
+		      pathname, pathname, pathname);
+	(void)Tcl_Eval(interp, bu_vls_addr(&vls));
+	bu_vls_free(&vls);
+
+	/* register bwish/btclsh commands */
+	cmdInit(interp);
+
+	return TCL_OK;
+}
+@
+
+
+1.11
+log
+@change conf.h to a wrapped config.h
+@
+text
+@@
+
+
+1.10
+log
+@Survice mods from Bob -- allow compile-time switch to disable importing itcl/itk/iwidgets into the global namespace
+@
+text
+@d26 5
+a30 1
+#include "conf.h"
+@
+
+
+1.9
+log
+@merge of ansi-6-0-branch into HEAD
+@
+text
+@d44 7
+d62 1
+d110 1
+d117 1
+d120 2
+d128 1
+d136 1
+d143 3
+a145 1
+#endif
+@
+
+
+1.8
+log
+@update copyright to include span through 2003
+@
+text
+@d44 2
+a45 2
+extern int cmdInit();
+extern void Cad_Main();
+d48 1
+a48 1
+static int Cad_AppInit();
+d56 1
+a56 3
+main(argc, argv)
+     int argc;
+     char **argv;
+d66 1
+a66 2
+Cad_AppInit(interp)
+     Tcl_Interp *interp;
+@
+
+
+1.7
+log
+@Placed tk and itk auto_mkindex_parser stuff inside BWISH #ifndef
+@
+text
+@d21 1
+a21 1
+ *	This software is Copyright (C) 1998 by the United States Army
+@
+
+
+1.7.4.1
+log
+@merge from HEAD
+@
+text
+@d21 1
+a21 1
+ *	This software is Copyright (C) 1998-2004 by the United States Army
+@
+
+
+1.6
+log
+@added slavehook forced namespace imports for tk and itk
+@
+text
+@d137 2
+a145 1
+#ifdef BWISH
+@
+
+
+1.5
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d137 6
+@
+
+
+1.5.4.1
+log
+@sync to HEAD...
+@
+text
+@d21 1
+a21 1
+ *	This software is Copyright (C) 1998-2004 by the United States Army
+a138 7
+	if (Tcl_Eval(interp, "auto_mkindex_parser::slavehook { _%@@namespace import -force ::tk::* }") != TCL_OK) {
+	  return TCL_ERROR;
+	}
+	if (Tcl_Eval(interp, "auto_mkindex_parser::slavehook { _%@@namespace import -force ::itk::* }") != TCL_OK) {
+	  return TCL_ERROR;
+	}
+
+@
+
+
+1.5.6.1
+log
+@updated for merging
+@
+text
+@a136 6
+	if (Tcl_Eval(interp, "auto_mkindex_parser::slavehook { _%@@namespace import -force ::tk::* }") != TCL_OK) {
+	  return TCL_ERROR;
+	}
+	if (Tcl_Eval(interp, "auto_mkindex_parser::slavehook { _%@@namespace import -force ::itk::* }") != TCL_OK) {
+	  return TCL_ERROR;
+	}
+@
+
+
+1.5.2.1
+log
+@Initial ANSIfication
+@
+text
+@d44 2
+a45 2
+extern int cmdInit(Tcl_Interp *interp);
+extern void Cad_Main(int argc, char **argv, Tcl_AppInitProc (*appInitProc), Tcl_Interp *interp);
+d48 1
+a48 1
+static int Cad_AppInit(Tcl_Interp *interp);
+d56 3
+a58 1
+main(int argc, char **argv)
+d68 2
+a69 1
+Cad_AppInit(Tcl_Interp *interp)
+@
+
+
+1.5.2.2
+log
+@sync branch with HEAD
+@
+text
+@d21 1
+a21 1
+ *	This software is Copyright (C) 1998-2004 by the United States Army
+a135 7
+	if (Tcl_Eval(interp, "auto_mkindex_parser::slavehook { _%@@namespace import -force ::tk::* }") != TCL_OK) {
+	  return TCL_ERROR;
+	}
+	if (Tcl_Eval(interp, "auto_mkindex_parser::slavehook { _%@@namespace import -force ::itk::* }") != TCL_OK) {
+	  return TCL_ERROR;
+	}
+
+@
+
+
+1.4
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d44 2
+a45 2
+extern int cmdInit(Tcl_Interp *interp);
+extern void Cad_Main(int argc, char **argv, Tcl_AppInitProc (*appInitProc), Tcl_Interp *interp);
+d48 1
+a48 1
+static int Cad_AppInit(Tcl_Interp *interp);
+d56 3
+a58 1
+main(int argc, char **argv)
+d68 2
+a69 1
+Cad_AppInit(Tcl_Interp *interp)
+@
+
+
+1.3
+log
+@Added Bezier curves for Canvas widget
+@
+text
+@d44 2
+a45 2
+extern int cmdInit();
+extern void Cad_Main();
+d48 1
+a48 1
+static int Cad_AppInit();
+d56 1
+a56 3
+main(argc, argv)
+     int argc;
+     char **argv;
+d66 1
+a66 2
+Cad_AppInit(interp)
+     Tcl_Interp *interp;
+@
+
+
+1.2
+log
+@*- check return value from Bu_Init and Bn_Init
+@
+text
+@d46 1
+d176 3
+@
+
+
+1.1
+log
+@*- This file used to be bwish.c. It was modified
+   to be used with BWISH and BTCLSH.
+@
+text
+@d154 4
+a157 1
+	Bu_Init(interp);
+d160 4
+a163 1
+	Bn_Init(interp);
+d178 1
+a178 1
+	pathname = bu_brlcad_path( "" );
+d186 1
+a186 1
+	/* register bwish commands */
+a188 14
+	/*
+	 * Specify a user-specific startup file to invoke if the application
+	 * is run interactively.  Typically the startup file is "~/.apprc"
+	 * where "app" is the name of the application.  If this line is deleted
+	 * then no user-specific startup file will be run under any conditions.
+	 */
+
+#if 0
+#ifdef BWISH
+	Tcl_SetVar(interp, "tcl_rcFileName", "~/.bwishrc", TCL_GLOBAL_ONLY);
+#else
+	Tcl_SetVar(interp, "tcl_rcFileName", "~/.btclshrc", TCL_GLOBAL_ONLY);
+#endif
+#endif
+@
+

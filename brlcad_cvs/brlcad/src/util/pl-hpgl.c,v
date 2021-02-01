@@ -1,0 +1,472 @@
+head	14.9;
+access;
+symbols
+	rel-7-10-4:14.8
+	STABLE:14.8.0.2
+	rel-7-10-2:14.8
+	rel-7-10-0:14.8
+	rel-7-8-4:14.5
+	rel-7-8-2:14.5
+	rel-7-8-0:14.5
+	trimnurbs-branch:14.5.0.2
+	help:14.5
+	temp_tag:14.4
+	bobWinPort-20051223-freeze:14.3
+	postmerge-20051223-bobWinPort:14.4
+	premerge-20051223-bobWinPort:14.4
+	rel-7-6-6:14.4
+	rel-7-6-4:14.4
+	rel-7-6-2:14.3
+	rel-7-6-branch:14.3.0.6
+	rel-7-6-0:14.3
+	rel-7-4-2:14.3
+	rel-7-4-branch:14.3.0.4
+	bobWinPort:14.3.0.2
+	rel-7-4-0:14.3
+	rel-7-2-6:14.3
+	rel-7-2-4:14.3
+	rel-7-2-2:14.3
+	rel-7-2-0:14.3
+	rel-7-0-4:14.2
+	rel-7-0-2:14.2
+	rel-7-0-1:14.2
+	opensource-post:14.2
+	opensource-pre:1.2
+	rel-7-0-branch:1.2.0.2
+	rel-7-0:1.2;
+locks; strict;
+comment	@ * @;
+
+
+14.9
+date	2007.09.15.16.23.23;	author brlcad;	state Exp;
+branches;
+next	14.8;
+
+14.8
+date	2007.01.27.01.41.54;	author brlcad;	state Exp;
+branches;
+next	14.7;
+
+14.7
+date	2007.01.23.01.13.56;	author brlcad;	state Exp;
+branches;
+next	14.6;
+
+14.6
+date	2007.01.20.14.37.07;	author brlcad;	state Exp;
+branches;
+next	14.5;
+
+14.5
+date	2006.01.18.06.46.28;	author brlcad;	state Exp;
+branches;
+next	14.4;
+
+14.4
+date	2005.10.23.04.44.39;	author brlcad;	state Exp;
+branches;
+next	14.3;
+
+14.3
+date	2005.01.30.20.31.33;	author brlcad;	state Exp;
+branches
+	14.3.6.1;
+next	14.2;
+
+14.2
+date	2004.12.21.03.45.41;	author butler;	state Exp;
+branches;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.32;	author morrison;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2004.08.02.23.01.53;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.15.21.56;	author morrison;	state Exp;
+branches;
+next	;
+
+14.3.6.1
+date	2005.11.13.13.46.21;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.9
+log
+@more c89 embracing.  c89 provides string.h for all of the various str*() and mem*() functions, so remove the check for its presence.  there is still likely to be work required for strict c89 conformance for the various bsd strings.h functions that may be in use.
+@
+text
+@/*                       P L - H P G L . C
+ * BRL-CAD
+ *
+ * Copyright (c) 2004-2007 United States Government as represented by
+ * the U.S. Army Research Laboratory.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * version 2.1 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this file; see the file named COPYING for more
+ * information.
+ */
+/** @@file pl-hpgl.c
+ *
+ * Description -
+ *	Convert a unix-plot file to hpgl codes.
+ *
+ * Author -
+ *	Mark Huston Bowden
+ *
+ *  Source -
+ *	Research Institute, E-47
+ *	University of Alabama in Huntsville
+ *	Huntsville, AL  35899
+ *	(205) 895-6467 UAH
+ *	(205) 876-1089 Redstone Arsenal
+ */
+#ifndef lint
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/pl-hpgl.c,v 14.8 2007/01/27 01:41:54 brlcad Exp $ (BRL)";
+#endif
+
+#include "common.h"
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+
+#define ASPECT	(9.8/7.1)
+#define	geti(x)	{ (x) = getchar(); (x) |= (short)(getchar()<<8); }
+#define getb(x)	((x) = getchar())
+
+int
+main(int argc, char **argv)
+{
+	char colors[8][3];
+	int	numcolors = 0;
+	int	c,i,x,y,x1,x2,y1,y2,r,g,b;
+
+	if (argc != 1) {
+		printf("Usage: %s < infile > outfile\n",argv[0]);
+		exit(1);
+	}
+
+	getb(c);
+	do {
+		switch (c) {
+		case 'p':		/* point */
+			geti(x);
+			geti(y);
+			printf("PU;\n");
+			printf("PA %d %d;\n",x,y);
+			printf("PD;\n");
+			break;
+		case 'l':		/* line */
+			geti(x1);
+			geti(y1);
+			geti(x2);
+			geti(y2);
+			printf("PU;\n");
+			printf("PA %d %d;\n",x1,y1);
+			printf("PD;\n");
+			printf("PA %d %d;\n",x2,y2);
+			break;
+		case 'f':		/* line style */
+			while( getchar() != '\n');
+			/* set line style ignored */
+			break;
+		case 'm':		/* move */
+			geti(x);
+			geti(y);
+			printf("PU;\n");
+			printf("PA %d %d;\n",x,y);
+			break;
+		case 'n':		/* draw */
+			geti(x);
+			geti(y);
+			printf("PD;\n");
+			printf("PA %d %d;\n",x,y);
+			break;
+		case 't':		/* text */
+			while( getchar() != '\n' );
+			/* draw text ignored */
+			break;
+		case 's':		/* space */
+			geti(x1);
+			geti(y1);
+			geti(x2);
+			geti(y2);
+			x1 *= ASPECT;
+			x2 *= ASPECT;
+			printf("SC %d %d %d %d;\n",x1,x2,y1,y2);
+			printf("SP 1;\n");
+			printf("PU;\n");
+			printf("PA %d %d;\n",x1,y1);
+			printf("PD;\n");
+			printf("PA %d %d;\n",x1,y2);
+			printf("PA %d %d;\n",x2,y2);
+			printf("PA %d %d;\n",x2,y1);
+			printf("PA %d %d;\n",x1,y1);
+			break;
+		case 'C':		/* color */
+			r = getchar();
+			g = getchar();
+			b = getchar();
+			for (i = 0; i < numcolors; i++)
+				if (r == colors[i][0]
+				    &&  g == colors[i][1]
+				    &&  b == colors[i][2])
+					break;
+			if (i < numcolors)
+				i++;
+			else
+				if (numcolors < 8) {
+					colors[numcolors][0] = r;
+					colors[numcolors][1] = g;
+					colors[numcolors][2] = b;
+					numcolors++;
+					i++;
+				}
+				else
+					i = 8;
+			printf("SP %d;\n",i);
+			break;
+		default:
+			fprintf(stderr,"unable to process cmd x%x\n", c);
+			break;
+		}
+		getb(c);
+	} while (!feof(stdin));
+	exit(0);
+}
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+14.8
+log
+@ws. lots and lots of ws.  see sh/ws.sh for details (cases 'abcdeg').
+@
+text
+@d36 1
+a36 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/pl-hpgl.c,v 14.7 2007/01/23 01:13:56 brlcad Exp $ (BRL)";
+a40 1
+
+a42 1
+#ifdef HAVE_STRING_H
+d44 1
+a44 3
+#else
+#include <strings.h>
+#endif
+@
+
+
+14.7
+log
+@Sweeping license updates.  Documentation is fully relicensed to the BSD Documentation License (a minor variant of the FreeBSD Documentation License and BSD License).  All GPL code (mostly application code) is converted to the LGPL and now also specifically declares version 2.1, revoking the blank check to the FSF.  The intent of these sweeping changes are to simplify the licensing terms and increase overall flexibility of use, both externally (to users for their purposes) and internally (to allow application code to be migrated to libraries without creating GPL libraries).  As a collective work, BRL-CAD is now LGPL.
+@
+text
+@d36 1
+a36 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/pl-hpgl.c,v 14.6 2007/01/20 14:37:07 brlcad Exp $ (BRL)";
+a41 1
+
+@
+
+
+14.6
+log
+@update copyright to 2007
+@
+text
+@d8 2
+a9 3
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+d14 1
+a14 1
+ * General Public License for more details.
+d16 2
+a17 2
+ * You should have received a copy of the GNU General Public License
+ * along with this file; see the file named COPYING for more
+d36 1
+a36 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/pl-hpgl.c,v 14.5 2006/01/18 06:46:28 brlcad Exp $ (BRL)";
+@
+
+
+14.5
+log
+@update copyright to 2006
+@
+text
+@d4 1
+a4 1
+ * Copyright (c) 2004-2006 United States Government as represented by
+d37 1
+a37 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/pl-hpgl.c,v 14.4 2005/10/23 04:44:39 brlcad Exp $ (BRL)";
+@
+
+
+14.4
+log
+@trailing ws
+@
+text
+@d4 1
+a4 1
+ * Copyright (C) 2004-2005 United States Government as represented by
+d37 1
+a37 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/pl-hpgl.c,v 14.3 2005/01/30 20:31:33 brlcad Exp $ (BRL)";
+@
+
+
+14.3
+log
+@update copyright to 2005
+@
+text
+@d26 3
+a28 3
+ * Author -  
+ *	Mark Huston Bowden  
+ *  
+d30 2
+a31 2
+ *	Research Institute, E-47 
+ *	University of Alabama in Huntsville  
+d37 1
+a37 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/pl-hpgl.c,v 14.2 2004/12/21 03:45:41 butler Exp $ (BRL)";
+d130 2
+a131 2
+				if (r == colors[i][0] 
+				    &&  g == colors[i][1] 
+d143 1
+a143 1
+				} 
+@
+
+
+14.3.6.1
+log
+@merge changes from HEAD aka rel-7-6-4 to the rel-7-6-branch just in case someone peeks a gander or tries to continue/build the branch
+@
+text
+@d26 3
+a28 3
+ * Author -
+ *	Mark Huston Bowden
+ *
+d30 2
+a31 2
+ *	Research Institute, E-47
+ *	University of Alabama in Huntsville
+d37 1
+a37 1
+static const char RCSid[] = "@@(#)$Header$ (BRL)";
+d130 2
+a131 2
+				if (r == colors[i][0]
+				    &&  g == colors[i][1]
+d143 1
+a143 1
+				}
+@
+
+
+14.2
+log
+@GPL license changes
+@
+text
+@d4 2
+a5 2
+ * Copyright (c) 2004 United States Government as represented by the
+ * U.S. Army Research Laboratory.
+d37 1
+a37 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/util/pl-hpgl.c,v 14.1 2004/11/16 19:42:32 morrison Exp $ (BRL)";
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@d1 21
+a21 2
+/*
+ *			P L - H P G L . C
+a34 3
+ *  
+ *  Distribution Status -
+ *	Public Domain, Distribution Unlimitied.
+d37 1
+a37 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/util/pl-hpgl.c,v 1.2 2004/08/02 23:01:53 morrison Exp $ (BRL)";
+@
+
+
+1.2
+log
+@replace the wrapped config.h block with common.h
+@
+text
+@d21 1
+a21 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/util/pl-hpgl.c,v 1.1 2004/05/20 15:21:56 morrison Exp $ (BRL)";
+d140 10
+@
+
+
+1.1
+log
+@Vast reorganization begins.  Sources moved from top-level directories into src/.
+@
+text
+@d21 1
+a21 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/util/pl-hpgl.c,v 11.9 2004/05/10 15:30:51 erikg Exp $ (BRL)";
+d24 1
+a24 3
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+@
+

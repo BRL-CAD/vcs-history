@@ -1,0 +1,513 @@
+head	11.11;
+access;
+symbols
+	ansi-20040405-merged:11.8.6.1
+	postmerge-20040405-ansi:11.9
+	premerge-20040404-ansi:11.9
+	postmerge-autoconf:11.9
+	autoconf-freeze:11.8.14.1
+	premerge-autoconf:11.9
+	ansi-20040316-freeze:11.8
+	postmerge-20040315-windows:11.9
+	premerge-20040315-windows:11.9
+	windows-20040315-freeze:11.8.8.1
+	autoconf-20031203:11.8
+	autoconf-20031202:11.8
+	autoconf-branch:11.8.0.14
+	phong-branch:11.8.0.12
+	photonmap-branch:11.8.0.10
+	rel-6-1-DP:11.8
+	windows-branch:11.8.0.8
+	rel-6-0-2:11.8
+	ansi-branch:11.8.0.6
+	rel-6-0-1-branch:11.8.0.4
+	hartley-6-0-post:11.8
+	hartley-6-0-pre:11.8
+	rel-6-0-1:11.8
+	rel-6-0:11.8
+	rel-5-4:11.8
+	offsite-5-3-pre:11.8
+	rel-5-3:11.8
+	rel-5-2:11.8
+	rel-5-1-branch:11.8.0.2
+	rel-5-1:11.8
+	rel-5-0:11.7
+	rel-5-0-beta:11.7
+	rel-4-5:11.7
+	ctj-4-5-post:11.7
+	ctj-4-5-pre:11.7
+	rel-4-4:11.5
+	rel-4-0:10.1;
+locks; strict;
+comment	@ * @;
+
+
+11.11
+date	2004.05.24.04.01.07;	author morrison;	state dead;
+branches;
+next	11.10;
+
+11.10
+date	2004.05.10.15.30.42;	author erikg;	state Exp;
+branches;
+next	11.9;
+
+11.9
+date	2004.02.02.17.39.04;	author morrison;	state Exp;
+branches;
+next	11.8;
+
+11.8
+date	2000.03.29.18.42.40;	author mike;	state Exp;
+branches
+	11.8.6.1
+	11.8.8.1
+	11.8.14.1;
+next	11.7;
+
+11.7
+date	96.07.15.19.19.47;	author jra;	state Exp;
+branches;
+next	11.6;
+
+11.6
+date	95.12.06.13.25.06;	author jra;	state Exp;
+branches;
+next	11.5;
+
+11.5
+date	95.01.04.10.07.29;	author mike;	state Rel4_4;
+branches;
+next	11.4;
+
+11.4
+date	94.11.08.14.49.54;	author jra;	state Exp;
+branches;
+next	11.3;
+
+11.3
+date	94.08.22.19.31.35;	author gdurf;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	94.08.22.18.30.00;	author gdurf;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	93.06.28.10.36.56;	author jra;	state Exp;
+branches;
+next	10.1;
+
+10.1
+date	91.10.12.06.45.07;	author mike;	state Rel4_0;
+branches;
+next	1.3;
+
+1.3
+date	91.07.06.03.32.54;	author mike;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	91.06.12.20.27.31;	author mike;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	91.06.12.19.59.04;	author mike;	state Exp;
+branches;
+next	;
+
+11.8.6.1
+date	2004.03.17.21.16.30;	author morrison;	state Exp;
+branches;
+next	;
+
+11.8.8.1
+date	2004.03.11.23.41.13;	author morrison;	state Exp;
+branches;
+next	;
+
+11.8.14.1
+date	2004.02.12.19.41.38;	author erikg;	state Exp;
+branches;
+next	;
+
+
+desc
+@IGES converter
+@
+
+
+11.11
+log
+@moved to src/iges/
+@
+text
+@/*
+ *  Authors -
+ *	John R. Anderson
+ *	Susanne L. Muuss
+ *	Earl P. Weaver
+ *
+ *  Source -
+ *	VLD/ASB Building 1065
+ *	The U. S. Army Ballistic Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005
+ *  
+ *  Copyright Notice -
+ *	This software is Copyright (C) 1990-2004 by the United States Army.
+ *	All rights reserved.
+ */
+
+/*	These functions evaluate a Rational B-Spline Curve */
+
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+
+
+#include <stdio.h>
+
+#include "machine.h"
+#include "vmath.h"
+#include "raytrace.h"		/* for declaration of bu_calloc() */
+
+#undef W		/* from vmath.h */
+
+static fastf_t *knots=(fastf_t *)NULL;
+static int numknots=0;
+
+/* Set the knot values */
+void
+Knot( n , values )
+int n;		/* number of values in knot sequence */
+fastf_t values[];	/* knot values */
+{
+	int i;
+
+	if( n < 2 )
+	{
+		bu_log( "Knot: ERROR %d knot values\n" , n );
+		rt_bomb( "Knot: cannot have less than 2 knot values\n" );
+	}
+
+	if( numknots )
+		bu_free( (char *)knots , "Knot: knots" );
+
+	knots = (fastf_t *)bu_calloc( n , sizeof( fastf_t ) , "Knot: knots" );
+
+	numknots = n;
+
+	for( i=0 ; i<n ; i++ )
+		knots[i] = values[i];
+
+}
+
+void
+Freeknots()
+{
+	bu_free( (char *)knots , "Freeknots: knots" );
+	numknots = 0;
+}
+
+
+/* Evaluate the Basis functions */
+fastf_t
+Basis( i , k , t )
+fastf_t t;	/* parameter value */
+int i;		/* interval number ( 0 through k ) */
+int k;		/* degree of basis function */
+{
+	fastf_t denom1,denom2,retval=0.0;
+
+	if( (i+1) > (numknots-1) )
+	{
+		bu_log( "Error in evaluation of a B-spline Curve\n" );
+		bu_log( "attempt to access knots out of range: numknots=%d i=%d, k=%d\n" , numknots , i , k );
+		return( 0.0 );
+	}
+
+	if( k == 1 )
+	{
+		if( t >= knots[i] && t < knots[i+1] )
+			return( 1.0 );
+		else
+			return( 0.0 );
+	}
+	else
+	{
+		denom1 = knots[i+k-1] - knots[i];
+		denom2 = knots[i+k] - knots[i+1];
+
+		if(denom1 != 0.0 )
+			retval += (t - knots[i])*Basis( i , k-1 , t )/denom1;
+
+		if( denom2 != 0.0 )
+			retval += (knots[i+k] - t)*Basis( i+1 , k-1 , t )/denom2;
+
+		return( retval );
+	}
+}
+
+/* Evaluate a B-Spline curve */
+void
+B_spline( t , m , k , P , W , pt )
+fastf_t t;	/* parameter value */
+int k;		/* order */
+int m;		/* upper limit of sum (number of control points - 1) */
+point_t P[];	/* Control Points (x,y,z) */
+fastf_t W[];	/* Weights for Control Points */
+point_t pt;	/* Evaluated point on spline */
+{
+
+	fastf_t tmp,numer[3],denom=0.0;
+	int i,j;
+
+	for( j=0 ; j<3 ; j++ )
+		numer[j] = 0.0;
+
+	for( i=0 ; i<=m ; i++ )
+	{
+		tmp = W[i]*Basis( i , k , t );
+		denom += tmp;
+		for( j=0 ; j<3 ; j++ )
+			numer[j] += P[i][j]*tmp;
+	}
+
+	for( j=0 ; j<3 ; j++ )
+		pt[j] = numer[j]/denom;
+}
+
+
+	
+@
+
+
+11.10
+log
+@change conf.h to a wrapped config.h
+@
+text
+@@
+
+
+11.9
+log
+@update copyright to include span through 2003
+@
+text
+@d19 5
+a23 1
+#include "conf.h"
+@
+
+
+11.8
+log
+@
+Converted from Release 4 names to know about libbu and libbn
+@
+text
+@d13 1
+a13 1
+ *	This software is Copyright (C) 1990 by the United States Army.
+@
+
+
+11.8.6.1
+log
+@sync branch with HEAD
+@
+text
+@d13 1
+a13 1
+ *	This software is Copyright (C) 1990-2004 by the United States Army.
+@
+
+
+11.8.8.1
+log
+@sync to HEAD...
+@
+text
+@d13 1
+a13 1
+ *	This software is Copyright (C) 1990-2004 by the United States Army.
+@
+
+
+11.8.14.1
+log
+@merge from HEAD
+@
+text
+@d13 1
+a13 1
+ *	This software is Copyright (C) 1990-2004 by the United States Army.
+@
+
+
+11.7
+log
+@Minor Mods for IRIX 6.2
+@
+text
+@d25 1
+a25 1
+#include "raytrace.h"		/* for declaration of rt_calloc() */
+d42 1
+a42 1
+		rt_log( "Knot: ERROR %d knot values\n" , n );
+d47 1
+a47 1
+		rt_free( (char *)knots , "Knot: knots" );
+d49 1
+a49 1
+	knots = (fastf_t *)rt_calloc( n , sizeof( fastf_t ) , "Knot: knots" );
+d61 1
+a61 1
+	rt_free( (char *)knots , "Freeknots: knots" );
+d77 2
+a78 2
+		rt_log( "Error in evaluation of a B-spline Curve\n" );
+		rt_log( "attempt to access knots out of range: numknots=%d i=%d, k=%d\n" , numknots , i , k );
+@
+
+
+11.6
+log
+@All logging done via rt_log
+@
+text
+@d58 1
+@
+
+
+11.5
+log
+@Release_4.4
+@
+text
+@d76 2
+a77 2
+		fprintf( stderr , "Error in evaluation of a B-spline Curve\n" );
+		fprintf( stderr, "attempt to access knots out of range: numknots=%d i=%d, k=%d\n" , numknots , i , k );
+@
+
+
+11.4
+log
+@Mods for Irix 6.
+@
+text
+@@
+
+
+11.3
+log
+@Factored ifdefs
+@
+text
+@d25 1
+d29 1
+a29 1
+static fastf_t maxknot,*knots=NULL;
+a55 1
+	maxknot = knots[n-1];
+d69 1
+a69 1
+int i;		/* interval number ( 0 through k )
+@
+
+
+11.2
+log
+@Changes by jra
+@
+text
+@d19 2
+d22 1
+@
+
+
+11.1
+log
+@Major Upgrade to IGES 5.1
+@
+text
+@d25 1
+a25 1
+static float maxknot,*knots=NULL;
+d29 1
+d32 1
+a32 1
+float values[];	/* knot values */
+d36 10
+a45 3
+	if( knots != NULL )
+		free( knots );
+	knots = (float *)calloc( n , sizeof( float ) );
+d57 2
+a58 1
+	free( knots );
+d63 3
+a65 2
+float Basis( i , k , t )
+float t;	/* parameter value */
+d69 1
+a69 1
+	float denom1,denom2,retval=0.0;
+d101 1
+d103 1
+a103 1
+float t;	/* parameter value */
+d106 2
+a107 2
+float P[][3];	/* Control Points (x,y,z) */
+float W[];	/* Weights for Control Points */
+d111 1
+a111 1
+	double tmp,numer[3],denom=0.0;
+d117 1
+a117 1
+	for( i=0 ; i<m ; i++ )
+@
+
+
+10.1
+log
+@Release_4.0
+@
+text
+@@
+
+
+1.3
+log
+@<malloc.h> was unneeded.  It does not exist on all machines.
+@
+text
+@@
+
+
+1.2
+log
+@Modified for Release 4.0
+@
+text
+@a18 1
+#include <malloc.h>
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d24 2
+@

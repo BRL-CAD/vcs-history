@@ -1,0 +1,256 @@
+head	1.2;
+access;
+symbols
+	rel-6-1-DP:1.1.1.1
+	rel-6-0-2:1.1.1.1
+	rel-6-0-1-branch:1.1.1.1.0.4
+	hartley-6-0-post:1.1.1.1
+	hartley-6-0-pre:1.1.1.1
+	rel-6-0-1:1.1.1.1
+	rel-6-0:1.1.1.1
+	rel-5-4:1.1.1.1
+	offsite-5-3-pre:1.1.1.1
+	rel-5-3:1.1.1.1
+	rel-5-1-branch:1.1.1.1.0.2
+	windows-6-0-branch:1.1.1.1.0.8
+	ansi-6-0-branch:1.1.1.1.0.6
+	tk8-3:1.1.1.1
+	scriptics:1.1.1;
+locks; strict;
+comment	@# @;
+
+
+1.2
+date	2003.03.13.19.14.08;	author jra;	state dead;
+branches;
+next	1.1;
+
+1.1
+date	2000.12.06.21.34.18;	author bparker;	state Exp;
+branches
+	1.1.1.1;
+next	;
+
+1.1.1.1
+date	2000.12.06.21.34.18;	author bparker;	state Exp;
+branches
+	1.1.1.1.6.1
+	1.1.1.1.8.1;
+next	;
+
+1.1.1.1.6.1
+date	2004.03.17.07.31.45;	author morrison;	state dead;
+branches;
+next	;
+
+1.1.1.1.8.1
+date	2004.03.15.17.37.25;	author morrison;	state dead;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.2
+log
+@*** empty log message ***
+@
+text
+@# This file is a Tcl script to test the procedures in the file
+# tkWindow.c.  It is organized in the standard fashion for Tcl tests.
+#
+# Copyright (c) 1995 Sun Microsystems, Inc.
+# Copyright (c) 1998-1999 by Scriptics Corporation.
+# All rights reserved.
+#
+# RCS: @@(#) $Id: window.test,v 1.1 2000/12/06 21:34:18 bparker Exp $
+
+if {[lsearch [namespace children] ::tcltest] == -1} {
+    source [file join [pwd] [file dirname [info script]] defs.tcl]
+}
+
+foreach i [winfo children .] {
+    destroy $i
+}
+wm geometry . {}
+raise .
+update
+
+# XXX This file is woefully incomplete.  Right now it only tests
+# a few parts of a few procedures in tkWindow.c
+
+test window-1.1 {Tk_CreateWindowFromPath procedure, parent dead} {
+    proc bgerror msg {
+	global x errorInfo
+	set x [list $msg $errorInfo]
+    }
+    set x unchanged
+    catch {destroy .t}
+    frame .t -width 100 -height 50
+    place .t -x 10 -y 10
+    bind .t <Destroy> {button .t.b -text hello; pack .t.b}
+    update
+    destroy .t
+    update
+    rename bgerror {}
+    set x
+} {{can't create window: parent has been destroyed} {can't create window: parent has been destroyed
+    while executing
+"button .t.b -text hello"
+    (command bound to event)}}
+
+# Most of the tests below don't produce meaningful results;  they
+# will simply dump core if there are bugs.
+
+test window-2.1 {Tk_DestroyWindow procedure, destroy handler deletes parent} {
+    toplevel .t -width 300 -height 200
+    wm geometry .t +0+0
+    frame .t.f  -width 200 -height 200 -relief raised -bd 2
+    place .t.f -x 0 -y 0
+    frame .t.f.f -width 100 -height 100 -relief raised -bd 2
+    place .t.f.f -relx 1 -rely 1 -anchor se
+    bind .t.f <Destroy> {destroy .t}
+    update
+    destroy .t.f
+} {}
+test window-2.2 {Tk_DestroyWindow procedure, destroy handler deletes parent} {
+    toplevel .t -width 300 -height 200
+    wm geometry .t +0+0
+    frame .t.f  -width 200 -height 200 -relief raised -bd 2
+    place .t.f -x 0 -y 0
+    frame .t.f.f -width 100 -height 100 -relief raised -bd 2
+    place .t.f.f -relx 1 -rely 1 -anchor se
+    bind .t.f.f <Destroy> {destroy .t}
+    update
+    destroy .t.f
+} {}
+test window-2.3 {Tk_DestroyWindow procedure, destroy handler deletes parent} {
+    frame .f -width 80 -height 120 -relief raised -bd 2
+    place .f -relx 0.5 -rely 0.5 -anchor center
+    toplevel .f.t -width 300 -height 200
+    wm geometry .f.t +0+0
+    frame .f.t.f  -width 200 -height 200 -relief raised -bd 2
+    place .f.t.f -x 0 -y 0
+    frame .f.t.f.f -width 100 -height 100 -relief raised -bd 2
+    place .f.t.f.f -relx 1 -rely 1 -anchor se
+    update
+    destroy .f
+} {}
+
+# Some tests require the testmenubar command
+set ::tcltest::testConfig(testmenubar) \
+	[expr {[info commands testmenubar] != {}}]
+
+test window-3.1 {Tk_MakeWindowExist procedure, stacking order and menubars} \
+	{unixOnly testmenubar} {
+    catch {destroy .t}
+    toplevel .t -width 300 -height 200
+    wm geometry .t +0+0
+    pack [entry .t.e]
+    frame .t.f -bd 2 -relief raised
+    testmenubar window .t .t.f
+    update
+    # If stacking order isn't handle properly, generates an X error.
+} {}
+test window-3.2 {Tk_MakeWindowExist procedure, stacking order and menubars} \
+	{unixOnly testmenubar} {
+    catch {destroy .t}
+    toplevel .t -width 300 -height 200
+    wm geometry .t +0+0
+    pack [entry .t.e]
+    pack [entry .t.e2]
+    update
+    frame .t.f -bd 2 -relief raised
+    raise .t.f .t.e
+    testmenubar window .t .t.f
+    update
+    # If stacking order isn't handled properly, generates an X error.
+} {}
+
+test window-4.1 {Tk_NameToWindow procedure} {testmenubar} {
+    catch {destroy .t}
+    list [catch {winfo geometry .t} msg] $msg
+} {1 {bad window path name ".t"}}
+test window-4.2 {Tk_NameToWindow procedure} {testmenubar} {
+    catch {destroy .t}
+    frame .t -width 100 -height 50
+    place .t -x 10 -y 10
+    update
+    list [catch {winfo geometry .t} msg] $msg
+} {0 100x50+10+10}
+
+test window-5.1 {Tk_MakeWindowExist procedure, stacking order and menubars} \
+	{unixOnly testmenubar} {
+    catch {destroy .t}
+    toplevel .t -width 300 -height 200
+    wm geometry .t +0+0
+    pack [entry .t.e]
+    pack [entry .t.e2]
+    frame .t.f -bd 2 -relief raised
+    testmenubar window .t .t.f
+    update
+    lower .t.e2 .t.f
+    update
+    # If stacking order isn't handled properly, generates an X error.
+} {}
+
+# cleanup
+::tcltest::cleanupTests
+return
+
+
+
+
+
+
+
+
+
+
+
+
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d8 1
+a8 1
+# RCS: @@(#) $Id: window.test,v 1.4 1999/04/16 01:51:44 stanton Exp $
+@
+
+
+1.1.1.1
+log
+@Import tk8.3
+@
+text
+@@
+
+
+1.1.1.1.6.1
+log
+@sync branch with HEAD
+@
+text
+@d8 1
+a8 1
+# RCS: @@(#) $Id: window.test,v 1.1.1.1 2000/12/06 21:34:18 bparker Exp $
+@
+
+
+1.1.1.1.8.1
+log
+@sync with HEAD -- libtk8.3 is now libtk8.4
+@
+text
+@d8 1
+a8 1
+# RCS: @@(#) $Id: window.test,v 1.1.1.1 2000/12/06 21:34:18 bparker Exp $
+@
+

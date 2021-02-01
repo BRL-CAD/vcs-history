@@ -1,0 +1,402 @@
+head	11.10;
+access;
+symbols
+	ansi-20040405-merged:11.8.2.1
+	postmerge-20040405-ansi:11.9
+	premerge-20040404-ansi:11.8
+	postmerge-autoconf:11.8
+	autoconf-freeze:11.8
+	premerge-autoconf:11.8
+	postmerge-20040315-windows:11.8
+	premerge-20040315-windows:11.8
+	windows-20040315-freeze:11.8
+	autoconf-20031203:11.8
+	autoconf-20031202:11.8
+	autoconf-branch:11.8.0.10
+	phong-branch:11.8.0.8
+	photonmap-branch:11.8.0.6
+	rel-6-1-DP:11.8
+	windows-branch:11.8.0.4
+	rel-6-0-2:11.6
+	ansi-branch:11.8.0.2
+	rel-6-0-1-branch:11.6.0.2
+	hartley-6-0-post:11.7
+	hartley-6-0-pre:11.6
+	rel-6-0-1:11.6
+	rel-6-0:11.6
+	rel-5-4:11.2
+	offsite-5-3-pre:11.6
+	rel-5-3:11.2
+	rel-5-2:11.2
+	rel-5-1-branch:11.2.0.2
+	rel-5-1:11.2
+	rel-5-0:11.1
+	rel-5-0-beta:11.1
+	rel-4-5:11.1
+	ctj-4-5-post:11.1
+	ctj-4-5-pre:11.1
+	rel-4-4:11.1;
+locks; strict;
+comment	@ * @;
+
+
+11.10
+date	2004.05.21.17.33.46;	author morrison;	state dead;
+branches;
+next	11.9;
+
+11.9
+date	2004.04.05.05.45.58;	author morrison;	state Exp;
+branches;
+next	11.8;
+
+11.8
+date	2002.08.20.17.08.35;	author jra;	state Exp;
+branches
+	11.8.2.1;
+next	11.7;
+
+11.7
+date	2002.08.15.20.55.46;	author hartley;	state Exp;
+branches;
+next	11.6;
+
+11.6
+date	2000.07.10.23.38.22;	author mike;	state Exp;
+branches;
+next	11.5;
+
+11.5
+date	2000.07.10.23.35.40;	author mike;	state Exp;
+branches;
+next	11.4;
+
+11.4
+date	2000.07.10.23.29.25;	author mike;	state Exp;
+branches;
+next	11.3;
+
+11.3
+date	2000.07.10.23.28.31;	author mike;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	2000.03.31.03.07.32;	author mike;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	95.01.04.10.06.19;	author mike;	state Rel4_4;
+branches;
+next	1.1;
+
+1.1
+date	94.10.20.00.09.38;	author mike;	state Exp;
+branches;
+next	;
+
+11.8.2.1
+date	2002.09.19.18.02.13;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@A spline test program.
+@
+
+
+11.10
+log
+@moved to src/proc-db/
+@
+text
+@/*
+ * spltest.c
+ *
+ *  Simple spline test.
+ */
+#ifndef lint
+static const char RCSid[] = "@@(#)$Header: /n/xoff/cvs/brlcad/proc-db/spltest.c,v 11.9 2004/04/05 05:45:58 morrison Exp $ (BRL)";
+#endif
+
+#include <stdio.h>
+#include <math.h>
+#include "machine.h"
+#include "vmath.h"
+#include "rtlist.h"
+#include "nurb.h"
+#include "raytrace.h"
+#include "rtgeom.h"
+#include "wdb.h"
+
+struct rt_nurb_internal	si;
+
+void make_face( point_t a, point_t b, point_t c, point_t d, int order);
+
+main(int argc, char **argv)
+{
+	point_t	a,b,c,d;
+
+	si.magic = RT_NURB_INTERNAL_MAGIC;
+	si.nsrf = 0;
+	si.srfs = (struct face_g_snurb **)bu_malloc( sizeof(struct face_g_snurb *)*100, "snurb ptrs");
+
+	mk_id( stdout, "Mike's Spline Test" );
+
+	VSET( a,  0,  0,  0 );
+	VSET( b, 10,  0,  0 );
+	VSET( c, 10, 10,  0 );
+	VSET( d,  0, 10,  0 );
+
+	make_face( a, b, c, d, 2 );
+
+	mk_export_fwrite( stdout, "spl", (genptr_t)&si, ID_BSPLINE );
+}
+
+void
+make_face(fastf_t *a, fastf_t *b, fastf_t *c, fastf_t *d, int order)
+{
+	register struct face_g_snurb	*srf;
+	int	interior_pts = 0;
+	int	cur_kv;
+	int	i;
+	int	ki;
+	register fastf_t	*fp;
+
+	srf = rt_nurb_new_snurb( order, order,
+		2*order+interior_pts, 2*order+interior_pts,	/* # knots */
+		2+interior_pts, 2+interior_pts,
+		RT_NURB_MAKE_PT_TYPE(3, RT_NURB_PT_XYZ, RT_NURB_PT_NONRAT ),
+		&rt_uniresource );
+
+	/* Build both knot vectors */
+	cur_kv = 0;		/* current knot value */
+	ki = 0;			/* current knot index */
+	for( i=0; i<order; i++, ki++ )  {
+		srf->u.knots[ki] = srf->v.knots[ki] = cur_kv;
+	}
+	cur_kv++;
+	for( i=0; i<interior_pts; i++, ki++ )  {
+		srf->u.knots[ki] = srf->v.knots[ki] = cur_kv++;
+	}
+	for( i=0; i<order; i++, ki++ )  {
+		srf->u.knots[ki] = srf->v.knots[ki] = cur_kv;
+	}
+
+	rt_nurb_pr_kv( &srf->u );
+
+	/*
+	 *  The control mesh is stored in row-major order.
+	 */
+	/* Head from point A to B */
+#if 0
+	row = 0;
+	for( col=0; col < srf->s_curve[1]; col++ )  {
+		fp = &srf->ctl_points[col*srf->s_curve[1]+row];
+		VSET( fp
+	}
+#endif
+
+#define SSET(_col, _row, _val)	{ \
+	fp = &srf->ctl_points[((_col*srf->s_size[1])+_row)*3]; \
+	VMOVE( fp, _val ); }
+
+	/* VADD2SCALE( mid, a, b, 0.5 ); */
+	SSET( 0, 0, a );
+	SSET( 0, 1, b );
+	SSET( 1, 0, d );
+	SSET( 1, 1, c );
+
+	si.srfs[si.nsrf++] = srf;
+}
+@
+
+
+11.9
+log
+@merge of ansi-6-0-branch into head
+@
+text
+@d7 1
+a7 1
+static const char RCSid[] = "@@(#)$Header$ (BRL)";
+@
+
+
+11.8
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d7 1
+a7 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/proc-db/spltest.c,v 11.6 2000/07/10 23:38:22 mike Exp $ (BRL)";
+d24 1
+a24 2
+main(argc, argv)
+char	**argv;
+d45 1
+a45 3
+make_face( a, b, c, d, order )
+point_t	a,b,c,d;
+int	order;
+@
+
+
+11.8.2.1
+log
+@Initial ANSIfication
+@
+text
+@d7 1
+a7 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/proc-db/spltest.c,v 11.8 2002/08/20 17:08:35 jra Exp $ (BRL)";
+d24 2
+a25 1
+main(int argc, char **argv)
+d46 3
+a48 1
+make_face(fastf_t *a, fastf_t *b, fastf_t *c, fastf_t *d, int order)
+@
+
+
+11.7
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d24 2
+a25 1
+main(int argc, char **argv)
+d46 3
+a48 1
+make_face(fastf_t *a, fastf_t *b, fastf_t *c, fastf_t *d, int order)
+@
+
+
+11.6
+log
+@
+const RCSid
+@
+text
+@d7 1
+a7 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/proc-db/spltest.c,v 11.5 2000/07/10 23:35:40 mike Exp $ (BRL)";
+d24 1
+a24 2
+main(argc, argv)
+char	**argv;
+d45 1
+a45 3
+make_face( a, b, c, d, order )
+point_t	a,b,c,d;
+int	order;
+@
+
+
+11.5
+log
+@
+raytrace.h before wdb.h
+Eliminated use of db.h
+@
+text
+@d7 1
+a7 1
+static char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/proc-db/spltest.c,v 11.4 2000/07/10 23:29:25 mike Exp $ (BRL)";
+@
+
+
+11.4
+log
+@
+function declaration
+@
+text
+@d7 1
+a7 1
+static char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/proc-db/spltest.c,v 11.3 2000/07/10 23:28:31 mike Exp $ (BRL)";
+a12 1
+#include "db.h"
+@
+
+
+11.3
+log
+@
+Upgraded from snurb to face_g_snurb.
+@
+text
+@d7 1
+a7 1
+static char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/proc-db/spltest.c,v 11.2 2000/03/31 03:07:32 mike Exp $ (BRL)";
+d22 2
+@
+
+
+11.2
+log
+@
+Changed RT_ to BU_ / BN_
+@
+text
+@d7 1
+a7 1
+static char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/proc-db/spltest.c,v 11.1 1995/01/04 10:06:19 mike Rel4_4 $ (BRL)";
+d17 1
+d30 1
+a30 1
+	si.srfs = (struct snurb **)bu_malloc( sizeof(struct snurb *)*100, "snurb ptrs");
+d44 1
+d49 1
+a49 1
+	register struct snurb	*srf;
+a54 1
+	point_t	mid;
+d59 2
+a60 1
+		RT_NURB_MAKE_PT_TYPE(3, RT_NURB_PT_XYZ, RT_NURB_PT_NONRAT ) );
+d66 1
+a66 1
+		srf->u_knots.knots[ki] = srf->v_knots.knots[ki] = cur_kv;
+d70 1
+a70 1
+		srf->u_knots.knots[ki] = srf->v_knots.knots[ki] = cur_kv++;
+d73 1
+a73 1
+		srf->u_knots.knots[ki] = srf->v_knots.knots[ki] = cur_kv;
+d76 1
+a76 1
+	rt_nurb_pr_kv( &srf->u_knots );
+d94 1
+a94 1
+	VADD2SCALE( mid, a, b, 0.5 );
+@
+
+
+11.1
+log
+@Release_4.4
+@
+text
+@d7 1
+a7 1
+static char RCSid[] = "@@(#)$Header: /m/cad/proc-db/RCS/spltest.c,v 1.1 94/10/20 00:09:38 mike Exp $ (BRL)";
+d29 1
+a29 1
+	si.srfs = (struct snurb **)rt_malloc( sizeof(struct snurb *)*100, "snurb ptrs");
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d7 1
+a7 1
+static char RCSid[] = "@@(#)$Header: /m/cad/proc-db/RCS/tube.c,v 10.3 92/05/29 01:27:59 mike Exp $ (BRL)";
+@

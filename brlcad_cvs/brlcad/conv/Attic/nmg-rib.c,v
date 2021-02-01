@@ -1,0 +1,767 @@
+head	11.16;
+access;
+symbols
+	ansi-20040405-merged:11.14.2.1
+	postmerge-20040405-ansi:11.15
+	premerge-20040404-ansi:11.14
+	postmerge-autoconf:11.14
+	autoconf-freeze:11.14
+	premerge-autoconf:11.14
+	ansi-20040316-freeze:11.14.2.1
+	postmerge-20040315-windows:11.14
+	premerge-20040315-windows:11.14
+	windows-20040315-freeze:11.14
+	autoconf-20031203:11.14
+	autoconf-20031202:11.14
+	autoconf-branch:11.14.0.10
+	phong-branch:11.14.0.8
+	photonmap-branch:11.14.0.6
+	rel-6-1-DP:11.14
+	windows-branch:11.14.0.4
+	rel-6-0-2:11.12
+	ansi-branch:11.14.0.2
+	rel-6-0-1-branch:11.12.0.2
+	hartley-6-0-post:11.13
+	hartley-6-0-pre:11.12
+	rel-6-0-1:11.12
+	rel-6-0:11.12
+	rel-5-4:11.7
+	offsite-5-3-pre:11.11
+	rel-5-3:11.7
+	rel-5-2:11.7
+	rel-5-1-branch:11.7.0.2
+	rel-5-1:11.7
+	rel-5-0:11.5
+	rel-5-0-beta:11.4
+	rel-4-5:11.3
+	ctj-4-5-post:11.2
+	ctj-4-5-pre:11.2
+	rel-4-4:11.1;
+locks; strict;
+comment	@ * @;
+
+
+11.16
+date	2004.05.24.04.16.13;	author morrison;	state dead;
+branches;
+next	11.15;
+
+11.15
+date	2004.04.05.07.49.36;	author morrison;	state Exp;
+branches;
+next	11.14;
+
+11.14
+date	2002.08.20.17.07.22;	author jra;	state Exp;
+branches
+	11.14.2.1;
+next	11.13;
+
+11.13
+date	2002.08.15.20.54.35;	author hartley;	state Exp;
+branches;
+next	11.12;
+
+11.12
+date	2001.03.31.01.56.23;	author morrison;	state Exp;
+branches;
+next	11.11;
+
+11.11
+date	2000.09.08.05.55.42;	author mike;	state Exp;
+branches;
+next	11.10;
+
+11.10
+date	2000.07.21.12.44.34;	author jra;	state Exp;
+branches;
+next	11.9;
+
+11.9
+date	2000.07.12.21.59.35;	author mike;	state Exp;
+branches;
+next	11.8;
+
+11.8
+date	2000.07.10.23.53.59;	author mike;	state Exp;
+branches;
+next	11.7;
+
+11.7
+date	99.12.30.18.41.14;	author jra;	state Exp;
+branches;
+next	11.6;
+
+11.6
+date	99.12.29.23.23.03;	author mike;	state Exp;
+branches;
+next	11.5;
+
+11.5
+date	99.06.03.21.54.21;	author mike;	state Exp;
+branches;
+next	11.4;
+
+11.4
+date	98.09.14.15.58.51;	author bparker;	state Exp;
+branches;
+next	11.3;
+
+11.3
+date	97.07.22.19.52.01;	author jra;	state Exp;
+branches;
+next	11.2;
+
+11.2
+date	96.07.12.13.20.17;	author jra;	state Exp;
+branches;
+next	11.1;
+
+11.1
+date	95.01.04.09.59.39;	author mike;	state Rel4_4;
+branches;
+next	1.2;
+
+1.2
+date	94.10.17.17.06.02;	author mike;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	94.10.12.00.37.41;	author butler;	state Exp;
+branches;
+next	;
+
+11.14.2.1
+date	2002.09.19.18.00.37;	author morrison;	state Exp;
+branches;
+next	;
+
+
+desc
+@Convert NMG to RenderMan Polygons
+@
+
+
+11.16
+log
+@moved to src/conv/
+@
+text
+@/*	N M G - R I B
+ *
+ *	Convert a polygonal model from NMG's to RIB format polygons.
+ *
+ *	Options
+ *	h	help
+ *
+ *  Author -
+ *	Lee A. Butler
+ *  
+ *  Source -
+ *	The U. S. Army Research Laboratory
+ *	Aberdeen Proving Ground, Maryland  21005-5068  USA
+ *  
+ *  Distribution Status -
+ *	Public Domain, Distribution Unlimited.
+ */
+#ifndef lint
+static const char RCSid[] = "@@(#)$Header: /n/xoff/cvs/brlcad/conv/nmg-rib.c,v 11.15 2004/04/05 07:49:36 morrison Exp $ (ARL)";
+#endif
+
+#include <stdio.h>
+#include <math.h>
+#include "machine.h"
+#include "vmath.h"
+#include "nmg.h"
+#include "raytrace.h"
+
+/* declarations to support use of getopt() system call */
+char *options = "ht";
+extern char *optarg;
+extern int optind, opterr, getopt(int, char *const *, const char *);
+
+char *progname = "(noname)";
+int triangulate = 0;
+
+/*
+ *	U S A G E --- tell user how to invoke this program, then exit
+ */
+void usage(char *s)
+{
+	if (s) (void)fputs(s, stderr);
+
+	(void) fprintf(stderr, "Usage: %s [-t] file.g nmg_solid [ nmg_solid ... ]\n",
+			progname);
+	exit(1);
+}
+
+/*
+ *	P A R S E _ A R G S --- Parse through command line flags
+ */
+int parse_args(int ac, char **av)
+{
+	int  c;
+	char *strrchr(const char *, int);
+
+	if (  ! (progname=strrchr(*av, '/'))  )
+		progname = *av;
+	else
+		++progname;
+	
+	/* Turn off getopt's error messages */
+	opterr = 0;
+
+	/* get all the option flags from the command line */
+	while ((c=getopt(ac,av,options)) != EOF)
+		switch (c) {
+		case 't'	: triangulate = !triangulate; break;
+		case '?'	:
+		case 'h'	:
+		default		: usage("Bad or help flag specified\n"); break;
+		}
+
+	return(optind);
+}
+
+static void
+lu_to_rib(struct loopuse *lu, fastf_t *fu_normal, struct bu_vls *norms, struct bu_vls *points)
+{
+	struct edgeuse *eu;
+	struct vertexuse *vu;
+
+	NMG_CK_LOOPUSE(lu);
+
+	if (BU_LIST_FIRST_MAGIC( &lu->down_hd ) == NMG_EDGEUSE_MAGIC) {
+		for (BU_LIST_FOR(eu, edgeuse, &lu->down_hd)) {
+			NMG_CK_EDGEUSE(eu);
+			NMG_CK_VERTEXUSE(eu->vu_p);
+			NMG_CK_VERTEX(eu->vu_p->v_p);
+			NMG_CK_VERTEX_G(eu->vu_p->v_p->vg_p);
+			bu_vls_printf(points, "%g %g %g  ",
+				V3ARGS(eu->vu_p->v_p->vg_p->coord));
+
+			if (eu->vu_p->a.magic_p && *eu->vu_p->a.magic_p == NMG_VERTEXUSE_A_PLANE_MAGIC)
+				bu_vls_printf(norms, "%g %g %g  ",
+					V3ARGS(eu->vu_p->a.plane_p->N));
+			else
+				bu_vls_printf(norms, "%g %g %g  ",
+					V3ARGS(fu_normal));
+		}
+	} else if (BU_LIST_FIRST_MAGIC( &lu->down_hd ) == NMG_VERTEXUSE_MAGIC) {
+		vu = BU_LIST_FIRST(vertexuse,  &lu->down_hd );
+		bu_vls_printf(points, "%g %g %g", V3ARGS(vu->v_p->vg_p->coord));
+		if (*vu->a.magic_p == NMG_VERTEXUSE_A_PLANE_MAGIC)
+			bu_vls_printf(norms, "%g %g %g  ",
+				V3ARGS(vu->a.plane_p->N));
+		else
+			bu_vls_printf(norms, "%g %g %g  ",
+				V3ARGS(fu_normal));
+	} else {
+		rt_bomb("bad child of loopuse\n");
+	}
+}
+
+void
+nmg_to_rib(struct model *m)
+{
+	struct bn_tol tol;
+	struct nmgregion *r;
+	struct shell *s;
+	struct faceuse *fu;
+	struct loopuse *lu;
+	struct bu_vls points;
+	struct bu_vls norms;
+	vect_t fu_normal;
+
+	tol.magic = BN_TOL_MAGIC;
+	tol.dist = 0.05;
+	tol.dist_sq = 0.0025;
+	tol.perp = 0.00001;
+	tol.para = 0.99999;
+
+
+	if (triangulate)
+		nmg_triangulate_model(m, &tol);
+
+	bu_vls_init(&norms);
+	bu_vls_init(&points);
+
+	for (BU_LIST_FOR(r, nmgregion, &m->r_hd))
+	    for (BU_LIST_FOR(s, shell, &r->s_hd))
+		for (BU_LIST_FOR(fu, faceuse, &s->fu_hd)) {
+		    if (fu->orientation != OT_SAME)
+		    	continue;
+
+		    NMG_GET_FU_NORMAL(fu_normal, fu);
+
+		    for (BU_LIST_FOR(lu, loopuse, &fu->lu_hd)) {
+		    	bu_vls_strcpy(&norms, "");
+		    	bu_vls_strcpy(&points, "");
+			lu_to_rib(lu, fu_normal, &norms, &points);
+		    	printf("Polygon \"P\" [ %s ] \"N\" [ %s ]\n",
+		    		bu_vls_addr(&points), bu_vls_addr(&norms));
+		    }
+		}
+}
+
+
+/*
+ *	M A I N
+ *
+ *	Call parse_args to handle command line arguments first, then
+ *	process input.
+ */
+int main(int ac, char **av)
+{
+	int arg_index;
+	struct rt_db_internal ip;
+	struct directory *dp;
+	struct db_i *dbip;
+	mat_t my_mat;
+
+	/* parse command flags, and make sure there are arguments
+	 * left over for processing.
+	 */
+	if ((arg_index = parse_args(ac, av)) >= ac) usage("No extra args specified\n");
+
+	rt_init_resource( &rt_uniresource, 0, NULL );
+
+	/* open the database */
+	if ((dbip = db_open(av[arg_index], "r")) == DBI_NULL) {
+		perror(av[arg_index]);
+		exit(-1);
+	}
+
+	if (++arg_index >= ac) usage("No NMG specified\n");
+
+	db_dirbuild( dbip );
+
+	/* process each remaining argument */
+	for ( ; arg_index < ac ; arg_index++ ) {
+
+		if ( ! (dp = db_lookup(dbip, av[arg_index], 1)) ) {
+			fprintf(stderr, "%s: db_lookup failed\n", progname);
+			exit(-1);
+		}
+		
+		MAT_IDN( my_mat );
+		if ((rt_db_get_internal( &ip, dp, dbip, my_mat, &rt_uniresource ))<0) {
+			fprintf(stderr, "%s: rt_db_get_internal() failed\n", progname );
+			exit(-1);
+		}
+
+		if (ip.idb_type != ID_NMG) {
+			fprintf(stderr, "%s: solid type (%d) is NOT NMG!\n",
+				progname, ip.idb_type);
+			exit(-1);
+		}
+		nmg_to_rib((struct model *)ip.idb_ptr );
+	}
+	return 0;
+}
+@
+
+
+11.15
+log
+@merge of ansi-6-0-branch into HEAD
+@
+text
+@d19 1
+a19 1
+static const char RCSid[] = "@@(#)$Header$ (ARL)";
+@
+
+
+11.14
+log
+@Restoration of entire source tree to Pre-Hartley state
+@
+text
+@d19 1
+a19 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/conv/nmg-rib.c,v 11.12 2001/03/31 01:56:23 morrison Exp $ (ARL)";
+d32 1
+a32 1
+extern int optind, opterr, getopt();
+d40 1
+a40 2
+void usage(s)
+char *s;
+d52 1
+a52 3
+int parse_args(ac, av)
+int ac;
+char *av[];
+d55 1
+a55 1
+	char *strrchr();
+d78 1
+a78 5
+lu_to_rib(lu, fu_normal, norms, points)
+struct loopuse *lu;
+vect_t fu_normal;
+struct bu_vls *norms;
+struct bu_vls *points;
+d116 1
+a116 2
+nmg_to_rib(m)
+struct model *m;
+d165 1
+a165 3
+int main(ac,av)
+int ac;
+char *av[];
+@
+
+
+11.14.2.1
+log
+@Initial ANSIfication
+@
+text
+@d19 1
+a19 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/conv/nmg-rib.c,v 11.14 2002/08/20 17:07:22 jra Exp $ (ARL)";
+d32 1
+a32 1
+extern int optind, opterr, getopt(int, char *const *, const char *);
+d40 2
+a41 1
+void usage(char *s)
+d53 3
+a55 1
+int parse_args(int ac, char **av)
+d58 1
+a58 1
+	char *strrchr(const char *, int);
+d81 5
+a85 1
+lu_to_rib(struct loopuse *lu, fastf_t *fu_normal, struct bu_vls *norms, struct bu_vls *points)
+d123 2
+a124 1
+nmg_to_rib(struct model *m)
+d173 3
+a175 1
+int main(int ac, char **av)
+@
+
+
+11.13
+log
+@Converted from K&R to ANSI C - RFH
+@
+text
+@d32 1
+a32 1
+extern int optind, opterr, getopt(int, char *const *, const char *);
+d40 2
+a41 1
+void usage(char *s)
+d53 3
+a55 1
+int parse_args(int ac, char **av)
+d58 1
+a58 1
+	char *strrchr(const char *, int);
+d81 5
+a85 1
+lu_to_rib(struct loopuse *lu, fastf_t *fu_normal, struct bu_vls *norms, struct bu_vls *points)
+d123 2
+a124 1
+nmg_to_rib(struct model *m)
+d173 3
+a175 1
+int main(int ac, char **av)
+@
+
+
+11.12
+log
+@Deprecated bn_mat_idn() and bn_mat_zero(), updated calls to h/vmath.h's MAT_IDN() and MAT_ZERO() performance improved macros.
+@
+text
+@d19 1
+a19 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/conv/nmg-rib.c,v 11.11 2000/09/08 05:55:42 mike Exp $ (ARL)";
+d32 1
+a32 1
+extern int optind, opterr, getopt();
+d40 1
+a40 2
+void usage(s)
+char *s;
+d52 1
+a52 3
+int parse_args(ac, av)
+int ac;
+char *av[];
+d55 1
+a55 1
+	char *strrchr();
+d78 1
+a78 5
+lu_to_rib(lu, fu_normal, norms, points)
+struct loopuse *lu;
+vect_t fu_normal;
+struct bu_vls *norms;
+struct bu_vls *points;
+d116 1
+a116 2
+nmg_to_rib(m)
+struct model *m;
+d165 1
+a165 3
+int main(ac,av)
+int ac;
+char *av[];
+@
+
+
+11.11
+log
+@
+Tree routines now need resource structure.
+Added rt_init_resource() call.
+@
+text
+@d19 1
+a19 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/conv/nmg-rib.c,v 11.10 2000/07/21 12:44:34 jra Exp $ (ARL)";
+d208 1
+a208 1
+		bn_mat_idn( my_mat );
+@
+
+
+11.10
+log
+@Replaced db_scan() calls with db_dirbuild()
+@
+text
+@d19 1
+a19 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/conv/nmg-rib.c,v 11.9 2000/07/12 21:59:35 mike Exp $ (ARL)";
+d188 1
+d209 2
+a210 2
+		if ((rt_db_get_internal( &ip, dp, dbip, my_mat ))<0) {
+			fprintf(stderr, "%s: rt_db_get_internal() failed\n", progname);
+@
+
+
+11.9
+log
+@
+Converted to use new version of LIBWDB
+@
+text
+@d19 1
+a19 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/conv/nmg-rib.c,v 11.8 2000/07/10 23:53:59 mike Exp $ (ARL)";
+d197 1
+a197 1
+	db_scan(dbip, (int (*)())db_diradd, 1, NULL);
+@
+
+
+11.8
+log
+@
+lint
+@
+text
+@d19 1
+a19 1
+static const char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/conv/nmg-rib.c,v 11.7 1999/12/30 18:41:14 jra Exp $ (ARL)";
+d220 1
+@
+
+
+11.7
+log
+@Eliminated an unused variable
+@
+text
+@d19 1
+a19 1
+static char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/conv/nmg-rib.c,v 11.6 1999/12/29 23:23:03 mike Exp $ (ARL)";
+@
+
+
+11.6
+log
+@
+db_scan() got a client_data argument, which
+db_diradd() needed to learn to ignore.
+@
+text
+@d19 1
+a19 1
+static char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/conv/nmg-rib.c,v 11.5 1999/06/03 21:54:21 mike Exp $ (ARL)";
+a200 1
+		int id;
+d208 1
+a208 1
+		if ((id=rt_db_get_internal( &ip, dp, dbip, my_mat ))<0) {
+@
+
+
+11.5
+log
+@
+sed4
+@
+text
+@d19 1
+a19 1
+static char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/conv/nmg-rib.c,v 11.4 1998/09/14 15:58:51 bparker Exp $ (ARL)";
+d197 1
+a197 1
+	db_scan(dbip, (int (*)())db_diradd, 1);
+@
+
+
+11.4
+log
+@*- fix typos
+@
+text
+@d19 1
+a19 1
+static char RCSid[] = "@@(#)$Header: /c/CVS/brlcad/conv/nmg-rib.c,v 11.3 1997/07/22 19:52:01 jra Exp $ (ARL)";
+d84 2
+a85 2
+struct rt_vls *norms;
+struct rt_vls *points;
+d92 2
+a93 2
+	if (RT_LIST_FIRST_MAGIC( &lu->down_hd ) == NMG_EDGEUSE_MAGIC) {
+		for (RT_LIST_FOR(eu, edgeuse, &lu->down_hd)) {
+d98 1
+a98 1
+			rt_vls_printf(points, "%g %g %g  ",
+d102 1
+a102 1
+				rt_vls_printf(norms, "%g %g %g  ",
+d105 1
+a105 1
+				rt_vls_printf(norms, "%g %g %g  ",
+d108 3
+a110 3
+	} else if (RT_LIST_FIRST_MAGIC( &lu->down_hd ) == NMG_VERTEXUSE_MAGIC) {
+		vu = RT_LIST_FIRST(vertexuse,  &lu->down_hd );
+		rt_vls_printf(points, "%g %g %g", V3ARGS(vu->v_p->vg_p->coord));
+d112 1
+a112 1
+			rt_vls_printf(norms, "%g %g %g  ",
+d115 1
+a115 1
+			rt_vls_printf(norms, "%g %g %g  ",
+d126 1
+a126 1
+	struct rt_tol tol;
+d131 2
+a132 2
+	struct rt_vls points;
+	struct rt_vls norms;
+d135 1
+a135 1
+	tol.magic = RT_TOL_MAGIC;
+d145 2
+a146 2
+	rt_vls_init(&norms);
+	rt_vls_init(&points);
+d148 3
+a150 3
+	for (RT_LIST_FOR(r, nmgregion, &m->r_hd))
+	    for (RT_LIST_FOR(s, shell, &r->s_hd))
+		for (RT_LIST_FOR(fu, faceuse, &s->fu_hd)) {
+d156 3
+a158 3
+		    for (RT_LIST_FOR(lu, loopuse, &fu->lu_hd)) {
+		    	rt_vls_strcpy(&norms, "");
+		    	rt_vls_strcpy(&points, "");
+d161 1
+a161 1
+		    		rt_vls_addr(&points), rt_vls_addr(&norms));
+d208 1
+a208 1
+		mat_idn( my_mat );
+@
+
+
+11.3
+log
+@corrected use of rt_db_get_internal().
+@
+text
+@d19 1
+a19 1
+static char RCSid[] = "@@(#)$Header: /m/cad/conv/RCS/nmg-rib.c,v 11.2 1996/07/12 13:20:17 jra Exp jra $ (ARL)";
+d46 1
+a46 1
+			progname, options);
+@
+
+
+11.2
+log
+@Minor MOds for IRIX 6.2
+@
+text
+@d19 1
+a19 1
+static char RCSid[] = "@@(#)$Header: /m/cad/conv/RCS/nmg-rib.c,v 11.1 1995/01/04 09:59:39 mike Rel4_4 jra $ (ARL)";
+d201 2
+d209 1
+a209 1
+		if (rt_db_get_internal( &ip, dp, dbip, my_mat )) {
+@
+
+
+11.1
+log
+@Release_4.4
+@
+text
+@d19 1
+a19 1
+static char RCSid[] = "@@(#)$Header: /m/cad/conv/RCS/nmg-rib.c,v 1.2 94/10/17 17:06:02 mike Exp $ (ARL)";
+d80 1
+@
+
+
+1.2
+log
+@Fixed SunOS 5.2 initializer problem.
+@
+text
+@d19 1
+a19 1
+static char RCSid[] = "@@(#)$Header$ (ARL)";
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d7 10
+d18 4
+d125 1
+a125 8
+	static struct rt_tol tol = {
+		RT_TOL_MAGIC,
+		0.05,
+		0.0025,
+		0.00001,
+		0.99999
+	};
+		
+d134 5
+a138 1
+
+@

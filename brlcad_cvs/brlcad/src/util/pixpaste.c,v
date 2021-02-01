@@ -1,0 +1,964 @@
+head	14.12;
+access;
+symbols
+	rel-7-10-4:14.8
+	STABLE:14.8.0.2
+	rel-7-10-2:14.8
+	rel-7-10-0:14.8
+	rel-7-8-4:14.8
+	rel-7-8-2:14.6
+	rel-7-8-0:14.6
+	trimnurbs-branch:14.6.0.2
+	help:14.6
+	temp_tag:14.4
+	bobWinPort-20051223-freeze:14.1
+	postmerge-20051223-bobWinPort:14.4
+	premerge-20051223-bobWinPort:14.4
+	rel-7-6-6:14.4
+	rel-7-6-4:14.4
+	rel-7-6-2:14.2
+	rel-7-6-branch:14.2.0.2
+	rel-7-6-0:14.2
+	rel-7-4-2:14.1
+	rel-7-4-branch:14.1.0.4
+	bobWinPort:14.1.0.2
+	rel-7-4-0:14.1
+	rel-7-2-6:14.1
+	rel-7-2-4:14.1
+	rel-7-2-2:14.1
+	rel-7-2-0:14.1
+	rel-7-0-4:14.1
+	rel-7-0-2:14.1
+	rel-7-0-1:14.1
+	opensource-post:14.1
+	opensource-pre:1.4
+	rel-7-0-branch:1.4.0.2
+	rel-7-0:1.4;
+locks; strict;
+comment	@ * @;
+
+
+14.12
+date	2007.12.15.09.17.29;	author brlcad;	state Exp;
+branches;
+next	14.11;
+
+14.11
+date	2007.11.21.20.49.14;	author erikgreenwald;	state Exp;
+branches;
+next	14.10;
+
+14.10
+date	2007.11.21.18.55.37;	author erikgreenwald;	state Exp;
+branches;
+next	14.9;
+
+14.9
+date	2007.09.15.16.23.23;	author brlcad;	state Exp;
+branches;
+next	14.8;
+
+14.8
+date	2006.08.01.15.02.58;	author brlcad;	state Exp;
+branches;
+next	14.7;
+
+14.7
+date	2006.07.10.01.25.39;	author brlcad;	state Exp;
+branches;
+next	14.6;
+
+14.6
+date	2006.01.28.22.46.19;	author brlcad;	state Exp;
+branches;
+next	14.5;
+
+14.5
+date	2006.01.23.07.45.44;	author brlcad;	state Exp;
+branches;
+next	14.4;
+
+14.4
+date	2005.10.23.04.44.39;	author brlcad;	state Exp;
+branches;
+next	14.3;
+
+14.3
+date	2005.09.21.19.05.37;	author brlcad;	state Exp;
+branches;
+next	14.2;
+
+14.2
+date	2005.08.21.14.29.55;	author brlcad;	state Exp;
+branches
+	14.2.2.1;
+next	14.1;
+
+14.1
+date	2004.11.16.19.42.32;	author morrison;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	2004.08.02.23.01.53;	author morrison;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2004.06.09.18.21.39;	author erikg;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2004.06.08.22.04.46;	author morrison;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.20.15.21.53;	author morrison;	state Exp;
+branches;
+next	;
+
+14.2.2.1
+date	2005.11.13.13.46.21;	author brlcad;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+14.12
+log
+@take setvbuf for granted per c89, bye bye HAVE_SETVBUF
+@
+text
+@/*
+ *		P I X P A S T E . C
+ *
+ * pixpaste will insert an arbitrary pix file into another pixfile.
+ * If the image being pasted does not fit within the destination file
+ * then the excess is discarded.
+ *
+ *  Author -
+ *	Christopher T. Johnson
+ *	September 12, 1992
+ *
+ *  Source -
+ *	Paladin Software
+ *	P.O. Box 187
+ *	Aberdeen, MD	21001-0187
+ *
+ *  Copyright Notice -
+ *	This software is Copyright (C) 1992 by Paladin Software
+ *	All rights reserved.
+ */
+#ifndef lint
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/pixpaste.c,v 14.11 2007/11/21 20:49:14 erikgreenwald Exp $";
+#endif
+
+#include "common.h"
+
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+
+#ifdef HAVE_UNISTD_H
+#  include <unistd.h>
+#endif
+
+#include "machine.h"
+#include "bu.h"
+#include "vmath.h"
+#include "bn.h"
+
+
+static long int	org_width = 512L;	/* Default file sizes 512x512 */
+static long int	org_height = 512L;
+static long int	paste_width = 512L;
+static long int	paste_height = 512L;
+static long int	base_x = 0L;		/* Default to lower left corner */
+static long int	base_y = 0L;
+static int	Verbose = 0;
+
+static char	stdiobuf[4*1024*1024] = {0};
+static FILE	*orig = (FILE *)NULL;
+static FILE	*paste = (FILE *)NULL;
+static char	*orig_name = (char *)NULL;
+static char	*paste_name = (char *)NULL;
+static int	paste_autosize = 0;
+static int	orig_autosize = 0;
+static int	paste_isfile = 0;
+static int	orig_isfile = 0;
+static long int	num_bytes = 3L;
+
+static char usage[] = "\
+pixpaste: Copyright (C) 1992 Paladin Software\n\
+pixpaste: All rights reserved\n\
+pixpaste: Usage: pixpaste [-v] [-h] [-H] [-a] [-A] [-# num_bytes]\n\
+		 [-s orig_square_size] [-w orig_width] [-n orig_height]\n\
+		 [-S paste_square_size] [-W paste_width] [-N paste_height]\n\
+		 [-x horizontal] [-y vertical] orig_file paste_file\n\
+	A '-' can be used to indicate stdin for orig_file or paste_file\n";
+
+int
+get_args(register int argc, register char **argv)
+{
+	register int c;
+
+	while ( (c = bu_getopt(argc, argv, "vahHs:w:n:S:W:N:x:y:#:" )) != EOF) {
+		switch (c) {
+		case 'v':
+			Verbose = 1;
+			break;
+		case 'a':
+			orig_autosize = 1;
+			break;
+		case 'A':
+			paste_autosize = 1;
+			break;
+		case 'h':
+			org_width = org_height = 1024L;
+			orig_autosize = 0;
+			break;
+		case 'H':
+			paste_width = paste_height = 1024L;
+			paste_autosize = 0;
+			break;
+		case 's':
+			org_width = org_height = atol(bu_optarg);
+			orig_autosize = 0;
+			break;
+		case 'S':
+			paste_width = paste_height = atol(bu_optarg);
+			paste_autosize = 0;
+			break;
+		case 'w':
+			org_width = atol(bu_optarg);
+			orig_autosize = 0;
+			break;
+		case 'W':
+			paste_width = atol(bu_optarg);
+			paste_autosize = 0;
+			break;
+		case 'n':
+			org_height = atol(bu_optarg);
+			orig_autosize = 0;
+			break;
+		case 'N':
+			paste_height = atol(bu_optarg);
+			paste_autosize = 0;
+			break;
+		case 'x':
+			base_x = atol(bu_optarg);
+			break;
+		case 'y':
+			base_y = atol(bu_optarg);
+			break;
+		case '#':
+			num_bytes = atol(bu_optarg);
+			break;
+		default:		/* '?' */
+			return(0);
+		}
+	}
+	if (bu_optind >= argc ) {
+		return(0);
+	} else {
+		orig_name = argv[bu_optind];
+		if (strcmp(orig_name,"-") == 0) {
+			if (isatty(fileno(stdin))) return(0);
+			orig = stdin;
+		} else {
+			if ((orig = fopen(orig_name, "r")) == NULL ) {
+				perror(orig_name);
+				(void)fprintf(stderr,
+				    "pixpaste: cannot open \"%s\" for reading\n",
+				    orig_name);
+				return(0);
+			}
+			orig_isfile = 1;
+		}
+	}
+	if (++bu_optind >= argc ) {
+		return(0);
+	} else {
+		paste_name = argv[bu_optind];
+		if (strcmp(paste_name, "-") == 0) {
+			if (isatty(fileno(stdin))) return(0);
+			paste = stdin;
+			if (!orig_isfile) {
+				(void)fprintf(stderr,
+"pixpaste: The original file and paste file cannot both be stdin!.\n");
+				return(0);
+			}
+		} else {
+			if ((paste = fopen(paste_name, "r")) == NULL){
+				perror(paste_name);
+				(void)fprintf(stderr,
+				"pixpaste: cannot open \"%s\" for reading",
+				paste_name);
+				return(0);
+			}
+			paste_isfile=1;
+		}
+	}
+	return(1);	/* OK */
+}
+
+
+int
+main(int argc, char **argv)
+{
+	unsigned char *origbuf, *pastebuf;
+	unsigned char *buffer;
+	register long int i;
+	long int row, result;
+
+	if (!get_args(argc,argv)) {
+		(void)fprintf(stderr,"%s",usage);
+		bu_exit (1, NULL);
+	}
+	/* Should we autosize the original? */
+	if (orig_isfile && orig_autosize) {
+		unsigned long int w,h;
+		if (fb_common_file_size(&w, &h, orig_name, num_bytes)) {
+			org_width = (long)w;
+			org_height = (long)h;
+		} else {
+			(void) fprintf(stderr, "pixpaste: unable to autosize \"%s\"\n",orig_name);
+		}
+	}
+
+	/* Should we autosize the paste file? */
+	if (paste_isfile && paste_autosize) {
+		unsigned long int w,h;
+		if (fb_common_file_size(&w, &h, paste_name, num_bytes)) {
+			paste_width = (long)w;
+			paste_height = (long)h;
+		} else {
+			(void) fprintf(stderr, "pixpaste: unable to autosize \"%s\"\n",paste_name);
+		}
+	}
+
+	(void) setvbuf(orig, stdiobuf, _IOFBF, sizeof(stdiobuf) );
+
+/*
+ * Spew some interesting info at the people...
+ */
+	if (Verbose) {
+		(void) fprintf(stderr,"pixpaste: Copyright (C) 1992 Paladin Software\npixpaste: All rights reserved\n");
+		(void) fprintf(stderr,"pixpaste: Original image %ldx%ld\n",
+		    org_width, org_height);
+		(void) fprintf(stderr,"pixpaste: Inserted image %ldx%ld\n",
+		    paste_width, paste_height);
+		(void) fprintf(stderr,"pixpaste: Inserted at %ldx%ld\n",
+		    base_x, base_y);
+	}
+
+/*
+ * Make a buffer will hold a single scan line of assuming a worst
+ * case paste of 1 pixel of overlap.
+ */
+	buffer = (unsigned char *)bu_malloc((org_width+paste_width)*num_bytes, "buffer");
+
+/*
+ * Set up the original buffer and the paste buffer.
+ */
+	if (base_x + paste_width < 0 ||
+	    base_x >= org_width ||
+	    base_y + paste_height < 0 ||
+	    base_y >= org_height ) {
+		if (Verbose) {
+			(void)fprintf(stderr, "\
+pixpaste: No overlap between paste and original image\n\
+pixpaste: new image == original image.\n");
+		}
+		for (i=0; i<org_height; i++) {
+			int E=0;
+			result = fread(buffer, num_bytes, org_width, orig);
+			if (result != org_width) {
+				E=1;
+				(void)fprintf(stderr,"pixpaste: original file is short.\n");
+			}
+			result = fwrite(buffer, num_bytes, result, stdout);
+			if (!E && result != org_width) {
+				perror("pixpaste: fwrite1");
+				E=1;
+			}
+			if (E) break;
+		}
+		bu_exit (0, NULL);
+	}
+
+	if (base_x < 0) {
+		pastebuf = buffer;
+		origbuf  = buffer - num_bytes*base_x;
+	} else {
+		pastebuf = buffer + num_bytes*base_x;
+		origbuf  = buffer;
+	}
+/*
+ * if the base_y scan line is below the bottom of the original
+ * then we skip scan lines in the paste file.
+ */
+	if (base_y < 0) {
+		row = base_y;
+	} else {
+		row = 0;
+	}
+
+	while (row < 0) {
+		result = fread(pastebuf, num_bytes, paste_width, paste);
+		if (result != paste_width) {
+			(void)fprintf(stderr,"pixpaste: paste file is short.\n");
+			row=0;
+			paste_height=0;
+		}
+		row++;
+	}
+/*
+ * While the current row is less than the base Y scan line move
+ * scan lines from the original to stdout.
+ */
+	while (row < base_y) {
+		result=fread(origbuf, num_bytes, org_width, orig);
+		if (result != org_width) {
+			(void)fprintf(stderr,"pixpaste: original image is short.\n");
+			(void)fwrite(origbuf, num_bytes, result, stdout);
+			bu_exit (0, NULL);
+		}
+		result = fwrite(origbuf, num_bytes, org_width, stdout);
+		if (result != org_width) {
+			perror("pixpaste: fwrite2");
+			bu_exit (3, NULL);
+		}
+		row++;
+	}
+/*
+ * Read a scan line from the original.  Read a scan line from the
+ * paste. Output the composite. until paste_height is reached.
+ * If EOF original STOP.  If EOF paste treat as if reached paste_height.
+ */
+	while (row < org_height && row < base_y+paste_height) {
+		result=fread(origbuf, num_bytes, org_width, orig);
+		if (result != org_width) {
+			register long int jj;
+			for (jj=result; jj<num_bytes*org_width; jj++) {
+				origbuf[jj]=0;
+			}
+		}
+		result=fread(pastebuf, num_bytes, paste_width, paste);
+		if (result != paste_width) {
+			(void)fprintf(stderr,"pixpaste: paste image is short.\n");
+			base_y = paste_height = 0;
+		}
+		result = fwrite(origbuf, num_bytes, org_width, stdout);
+		if (result != org_width) {
+			perror("pixpaste: fwrite3");
+			bu_exit (3, NULL);
+		}
+		row++;
+	}
+
+/*
+ * Output the rest of the original file.
+ */
+	while (row < org_height) {
+		result=fread(origbuf, num_bytes, org_width, orig);
+		if (result != org_width) {
+			register long int jj;
+			for (jj=result; jj<num_bytes*org_width; jj++) {
+				origbuf[jj]=0;
+			}
+		}
+		result = fwrite(origbuf, num_bytes, org_width, stdout);
+		if (result != org_width) {
+			perror("pixpaste: fwrite4");
+			bu_exit (3, NULL);
+		}
+		row++;
+	}
+	return(0);
+}
+
+/*
+ * Local Variables:
+ * mode: C
+ * tab-width: 8
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * ex: shiftwidth=4 tabstop=8
+ */
+@
+
+
+14.11
+log
+@pass bu_exit a NULL instead of an empty string
+@
+text
+@d22 1
+a22 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/pixpaste.c,v 14.10 2007/11/21 18:55:37 erikgreenwald Exp $";
+a208 1
+#ifdef HAVE_SETVBUF
+a209 1
+#endif
+@
+
+
+14.10
+log
+@exit->bu_exit where applicable
+@
+text
+@d22 1
+a22 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/pixpaste.c,v 14.9 2007/09/15 16:23:23 brlcad Exp $";
+d185 1
+a185 1
+		bu_exit (1, "");
+d258 1
+a258 1
+		bu_exit (0, "");
+d296 1
+a296 1
+			bu_exit (0, "");
+d301 1
+a301 1
+			bu_exit (3, "");
+d326 1
+a326 1
+			bu_exit (3, "");
+d345 1
+a345 1
+			bu_exit (3, "");
+@
+
+
+14.9
+log
+@more c89 embracing.  c89 provides string.h for all of the various str*() and mem*() functions, so remove the check for its presence.  there is still likely to be work required for strict c89 conformance for the various bsd strings.h functions that may be in use.
+@
+text
+@d22 1
+a22 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/pixpaste.c,v 14.8 2006/08/01 15:02:58 brlcad Exp $";
+d185 1
+a185 1
+		exit(1);
+d258 1
+a258 1
+		exit(0);
+d296 1
+a296 1
+			exit(0);
+d301 1
+a301 1
+			exit(3);
+d326 1
+a326 1
+			exit(3);
+d345 1
+a345 1
+			exit(3);
+@
+
+
+14.8
+log
+@refactor the three asize.c implementations (libbn, libfb, & canon) into just one.  libbn had the most comprehensive and updated version, but the logic belongs in libfb.  so, the bn_common autosizing functions are now consolidated to libfb, refactoring accordingly.
+@
+text
+@d22 1
+a22 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/pixpaste.c,v 14.7 2006/07/10 01:25:39 brlcad Exp $";
+d29 2
+a33 5
+#ifdef HAVE_STRING_H
+#  include <string.h>
+#else
+#  include <strings.h>
+#endif
+@
+
+
+14.7
+log
+@remove/rewrite a bunch of the old SYSV preprocessor symbol sections
+@
+text
+@d22 1
+a22 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/pixpaste.c,v 14.6 2006/01/28 22:46:19 brlcad Exp $";
+d193 1
+a193 1
+		if (bn_common_file_size(&w, &h, orig_name, num_bytes)) {
+d204 1
+a204 1
+		if (bn_common_file_size(&w, &h, paste_name, num_bytes)) {
+@
+
+
+14.6
+log
+@header cleanup, include stdlib.h for atol(). fixes some 64-bitness
+@
+text
+@d22 1
+a22 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/pixpaste.c,v 14.5 2006/01/23 07:45:44 brlcad Exp $";
+d52 5
+a56 5
+#if defined(SYSV)
+static char	stdiobuf[4*1024*1024];
+#endif
+static FILE	*orig, *paste;
+static char	*orig_name, *paste_name;
+d212 1
+a212 1
+#if defined( SYSV )
+d215 1
+@
+
+
+14.5
+log
+@libbu for allocations
+@
+text
+@d22 1
+a22 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/pixpaste.c,v 14.4 2005/10/23 04:44:39 brlcad Exp $";
+d27 2
+a31 1
+#include <stdio.h>
+@
+
+
+14.4
+log
+@trailing ws
+@
+text
+@d22 1
+a22 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/pixpaste.c,v 14.3 2005/09/21 19:05:37 brlcad Exp $";
+d231 2
+a232 4
+	if ((buffer = (unsigned char *)malloc((org_width+paste_width)*num_bytes)) == (unsigned char *)NULL ) {
+		(void) fprintf(stderr, "pixpaste: Out of memory (malloc failed)\n");
+		exit(2);
+	}
+@
+
+
+14.3
+log
+@needs bu.h for bu_getopt
+@
+text
+@d11 1
+a11 1
+ *  
+d16 1
+a16 1
+ *  
+d22 1
+a22 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/pixpaste.c,v 14.2 2005/08/21 14:29:55 brlcad Exp $";
+d176 1
+a176 1
+			
+d333 1
+a333 1
+		
+@
+
+
+14.2
+log
+@convert image dimensions to long ints to support larger image sizes.  quell other various const warnings too.
+@
+text
+@d22 1
+a22 1
+static const char RCSid[] = "@@(#)$Header: /cvsroot/brlcad/brlcad/src/util/pixpaste.c,v 14.1 2004/11/16 19:42:32 morrison Exp $";
+d76 1
+a76 1
+	while ( (c = getopt(argc, argv, "vahHs:w:n:S:W:N:x:y:#:" )) != EOF) {
+d96 1
+a96 1
+			org_width = org_height = atol(optarg);
+d100 1
+a100 1
+			paste_width = paste_height = atol(optarg);
+d104 1
+a104 1
+			org_width = atol(optarg);
+d108 1
+a108 1
+			paste_width = atol(optarg);
+d112 1
+a112 1
+			org_height = atol(optarg);
+d116 1
+a116 1
+			paste_height = atol(optarg);
+d120 1
+a120 1
+			base_x = atol(optarg);
+d123 1
+a123 1
+			base_y = atol(optarg);
+d126 1
+a126 1
+			num_bytes = atol(optarg);
+d132 1
+a132 1
+	if (optind >= argc ) {
+d135 1
+a135 1
+		orig_name = argv[optind];
+d150 1
+a150 1
+	if (++optind >= argc ) {
+d153 1
+a153 1
+		paste_name = argv[optind];
+@
+
+
+14.2.2.1
+log
+@merge changes from HEAD aka rel-7-6-4 to the rel-7-6-branch just in case someone peeks a gander or tries to continue/build the branch
+@
+text
+@d11 1
+a11 1
+ *
+d16 1
+a16 1
+ *
+d22 1
+a22 1
+static const char RCSid[] = "@@(#)$Header$";
+d76 1
+a76 1
+	while ( (c = bu_getopt(argc, argv, "vahHs:w:n:S:W:N:x:y:#:" )) != EOF) {
+d96 1
+a96 1
+			org_width = org_height = atol(bu_optarg);
+d100 1
+a100 1
+			paste_width = paste_height = atol(bu_optarg);
+d104 1
+a104 1
+			org_width = atol(bu_optarg);
+d108 1
+a108 1
+			paste_width = atol(bu_optarg);
+d112 1
+a112 1
+			org_height = atol(bu_optarg);
+d116 1
+a116 1
+			paste_height = atol(bu_optarg);
+d120 1
+a120 1
+			base_x = atol(bu_optarg);
+d123 1
+a123 1
+			base_y = atol(bu_optarg);
+d126 1
+a126 1
+			num_bytes = atol(bu_optarg);
+d132 1
+a132 1
+	if (bu_optind >= argc ) {
+d135 1
+a135 1
+		orig_name = argv[bu_optind];
+d150 1
+a150 1
+	if (++bu_optind >= argc ) {
+d153 1
+a153 1
+		paste_name = argv[bu_optind];
+d176 1
+a176 1
+
+d333 1
+a333 1
+
+@
+
+
+14.1
+log
+@dawn of a new revision.  it shall be numbered 14 to match release 7.  begin the convergence by adding emacs/vi local variable footer blocks to encourage consistent formatting.
+@
+text
+@d22 1
+a22 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/util/pixpaste.c,v 1.4 2004/08/02 23:01:53 morrison Exp $";
+d28 1
+a28 1
+# include <unistd.h>
+a29 2
+                                                                                                                                                                            
+
+d32 1
+a32 1
+#include <string.h>
+d34 1
+a34 1
+#include <strings.h>
+d42 7
+a48 6
+static int	org_width = 512;	/* Default file sizes 512x512 */
+static int	org_height = 512;
+static int	paste_width = 512;
+static int	paste_height = 512;
+static int	base_x = 0;		/* Default to lower left corner */
+static int	base_y = 0;
+d60 1
+a60 1
+static int	num_bytes = 3;
+d88 1
+a88 1
+			org_width = org_height = 1024;
+d92 1
+a92 1
+			paste_width = paste_height = 1024;
+d96 1
+a96 1
+			org_width = org_height = atoi(optarg);
+d100 1
+a100 1
+			paste_width = paste_height = atoi(optarg);
+d104 1
+a104 1
+			org_width = atoi(optarg);
+d108 1
+a108 1
+			paste_width = atoi(optarg);
+d112 1
+a112 1
+			org_height = atoi(optarg);
+d116 1
+a116 1
+			paste_height = atoi(optarg);
+d120 1
+a120 1
+			base_x = atoi(optarg);
+d123 1
+a123 1
+			base_y = atoi(optarg);
+d126 1
+a126 1
+			num_bytes = atoi(optarg);
+d182 2
+a183 2
+	register int i;
+	int row, result;
+d191 1
+a191 1
+		int w,h;
+d193 2
+a194 2
+			org_width = w;
+			org_height = h;
+d196 1
+a196 2
+			(void) fprintf(stderr,
+"pixpaste: unable to autosize \"%s\"\n",orig_name);
+d202 1
+a202 1
+		int w,h;
+d204 2
+a205 2
+			paste_width = w;
+			paste_height = h;
+d207 1
+a207 2
+			(void) fprintf(stderr,
+"pixpaste: unable to autosize \"%s\"\n",paste_name);
+d218 2
+a219 3
+		(void) fprintf(stderr,"\
+pixpaste: Copyright (C) 1992 Paladin Software\npixpaste: All rights reserved\n");
+		(void) fprintf(stderr,"pixpaste: Original image %dx%d\n",
+d221 1
+a221 1
+		(void) fprintf(stderr,"pixpaste: Inserted image %dx%d\n",
+d223 1
+a223 1
+		(void) fprintf(stderr,"pixpaste: Inserted at %dx%d\n",
+d316 1
+a316 1
+			register int jj;
+d340 1
+a340 1
+			register int jj;
+@
+
+
+1.4
+log
+@replace the wrapped config.h block with common.h
+@
+text
+@d22 1
+a22 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/util/pixpaste.c,v 1.3 2004/06/09 18:21:39 erikg Exp $";
+d358 10
+@
+
+
+1.3
+log
+@include unistd.h for getopt stuff
+@
+text
+@d22 1
+a22 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/src/util/pixpaste.c,v 1.2 2004/06/08 22:04:46 morrison Exp $";
+d25 1
+a25 3
+#ifdef HAVE_CONFIG_H
+# include "config.h"
+#endif
+@
+
+
+1.2
+log
+@obliterate externs.h
+@
+text
+@d22 1
+a22 1
+static const char RCSid[] = "@@(#)$Header$";
+d28 5
+@
+
+
+1.1
+log
+@Vast reorganization begins.  Sources moved from top-level directories into src/.
+@
+text
+@d22 1
+a22 1
+static const char RCSid[] = "@@(#)$Header: /cvs/brlcad/util/pixpaste.c,v 11.9 2004/05/10 15:30:51 erikg Exp $";
+a28 2
+
+
+a36 1
+#include "externs.h"		/* For getopt and malloc */
+@
+
