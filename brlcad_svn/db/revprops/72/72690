@@ -1,0 +1,41 @@
+K 10
+svn:author
+V 6
+brlcad
+K 8
+svn:date
+V 27
+2019-03-21T16:18:58.437053Z
+K 7
+svn:log
+V 1440
+Reimplement mapped file support, restore parallel safety.
+
+This new version keeps track of mapped files in an array that is
+partially static (allocation optimization) with the remainder dynamic.
+Access to the global store now goes through simple accessor functions
+so it should be less error-prone (parallelism) with respect to future
+changes.  Code was also simplified with the non-mmap support reduced
+to just a manual open+read.
+
+When the storage container switched from dynamically allocated bu_list
+elements to a private array, the container was not semaphore protected
+for multithreaded access.  Also, the way bu_mapped_file structures
+were being returned was also wrong as an increase in the array size
+and subsequent realloc would invalidate pointers previously handed
+out.  This version keeps an array of pointers so they remain valid
+until bu_free_mapped_files() is called.
+
+While not unique to it, the prep caching system exacerbated the
+problem with multiple threads racing to read in the same database
+files.  This made db_open() unsafe as a consequence.  With this
+change, it should be safe to db_open() the same database from multiple
+threads without ill effect.
+
+Future work: this doesn't change bu_mapped_file_open() from being a
+stateful library call, which is undesirable.  The API needs to be
+passed an allocation context and/or contain one within the
+bu_mapped_file structure, not manage it within the library itself.
+
+
+END

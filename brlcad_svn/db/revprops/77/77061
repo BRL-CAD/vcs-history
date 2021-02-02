@@ -1,0 +1,33 @@
+K 10
+svn:author
+V 10
+starseeker
+K 8
+svn:date
+V 27
+2020-09-04T15:30:34.809829Z
+K 7
+svn:log
+V 1116
+More uniformly define MAXPATHLEN across the code.
+
+Tcl defines MAXPATHLEN, and there was a potential for different
+definitions between their headers and ours.  Not certain, but that is
+one possible source of the strange realpath crash observed on Linux
+but not reproducible in isolation - if code with one definition of
+MAXPATHLEN created a buffer and then fed it to a library compiled using
+a different definition, those different assumptions are a source of
+possible trouble.  I think that's what was happening with the whoami.c
+code after I switched it to using MAXPATHLEN.  Previously that code
+called realpath directly rather than bu_file_realpath.  After the
+MAXPATHLEN switch, those raw realpath calls triggered a segfault on
+Linux - most likely due to a non-PATH_MAX definition of MAXPATHLEN
+previously being defaulted to by the bu/defines.h definition.
+
+Move the MAXPATHLEN definition to common.h, which is always included
+before tcl.h in our code, and add a couple definitions from the Tcl
+headers to use as fallbacks.  Would be nice if there is some way to
+systematically check for this kind of issue...
+
+
+END

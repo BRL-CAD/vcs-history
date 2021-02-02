@@ -1,0 +1,39 @@
+K 10
+svn:author
+V 6
+brlcad
+K 8
+svn:date
+V 27
+2019-05-07T09:00:47.258152Z
+K 7
+svn:log
+V 1367
+Overhaul how semaphores are specified.
+
+Instead of global defines that must be coordinated across library and
+app boundaries and which periodically resulted in subtle mismatches or
+worse, semaphores now get registered with libbu via a
+bu_semaphore_register() call.  Warrants rigorous parallelism testing,
+but all existing tests are currently passing.
+
+We maintain a global dictionary in LIBBU and request an integer key
+prior to bu_semaphore_acquire().  Consequence of this is no longer
+needing to maintain a list of magic number values -- registration it
+for us.  The caller mainains a handle to the semaphore, which also
+allows for much finger-grained locking control.  It also means we can
+now have locally registered semaphores.  We only need to declare
+publicly when there is usage across multiple libs or apps, or because
+of legacy/api desire to make it publicly available, etc.
+
+This fixes a long-standing "design bug".  Intentional tradeoff
+consideration: no longer need to specify a number or keep track of the
+'last', semaphore names do still have to be globally uniquely named
+and now get listed three times (extern .h decl, var .c def, and
+.c/.cpp registration call) in order for the semaphore to be globally
+available and explicitly initialized.  Small price to avoid future
+catastrophy.  Call pattern to bu_semaphore_acquire/release remain
+unaffected.
+
+
+END

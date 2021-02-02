@@ -1,0 +1,36 @@
+K 10
+svn:author
+V 10
+starseeker
+K 8
+svn:date
+V 27
+2020-09-12T19:08:22.322343Z
+K 7
+svn:log
+V 1081
+Workaround for struct parsing failures on GhostBSD
+
+Was getting 'Structure inconsistency detected parsing 'width'' bombs
+on one of the GhostBSD optimized distcheck configs with rtedge.  gdb
+session shows us simply entering the parse_struct_lookup function,
+starting to iterate over the structures loop, skipping the loc
+calculation completely, and jumping right to the loc==NULL test. In
+this case loc has a value of NULL rather than a garbage value, so we
+bomb out.
+
+Assigning the (base + sdp->sp_offset) calculation result as an
+initialization to loc also results in loc == NULL, as does printing
+the calculation's numerical value in a bu_log, but when run
+interactively in the gdb session the same expression evaluates
+non-zero.
+
+Work around this by checking for a NULL base, and in that case use the
+sdp->sp_offset value without attempting to add the NULL base to it.
+Still not clear why some compile settings appear to be producing
+different behaviors evaluating this expression, but on GhostBSD at
+least this seems to avoid the issue and let the regression tests
+succeed...
+
+
+END

@@ -1,0 +1,30 @@
+K 10
+svn:author
+V 10
+starseeker
+K 8
+svn:date
+V 27
+2020-08-25T17:37:57.960745Z
+K 7
+svn:log
+V 1025
+Checkpoint some work on the repocheck tool.
+
+brlcad.org's BSD is suddenly producing segfaults with the repocheck
+tool, which aren't reproduced on Linux.  Debugging, it looks as if
+the bu_mapped_file strings aren't being accepted by the C++ string
+and strstr routines.  The most likely cause is non-NULL termination
+of the bu_mapped_file buffer character arrays (which aren't guaranteed).
+Using the std::string constructor we can supply buflen from the mapped
+file to explicitly manage the content length, but strstr doesn't have
+such an option.  The speedup from the strstr preliminary check is
+considerable, but what strnstr implementations do exist are fairly
+platform specific.  Instead, took a stab at creating a fast, portable
+"bu_strnstr" by altering OpenBSD's strstr implementation to accept a
+length limit.  For now, just adding in with the repocheck since this
+is experimental, but it may be that this is a concern more generally
+with strstr operations on bu_mapped_files, and if so it may belong
+in libbu proper...
+
+END

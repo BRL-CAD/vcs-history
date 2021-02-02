@@ -1,0 +1,17 @@
+K 10
+svn:author
+V 11
+indianlarry
+K 8
+svn:date
+V 27
+2015-03-02T16:54:45.848738Z
+K 7
+svn:log
+V 1699
+The "struct ged" contains a function pointer "void (*ged_create_vlist_callback)(struct display_list *)" that is used to create display list objects for solids in the "dl_headSolid" list. 'mged' and 'archer' assign different functions to this pointer but both eventually call "createDListAll()". The "createDListAll()" as its name implies loops through all the solids currently in the display lists' solid list 'dl_headSolid'. I think due to some recent restructuring/consolidating this is now being called from each leaf node in the tree walker(while drawing) causing each successive solid to recreate the display list for each solid currently in the list( n! effect). I've added function pointer "void (*ged_create_vlist_solid_callback)(struct solid *)" to "struct ged" that creates a display list for the solid parameter and not all solids.  I've assigned this function pointer to "createDListSolid()" in 'mged' and to "to_create_vlist_callback_solid()" in 'archer'. I modified "dl_add_path()" and "invent_solid()" in 'libged' to use "(*ged_create_vlist_solid_callback)" function pointer instead of (*ged_create_vlist_callback)(). There are other uses of (*ged_create_vlist_callback)() that look correct in that they intend for all the display list to be (re)created so those were left alone but I would like someone a bit more familiar to look over. 
+
+
+Also (at least within an ogl 'mged' session) there are 5 displays in the 'dm_list' which I believe are relating to the multipane mode for which separate display list are created (so actually currently have 5*n!). I now check for 'dlp->dml_mapped' to make sure displays are mapped before creating display list object. I hope that's consistent?
+
+END

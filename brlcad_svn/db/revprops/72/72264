@@ -1,0 +1,48 @@
+K 10
+svn:author
+V 10
+starseeker
+K 8
+svn:date
+V 27
+2019-01-25T14:14:35.795853Z
+K 7
+svn:log
+V 2127
+Fixed multiple issues interfering with generating raytraced images using long
+object lists in MGED and other tools calling libged's rt command.
+
+The problem manifests when MGED or another tool working through libged's API
+wants to generate a raytrace image of a scene with a large number of objects.
+libged's approach to performing this without blocking is to launch an rt
+command as a subprocess, which means it is necessary to communicate to that
+subprocess all the details of the view and scene to be raytraced.  However, if
+the scene description is too large it can result in an rt command invocation
+that exceeds the length allowed by operating systems for command invocation
+(observed in practice on Windows.)
+
+The rt command already supports a command-driven execution mode that was being
+used for view communication, and expanding the supported command set to allow
+for scene object specification by piped command avoids the need for crazy long
+command argument lists.  libged was adjusted to used this method for all
+platforms.
+
+This new approach exposed a different limitation of the MGED/rt interaction
+model, in that rt will not process standard input commands until it has
+finished its fb_open call.  This is not a problem if rt is creating it's own
+framebuffer, but when it is rendering to an existing MGED framebuffer fb_open
+doesn't complete until after the libged command execution is done and MGED's
+callbacks can finalize the fb_open.  This causes a hanging condition for long
+objects lists - libged fills up the stdin pipe and waits for rt to clear it
+before continuing, but rt doesn't clear it because it is waiting for MGED to
+finalize the fb_open before it starts processing.  Of course, the fb_open
+finalization won't occur until the libged command completes.  The fix for this
+was to postpone the fb_open call in rt until just before an actual render needs
+to take place, to allow rt to do most of the stdin processing up front.
+
+These issues are things to watch out for in other cases where libged uses
+subprocess invocation, since such communication is a standard feature of that
+execution model...
+
+
+END

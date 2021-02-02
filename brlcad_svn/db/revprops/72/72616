@@ -1,0 +1,34 @@
+K 10
+svn:author
+V 10
+starseeker
+K 8
+svn:date
+V 27
+2019-03-12T22:47:33.266979Z
+K 7
+svn:log
+V 1492
+Fix for infinite loop after running rtcheck at MGED command prompt.
+
+Observed a fairly reproducible locking condition where a simple, fast rtcheck
+was hanging the MGED command prompt.  Not 100% sure if this was introduced by
+the refactor or has been there longer - it's probably relatively recent given
+its observed severity - but regardless the issue is present in 7.30.0 so
+definitely user visible.  Probably we got luck in testing after the logic
+refactor.  What seems to be happening is that some aspect of the rtcheck
+callbacks is being called in an order that results in Tcl never getting the
+proper IO notifications to resume interactivity in the main MGED gui -  gdb
+indicates the hanging is occurring in Tcl's threading and events layers.  (It's
+hard pin down - this is one of those situations where running the test case in
+a debugger seems to make the failure less likely to occur.)  To avoid the
+issue, we rework both the drawing and textual callback channels to each be
+independently capable of handling the full shutdown and cleanup process, but
+don't trigger that process in either until both channels have set flags in the
+(now shared) ged_rtcheck data structure indicating they are done.  If and only
+if both flags are set, whichever callback gets there first unhooks both rtcheck
+callbacks from Tcl and finishes the subprocess cleanup.  This will avoid two
+potentially independent callback functions trying to simultaneously remove
+themselves from Tcl's IO callback system.
+
+END
