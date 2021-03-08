@@ -14,3 +14,11 @@ SVN histories.  If a problem should ever be discovered with the Git conversion
 of this history, this repository will preserve the original inputs to allow
 for direct inspection of the original data.
 
+To increase the chances that these older repositories remain accessible, the
+source code to the tools required to work with them has also been directly
+included in the repository:
+
+brlcad_cvs:  uses cvs-1.11.23.tar.bz2
+
+brlcad_svn:  uses subversion
+
